@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+samples/*.m4a
+samples/*.wav
+samples/*.webm
+samples/*.mp3
+!samples/.gitkeep
