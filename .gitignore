@@ -11,3 +11,7 @@ samples/*.wav
 samples/*.webm
 samples/*.mp3
 !samples/.gitkeep
+research_notes/
+reports/
+nights/
+logs/

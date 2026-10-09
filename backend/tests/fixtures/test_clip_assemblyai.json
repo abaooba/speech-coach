@@ -1,0 +1,245 @@
+{
+ "source": "AssemblyAI, disfluencies=true, samples/test-clip.m4a, 2026-10-08",
+ "words": [
+  {
+   "text": "Hey,",
+   "start": 1.287,
+   "end": 1.497
+  },
+  {
+   "text": "so,",
+   "start": 1.723,
+   "end": 2.11
+  },
+  {
+   "text": "um,",
+   "start": 2.417,
+   "end": 2.724
+  },
+  {
+   "text": "basically,",
+   "start": 3.079,
+   "end": 3.692
+  },
+  {
+   "text": "um,",
+   "start": 5.0,
+   "end": 5.436
+  },
+  {
+   "text": "m",
+   "start": 5.78,
+   "end": 5.8
+  },
+  {
+   "text": "my",
+   "start": 5.823,
+   "end": 6.065
+  },
+  {
+   "text": "day's",
+   "start": 6.065,
+   "end": 6.195
+  },
+  {
+   "text": "been",
+   "start": 6.308,
+   "end": 6.437
+  },
+  {
+   "text": "good",
+   "start": 6.55,
+   "end": 6.792
+  },
+  {
+   "text": "so",
+   "start": 6.792,
+   "end": 7.034
+  },
+  {
+   "text": "far.",
+   "start": 7.099,
+   "end": 7.518
+  },
+  {
+   "text": "It",
+   "start": 8.22,
+   "end": 8.316
+  },
+  {
+   "text": "is",
+   "start": 8.316,
+   "end": 8.381
+  },
+  {
+   "text": "10:21",
+   "start": 8.413,
+   "end": 9.027
+  },
+  {
+   "text": "PM.",
+   "start": 9.14,
+   "end": 9.964
+  },
+  {
+   "text": "Um,",
+   "start": 10.352,
+   "end": 10.739
+  },
+  {
+   "text": "I",
+   "start": 10.836,
+   "end": 11.014
+  },
+  {
+   "text": "like",
+   "start": 12.193,
+   "end": 12.371
+  },
+  {
+   "text": "to",
+   "start": 12.371,
+   "end": 12.451
+  },
+  {
+   "text": "play",
+   "start": 12.451,
+   "end": 12.758
+  },
+  {
+   "text": "tennis,",
+   "start": 12.758,
+   "end": 13.453
+  },
+  {
+   "text": "I",
+   "start": 13.647,
+   "end": 13.808
+  },
+  {
+   "text": "play",
+   "start": 13.808,
+   "end": 14.05
+  },
+  {
+   "text": "piano,",
+   "start": 14.05,
+   "end": 14.567
+  },
+  {
+   "text": "um,",
+   "start": 16.098,
+   "end": 16.146
+  },
+  {
+   "text": "and",
+   "start": 16.515,
+   "end": 16.58
+  },
+  {
+   "text": "I,",
+   "start": 16.676,
+   "end": 16.853
+  },
+  {
+   "text": "uh,",
+   "start": 19.327,
+   "end": 19.392
+  },
+  {
+   "text": "and",
+   "start": 19.472,
+   "end": 19.665
+  },
+  {
+   "text": "I,",
+   "start": 19.665,
+   "end": 19.697
+  },
+  {
+   "text": "um,",
+   "start": 19.794,
+   "end": 20.517
+  },
+  {
+   "text": "studying",
+   "start": 22.702,
+   "end": 22.991
+  },
+  {
+   "text": "for",
+   "start": 23.088,
+   "end": 23.184
+  },
+  {
+   "text": "a",
+   "start": 23.184,
+   "end": 23.28
+  },
+  {
+   "text": "stats",
+   "start": 23.28,
+   "end": 23.891
+  },
+  {
+   "text": "quiz",
+   "start": 23.891,
+   "end": 24.116
+  },
+  {
+   "text": "right",
+   "start": 24.293,
+   "end": 24.373
+  },
+  {
+   "text": "now.",
+   "start": 24.389,
+   "end": 24.646
+  },
+  {
+   "text": "Uh,",
+   "start": 26.112,
+   "end": 26.128
+  },
+  {
+   "text": "in",
+   "start": 26.452,
+   "end": 26.5
+  },
+  {
+   "text": "statistics",
+   "start": 26.549,
+   "end": 27.6
+  },
+  {
+   "text": "and,",
+   "start": 27.972,
+   "end": 28.037
+  },
+  {
+   "text": "um,",
+   "start": 28.231,
+   "end": 28.62
+  },
+  {
+   "text": "AP",
+   "start": 28.7,
+   "end": 28.943
+  },
+  {
+   "text": "statistics.",
+   "start": 28.975,
+   "end": 30.254
+  },
+  {
+   "text": "Uh,",
+   "start": 31.451,
+   "end": 31.629
+  },
+  {
+   "text": "yeah.",
+   "start": 31.79,
+   "end": 32.195
+  }
+ ]
+}

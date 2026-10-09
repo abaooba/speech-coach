@@ -1,0 +1,94 @@
+{
+ "tasks": [
+  {
+   "id": "T01",
+   "title": "Metrics module",
+   "brief": "Create backend/metrics.py with pure functions over a list of Word(text, start, end) in seconds: words_per_minute, find_pauses(min_gap=1.5) returning (at, length) tuples, count_fillers returning per-word counts for um/uh/hmm/like/you know/so/basically/actually (phrase 'you know' counts as one), find_repeats (immediate repeats and restarts like 'and I, uh, and I'), pace_windows(window=10s) returning wpm per window, and analyze(words) returning a dict with all of these plus duration and word_count. Load backend/tests/fixtures/test_clip_assemblyai.json in tests; the fixture has 6 um, 3 uh, and three pauses over 1.5 s. Add hand-made word lists for edge cases: empty list, single word, pause at start.",
+   "acceptance": "backend/tests/test_metrics.py exists with at least 10 tests covering every function, all pass; analyze() on the fixture returns filler counts um=6 uh=3 and exactly 3 pauses >= 1.5 s.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T02",
+   "title": "Provider abstraction",
+   "brief": "Create backend/providers/ with base.py defining Word dataclass and a transcribe(audio_bytes, content_type) -> list[Word] protocol; assemblyai.py (upload, create transcript with disfluencies=true, poll until completed, map ms to seconds); deepgram.py (nova-3 with filler_words=true). get_provider() reads STT_PROVIDER env var, default assemblyai. Use httpx. Tests mock httpx with respx or monkeypatching; no network.",
+   "acceptance": "backend/tests/test_providers.py passes with network blocked; both providers return list[Word] from recorded sample responses; get_provider() selects by env var.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T03",
+   "title": "Analyze endpoint",
+   "brief": "Add POST /api/analyze to backend/app.py accepting multipart audio (field 'audio'), calling get_provider().transcribe then metrics.analyze, returning JSON {transcript: [words], metrics: {...}}. Reject empty files and recordings under 5 s with 400 and a clear message. Audio must only live in memory; never write it to disk. Map provider failures to 502 with a friendly message.",
+   "acceptance": "backend/tests/test_api.py covers success (provider mocked), empty upload, too-short recording, and provider failure; all pass.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T04",
+   "title": "Practice screen: record and submit",
+   "brief": "In frontend/, build the practice screen: choose one of three built-in reading passages or a free-talk prompt, big record button, elapsed timer, stop, then upload to /api/analyze and show the JSON result in a simple results panel. Use MediaRecorder; request mic permission on button press, not on page load. Show clear states: idle, recording, uploading, error (mic denied, network). Mobile-first layout, 16px gutters, no horizontal scroll.",
+   "acceptance": "Manual: on localhost in Chrome, a 10 s recording round-trips and shows wpm and filler counts. frontend/app.js has no global leaks beyond `app`. ruff and pytest still pass.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T05",
+   "title": "Results screen",
+   "brief": "Replace the raw JSON panel with a designed results screen: metric cards (wpm, fillers per minute, pauses, longest pause), transcript with filler words highlighted and pause markers inline, and one or two rule-based tips chosen from a small table in frontend/tips.js (e.g. wpm > 180 -> slow down; fillers/min > 6 -> pause instead of um). Clean, consistent styling in styles.css with CSS variables and dark-mode support.",
+   "acceptance": "Manual: results render correctly for the fixture clip; tips change when metrics change (unit test the tip selection in a tiny JS test run with node, or document the manual check).",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T06",
+   "title": "Session history in IndexedDB",
+   "brief": "Save each completed session (date, passage name, metrics, transcript) to IndexedDB in frontend/store.js. Add a History screen listing sessions newest first with date, passage, wpm and fillers per minute; tapping one reopens its results. Add delete for a single session. No audio is stored.",
+   "acceptance": "Manual: a session survives reload; history lists it; delete removes it. store.js exposes save, list, get, remove.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T07",
+   "title": "Progress chart",
+   "brief": "Add a Progress screen with a hand-rolled SVG line chart (no chart library) of wpm, fillers per minute and pause count over sessions, with a toggle between metrics, axis labels, and a readable empty state when fewer than 2 sessions exist.",
+   "acceptance": "Manual: with 5 saved sessions the chart renders three series correctly and scales to phone width.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T08",
+   "title": "Browser-side pause detection with Web Audio",
+   "brief": "HUMAN-OWNED. Ares writes this by hand: sample RMS energy during recording with an AnalyserNode, detect silences over 1.5 s with an adaptive threshold, and reconcile with transcript gaps.",
+   "acceptance": "Written by hand by Ares.",
+   "status": "todo",
+   "owner": "human",
+   "notes": []
+  },
+  {
+   "id": "T09",
+   "title": "Render deployment",
+   "brief": "Add render.yaml for a free web service running uvicorn on $PORT, a start command, and a README section on deploying. Add a /api/health check path to the config. Ensure static files are served with correct cache headers for the PWA.",
+   "acceptance": "render.yaml validates (documented manually); README deploy section complete; tests pass.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T10",
+   "title": "PWA manifest and onboarding",
+   "brief": "Add manifest.json, icons (simple SVG-derived PNGs generated by a script in scripts/), a minimal service worker that caches the app shell only (never API responses), and a one-screen onboarding on first launch explaining what the app measures and that audio is deleted after analysis.",
+   "acceptance": "Manual: installable on iPhone Safari and Android Chrome; onboarding shows once; tests pass.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  }
+ ]
+}
