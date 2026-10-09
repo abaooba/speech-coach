@@ -9,7 +9,7 @@
 
 import json
 import sys
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 QUEUE = Path(__file__).resolve().parent.parent / "tasks" / "queue.json"
@@ -46,7 +46,7 @@ def main(argv: list[str]) -> None:
         t = find(q, argv[1])
         t["status"] = argv[2]
         if len(argv) > 3 and argv[3]:
-            t["notes"].append(f"{date.today().isoformat()}: {argv[3]}")
+            t["notes"].append(f"{datetime.now().astimezone().date().isoformat()}: {argv[3]}")
         save(q)
         return
     if cmd == "reset-doing":
@@ -54,7 +54,7 @@ def main(argv: list[str]) -> None:
         for t in q["tasks"]:
             if t["status"] == "doing":
                 t["status"] = "todo"
-                t["notes"].append(f"{date.today().isoformat()}: {note}")
+                t["notes"].append(f"{datetime.now().astimezone().date().isoformat()}: {note}")
         save(q)
         return
     for t in q["tasks"]:

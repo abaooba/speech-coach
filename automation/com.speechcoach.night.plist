@@ -3,14 +3,14 @@
 <plist version="1.0"><dict>
   <key>Label</key><string>com.speechcoach.night</string>
   <key>ProgramArguments</key><array>
-    <string>/bin/bash</string><string>/Users/arescajas/Desktop/Projects/project/speech-coach/automation/night.sh</string>
+    <string>/bin/bash</string><string>/Users/arescajas/Projects/speech-coach/automation/night.sh</string>
   </array>
-  <key>WorkingDirectory</key><string>/Users/arescajas/Desktop/Projects/project/speech-coach</string>
+  <key>WorkingDirectory</key><string>/Users/arescajas/Projects/speech-coach</string>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>30</integer></dict>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>/Users/arescajas/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key><string>/Users/arescajas</string>
   </dict>
-  <key>StandardOutPath</key><string>/Users/arescajas/Desktop/Projects/project/speech-coach/logs/launchd.out.log</string>
-  <key>StandardErrorPath</key><string>/Users/arescajas/Desktop/Projects/project/speech-coach/logs/launchd.err.log</string>
+  <key>StandardOutPath</key><string>/Users/arescajas/Projects/speech-coach/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/arescajas/Projects/speech-coach/logs/launchd.err.log</string>
 </dict></plist>
