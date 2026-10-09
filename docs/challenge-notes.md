@@ -22,7 +22,7 @@ High school debaters and speech students, starting with my own team.
 
 Write each one down the day it happens: what broke, what you tried, what fixed it.
 
-- (10/8) ...
+- (10/8) Provider test: on a 30 s clip with heavy fillers, AssemblyAI (disfluencies=true) kept 6 um / 3 uh and a stutter restart; Deepgram nova-3 (filler_words=true) kept only 1 um / 2 uh. Chose AssemblyAI. Script: scripts/compare_providers.py
 
 ## Things I learned
 
