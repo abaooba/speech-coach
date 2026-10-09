@@ -89,6 +89,33 @@
    "status": "todo",
    "owner": "agent",
    "notes": []
+  },
+  {
+   "id": "T11",
+   "title": "Error, empty and loading states pass",
+   "brief": "Audit every screen for: mic permission denied, network down, provider 502, empty history, chart with under 2 sessions, upload in progress. Each gets a designed state with a one-line explanation and a retry or next action. Add a small frontend/ui.js helper for showing states consistently.",
+   "acceptance": "Manual: each state can be triggered (document how in frontend/README.md) and looks intentional on phone width; tests pass.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T12",
+   "title": "Passages and tips content",
+   "brief": "Expand frontend/passages.js to six passages (two short debate-style rebuttal paragraphs, two persuasive speech excerpts in the public domain, two tongue-twister style clarity drills) each with a target wpm range. Expand frontend/tips.js to at least 8 rules with thresholds documented in comments.",
+   "acceptance": "Passages render in the picker with target wpm shown; tip rules documented; tests pass.",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
+  },
+  {
+   "id": "T13",
+   "title": "Repo polish for judges",
+   "brief": "Add docstrings to every backend function, a short comment header to each frontend module, a frontend/README.md describing module responsibilities, and update README.md sections: screenshots placeholder list, setup, deploy, tests, AI disclosure link. Do not change behavior.",
+   "acceptance": "ruff passes; pytest passes; README setup steps work from a fresh clone (describe the check).",
+   "status": "todo",
+   "owner": "agent",
+   "notes": []
   }
  ]
 }
