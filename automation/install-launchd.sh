@@ -7,4 +7,4 @@ mkdir -p "$HOME/Library/LaunchAgents"
 launchctl unload "$DST" 2>/dev/null || true
 cp "$SRC" "$DST"
 launchctl load "$DST"
-launchctl list | grep com.speechcoach.night && echo "installed: runs daily at 23:00"
+launchctl list | grep com.speechcoach.night && echo "installed: runs daily at 00:30"

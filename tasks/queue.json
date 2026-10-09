@@ -5,7 +5,7 @@
    "title": "Metrics module",
    "brief": "Create backend/metrics.py with pure functions over a list of Word(text, start, end) in seconds: words_per_minute, find_pauses(min_gap=1.5) returning (at, length) tuples, count_fillers returning per-word counts for um/uh/hmm/like/you know/so/basically/actually (phrase 'you know' counts as one), find_repeats (immediate repeats and restarts like 'and I, uh, and I'), pace_windows(window=10s) returning wpm per window, and analyze(words) returning a dict with all of these plus duration and word_count. Load backend/tests/fixtures/test_clip_assemblyai.json in tests; the fixture has 6 um, 3 uh, and three pauses over 1.5 s. Add hand-made word lists for edge cases: empty list, single word, pause at start.",
    "acceptance": "backend/tests/test_metrics.py exists with at least 10 tests covering every function, all pass; analyze() on the fixture returns filler counts um=6 uh=3 and exactly 3 pauses >= 1.5 s.",
-   "status": "todo",
+   "status": "doing",
    "owner": "agent",
    "notes": []
   },

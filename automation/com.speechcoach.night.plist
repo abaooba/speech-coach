@@ -6,7 +6,7 @@
     <string>/bin/bash</string><string>/Users/arescajas/Desktop/Projects/project/speech-coach/automation/night.sh</string>
   </array>
   <key>WorkingDirectory</key><string>/Users/arescajas/Desktop/Projects/project/speech-coach</string>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>23</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>30</integer></dict>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>/Users/arescajas/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key><string>/Users/arescajas</string>

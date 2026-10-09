@@ -10,7 +10,7 @@ project moving and the author stays the author of the code.
 
 ## Shape
 
-- launchd fires `automation/night.sh` at 23:00 daily.
+- launchd fires `automation/night.sh` at 00:30 daily.
 - The script creates a worktree on branch `night/<date>`, then runs up to
   `MAX_TASKS` (default 3) tasks. Each task is one fresh `claude -p` session
   with a wall-clock timeout (default 40 min) and a dollar cap.

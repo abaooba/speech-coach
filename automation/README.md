@@ -3,7 +3,7 @@
 ## Modes
 | Mode | When | Command |
 |---|---|---|
-| Night (automatic) | 23:00 daily via launchd | installed by `automation/install-launchd.sh` |
+| Night (automatic) | 00:30 daily via launchd | installed by `automation/install-launchd.sh` |
 | Day batch (manual) | weekends, between hands-on blocks | `MAX_TASKS=2 TASK_TIMEOUT=1800 bash automation/night.sh` |
 | Single task | testing or a quick fix | `MAX_TASKS=1 bash automation/night.sh` |
 
@@ -20,7 +20,7 @@ Pass the date suffix when there were several runs that day, e.g. `approve.sh 202
 ## Stop everything
 ```bash
 touch STOP                       # loop exits at the next task boundary
-launchctl unload ~/Library/LaunchAgents/com.speechcoach.night.plist   # disable 23:00 job
+launchctl unload ~/Library/LaunchAgents/com.speechcoach.night.plist   # disable nightly job
 ```
 Remove the STOP file to resume.
 
