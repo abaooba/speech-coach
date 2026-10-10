@@ -65,3 +65,47 @@ test("percentile interpolates between the ranks of a sorted list", () => {
   assert.equal(pauses.percentile([7], 90), 7);
   assert.equal(pauses.percentile([], 50), 0);
 });
+
+test("findSilences reports one 3 s silence in a loud, quiet, loud take", () => {
+  const pauses = load();
+  const take = series([seconds(2, 0.3), seconds(3, 0.01), seconds(3, 0.3)]);
+  assert.deepEqual(plain(pauses.findSilences(take)), [[2, 3]]);
+  assert.deepEqual(plain(pauses.findSilences(take, 3.5)), [], "shorter than minSeconds");
+
+  // The threshold adapts to the take: a quiet room six times softer gives the same answer.
+  const soft = take.map((sample) => ({ t: sample.t, rms: sample.rms / 6 }));
+  assert.deepEqual(plain(pauses.findSilences(soft)), [[2, 3]]);
+});
+
+test("findSilences counts a dip of exactly 1.5 s and ignores one of 1.45 s", () => {
+  const pauses = load();
+  const atThreshold = series([seconds(2, 0.3), [30, 0.01], seconds(2, 0.3)]);
+  assert.deepEqual(plain(pauses.findSilences(atThreshold)), [[2, 1.5]]);
+  const justUnder = series([seconds(2, 0.3), [29, 0.01], seconds(2, 0.3)]);
+  assert.deepEqual(plain(pauses.findSilences(justUnder)), []);
+});
+
+test("findSilences finds nothing in a noisy take whose dips are all short", () => {
+  const pauses = load();
+  const runs = [];
+  for (let i = 0; i < 20; i += 1) {
+    runs.push([10, 0.3], [5, 0.01]);
+  }
+  assert.deepEqual(plain(pauses.findSilences(series(runs))), []);
+});
+
+test("findSilences returns [] for fewer than 10 samples or a flat signal", () => {
+  const pauses = load();
+  assert.deepEqual(plain(pauses.findSilences([])), []);
+  assert.deepEqual(plain(pauses.findSilences(series([[9, 0]]))), [], "nine quiet samples");
+  assert.deepEqual(plain(pauses.findSilences(series([seconds(10, 0)]))), [], "all zero");
+  assert.deepEqual(plain(pauses.findSilences(series([seconds(10, 0.2)]))), [], "all equal");
+});
+
+test("findSilences measures a run at either edge of the take by the samples it has", () => {
+  const pauses = load();
+  const quietStart = series([seconds(2, 0.01), seconds(3, 0.3)]);
+  assert.deepEqual(plain(pauses.findSilences(quietStart)), [[0, 2]]);
+  const quietEnd = series([seconds(3, 0.3), seconds(2, 0.01)]);
+  assert.deepEqual(plain(pauses.findSilences(quietEnd)), [[3, 1.95]]);
+});
