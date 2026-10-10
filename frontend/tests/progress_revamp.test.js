@@ -599,7 +599,7 @@ test("a legend under the fillers chart explains the band; no other metric has on
   assert.ok(legend, "the fillers chart has a legend");
   assert.equal(legend.tagName, "p");
   assert.equal(body.children[body.children.indexOf(svg) + 1], legend, "right under the chart");
-  assert.equal(fullText(legend), "Shaded band: target under 3");
+  assert.equal(fullText(legend), "Target under 3", "the micro label from DESIGN.md section 8");
   const swatch = legend.children[0];
   assert.equal(swatch.tagName, "span");
   assert.equal(swatch.className, "chart__swatch");

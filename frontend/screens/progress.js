@@ -162,7 +162,7 @@
   const CHANGE_LABEL = "From your average";
   const NO_CHANGE = "No change";
   const NOT_MEASURED = "Not measured";
-  const LEGEND_PREFIX = "Shaded band: target under ";
+  const LEGEND_PREFIX = "Target under ";
   const LABEL_OVER = " over ";
   const LABEL_LATEST = " sessions, latest ";
   const CAPTION_SUFFIX = " by session";
@@ -772,7 +772,8 @@
   }
 
   // Words for the target band under the chart, so color is not its only cue (DESIGN.md section
-  // 9): "Shaded band: target under 3". The swatch repeats the band's fill and dashed edge.
+  // 9): the micro label "Target under 3" after a swatch that repeats the band's fill and dashed
+  // edge.
   function buildLegend(target) {
     return app.ui.el("p", { class: "chart__legend num" }, [
       app.ui.el("span", { class: "chart__swatch", "aria-hidden": "true" }),

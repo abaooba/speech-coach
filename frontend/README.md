@@ -291,7 +291,7 @@ Then open http://127.0.0.1:8000/#/progress.
 2. Tap "Fillers": that option is selected, the heading reads "Fillers per minute", the line
    and dots turn amber, the y labels read 0, 2, 4, 6, 8, 10 and the dots fall 4, 3, 2, 1, 1.
    A green band shades 0 to 3 with a dashed line at 3, and under the chart a legend with a
-   swatch reads "Shaded band: target under 3". The cells read 1.0 /min, 1.0 /min and "1.5
+   swatch of the band reads "Target under 3". The cells read 1.0 /min, 1.0 /min and "1.5
    fewer" with a down triangle; the ring sits on the last dot (ties go to the most recent take).
    Tap "Pauses": purple, the heading "Mid-sentence pauses", dots at 1, 2, 2, 0, 1, the ring on
    the 0, and "No change" with a dash. Tap "Clean": green, "Longest clean stretch"; these
