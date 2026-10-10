@@ -199,6 +199,11 @@ test("cards share a four-row subgrid inside @supports, with a flex-column fallba
   );
   assert.deepEqual(rows, ["1", "2", "3", "4"]);
   assert.equal(ruleFor(".metric-card__value", SUBGRID_SUPPORTS)["align-self"], "end");
+  assert.equal(
+    ruleFor(".metric-card__hint", SUBGRID_SUPPORTS)["align-self"],
+    "start",
+    "a one-line hint stays under its value when the other card's hint wraps",
+  );
 });
 
 test("under 360px the cards pad --s-3 and the values drop to --fs-metric-narrow", () => {

@@ -1,9 +1,7 @@
 /* screens/results.js: app.screens.results, the Results screen after a take (DESIGN.md sections
-   1 and 6). Two pure helpers do the thinking without the DOM: summarize(session) turns the
-   app.delivery report into the card numbers, hints and time line, and buildTranscriptPlan(words,
-   pauses) lays the transcript out with each filler's kind and the pause markers. show({id})
-   loads the session from app.store and builds the meta line, the metric grid, the highlighted
-   transcript with its legend, the tips from app.tips and the Record again / History actions. */
+   1, 6 and 8). Pure helpers do the thinking without the DOM: summarize, headlineFor,
+   compareWithPrevious and buildTranscriptPlan. show({id}) loads the take and the one before it
+   from app.store and draws the meta line, headline, cards, transcript, tips and actions. */
 (function () {
   "use strict";
 
@@ -63,6 +61,33 @@
   const STRENGTH_ICON = "check";
   const FOCUS_ICON = "arrow-right";
   const HEADLINE_ICON_SIZE = 16;
+
+  // "vs last take" lines, one per card in card order: the summary key, the card's precision
+  // (decimal places) and the words for a rise or a fall. The clean stretch compares only
+  // between two takes with words; without words a take has no clean stretch to measure.
+  const DELTAS = [
+    { key: "wpm", digits: 0, unit: "", up: "faster", down: "slower" },
+    { key: "fillersPerMinute", digits: 1, unit: "", up: "more", down: "fewer" },
+    { key: "pauseCount", digits: 0, unit: "", up: "more", down: "fewer" },
+    {
+      key: "cleanStretchSeconds",
+      digits: 1,
+      unit: " s",
+      up: "longer",
+      down: "shorter",
+      needsWords: true,
+    },
+  ];
+  const UP = "up";
+  const DOWN = "down";
+  const SAME = "same";
+  const NO_CHANGE = "No change";
+  // Hidden endings that finish each line as a sentence for screen readers.
+  const THAN_LAST_TAKE = " than your last take";
+  const FROM_LAST_TAKE = " from your last take";
+  const DELTA_ICONS = { [UP]: "triangle-up", [DOWN]: "triangle-down", [SAME]: "dash" };
+  const DELTA_ICON_SIZE = 12;
+  const DELTA_NOTE = "Arrows compare with your last take.";
 
   // Fixed copy for the bad-id state and the two actions (DESIGN.md sections 1 and 8).
   const NOT_FOUND_TITLE = "Session not found";
@@ -226,7 +251,7 @@
     if (!previousSummary || !hasWords(summary) || !hasWords(previousSummary)) {
       return false;
     }
-    const drop = roundToTenth(previousSummary.fillersPerMinute - summary.fillersPerMinute);
+    const drop = roundTo(previousSummary.fillersPerMinute - summary.fillersPerMinute, 1);
     return drop >= MIN_FILLER_DROP;
   }
 
@@ -241,13 +266,45 @@
     return Array.isArray(kinds) && kinds.length > 0;
   }
 
+  // How each card moved since the last take: null without a last take, otherwise one entry
+  // per card in card order, {direction: "up" | "down" | "same", text} or null for a card the
+  // two takes cannot share. Each difference is rounded to its card's precision before the
+  // direction is chosen, so 3.1 against 1.9 reads "1.2 more" and a change the card cannot show
+  // reads "No change". Pure.
+  function compareWithPrevious(summary, previousSummary) {
+    if (!previousSummary) {
+      return null;
+    }
+    const bothHaveWords = hasWords(summary) && hasWords(previousSummary);
+    return DELTAS.map((delta) => {
+      if (delta.needsWords && !bothHaveWords) {
+        return null;
+      }
+      return deltaFor(summary[delta.key] - previousSummary[delta.key], delta);
+    });
+  }
+
+  function deltaFor(difference, delta) {
+    if (!Number.isFinite(difference)) {
+      return null;
+    }
+    const rounded = roundTo(difference, delta.digits);
+    if (rounded === 0) {
+      return { direction: SAME, text: NO_CHANGE };
+    }
+    const direction = rounded > 0 ? UP : DOWN;
+    return { direction, text: Math.abs(rounded) + delta.unit + " " + delta[direction] };
+  }
+
+  // Rounds half away from zero, so a rise and a fall of the same size read the same.
+  function roundTo(value, digits) {
+    const factor = 10 ** digits;
+    return (Math.sign(value) * Math.round(Math.abs(value) * factor)) / factor;
+  }
+
   // "4.9 seconds", or "1 second".
   function secondsText(seconds) {
     return seconds === 1 ? "1 second" : seconds + " seconds";
-  }
-
-  function roundToTenth(value) {
-    return Math.round(value * 10) / 10;
   }
 
   function normalizeWord(text) {
@@ -299,16 +356,19 @@
     return String((word && word.text) || "");
   }
 
+  // Both reads finish before the one ticket check, so a slow earlier visit can never paint over
+  // a newer one, whichever read is the slow one.
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
+    const previous = session === undefined ? null : await loadPreviousSession(session);
     if (ticket !== showCount) {
       return;
     }
     if (session === undefined) {
       renderNotFound();
     } else {
-      renderSession(session);
+      renderSession(session, previous);
     }
   }
 
@@ -325,6 +385,31 @@
     }
   }
 
+  // The take saved just before this one, or null. app.store.list() is newest first, so that is
+  // the first listed session created earlier. A store without list(), or one that cannot be
+  // read, means the cards show no comparison, never an error.
+  async function loadPreviousSession(session) {
+    if (!app.store || typeof app.store.list !== "function") {
+      return null;
+    }
+    try {
+      const sessions = await app.store.list();
+      return earlierSession(sessions, session);
+    } catch {
+      return null;
+    }
+  }
+
+  function earlierSession(sessions, session) {
+    if (!Array.isArray(sessions)) {
+      return null;
+    }
+    const earlier = sessions.find(
+      (other) => Boolean(other) && other.createdAt < session.createdAt,
+    );
+    return earlier || null;
+  }
+
   // Nothing to release: show() rebuilds the body from the stored session every time.
   function hide() {}
 
@@ -339,21 +424,28 @@
     });
   }
 
-  // Top to bottom: meta line, four cards, the transcript (skipped when the session has no
-  // words; pause markers alone would mean nothing), the tips (skipped when there are none),
-  // the two actions.
-  function renderSession(session) {
+  // Top to bottom: meta line, headline, the four cards (each with its "vs last take" line when
+  // there is a last take, and then one note under the grid), the transcript (skipped when the
+  // session has no words; pause markers alone would mean nothing), the tips (skipped when there
+  // are none), the two actions. The last take is summarized for the comparison only: no tips
+  // are chosen for it.
+  function renderSession(session, previous) {
     const summary = summarize(session);
+    const previousSummary = previous ? summarize(previous) : null;
+    const deltas = compareWithPrevious(summary, previousSummary);
     const metrics = session.metrics || {};
     const plan = buildTranscriptPlan(session.transcript, metrics.pauses);
-    const hasWords = plan.some((item) => item.type === WORD_ITEM);
+    const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const tips = selectTips(summary.report, summary.target);
 
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
-    body.appendChild(buildHeadline(headlineFor(summary, null)));
-    body.appendChild(buildMetricGrid(summary));
-    if (hasWords) {
+    body.appendChild(buildHeadline(headlineFor(summary, previousSummary)));
+    body.appendChild(buildMetricGrid(summary, deltas));
+    if (deltas) {
+      body.appendChild(app.ui.el("p", { class: "metric-grid__note", text: DELTA_NOTE }));
+    }
+    if (hasTranscript) {
       body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
       body.appendChild(buildLegend(summary.topHabit));
       body.appendChild(buildTranscript(plan));
@@ -456,30 +548,44 @@
     ]);
   }
 
-  // Exactly four cards, in the order DESIGN.md fixes; the pace and fillers cards carry hints.
-  function buildMetricGrid(summary) {
-    return app.ui.el("div", { class: "metric-grid" }, [
-      metricCard(WPM_LABEL, summary.wpm, WPM_UNIT, summary.paceHint),
-      metricCard(FILLERS_LABEL, summary.fillersPerMinute, FILLERS_UNIT, summary.fillersHint),
-      metricCard(PAUSES_LABEL, summary.pauseCount),
-      metricCard(CLEAN_STRETCH_LABEL, summary.cleanStretchSeconds, CLEAN_STRETCH_UNIT),
-    ]);
+  // Exactly four cards, in the order DESIGN.md fixes; the pace and fillers cards carry hints,
+  // and with a last take each card that can be compared carries its delta line.
+  function buildMetricGrid(summary, deltas) {
+    const cards = [
+      { label: WPM_LABEL, value: summary.wpm, unit: WPM_UNIT, hint: summary.paceHint },
+      {
+        label: FILLERS_LABEL,
+        value: summary.fillersPerMinute,
+        unit: FILLERS_UNIT,
+        hint: summary.fillersHint,
+      },
+      { label: PAUSES_LABEL, value: summary.pauseCount },
+      { label: CLEAN_STRETCH_LABEL, value: summary.cleanStretchSeconds, unit: CLEAN_STRETCH_UNIT },
+    ];
+    return app.ui.el(
+      "div",
+      { class: "metric-grid" },
+      cards.map((card, index) => metricCard(card, deltas ? deltas[index] : null)),
+    );
   }
 
   // The unit sits inside the value line, after a space, so "162 wpm" reads as one phrase and
   // the small unit shares the big number's baseline. The line never wraps (styles.css), so the
   // unit cannot drop below its number.
-  function metricCard(label, value, unit, hint) {
-    const valueParts = [String(value)];
-    if (unit) {
-      valueParts.push(" ", app.ui.el("span", { class: "metric-card__unit", text: unit }));
+  function metricCard(card, delta) {
+    const valueParts = [String(card.value)];
+    if (card.unit) {
+      valueParts.push(" ", app.ui.el("span", { class: "metric-card__unit", text: card.unit }));
     }
     const parts = [
-      app.ui.el("div", { class: "metric-card__label", text: label }),
+      app.ui.el("div", { class: "metric-card__label", text: card.label }),
       app.ui.el("div", { class: "metric-card__value num" }, valueParts),
     ];
-    if (hint) {
-      parts.push(hintLine(hint));
+    if (card.hint) {
+      parts.push(hintLine(card.hint));
+    }
+    if (delta) {
+      parts.push(deltaLine(delta));
     }
     return app.ui.el("div", { class: "metric-card" }, parts);
   }
@@ -491,6 +597,20 @@
       "div",
       { class: "metric-card__hint metric-card__hint--" + hint.tone, text: hint.text },
       [app.ui.icon(HINT_ICONS[hint.tone], HINT_ICON_SIZE)],
+    );
+  }
+
+  // "12 slower", then a hidden " than your last take" so the line reads as a sentence, then
+  // the triangle or dash, which CSS draws first. Its own class, never the hint's.
+  function deltaLine(delta) {
+    const ending = delta.direction === SAME ? FROM_LAST_TAKE : THAN_LAST_TAKE;
+    return app.ui.el(
+      "div",
+      { class: "metric-card__delta metric-card__delta--" + delta.direction, text: delta.text },
+      [
+        app.ui.el("span", { class: "sr-only", text: ending }),
+        app.ui.icon(DELTA_ICONS[delta.direction], DELTA_ICON_SIZE),
+      ],
     );
   }
 
@@ -511,5 +631,13 @@
     ]);
   }
 
-  app.screens.results = { mount, show, hide, summarize, buildTranscriptPlan, headlineFor };
+  app.screens.results = {
+    mount,
+    show,
+    hide,
+    summarize,
+    buildTranscriptPlan,
+    headlineFor,
+    compareWithPrevious,
+  };
 })();
