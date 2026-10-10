@@ -173,3 +173,45 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
 6. Narrow the window to 320px: the stats move under the title and date, "Delete" and the
    "Delete? Yes / No" prompt stay on the row, no horizontal scroll, no console errors. At
    640px each row is a single line.
+
+**Progress (about one minute).** Needs two saved sessions; a real trend needs more. Seed five
+with varied numbers, one per day over the last five days: open DevTools on the app and paste
+this loop into the console (each session lasts one minute, so the `um` count is also the
+fillers-per-minute value, and `pauses` is the pause count):
+
+```js
+for (const [daysAgo, wpm, um, pauses] of [[5,128,4,1],[4,141,3,2],[3,137,2,2],[2,152,1,0],[1,158,1,1]]) {
+  await app.store.save({createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString(), passageId:'free-talk', passageTitle:'Free talk', durationSeconds:60, metrics:{words_per_minute:wpm, duration:60, word_count:wpm, fillers:{um}, pauses:Array.from({length:pauses}, (_, k) => [10 + 10 * k, 2]), repeats:[], pace_windows:[]}, transcript:[]})
+}
+```
+
+Then open http://127.0.0.1:8000/#/progress.
+
+1. Under the "Progress" heading: three chips, "Words per minute" (selected), "Fillers per
+   minute" and "Pauses", then the chart: five dots joined by a blue line, four grey gridlines
+   with the labels 100, 120, 140, 160 on the left, and 1 to 5 under the dots. Session 1 is
+   the oldest, on the left; the line climbs from 128 to 158 with a dip at 3. The Progress
+   nav item is highlighted.
+
+2. Tap "Fillers per minute": that chip is selected, the line and dots turn amber, the y labels
+   read 0, 3, 7, 10 and the dots fall 4, 3, 2, 1, 1. Tap "Pauses": purple, dots at 1, 2, 2,
+   0, 1. Tap "Words per minute": blue again. Open History and come back: the chip you chose
+   is still selected.
+
+3. In the Elements panel the `<svg class="chart">` has `role="img"` and an `aria-label` such
+   as "Words per minute over 5 sessions, latest 158"; under it a visually hidden table lists
+   one row per session (number, date, value). A screen reader reads the table.
+
+4. Run the seed loop a second time (ten sessions): every session still gets a dot, but the
+   x labels thin to 1, 3, 5, 7, 9.
+
+5. Narrow the window to 320px: the chart fills the width with no horizontal scroll and the
+   labels stay readable; at 640px it scales up with the column. Switch the OS theme (or
+   DevTools "Emulate CSS prefers-color-scheme: dark"): gridlines, labels and all three line
+   colors stay visible.
+
+6. Empty state: delete sessions in History until one is left (or run
+   `indexedDB.deleteDatabase('speech-coach')`, reload and save one session with the store
+   check above), then open `#/progress`. The block built by `app.ui.renderState` shows "Need
+   two sessions" / "Record one more to see a trend." with a "Record" button that opens
+   Practice.
