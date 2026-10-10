@@ -140,3 +140,36 @@ first; the hash is then `#/results/<id>`.
    scroll, no console errors. At 640px the four cards share one row. Switch the OS theme
    (or DevTools "Emulate CSS prefers-color-scheme: dark"): amber and purple tokens stay
    readable on both backgrounds.
+
+**History (about one minute).** Needs two saved sessions: run the Practice happy path twice,
+or save two with the store check above. Then open http://127.0.0.1:8000/#/history.
+
+1. Under the "History" heading, one row per session, newest first: the passage title over
+   the date on the left, the stats on the right as `152 wpm · 3.1 per min` (the same numbers
+   as that session's first two Results cards), and a "Delete" button. The History nav item
+   is highlighted.
+
+2. Tap a row: the hash becomes `#/results/<id>` and Results shows that session. Use the
+   browser's back button to return.
+
+3. Tap "Delete": it becomes "Delete?" with "Yes" and "No". Tap "No": "Delete" comes back and
+   the row stays. Tap "Delete" on one row, then on another: the first row's "Delete" comes
+   back on its own, so only one row asks at a time.
+
+4. Tap "Delete", then "Yes": the row disappears and the others keep their order. In the
+   console:
+
+   ```js
+   await app.store.list()
+   ```
+
+   no longer includes that session.
+
+5. Empty state: delete the remaining sessions through the UI, or run
+   `indexedDB.deleteDatabase('speech-coach')` in the console and reload. The empty state
+   built by `app.ui.renderState` shows "No sessions yet" / "Your first recording will show
+   up here." with a "Record" button that opens Practice.
+
+6. Narrow the window to 320px: the stats move under the title and date, "Delete" and the
+   "Delete? Yes / No" prompt stay on the row, no horizontal scroll, no console errors. At
+   640px each row is a single line.
