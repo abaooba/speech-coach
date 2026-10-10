@@ -520,6 +520,48 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   color: var(--warn);
 }
 
+/* Section titles for the transcript and the tips; the section gap sits above each one. */
+.results__heading {
+  margin-top: var(--s-6);
+}
+
+/* Transcript: a body-size paragraph; anywhere-wrapping keeps a long token inside 320px. */
+.transcript {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-body);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.tok--filler {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-tok);
+  background: var(--filler-bg);
+  color: var(--filler);
+  font-weight: 600;
+}
+
+/* A pause marker is a small pill between words, not a word: inline-block, micro type. */
+.tok--pause {
+  display: inline-block;
+  margin: 0 var(--s-1);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--pause-bg);
+  color: var(--pause);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.tip-card {
+  margin-top: var(--s-3);
+  padding: var(--s-4);
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-card);
+}
+
 .results__actions {
   display: flex;
   flex-direction: column;
@@ -527,7 +569,105 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   margin-top: var(--s-6);
 }
 
-/* 9. Reduced motion */
+/* 9. History screen: session list and rows */
+.session-list {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+}
+
+/* The divider sits on the row, so it runs under the Delete button as well as the text. */
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The open button fills the row beside Delete and may wrap: the title column keeps 160px
+   before the stats drop to their own line, so a 320px screen never scrolls sideways. */
+.session-row__open {
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-row__text {
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-row__title {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.session-row__date {
+  margin-top: var(--s-1);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.session-row__stats {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Delete, and the Yes / No that replace it, keep the 48px button height but take the 12px side
+   padding so a row still fits at 320px while it is confirming. */
+.session-row .btn {
+  flex: none;
+  padding: 0 var(--s-3);
+}
+
+.session-row__confirm {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* 10. Progress screen: the line chart */
+/* The viewBox is 320 x 200, so the chart scales with the column and never scrolls sideways. */
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: var(--s-4);
+}
+
+/* Axis labels: micro type in the muted color (set on each <text> node); tabular digits keep
+   the y labels lined up on their right edge. */
+.chart text {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 11. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spinner,
   .rec-dot {
