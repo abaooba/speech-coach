@@ -91,3 +91,24 @@ block below is built by `app.ui.renderState`; the timer keeps its last value thr
 
 Screen-reader users hear "Recording started", the clock every 30 seconds, "Recording
 stopped, N seconds" and "Results ready" through the live region.
+
+**Results (about one minute).** Needs one saved session, so run the Practice happy path
+first; the hash is then `#/results/<id>`.
+
+1. Under the "Results" heading: a muted line with the passage title and the date, then
+   exactly four cards in this order: "Words per minute", "Fillers per minute", "Pauses over
+   1.5 s", "Longest pause". The first card's hint reads "Target lo to hi" in green when the
+   pace is inside the passage's range, or "Slow down" / "Speed up" in amber outside it; the
+   numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to 150,
+   the rebuttal 150 to 170, Free talk 140 to 160). No nav item is highlighted.
+
+2. Tap "Record again": Practice opens in idle. Use the browser's back button to return, then
+   tap "History": the hash becomes `#/history`.
+
+3. Session not found: open http://127.0.0.1:8000/#/results/nope. The empty state built by
+   `app.ui.renderState` shows "Session not found" / "It may have been deleted." with a
+   "History" button that goes to `#/history`. The same block appears for `#/results` with
+   no id, and for a session id that was deleted.
+
+4. Narrow the window to 320px (DevTools device toolbar): two cards per row, no horizontal
+   scroll, no console errors. At 640px the four cards share one row.
