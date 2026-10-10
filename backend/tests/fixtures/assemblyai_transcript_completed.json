@@ -1,0 +1,17 @@
+{
+ "source": "AssemblyAI GET /v2/transcript/{id} once status=completed, disfluencies=true, samples/test-clip.m4a, trimmed to the first eight words",
+ "id": "transcript-abc123",
+ "status": "completed",
+ "audio_url": "https://cdn.assemblyai.com/upload/fake-upload-token",
+ "text": "Hey, so, um, basically, um, m my day's",
+ "words": [
+  {"text": "Hey,", "start": 1287, "end": 1497, "confidence": 0.98},
+  {"text": "so,", "start": 1723, "end": 2110, "confidence": 0.97},
+  {"text": "um,", "start": 2417, "end": 2724, "confidence": 0.91},
+  {"text": "basically,", "start": 3079, "end": 3692, "confidence": 0.99},
+  {"text": "um,", "start": 5000, "end": 5436, "confidence": 0.9},
+  {"text": "m", "start": 5780, "end": 5800, "confidence": 0.4},
+  {"text": "my", "start": 5823, "end": 6065, "confidence": 0.99},
+  {"text": "day's", "start": 6065, "end": 6195, "confidence": 0.98}
+ ]
+}

@@ -1,0 +1,29 @@
+{
+ "source": "Deepgram POST /v1/listen, model=nova-3, filler_words=true, punctuate=true, samples/test-clip.m4a, trimmed to the first six words",
+ "metadata": {
+  "request_id": "req-fake-1234",
+  "model_info": {"name": "nova-3"},
+  "duration": 32.5,
+  "channels": 1
+ },
+ "results": {
+  "channels": [
+   {
+    "alternatives": [
+     {
+      "transcript": "Hey, so, um, basically, um, my",
+      "confidence": 0.97,
+      "words": [
+       {"word": "hey", "start": 1.28, "end": 1.52, "confidence": 0.98, "punctuated_word": "Hey,"},
+       {"word": "so", "start": 1.72, "end": 2.08, "confidence": 0.96, "punctuated_word": "so,"},
+       {"word": "um", "start": 2.4, "end": 2.72, "confidence": 0.9, "punctuated_word": "um,"},
+       {"word": "basically", "start": 3.04, "end": 3.68, "confidence": 0.99, "punctuated_word": "basically,"},
+       {"word": "um", "start": 5.04, "end": 5.44, "confidence": 0.88, "punctuated_word": "um,"},
+       {"word": "my", "start": 5.84, "end": 6.08, "confidence": 0.99, "punctuated_word": "my"}
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}
