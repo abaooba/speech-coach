@@ -650,7 +650,24 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   white-space: nowrap;
 }
 
-/* 10. Reduced motion */
+/* 10. Progress screen: the line chart */
+/* The viewBox is 320 x 200, so the chart scales with the column and never scrolls sideways. */
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: var(--s-4);
+}
+
+/* Axis labels: micro type in the muted color (set on each <text> node); tabular digits keep
+   the y labels lined up on their right edge. */
+.chart text {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 11. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spinner,
   .rec-dot {
