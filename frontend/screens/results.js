@@ -1,7 +1,8 @@
 /* screens/results.js: app.screens.results, the Results screen after a take (DESIGN.md sections
    1, 6 and 8). Pure helpers do the thinking without the DOM: summarize, headlineFor,
-   compareWithPrevious and buildTranscriptPlan. show({id}) loads the take and the one before it
-   from app.store and draws the meta line, headline, cards, transcript, tips and actions. */
+   compareWithPrevious, timelineSegments and buildTranscriptPlan. show({id}) loads the take and
+   the one before it from app.store and draws the meta line, headline, cards, speech timeline,
+   transcript, tips and actions. */
 (function () {
   "use strict";
 
@@ -88,6 +89,45 @@
   const DELTA_ICONS = { [UP]: "triangle-up", [DOWN]: "triangle-down", [SAME]: "dash" };
   const DELTA_ICON_SIZE = 12;
   const DELTA_NOTE = "Arrows compare with your last take.";
+
+  // The speech timeline's strip, in viewBox units: 320 wide and 40 tall, stretched to the
+  // column. The track sits inside the box; filler ticks run 4 units past it at both ends, so
+  // they read as taller than the track. Every color is a token string, so both themes apply.
+  const TIMELINE_TITLE = "Speech timeline";
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const STRIP = Object.freeze({
+    width: 320,
+    height: 40,
+    trackY: 6,
+    trackHeight: 28,
+    trackRadius: 4,
+    tickY: 2,
+    tickHeight: 36,
+    tickWidth: 2,
+    edgeHeight: 3,
+    minBlockWidth: 2,
+  });
+  const STRIP_COLORS = Object.freeze({
+    track: "var(--surface)",
+    trackEdge: "var(--border)",
+    clean: "var(--ok-bg)",
+    cleanEdge: "var(--ok)",
+    pause: "var(--pause)",
+    filler: "var(--filler)",
+  });
+  // Coordinates keep two decimals: a hundredth of a unit is far below a pixel.
+  const COORD_SCALE = 100;
+  const LEGEND_KEYS = [
+    ["filler", "Filler"],
+    ["pause", "Mid-sentence pause"],
+    ["clean", "Clean stretch"],
+  ];
+  // The hidden list of moments, read in time order: "Filler “um” at 0:02".
+  const MOMENT = Object.freeze({
+    filler: (word, at) => "Filler “" + word + "” at " + at,
+    pause: (at, seconds) => "Mid-sentence pause at " + at + ", " + seconds + " seconds",
+    clean: (from, to, seconds) => "Clean stretch from " + from + " to " + to + ", " + seconds,
+  });
 
   // Fixed copy for the bad-id state and the two actions (DESIGN.md sections 1 and 8).
   const NOT_FOUND_TITLE = "Session not found";
@@ -296,6 +336,53 @@
     return { direction, text: Math.abs(rounded) + delta.unit + " " + delta[direction] };
   }
 
+  // Where the take's moments fall on the speech timeline: positions from 0 (the first word) to
+  // 1 (the last), each with its recording-time clock (`time`), for every filler, the
+  // mid-sentence pauses the card counts and the clean stretch when there is one. Null for a
+  // take without words or without speaking time. Pure.
+  function timelineSegments(report) {
+    const start = report ? report.speechStart : null;
+    const seconds = report ? report.speakingSeconds : 0;
+    if (!Number.isFinite(start) || !(seconds > 0)) {
+      return null;
+    }
+    const position = (time) => clamp01((time - start) / seconds);
+    const fillers = listOf(report.fillers).map((filler) => ({
+      at: position(filler.start),
+      time: filler.start,
+      text: filler.text,
+      kind: filler.kind,
+    }));
+    const pauses = listOf(report.pauses)
+      .filter((pause) => pause.midSentence)
+      .map((pause) => ({
+        from: position(pause.at),
+        to: position(pause.at + pause.length),
+        time: pause.at,
+        seconds: pause.length,
+      }));
+    const clean = report.cleanStretch;
+    const cleanStretch =
+      clean && clean.seconds > 0
+        ? {
+            from: position(clean.start),
+            to: position(clean.end),
+            time: clean.start,
+            endTime: clean.end,
+            seconds: clean.seconds,
+          }
+        : null;
+    return { start, seconds, fillers, pauses, cleanStretch };
+  }
+
+  function listOf(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function clamp01(value) {
+    return Math.min(1, Math.max(0, value));
+  }
+
   // Rounds half away from zero, so a rise and a fall of the same size read the same.
   function roundTo(value, digits) {
     const factor = 10 ** digits;
@@ -425,10 +512,10 @@
   }
 
   // Top to bottom: meta line, headline, the four cards (each with its "vs last take" line when
-  // there is a last take, and then one note under the grid), the transcript (skipped when the
-  // session has no words; pause markers alone would mean nothing), the tips (skipped when there
-  // are none), the two actions. The last take is summarized for the comparison only: no tips
-  // are chosen for it.
+  // there is a last take, and then one note under the grid), the speech timeline and the
+  // transcript (both skipped when the session has no words; pause markers alone would mean
+  // nothing), the tips (skipped when there are none), the two actions. The last take is
+  // summarized for the comparison only: no tips are chosen for it.
   function renderSession(session, previous) {
     const summary = summarize(session);
     const previousSummary = previous ? summarize(previous) : null;
@@ -436,6 +523,7 @@
     const metrics = session.metrics || {};
     const plan = buildTranscriptPlan(session.transcript, metrics.pauses);
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
+    const segments = hasTranscript ? timelineSegments(summary.report) : null;
     const tips = selectTips(summary.report, summary.target);
 
     app.ui.clear(body);
@@ -444,6 +532,9 @@
     body.appendChild(buildMetricGrid(summary, deltas));
     if (deltas) {
       body.appendChild(app.ui.el("p", { class: "metric-grid__note", text: DELTA_NOTE }));
+    }
+    if (segments) {
+      body.appendChild(buildTimeline(segments));
     }
     if (hasTranscript) {
       body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
@@ -614,6 +705,198 @@
     );
   }
 
+  // The speech timeline section: heading, strip, axis, legend and the hidden list of moments.
+  function buildTimeline(segments) {
+    return app.ui.el("section", { class: "timeline" }, [
+      sectionTitle(TIMELINE_TITLE),
+      timelineStrip(segments),
+      timelineAxis(segments),
+      timelineLegend(),
+      timelineMoments(segments),
+    ]);
+  }
+
+  // Bottom layer first: the track, the clean-stretch band and its base line, the pause blocks,
+  // then the filler ticks on top.
+  function timelineStrip(segments) {
+    const strip = svgEl("svg", {
+      class: "timeline__strip",
+      viewBox: "0 0 " + STRIP.width + " " + STRIP.height,
+      preserveAspectRatio: "none",
+      role: "img",
+      "aria-label": timelineLabel(segments),
+    });
+    [
+      stripTrack(),
+      ...stripCleanStretch(segments.cleanStretch),
+      ...segments.pauses.map(stripPause),
+      ...segments.fillers.map(stripFiller),
+    ].forEach((mark) => strip.appendChild(mark));
+    return strip;
+  }
+
+  // The track runs from the first word to the last. Its 1px edge is inset half a unit so the
+  // strip's own edge never clips it, and it stays 1px however wide the column is.
+  function stripTrack() {
+    return svgEl("rect", {
+      class: "timeline__track",
+      x: "0.5",
+      y: coord(STRIP.trackY + 0.5),
+      width: coord(STRIP.width - 1),
+      height: coord(STRIP.trackHeight - 1),
+      rx: String(STRIP.trackRadius),
+      fill: STRIP_COLORS.track,
+      stroke: STRIP_COLORS.trackEdge,
+      "stroke-width": "1",
+      "vector-effect": "non-scaling-stroke",
+    });
+  }
+
+  function stripCleanStretch(cleanStretch) {
+    if (!cleanStretch) {
+      return [];
+    }
+    const x = cleanStretch.from * STRIP.width;
+    const width = (cleanStretch.to - cleanStretch.from) * STRIP.width;
+    const band = [x, STRIP.trackY, width, STRIP.trackHeight];
+    const edge = [x, STRIP.trackY + STRIP.trackHeight - STRIP.edgeHeight, width, STRIP.edgeHeight];
+    return [
+      stripRect("timeline__clean", band, STRIP_COLORS.clean),
+      stripRect("timeline__clean-edge", edge, STRIP_COLORS.cleanEdge),
+    ];
+  }
+
+  // A pause block is as wide as the pause, and never thinner than a filler tick.
+  function stripPause(pause) {
+    const x = pause.from * STRIP.width;
+    const width = Math.max(STRIP.minBlockWidth, (pause.to - pause.from) * STRIP.width);
+    const box = [x, STRIP.trackY, width, STRIP.trackHeight];
+    return stripRect("timeline__pause", box, STRIP_COLORS.pause);
+  }
+
+  // A tick is centered on its filler's start and kept inside the strip at either end.
+  function stripFiller(filler) {
+    const centered = filler.at * STRIP.width - STRIP.tickWidth / 2;
+    const x = Math.min(STRIP.width - STRIP.tickWidth, Math.max(0, centered));
+    const box = [x, STRIP.tickY, STRIP.tickWidth, STRIP.tickHeight];
+    return stripRect("timeline__filler", box, STRIP_COLORS.filler);
+  }
+
+  function stripRect(className, [x, y, width, height], fill) {
+    return svgEl("rect", {
+      class: className,
+      x: coord(x),
+      y: coord(y),
+      width: coord(width),
+      height: coord(height),
+      fill,
+    });
+  }
+
+  // "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
+  // stretch", in the recording-time clock the tips use.
+  function timelineLabel(segments) {
+    const from = app.ui.formatClock(segments.start);
+    const to = app.ui.formatClock(segments.start + segments.seconds);
+    const parts = [
+      countText(segments.fillers.length, "filler", "fillers"),
+      countText(segments.pauses.length, "mid-sentence pause", "mid-sentence pauses"),
+      cleanStretchText(segments.cleanStretch),
+    ];
+    return TIMELINE_TITLE + " from " + from + " to " + to + ": " + parts.join(", ");
+  }
+
+  // "no fillers", "1 filler", "11 fillers".
+  function countText(count, one, many) {
+    if (count === 0) {
+      return "no " + many;
+    }
+    return count + " " + (count === 1 ? one : many);
+  }
+
+  // "a 4.9 second clean stretch", "an 8 second clean stretch" or "no clean stretch".
+  function cleanStretchText(cleanStretch) {
+    if (!cleanStretch) {
+      return "no clean stretch";
+    }
+    const seconds = String(cleanStretch.seconds);
+    return articleFor(seconds) + " " + seconds + " second clean stretch";
+  }
+
+  // "an" for a number said with a leading vowel sound: 8, 11 and 18, eighty and eight hundred.
+  function articleFor(numberText) {
+    return /^(8|1[18](\.|$))/.test(numberText) ? "an" : "a";
+  }
+
+  // The first word, the midpoint and the last word in recording time. Hidden from screen
+  // readers: the strip's label already names the range.
+  function timelineAxis(segments) {
+    const { start, seconds } = segments;
+    const times = [start, start + seconds / 2, start + seconds];
+    return app.ui.el(
+      "div",
+      { class: "timeline__axis", "aria-hidden": "true" },
+      times.map((time) => app.ui.el("span", { text: app.ui.formatClock(time) })),
+    );
+  }
+
+  function timelineLegend() {
+    return app.ui.el(
+      "p",
+      { class: "timeline__legend" },
+      LEGEND_KEYS.map(([kind, text]) =>
+        app.ui.el("span", { class: "timeline__key" }, [
+          app.ui.el("span", {
+            class: "timeline__swatch timeline__swatch--" + kind,
+            "aria-hidden": "true",
+          }),
+          text,
+        ]),
+      ),
+    );
+  }
+
+  // Every moment on the strip as a sentence, in time order, for screen readers.
+  function timelineMoments(segments) {
+    const clock = app.ui.formatClock;
+    const moments = [
+      ...segments.fillers.map((filler) => ({
+        time: filler.time,
+        text: MOMENT.filler(filler.text, clock(filler.time)),
+      })),
+      ...segments.pauses.map((pause) => ({
+        time: pause.time,
+        text: MOMENT.pause(clock(pause.time), pause.seconds.toFixed(1)),
+      })),
+    ];
+    const clean = segments.cleanStretch;
+    if (clean) {
+      const seconds = secondsText(clean.seconds);
+      moments.push({
+        time: clean.time,
+        text: MOMENT.clean(clock(clean.time), clock(clean.endTime), seconds),
+      });
+    }
+    moments.sort((a, b) => a.time - b.time);
+    return app.ui.el(
+      "ul",
+      { class: "sr-only timeline__moments" },
+      moments.map((moment) => app.ui.el("li", { text: moment.text })),
+    );
+  }
+
+  // SVG elements need their own namespace and take every attribute, class included, through
+  // setAttribute.
+  function svgEl(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs).forEach((key) => node.setAttribute(key, attrs[key]));
+    return node;
+  }
+
+  function coord(value) {
+    return String(Math.round(value * COORD_SCALE) / COORD_SCALE);
+  }
+
   function buildActions() {
     return app.ui.el("div", { class: "results__actions" }, [
       app.ui.el("button", {
@@ -639,5 +922,6 @@
     buildTranscriptPlan,
     headlineFor,
     compareWithPrevious,
+    timelineSegments,
   };
 })();
