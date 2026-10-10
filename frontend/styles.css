@@ -520,6 +520,48 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   color: var(--warn);
 }
 
+/* Section titles for the transcript and the tips; the section gap sits above each one. */
+.results__heading {
+  margin-top: var(--s-6);
+}
+
+/* Transcript: a body-size paragraph; anywhere-wrapping keeps a long token inside 320px. */
+.transcript {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-body);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.tok--filler {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-tok);
+  background: var(--filler-bg);
+  color: var(--filler);
+  font-weight: 600;
+}
+
+/* A pause marker is a small pill between words, not a word: inline-block, micro type. */
+.tok--pause {
+  display: inline-block;
+  margin: 0 var(--s-1);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--pause-bg);
+  color: var(--pause);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.tip-card {
+  margin-top: var(--s-3);
+  padding: var(--s-4);
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-card);
+}
+
 .results__actions {
   display: flex;
   flex-direction: column;

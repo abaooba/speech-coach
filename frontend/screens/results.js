@@ -1,7 +1,9 @@
-/* screens/results.js: app.screens.results, the four metric cards after a take (DESIGN.md
-   sections 1 and 6). summarize(session) turns the backend metrics into the card numbers and the
-   pace hint without touching the DOM; show({id}) loads the session from app.store and builds the
-   meta line, the metric grid and the Record again / History actions into the screen body. */
+/* screens/results.js: app.screens.results, the Results screen after a take (DESIGN.md sections
+   1 and 6). Three pure helpers do the thinking without the DOM: summarize(session) turns the
+   backend metrics into the card numbers and the pace hint, isFiller(text) names the filler
+   words, buildTranscriptPlan(words, pauses) lays the transcript out with its pause markers.
+   show({id}) loads the session from app.store and builds the meta line, the metric grid, the
+   highlighted transcript, the tips from app.tips and the Record again / History actions. */
 (function () {
   "use strict";
 
@@ -32,6 +34,29 @@
   const RECORD_AGAIN_LABEL = "Record again";
   const HISTORY_LABEL = "History";
   const META_SEPARATOR = " · ";
+
+  // Section titles between the metric grid and the actions.
+  const TRANSCRIPT_TITLE = "Transcript";
+  const TIPS_TITLE = "Tips";
+
+  // Fillers (DESIGN.md section 6, "Transcript"): single words matched one at a time, plus the
+  // two-word phrase "you know". The lists mirror backend/metrics.py so the highlighted tokens
+  // are exactly the ones the fillers card counted.
+  const FILLER_WORDS = ["um", "uh", "hmm", "like", "so", "basically", "actually"];
+  const FILLER_PHRASE = ["you", "know"];
+
+  // Punctuation at either end of a token, the same rule as backend.metrics.clean: "Um," and
+  // "um" compare equal while "so-called" and "day's" stay whole words.
+  const EDGE_PUNCTUATION = /^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu;
+
+  // Transcript plan item types and the strings the tokens and pause markers are built from.
+  const WORD_ITEM = "word";
+  const PAUSE_ITEM = "pause";
+  const TOKEN_SEPARATOR = " ";
+  const FILLER_LABEL_SUFFIX = ", filler word";
+  const PAUSE_TEXT_SUFFIX = " s pause";
+  const PAUSE_LABEL_PREFIX = "pause, ";
+  const PAUSE_LABEL_SUFFIX = " seconds";
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -98,6 +123,69 @@
     return { text: TARGET_PREFIX + lo + TARGET_JOINER + hi, tone: TONE_OK };
   }
 
+  // True for a filler said on its own: "Um," and "so" yes, "umbrella" no. The phrase "you
+  // know" is a pair of tokens, so buildTranscriptPlan handles it instead.
+  function isFiller(text) {
+    return FILLER_WORDS.includes(normalizeWord(text));
+  }
+
+  function normalizeWord(text) {
+    return String(text || "").toLowerCase().replace(EDGE_PUNCTUATION, "");
+  }
+
+  // The transcript as a list of items to draw, in reading order: {type: "word", text, filler}
+  // for every backend word and {type: "pause", length} for every [at, length] in
+  // metrics.pauses. A pause goes right after the last word whose end is at or before `at`;
+  // when no word has ended by then it goes before the first word. Pure: fresh objects, and
+  // neither input is changed.
+  function buildTranscriptPlan(words, pauses) {
+    const wordList = Array.isArray(words) ? words : [];
+    const pauseList = Array.isArray(pauses) ? pauses : [];
+    const fillers = fillerFlags(wordList);
+
+    // Slot 0 holds the pauses that go before the first word; slot i + 1 those after word i.
+    const slots = Array.from({ length: wordList.length + 1 }, () => []);
+    pauseList.forEach((pause) => {
+      const [at, length] = Array.isArray(pause) ? pause : [];
+      const slot = lastWordEndedBy(wordList, numberOr0(at)) + 1;
+      slots[slot].push({ type: PAUSE_ITEM, length: numberOr0(length) });
+    });
+
+    const plan = [...slots[0]];
+    wordList.forEach((word, index) => {
+      plan.push({ type: WORD_ITEM, text: textOf(word), filler: fillers[index] });
+      plan.push(...slots[index + 1]);
+    });
+    return plan;
+  }
+
+  // Index of the last word whose end is at or before `at`, or -1 when none has ended yet.
+  function lastWordEndedBy(wordList, at) {
+    for (let index = wordList.length - 1; index >= 0; index -= 1) {
+      if (numberOr0(wordList[index] && wordList[index].end) <= at) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  // One flag per word: the single fillers by isFiller, then both halves of every "you know".
+  function fillerFlags(wordList) {
+    const tokens = wordList.map((word) => normalizeWord(textOf(word)));
+    const flags = tokens.map((token) => FILLER_WORDS.includes(token));
+    tokens.forEach((token, index) => {
+      if (token === FILLER_PHRASE[0] && tokens[index + 1] === FILLER_PHRASE[1]) {
+        flags[index] = true;
+        flags[index + 1] = true;
+      }
+    });
+    return flags;
+  }
+
+  function textOf(word) {
+    return String((word && word.text) || "");
+  }
+
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
@@ -137,12 +225,78 @@
     });
   }
 
+  // Top to bottom: meta line, four cards, the transcript (skipped when the session has no
+  // words; pause markers alone would mean nothing), the tips (skipped when there are none),
+  // the two actions.
   function renderSession(session) {
     const summary = summarize(session);
+    const metrics = session.metrics || {};
+    const plan = buildTranscriptPlan(session.transcript, metrics.pauses);
+    const hasWords = plan.some((item) => item.type === WORD_ITEM);
+    const tips = selectTips(metrics, summary.target);
+
     app.ui.clear(body);
     body.appendChild(buildMeta(session));
     body.appendChild(buildMetricGrid(summary));
+    if (hasWords) {
+      body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
+      body.appendChild(buildTranscript(plan));
+    }
+    if (tips.length > 0) {
+      body.appendChild(sectionTitle(TIPS_TITLE));
+      tips.forEach((tip) => body.appendChild(buildTipCard(tip)));
+    }
     body.appendChild(buildActions());
+  }
+
+  // tips.js loads before this file in index.html. Without it (a failed load, or a context that
+  // stubs app without tips) the screen simply has no Tips section instead of an error.
+  function selectTips(metrics, target) {
+    if (!app.tips || typeof app.tips.select !== "function") {
+      return [];
+    }
+    return app.tips.select(metrics, { targetWpm: target });
+  }
+
+  function sectionTitle(text) {
+    return app.ui.el("h2", { class: "results__heading", text });
+  }
+
+  // Every item is followed by a space text node, so the words keep their breaks when the
+  // paragraph is copied or read aloud and the browser can wrap between any two of them.
+  function buildTranscript(plan) {
+    const nodes = [];
+    plan.forEach((item) => {
+      nodes.push(item.type === PAUSE_ITEM ? pauseMarker(item.length) : wordToken(item));
+      nodes.push(TOKEN_SEPARATOR);
+    });
+    return app.ui.el("p", { class: "transcript" }, nodes);
+  }
+
+  // The label uses the bare word, so "Um," reads as "um, filler word" (DESIGN.md section 6).
+  function wordToken(item) {
+    if (!item.filler) {
+      return app.ui.el("span", { class: "tok", text: item.text });
+    }
+    return app.ui.el("span", {
+      class: "tok tok--filler",
+      "aria-label": normalizeWord(item.text) + FILLER_LABEL_SUFFIX,
+      text: item.text,
+    });
+  }
+
+  // "2.1 s pause", always one decimal, matching the "x.x s pause" the README asks you to see.
+  function pauseMarker(length) {
+    const seconds = numberOr0(length).toFixed(1);
+    return app.ui.el("span", {
+      class: "tok--pause num",
+      "aria-label": PAUSE_LABEL_PREFIX + seconds + PAUSE_LABEL_SUFFIX,
+      text: seconds + PAUSE_TEXT_SUFFIX,
+    });
+  }
+
+  function buildTipCard(tip) {
+    return app.ui.el("div", { class: "tip-card", text: tip.text });
   }
 
   function buildMeta(session) {
@@ -199,5 +353,5 @@
     ]);
   }
 
-  app.screens.results = { mount, show, hide, summarize };
+  app.screens.results = { mount, show, hide, summarize, isFiller, buildTranscriptPlan };
 })();
