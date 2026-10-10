@@ -1218,20 +1218,26 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The action bar stays stuck above the nav while the page scrolls under it: one row, a ghost
-   History and the primary Record again, which caps at 320px on wide screens, where the pair
-   sits at the column's end. The negative bottom margin gives back main's spare bottom padding,
-   so at the end of the page the bar still meets the nav. */
+   History and the primary Record again, which caps at 320px on wide screens. There History's
+   auto left margin takes the spare room and parks the pair at the column's end. Unlike end
+   alignment, a margin never pushes History off the left edge: at 200% zoom on a phone the row
+   wraps instead and Record again takes a line of its own. The negative bottom margin gives back
+   main's spare bottom padding, so at the end of the page the bar still meets the nav. */
 .results__actions {
   position: sticky;
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--s-3);
   margin: var(--s-6) 0 calc(-1 * var(--s-5));
   padding: var(--s-3) 0;
   background: var(--bg);
   border-top: 1px solid var(--border);
+}
+
+.results__actions .btn--ghost {
+  margin-left: auto;
 }
 
 .results__actions .btn--primary {

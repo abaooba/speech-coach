@@ -1,6 +1,7 @@
-// Tests for the Results action bar (DESIGN.md sections 1, 3 and 6; audit L6): the last child of
-// the screen, stuck above the nav, one row with a ghost "History" and the screen's only primary
-// button, "Record again", whose width caps at 320px on wide screens.
+// Tests for the Results action bar (DESIGN.md sections 1, 3, 6 and 9; audit L6): the last child
+// of the screen, stuck above the nav, one row with a ghost "History" and the screen's only
+// primary button, "Record again", whose width caps at 320px on wide screens. At 200% zoom on a
+// phone the row wraps rather than push History off the left edge.
 "use strict";
 
 const test = require("node:test");
@@ -132,4 +133,19 @@ test("Record again fills the row and caps at 320px", () => {
   const primary = rule(".results__actions .btn--primary");
   assert.equal(primary.flex, "1 1 auto");
   assert.equal(primary["max-width"], "320px");
+});
+
+test("at 200% zoom the bar wraps instead of pushing History off the left edge", () => {
+  const bar = rule(".results__actions");
+  assert.equal(bar["flex-wrap"], "wrap");
+  assert.doesNotMatch(
+    bar["justify-content"] || "",
+    /^(flex-)?end$|^right$/,
+    "end alignment sends an overflowing row off the left edge, where nothing can scroll to it",
+  );
+  assert.equal(
+    rule(".results__actions .btn--ghost")["margin-left"],
+    "auto",
+    "History's auto margin still parks the pair at the column's end on wide screens",
+  );
 });
