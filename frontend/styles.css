@@ -270,6 +270,16 @@ h2 {
   color: var(--on-accent);
 }
 
+/* Options sit 4px apart, so the ring is drawn inside each one; on the accent fill it turns
+   on-accent to stay visible. */
+.segmented__option:focus-visible {
+  outline-offset: -3px;
+}
+
+.segmented__option--selected:focus-visible {
+  outline-color: var(--on-accent);
+}
+
 .segmented__option[disabled] {
   cursor: default;
   pointer-events: none;
@@ -315,14 +325,14 @@ h2 {
   margin-top: var(--s-2);
 }
 
-/* The optional ghost action. Alone it sits like .state__action; after the main action it is
-   pulled up so the pair sits --s-2 apart (room for a focus ring) instead of the --s-3 gap. */
+/* The optional ghost action. Alone it sits like .state__action; after the main action it moves
+   up one scale step, so the pair sits --s-2 apart (room for a focus ring) inside the --s-3 gap. */
 .state__secondary {
   margin-top: var(--s-2);
 }
 
 .state__action + .state__secondary {
-  margin-top: calc(var(--s-2) - var(--s-3));
+  margin-top: calc(-1 * var(--s-1));
 }
 
 .state--error {
@@ -388,6 +398,11 @@ h2 {
 
 .nav__item--active {
   color: var(--accent);
+}
+
+/* The nav touches the viewport edges, so its focus ring is drawn inside the item. */
+.nav__item:focus-visible {
+  outline-offset: -3px;
 }
 
 body:has(#screen-onboarding.screen--active) .nav,

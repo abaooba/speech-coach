@@ -221,3 +221,17 @@ test("a disabled segmented option dims unless it is the selected one", () => {
   );
   assert.ok(!dimsSelected, "the selected option keeps full contrast while disabled");
 });
+
+test("focus rings on the nav and the segmented control are drawn inside the target", () => {
+  // The nav touches the viewport edges and the segmented options sit 4px apart, so an outside
+  // ring would be clipped or bleed into the next option; an inset ring keeps all of it visible.
+  assert.equal(ruleFor(ALL_RULES, ".nav__item:focus-visible")["outline-offset"], "-3px");
+  assert.equal(ruleFor(ALL_RULES, ".segmented__option:focus-visible")["outline-offset"], "-3px");
+  const selected = ruleFor(ALL_RULES, ".segmented__option--selected:focus-visible");
+  assert.equal(selected["outline-color"], "var(--on-accent)", "the ring shows on the accent fill");
+});
+
+test("a secondary state action sits one scale step closer to the primary one", () => {
+  const pair = ruleFor(ALL_RULES, ".state__action + .state__secondary");
+  assert.equal(pair["margin-top"], "calc(-1 * var(--s-1))");
+});
