@@ -1245,6 +1245,24 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   max-width: 320px;
 }
 
+/* Keyboard focus never hides under the stuck bar and the fixed nav. The browser scrolls to a
+   focused element only when it looks out of view, so each link or button above the bar asks
+   for room under it: the nav, the bar's 48px button row (--s-7), and --s-6 for the bar's
+   padding above and below, its 1px border and the 5px focus ring. The bar's own buttons ask
+   for none: padding the page's scroll area instead would make Tab into the bar move the page. */
+#screen-results :is(a, button):not(.results__actions *) {
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom));
+}
+
+/* Under 320px, reached only by zooming a phone, the bar wraps onto two rows: the room grows by
+   one more button row and the --s-3 gap between the rows. */
+@media (max-width: 319px) {
+  #screen-results :is(a, button):not(.results__actions *) {
+    scroll-margin-bottom: calc(var(--nav-h) + 2 * var(--s-7) + var(--s-6) + var(--s-3)
+      + env(safe-area-inset-bottom));
+  }
+}
+
 /* 9. History screen: session list and rows */
 .session-list {
   list-style: none;

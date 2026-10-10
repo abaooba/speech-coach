@@ -1,7 +1,8 @@
 // Tests for the Results action bar (DESIGN.md sections 1, 3, 6 and 9; audit L6): the last child
 // of the screen, stuck above the nav, one row with a ghost "History" and the screen's only
 // primary button, "Record again", whose width caps at 320px on wide screens. At 200% zoom on a
-// phone the row wraps rather than push History off the left edge.
+// phone the row wraps rather than push History off the left edge, and a focused link or button
+// above the bar scrolls clear of the bar, the nav and its own focus ring.
 "use strict";
 
 const test = require("node:test");
@@ -148,4 +149,91 @@ test("at 200% zoom the bar wraps instead of pushing History off the left edge", 
     "auto",
     "History's auto margin still parks the pair at the column's end on wide screens",
   );
+});
+
+// Every rule in styles.css as {at, selector, declarations}: `at` is the enclosing @-rule or
+// null, and whitespace is squashed so a value split across lines reads as one line.
+function squash(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function closingBrace(text, open) {
+  let depth = 0;
+  for (let index = open; index < text.length; index += 1) {
+    if (text[index] === "{") {
+      depth += 1;
+    } else if (text[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  throw new Error("styles.css has an unbalanced brace");
+}
+
+function parseRules(text, at = null, rules = []) {
+  let cursor = 0;
+  while (cursor < text.length) {
+    const open = text.indexOf("{", cursor);
+    if (open === -1) {
+      break;
+    }
+    const prelude = squash(text.slice(cursor, open));
+    const close = closingBrace(text, open);
+    const body = text.slice(open + 1, close);
+    if (prelude.startsWith("@")) {
+      parseRules(body, prelude, rules);
+    } else {
+      const declarations = {};
+      body.split(";").forEach((part) => {
+        const colon = part.indexOf(":");
+        if (colon !== -1) {
+          declarations[squash(part.slice(0, colon))] = squash(part.slice(colon + 1));
+        }
+      });
+      rules.push({ at, selector: prelude, declarations });
+    }
+    cursor = close + 1;
+  }
+  return rules;
+}
+
+const ALL_RULES = parseRules(CSS.replace(/\/\*[\s\S]*?\*\//g, ""));
+const ABOVE_THE_BAR = "#screen-results :is(a, button):not(.results__actions *)";
+
+function declarationsAt(selector, at) {
+  const found = ALL_RULES.find((entry) => entry.selector === selector && entry.at === at);
+  assert.ok(found, `styles.css needs ${at ? at + " { " : ""}${selector} { … }`);
+  return found.declarations;
+}
+
+test("a focused link or button above the bar scrolls clear of the bar, nav and ring", () => {
+  assert.equal(
+    declarationsAt(ABOVE_THE_BAR, null)["scroll-margin-bottom"],
+    "calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom))",
+    "the nav, one 48px button row, then the bar's padding and border and the 5px ring",
+  );
+  assert.equal(
+    declarationsAt(ABOVE_THE_BAR, "@media (max-width: 319px)")["scroll-margin-bottom"],
+    "calc(var(--nav-h) + 2 * var(--s-7) + var(--s-6) + var(--s-3) + " +
+      "env(safe-area-inset-bottom))",
+    "zoomed under 320px the bar wraps: one more button row and the gap between the rows",
+  );
+});
+
+test("the bar's own buttons ask for no scroll room, so tabbing into the bar never scrolls", () => {
+  for (const { selector, declarations } of ALL_RULES) {
+    if (!/screen-results|results__/.test(selector)) {
+      continue;
+    }
+    const names = Object.keys(declarations);
+    assert.ok(
+      !names.some((name) => name.startsWith("scroll-padding")),
+      `${selector}: padding the page's scroll area would also cover the bar's own buttons`,
+    );
+    if (selector !== ABOVE_THE_BAR) {
+      assert.ok(!names.some((name) => name.startsWith("scroll-margin")), selector);
+    }
+  }
 });
