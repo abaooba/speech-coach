@@ -72,6 +72,13 @@ Run the tests:
 pytest
 ```
 
+Frontend tests (plain `node:test`, no dependencies; pytest also runs them when
+`node` is installed):
+
+```bash
+node --test frontend/tests
+```
+
 ## Repo layout
 
 ```
