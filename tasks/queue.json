@@ -128,10 +128,12 @@
    "title": "Delivery rules: frontend/delivery.js classifies fillers and builds the delivery report",
    "brief": "Implement Task 1 of docs/superpowers/plans/2026-10-10-next-level.md exactly. The plan holds the complete test file and module: write the test file first, run it and watch it fail because delivery.js is missing, then add the module and watch all 16 tests pass. Scope: create frontend/delivery.js and frontend/tests/delivery.test.js; in frontend/index.html add <script src=\"delivery.js\"></script> on its own line immediately after the passages.js script; if frontend/sw.js exists, add 'delivery.js' to its SHELL list and bump CACHE_NAME. backend/tests/test_frontend_shell.py already lists delivery.js in SCRIPT_LOAD_ORDER (human edit in Task 0). Do not touch results.js, tips.js or any existing test. Commit when .venv/bin/pytest -q, .venv/bin/ruff check . and node --test frontend/tests all pass.",
    "acceptance": "Script: `node --test frontend/tests` passes including the 16 tests in delivery.test.js; `.venv/bin/pytest -q` passes (the shell test checks the script order and runs node --check on delivery.js). Manual (1 min): open the app, and in the DevTools console `app.delivery.isHesitation('Umm,')` returns true and `app.delivery.classify([{text:'I',start:0,end:0.2},{text:'like',start:0.3,end:0.5},{text:'it.',start:0.6,end:0.8}])` returns [null, null, null].",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [],
-   "notes": []
+   "notes": [
+    "session 2026-10-10: ae7b50f Add app.delivery: context rules for fillers and the delivery report"
+   ]
   },
   {
    "id": "T15",
