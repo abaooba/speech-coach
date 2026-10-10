@@ -692,3 +692,58 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
     animation: none;
   }
 }
+
+/* How we measure (how.html): a static reading page that reuses the base type and tokens. */
+.how__lead,
+.how__section {
+  margin: 0 0 var(--s-5);
+}
+
+.how__section p,
+.how__section ul {
+  margin: 0 0 var(--s-3);
+}
+
+.how__section ul {
+  padding-left: var(--s-5);
+}
+
+.how__back {
+  color: var(--accent);
+}
+
+.how__table {
+  width: 100%;
+  margin: 0 0 var(--s-3);
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.how__table th,
+.how__table td {
+  padding: var(--s-2) var(--s-2) var(--s-2) 0;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.how__table thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.how__table tbody th {
+  width: 36%;
+  font-weight: 600;
+}
+
+/* The "How we count" link after the transcript legend: a quiet inline link, 44 px tall to tap. */
+.transcript__how {
+  display: inline-block;
+  min-height: 44px;
+  margin-left: var(--s-2);
+  line-height: 44px;
+  color: var(--accent);
+}

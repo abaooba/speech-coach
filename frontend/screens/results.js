@@ -55,6 +55,8 @@
   const FILLER_LABEL_SUFFIX = ", filler word";
   const HABIT_LABEL_SUFFIX = ", verbal habit";
   const LEGEND_TEXT = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
+  const HOW_HREF = "how.html";
+  const HOW_LINK_TEXT = "How we count";
   const PAUSE_TEXT_SUFFIX = " s pause";
   const PAUSE_LABEL_PREFIX = "pause, ";
   const PAUSE_LABEL_SUFFIX = " seconds";
@@ -258,12 +260,13 @@
 
   // What the two highlight styles mean, plus the most-used habit when there is one.
   function buildLegend(topHabit) {
+    const link = app.ui.el("a", { class: "transcript__how", href: HOW_HREF, text: HOW_LINK_TEXT });
     if (!topHabit) {
-      return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT });
+      return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT }, [link]);
     }
     const times = topHabit.count === 1 ? " time." : " times.";
     const habitLine = " Most used: “" + topHabit.text + "”, " + topHabit.count + times;
-    return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT + habitLine });
+    return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT + habitLine }, [link]);
   }
 
   function sectionTitle(text) {
