@@ -281,9 +281,9 @@ Then open http://127.0.0.1:8000/#/progress.
 
 1. Under the "Progress" heading: a segmented control of four options, "Pace" (selected),
    "Fillers", "Pauses" and "Clean", all on one row at 320px; then the heading "Words per
-   minute", a summary row of three cells and the chart. The cells read "Latest" 158 wpm,
-   "Best" 158 wpm (the most recent take inside the 140 to 160 band) and "From your average"
-   "19 faster" with an up triangle. The chart has five blue dots joined by a line, gridlines at
+   minute", three summary cells and the chart. The cells read "Latest" 158 wpm, "Best" 158
+   wpm (the most recent take inside the 140 to 160 band) and "From your average" "19
+   faster" with an up triangle. The chart has five blue dots joined by a line, gridlines at
    the round values 100, 120, 140 and 160, and a short date such as "Oct 5" under every dot,
    oldest on the left, the last one ending at the right edge. The best take wears a ring and a
    small "Best" label that does not touch the line. The Progress nav item is highlighted.
@@ -307,11 +307,12 @@ Then open http://127.0.0.1:8000/#/progress.
    and the x axis shows five dates spread from the first take to the last. A second take on a
    day that already has a label gets none.
 
-5. Narrow the window to 320px: the four options and the three cells fit with no horizontal
-   scroll ("From your average" may wrap its words), and the chart fills the width with readable
-   labels; at 640px it scales up with the column. Switch the theme with the toggle on Practice,
-   or the OS setting: gridlines, labels, the band, the ring and all four line colors stay
-   visible in both themes.
+5. Narrow the window to 320px: the four options fit on one row, "Latest" and "Best" sit side
+   by side with "From your average" across the row under them, every value bold at the heading
+   size on one line, and nothing scrolls sideways; the chart fills the width with readable
+   labels. From 600px the three cells share one row, and at 640px the chart scales up with the
+   column. Switch the theme with the toggle on Practice, or the OS setting: gridlines, labels,
+   the band, the ring and all four line colors stay visible in both themes.
 
 6. Empty state: delete sessions in History until one is left (or run
    `indexedDB.deleteDatabase('speech-coach')`, reload and save one session with the store
