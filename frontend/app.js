@@ -95,6 +95,11 @@
   }
 
   function boot() {
+    // The saved Auto / Dark / Light choice applies before any screen mounts.
+    const ui = app.ui;
+    if (ui && typeof ui.applyTheme === "function" && typeof ui.getTheme === "function") {
+      ui.applyTheme(ui.getTheme());
+    }
     Object.keys(app.screens).forEach((name) => {
       const screen = app.screens[name];
       const root = sectionFor(name);

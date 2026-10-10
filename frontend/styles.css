@@ -3,6 +3,8 @@
 
 /* 1. Tokens (light scheme) */
 :root {
+  color-scheme: light;
+
   --bg: #FFFFFF;
   --surface: #F4F5F7;
   --text: #111318;
@@ -13,13 +15,16 @@
   --on-accent: #FFFFFF;
   --accent-soft: #E3ECFA;
   --record: #E5484D;
+  --on-record: #FFFFFF;
+  --record-text: #B91C1C;
   --record-bg: #FEE2E2;
   --filler: #B45309;
   --filler-bg: #FEF3C7;
   --pause: #6D28D9;
   --pause-bg: #EDE9FE;
   --ok: #15803D;
-  --warn: #B45309;
+  --ok-bg: #DCFCE7;
+  --warn: #9A3412;
 
   --s-1: 4px;
   --s-2: 8px;
@@ -35,9 +40,10 @@
   --r-chip: 999px;
 
   --nav-h: 56px;
+  --col-max: 640px;
 
-  --fs-hero: 64px;
   --fs-metric: 40px;
+  --fs-metric-narrow: 32px;
   --fs-h1: 24px;
   --fs-h2: 18px;
   --fs-body: 16px;
@@ -45,9 +51,12 @@
   --fs-micro: 12px;
 }
 
-/* 2. Tokens (dark scheme) */
+/* 2. Tokens (dark scheme). The device setting applies them unless the theme toggle forced
+   light; a forced dark applies them on any device. The two blocks must stay identical. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
     --bg: #0F1115;
     --surface: #1A1D24;
     --text: #F2F4F7;
@@ -58,14 +67,42 @@
     --on-accent: #0F1115;
     --accent-soft: #1E2C44;
     --record: #FF6369;
+    --on-record: #0F1115;
+    --record-text: #FF6369;
     --record-bg: #3F1414;
     --filler: #FBBF24;
     --filler-bg: #3B2A05;
     --pause: #B49CFF;
     --pause-bg: #2A1F4D;
     --ok: #4ADE80;
-    --warn: #FBBF24;
+    --ok-bg: #163B26;
+    --warn: #FF8A4C;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0F1115;
+  --surface: #1A1D24;
+  --text: #F2F4F7;
+  --muted: #9AA3B2;
+  --border: #2A2F3A;
+  --grid: #2B3038;
+  --accent: #6B93FF;
+  --on-accent: #0F1115;
+  --accent-soft: #1E2C44;
+  --record: #FF6369;
+  --on-record: #0F1115;
+  --record-text: #FF6369;
+  --record-bg: #3F1414;
+  --filler: #FBBF24;
+  --filler-bg: #3B2A05;
+  --pause: #B49CFF;
+  --pause-bg: #2A1F4D;
+  --ok: #4ADE80;
+  --ok-bg: #163B26;
+  --warn: #FF8A4C;
 }
 /* end tokens */
 
@@ -86,7 +123,7 @@ body {
 }
 
 main {
-  max-width: 640px;
+  max-width: var(--col-max);
   margin: 0 auto;
   padding: var(--s-4) var(--s-4) calc(var(--nav-h) + var(--s-5) + env(safe-area-inset-bottom));
 }
@@ -130,7 +167,7 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
-/* 4. Buttons */
+/* 4. Buttons, icon buttons and the segmented control */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -163,9 +200,10 @@ h2 {
   color: var(--accent);
 }
 
+/* Delete only: red text in the darker --record-text, which keeps 4.5:1 on --bg. */
 .btn--danger {
   background: transparent;
-  color: var(--record);
+  color: var(--record-text);
   border-color: var(--record);
 }
 
@@ -176,6 +214,70 @@ h2 {
 .btn[disabled] {
   opacity: .5;
   pointer-events: none;
+}
+
+/* A 44 x 44 tap target holding one 20px app.ui.icon; it always carries an aria-label. */
+.icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Segmented control: toggle buttons (aria-pressed) in one row of equal columns. */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--s-1);
+  padding: var(--s-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+}
+
+/* Inner corners stay concentric with the container's: its radius minus its padding. */
+.segmented__option {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--s-2);
+  border: 0;
+  border-radius: calc(var(--r-btn) - var(--s-1));
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.segmented__option--selected {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.segmented__option[disabled] {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* While disabled, only the unselected options dim; the selected one stays readable. */
+.segmented__option[disabled]:not(.segmented__option--selected) {
+  opacity: .5;
 }
 
 /* 5. State blocks and spinner */
@@ -213,13 +315,27 @@ h2 {
   margin-top: var(--s-2);
 }
 
+/* The optional ghost action. Alone it sits like .state__action; after the main action it is
+   pulled up so the pair sits --s-2 apart (room for a focus ring) instead of the --s-3 gap. */
+.state__secondary {
+  margin-top: var(--s-2);
+}
+
+.state__action + .state__secondary {
+  margin-top: calc(var(--s-2) - var(--s-3));
+}
+
 .state--error {
   background: var(--record-bg);
   border-radius: var(--r-card);
 }
 
-.state--error .state__title {
+.state--error .state__icon {
   color: var(--record);
+}
+
+.state--error .state__title {
+  color: var(--record-text);
 }
 
 .spinner {
@@ -237,7 +353,7 @@ h2 {
   }
 }
 
-/* 6. Bottom nav */
+/* 6. Bottom nav: the bar spans the window, its three items sit in the centered content column. */
 .nav {
   position: fixed;
   bottom: 0;
@@ -246,13 +362,15 @@ h2 {
   height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   display: flex;
+  justify-content: center;
   background: var(--surface);
   border-top: 1px solid var(--border);
 }
 
 .nav__item {
-  flex: 1;
-  min-height: 56px;
+  flex: 1 1 0;
+  max-width: calc(var(--col-max) / 3);
+  min-height: var(--nav-h);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -264,10 +382,8 @@ h2 {
 
 .nav__label {
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.3;
-  text-transform: uppercase;
-  letter-spacing: .04em;
 }
 
 .nav__item--active {
@@ -337,8 +453,6 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   font-size: var(--fs-micro);
   line-height: 1.3;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: .04em;
   color: var(--muted);
 }
 
@@ -358,7 +472,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 }
 
 .timer {
-  font-size: var(--fs-hero);
+  font-size: var(--fs-metric);
   line-height: 1;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -485,8 +599,6 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   font-size: var(--fs-micro);
   line-height: 1.3;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: .04em;
   color: var(--muted);
 }
 
