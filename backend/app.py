@@ -6,9 +6,10 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import RequestResponseEndpoint
 
 from backend import metrics
 from backend.providers import ProviderError, get_provider
@@ -27,7 +28,31 @@ EMPTY_UPLOAD_MESSAGE = "The upload was empty. Record again and resend."
 TOO_SHORT_MESSAGE = "That recording had under 5 seconds of speech. Try again."
 PROVIDER_FAILED_MESSAGE = "Speech-to-text failed on our side. Your recording is safe; try again."
 
+# The PWA shell: the browser must revalidate these on every open so a deploy shows up.
+SHELL_PATHS = frozenset({"/", "/index.html", "/sw.js", "/manifest.json"})
+SHELL_CACHE_CONTROL = "no-cache"
+ASSET_CACHE_CONTROL = "public, max-age=3600"
+API_CACHE_CONTROL = "no-store"
+
 app = FastAPI(title="Speech Coach")
+
+
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    """Tell the browser how long each response may be reused.
+
+    API responses are never stored. Static files that were served (status 200) get a
+    header by path: the shell files revalidate every time, everything else is good for an
+    hour. Errors such as a 404 pass through untouched.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/api/"):
+        response.headers["Cache-Control"] = API_CACHE_CONTROL
+    elif response.status_code == 200:
+        is_shell = path in SHELL_PATHS
+        response.headers["Cache-Control"] = SHELL_CACHE_CONTROL if is_shell else ASSET_CACHE_CONTROL
+    return response
 
 
 @app.get("/api/health")
