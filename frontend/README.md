@@ -258,7 +258,8 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
 7. Narrow the window to 320px: the stats and the status sit under the title and date,
    left-aligned, with the trash icon on the right. Open a prompt: "Delete? Yes / No" drops
    below the status, at the right, and nothing overlaps. No horizontal scroll, no console
-   errors. From 480px the stats and the status move to the right of the title and date.
+   errors, even at 200% browser zoom, where the prompt wraps inside the row. From 480px the
+   stats and the status move to the right of the title and date.
    Switch the OS theme (or DevTools "Emulate CSS prefers-color-scheme: dark"): the green
    and rust status words stay readable.
 

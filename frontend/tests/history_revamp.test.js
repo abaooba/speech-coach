@@ -463,6 +463,14 @@ test("a narrow row lets the open confirm drop below the stats, at the right", ()
   assert.equal(ruleFor(".session-row__confirm")["margin-left"], "auto");
 });
 
+test("at 200% zoom the prompt wraps inside the row and the trash keeps right", () => {
+  const confirm = ruleFor(".session-row__confirm");
+  assert.equal(confirm.flex, "0 1 auto", "it may shrink below its one-line width");
+  assert.equal(confirm["flex-wrap"], "wrap");
+  assert.equal(confirm["justify-content"], "flex-end");
+  assert.equal(ruleFor(".session-row__delete")["margin-left"], "auto");
+});
+
 test("section 9 spaces only from --s-*, sizes type from --fs-* and colors from tokens", () => {
   const spacing = /^(margin|padding)(-[a-z]+)?$|^(row-|column-)?gap$/;
   const spacingValue = /^(0|auto|var\(--s-[1-7]\))$/;
