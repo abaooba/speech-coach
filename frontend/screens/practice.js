@@ -35,6 +35,11 @@
   const TOO_SHORT_ACTION = "Record again";
   const UPLOAD_FAILED_TITLE = "Upload failed";
   const UPLOAD_FAILED_ACTION = "Retry upload";
+  const SAMPLE_URL = "sample-session.json";
+  const SAMPLE_LABEL = "See a sample result";
+  const SAMPLE_ERROR_TITLE = "Sample unavailable";
+  const SAMPLE_ERROR_BODY = "Could not load the sample. Try again.";
+  const SAMPLE_ERROR_ACTION = "Try again";
   const STARTED_ANNOUNCEMENT = "Recording started";
   const RESULTS_READY_ANNOUNCEMENT = "Results ready";
 
@@ -76,6 +81,9 @@
   // The finished take, kept through uploading and error so Retry re-sends the same blob.
   let pendingTake = null;
 
+  // True from the sample tap until its fetch, validation and save have settled.
+  let loadingSample = false;
+
   // The state table from DESIGN.md section 7 as plain data, so it can be tested without a DOM.
   // showHint and showRecord mirror the [data-state] rules in styles.css.
   function viewFor(nextState) {
@@ -111,11 +119,77 @@
     body.appendChild(buildRecordButton());
     nodes.recordLabel = app.ui.el("span", { class: "btn-record__label" });
     body.appendChild(nodes.recordLabel);
-    body.appendChild(app.ui.el("p", { class: "practice__hint", text: HINT_TEXT }));
+    const hint = app.ui.el("p", { class: "practice__hint", text: HINT_TEXT });
+    hint.appendChild(buildSampleButton());
+    body.appendChild(hint);
     nodes.stateBlock = app.ui.el("div", { class: "practice__state" });
     body.appendChild(nodes.stateBlock);
 
     render("idle");
+  }
+
+  function buildSampleButton() {
+    return app.ui.el("button", {
+      class: "btn btn--ghost practice__sample",
+      type: "button",
+      text: SAMPLE_LABEL,
+      onClick: onSampleTap,
+    });
+  }
+
+  // Loads the bundled take for visitors without a microphone and opens it in Results. The
+  // outcome is only acted on while the screen is still idle, so a take that began meanwhile
+  // is never overwritten.
+  async function onSampleTap() {
+    if (loadingSample) {
+      return;
+    }
+    loadingSample = true;
+    let id = null;
+    try {
+      const response = await fetch(SAMPLE_URL);
+      if (!response.ok) {
+        throw new Error("sample missing");
+      }
+      const file = await response.json();
+      if (!isSampleFile(file)) {
+        throw new Error("sample malformed");
+      }
+      id = await app.store.save({
+        passageId: file.passageId,
+        passageTitle: file.passageTitle,
+        durationSeconds: file.durationSeconds,
+        metrics: file.metrics,
+        transcript: file.transcript,
+      });
+    } catch {
+      id = null;
+    } finally {
+      loadingSample = false;
+    }
+    if (state !== "idle") {
+      return;
+    }
+    if (id === null) {
+      render("error", {
+        title: SAMPLE_ERROR_TITLE,
+        body: SAMPLE_ERROR_BODY,
+        actionLabel: SAMPLE_ERROR_ACTION,
+        onAction: () => render("idle"),
+      });
+      return;
+    }
+    app.router.go("results", { id });
+  }
+
+  function isSampleFile(file) {
+    return (
+      file !== null &&
+      typeof file === "object" &&
+      Array.isArray(file.transcript) &&
+      file.metrics !== null &&
+      typeof file.metrics === "object"
+    );
   }
 
   function buildChipRow(passages) {

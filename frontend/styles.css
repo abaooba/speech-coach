@@ -750,3 +750,11 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   line-height: 44px;
   color: var(--accent);
 }
+
+.practice__sample {
+  margin-top: var(--s-2);
+}
+
+.screen[data-state]:not([data-state="idle"]) .practice__sample {
+  display: none;
+}
