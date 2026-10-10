@@ -154,12 +154,14 @@
    "title": "Practice: See a sample result",
    "brief": "Implement Task 4 of docs/superpowers/plans/2026-10-10-next-level.md. Already exists: frontend/sample-session.json (a real take Ares recorded and exported), app.store.save, app.router.go, Practice's render(state, detail) and its .practice__hint paragraph. In mount(), append a <button type=\"button\" class=\"btn btn--ghost practice__sample\"> 'See a sample result' as the last child of the existing .practice__hint paragraph (not of .screen__body: practice.test.js pins the body's children). CSS: show .practice__sample only when the screen's data-state is idle. Tap: fetch('sample-session.json'); require an object with an array transcript and an object metrics; save {passageId, passageTitle, durationSeconds, metrics, transcript} with app.store.save; then app.router.go('results', {id}). On any failure render('error', {title: 'Sample unavailable', body: 'Could not load the sample. Try again.', actionLabel: 'Try again', onAction: () => render('idle')}). A second tap while loading does nothing. Tests in a new frontend/tests/practice_sample.test.js with a fake fetch, store and router: the button exists and is labeled; a good file saves once and routes to results with the saved id; a 404, a network rejection and a file without a transcript array each show the error block with that exact copy; a double tap fetches once. Do not edit existing tests. Commit when pytest, ruff and node --test frontend/tests pass.",
    "acceptance": "Script: `node --test frontend/tests` passes including practice_sample.test.js. Manual (1 min): on Practice in idle, tap 'See a sample result': Results opens with the sample's transcript and tips, and History lists the sample; while recording, the button is hidden.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T15"
    ],
-   "notes": []
+   "notes": [
+    "session 2026-10-10: cf568ab Practice: See a sample result for judges without a microphone"
+   ]
   },
   {
    "id": "T18",
