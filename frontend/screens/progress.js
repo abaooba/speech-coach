@@ -9,9 +9,10 @@
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
-  // The three metrics the chart can show, in chip order. `key` names a field of the summary
+  // The four metrics the chart can show, in chip order. `key` names a field of the summary
   // app.screens.results.summarize returns; `color` is the line's token (DESIGN.md section 6,
-  // "Chart"); the two counts are `fromZero`, so their axis always starts at 0.
+  // "Chart"); the three that start at zero (fillers per minute, pauses and clean stretch)
+  // are `fromZero`, so their axis always starts at 0.
   const METRICS = [
     { key: "wpm", label: "Words per minute", color: "var(--accent)", fromZero: false },
     { key: "fillersPerMinute", label: "Fillers per minute", color: "var(--filler)", fromZero: true },

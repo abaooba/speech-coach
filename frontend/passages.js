@@ -1,6 +1,6 @@
 /* passages.js: app.passages, the fixed reading material for the Practice screen.
-   Each entry is {id, kind, title, text, targetWpm: [lo, hi], source?}; kind "passage" is read
-   aloud word for word, kind "prompt" is a topic the speaker improvises on. No DOM here. */
+   Each entry is {id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?};
+   kind "passage" is read aloud word for word, kind "prompt" is a topic the speaker improvises on. No DOM here. */
 (function () {
   "use strict";
 

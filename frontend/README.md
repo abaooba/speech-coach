@@ -93,28 +93,37 @@ Screen-reader users hear "Recording started", the clock every 30 seconds, "Recor
 stopped, N seconds" and "Results ready" through the live region.
 
 **Results (about one minute).** Needs one saved session, so run the Practice happy path
-first; the hash is then `#/results/<id>`.
+first; the hash is then `#/results/<id>`. Without a microphone, Practice in idle shows "See a
+sample result", which opens a real sample take on this screen.
 
-1. Under the "Results" heading: a muted line with the passage title and the date, then
-   exactly four cards in this order: "Words per minute", "Fillers per minute", "Pauses over
-   1.5 s", "Longest pause". The first card's hint reads "Target lo to hi" in green when the
-   pace is inside the passage's range, or "Slow down" / "Speed up" in amber outside it; the
-   numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to 150,
-   the rebuttal 150 to 170, Free talk 140 to 160). No nav item is highlighted.
+1. Under the "Results" heading: a muted line with the passage title and the date (for a timed
+   preset such as Congress speech it ends with "· m:ss of 3:00"), then exactly four cards in
+   this order: "Words per minute", "Fillers per minute", "Mid-sentence pauses", "Longest clean
+   stretch". Hesitation sounds (um, uh) are not counted as words. The first card's hint reads
+   "Target lo to hi" in green when the pace is inside the passage's range, or "Slow down" /
+   "Speed up" in amber outside it; the numbers come from the passage you recorded (Gettysburg
+   and Patrick Henry are 130 to 150, the rebuttal 150 to 170, Free talk 140 to 160). The
+   fillers card's hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in
+   amber above. The pauses card has no hint. The clean stretch card shows seconds and has no
+   hint. No nav item is highlighted.
 
 2. Tap "Record again": Practice opens in idle. Use the browser's back button to return, then
    tap "History": the hash becomes `#/history`.
 
-3. Transcript: under the cards, a "Transcript" heading and every word of the take. Fillers
-   ("um", "uh", "hmm", "like", "so", "basically", "actually" and both words of "you know")
-   are bold amber tokens; each gap of 1.5 s or more is a purple pill such as "2.1 s pause"
-   right after the word before the gap. Record 10 seconds, say "um" five times and stop
-   talking for 3 seconds mid-sentence: five amber "um" tokens and one "x.x s pause" pill.
-   A session saved with an empty transcript (the store check above) shows no Transcript
-   section at all.
+3. Transcript: under the cards, a "Transcript" heading, a small legend and every word of the
+   take. The legend reads "Highlighted words are ums and uhs. Underlined words are verbal
+   habits.", names the most-used habit (for example "Most used: “like”, 4 times.") and ends
+   with a "How we count" link to `how.html`. Ums and uhs ("um", "uh", "er", "ah", "hm") get an
+   amber highlight. Verbal habits ("like", "so", "you know", "actually", "basically") get a
+   dotted underline, and only where the context rules count them: "I like this plan" is not
+   marked. Each pause of 1.5 s or more is a purple pill such as "2.1 s pause" right after the
+   word before the gap. Record 10 seconds, say "um" five times and stop talking for 3 seconds
+   mid-sentence: five amber "um" tokens and one "x.x s pause" pill. A session saved with an
+   empty transcript (the store check above) shows no Transcript section at all.
 
-4. Tips: a "Tips" heading with one or two cards, chosen in this order. Record 10 to 15
-   seconds doing one thing at a time:
+4. Tips: a "Tips" heading with one or two cards, chosen in this order. Tips that point at
+   moments name them as m:ss, such as "0:42". Record 10 to 15 seconds doing one thing at a
+   time:
 
    - "You are above target pace." Read the passage faster than its top target plus 15 wpm
      (over 175 wpm on Free talk).
