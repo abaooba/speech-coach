@@ -935,6 +935,30 @@ test("a section without the toggle mounts as before", () => {
   assert.ok(!Object.hasOwn(t.html.dataset, "theme"), "mount never applies a theme itself");
 });
 
+test("the passage text is a focusable region named by the card's title", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  const id = parts.cardTitle.getAttribute("id");
+  assert.ok(id, "the title carries an id");
+  assert.equal(parts.cardText.getAttribute("tabindex"), "0", "Safari never focuses a scroller");
+  assert.equal(parts.cardText.getAttribute("role"), "region");
+  assert.equal(parts.cardText.getAttribute("aria-labelledby"), id);
+});
+
+test("a chip that takes focus scrolls itself into view inside the row", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  const handlers = parts.chipRow.listeners.focusin || [];
+  assert.equal(handlers.length, 1, "one focusin listener on the row");
+  const chip = chipFor(parts, "congress");
+  const asked = [];
+  chip.scrollIntoView = (options) => asked.push(JSON.parse(JSON.stringify(options)));
+  handlers[0]({ type: "focusin", target: chip });
+  assert.deepEqual(asked, [{ inline: "nearest", block: "nearest" }]);
+  const plainChip = chipFor(parts, "imp");
+  assert.doesNotThrow(() => handlers[0]({ type: "focusin", target: plainChip }), "fakes lack it");
+});
+
 test("New topic follows the title in the card, so focus order runs top to bottom", () => {
   const t = setup({ passages: MODES });
   const card = byClass(t.body, "passage-card");

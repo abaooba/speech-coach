@@ -15,6 +15,8 @@
   const MODE_SWITCH_LABEL = "Practice mode";
   const NEW_TOPIC_LABEL = "New topic";
   const NEW_TOPIC_ICON_SIZE = 16;
+  // The card's title names the scrolling text, which is a region keyboard users can focus.
+  const CARD_TITLE_ID = "practice-card-title";
   const LIMIT_PREFIX = "/ ";
   const LIMIT_OVER_CLASS = "practice__limit-bar--over";
 
@@ -344,8 +346,21 @@
         onClick: () => selectPassage(passage.id),
       }),
     );
-    nodes.chipRow = app.ui.el("div", { class: "chip-row" }, nodes.chips);
+    nodes.chipRow = app.ui.el(
+      "div",
+      { class: "chip-row", onFocusin: revealFocusedChip },
+      nodes.chips,
+    );
     return nodes.chipRow;
+  }
+
+  // A chip that takes focus while partly under the row's fade scrolls fully into view, inside the
+  // row's scroll padding, so its focus ring shows whole. The test fakes have no scrollIntoView.
+  function revealFocusedChip(event) {
+    const chip = event.target;
+    if (chip && typeof chip.scrollIntoView === "function") {
+      chip.scrollIntoView({ inline: "nearest", block: "nearest" });
+    }
   }
 
   // "Your day 1:00" for a timed entry, the bare title for an untimed one.
@@ -356,11 +371,18 @@
 
   // The card holds the title, New topic, the target and the text. New topic comes right after
   // the title, so focus order matches its place at the top right. Its refresh icon follows the
-  // words in the DOM, so the label is plain text; CSS draws the icon first.
+  // words in the DOM, so the label is plain text; CSS draws the icon first. The text scrolls on
+  // its own, so it is a region named by the title that takes focus: keyboard users can scroll a
+  // long passage in every browser (Safari never focuses a scroller by itself).
   function buildPassageCard() {
-    nodes.cardTitle = app.ui.el("h2", { class: "passage-card__title" });
+    nodes.cardTitle = app.ui.el("h2", { class: "passage-card__title", id: CARD_TITLE_ID });
     nodes.cardTarget = app.ui.el("p", { class: "passage-card__target" });
-    nodes.cardText = app.ui.el("p", { class: "passage-card__text" });
+    nodes.cardText = app.ui.el("p", {
+      class: "passage-card__text",
+      tabindex: "0",
+      role: "region",
+      "aria-labelledby": CARD_TITLE_ID,
+    });
     nodes.newTopic = app.ui.el(
       "button",
       {
@@ -435,9 +457,10 @@
   }
 
   // Applies one state to the screen. It is the only code that changes this screen's DOM, apart
-  // from the clock (the timer tick writes it and the bar, resetClock() puts it back to 0:00) and
-  // the header's theme toggle, which repaints itself. `detail` is only read for "error": {title,
-  // body, actionLabel, onAction, secondaryLabel?, onSecondary?}, passed to app.ui.renderState.
+  // from the clock (the timer tick writes it and the bar, resetClock() puts it back to 0:00), a
+  // focused chip scrolling into view, and the header's theme toggle, which repaints itself.
+  // `detail` is only read for "error": {title, body, actionLabel, onAction, secondaryLabel?,
+  // onSecondary?}, passed straight to app.ui.renderState.
   function render(nextState, detail) {
     const view = viewFor(nextState);
     state = nextState;

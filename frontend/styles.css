@@ -590,8 +590,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 }
 
 /* The text scrolls inside the card and fades out over its last --s-5, with as much end padding
-   so the last line scrolls clear of the fade (keyword colors in the mask, as for the chips). A
-   focus ring is drawn inset, inside the box the mask keeps. */
+   so the last line scrolls clear of the fade (keyword colors in the mask, as for the chips). */
 #screen-practice .passage-card__text {
   min-height: 0;
   padding-bottom: var(--s-5);
@@ -600,8 +599,20 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   mask-image: linear-gradient(to bottom, black calc(100% - var(--s-5)), transparent);
 }
 
+/* The mask would fade the text's own focus ring, so while the text has keyboard focus the card
+   draws the ring instead, outside its border where nothing fades or clips it. Both rules need
+   :has; a browser without it keeps the inset ring inside the text's box. */
 #screen-practice .passage-card__text:focus-visible {
   outline-offset: calc(-1 * var(--s-1));
+}
+
+#screen-practice .passage-card:has(.passage-card__text:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#screen-practice .passage-card:has(.passage-card__text:focus-visible) .passage-card__text {
+  outline: none;
 }
 
 /* New topic: a small ghost button in the title's row, at the card's top right, so the topic

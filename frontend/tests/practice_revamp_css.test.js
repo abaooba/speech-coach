@@ -174,6 +174,14 @@ test("the passage text scrolls inside the card and fades over its last --s-5 (M1
   assert.equal(valueFor(".passage-card", "overflow-y"), undefined, "only the text scrolls");
 });
 
+test("the card draws the passage text's focus ring, outside the text's mask", () => {
+  const card = "#screen-practice .passage-card:has(.passage-card__text:focus-visible)";
+  assert.equal(valueFor(card, "outline"), "3px solid var(--accent)");
+  assert.equal(valueFor(card, "outline-offset"), "2px");
+  const text = `${card} .passage-card__text`;
+  assert.equal(valueFor(text, "outline"), "none", "replaced by the card's ring, never removed");
+});
+
 test("Practice's chip row bleeds to the screen edges and fades over its last --s-6 (L2)", () => {
   const row = "#screen-practice .chip-row";
   assert.equal(valueFor(row, "margin-inline"), "calc(-1 * var(--s-4))");
