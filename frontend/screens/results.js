@@ -82,7 +82,8 @@
   function targetFor(passageId) {
     const passages = app.passages || [];
     const passage = passages.find((entry) => entry.id === passageId);
-    const range = passage && Array.isArray(passage.targetWpm) ? passage.targetWpm : DEFAULT_TARGET_WPM;
+    const known = passage && Array.isArray(passage.targetWpm);
+    const range = known ? passage.targetWpm : DEFAULT_TARGET_WPM;
     return [range[0], range[1]];
   }
 
