@@ -412,3 +412,12 @@ test("a second start releases the first context and begins a fresh sample list",
   clock.advance(50);
   assert.deepEqual(plain(pauses.stop()), [{ t: 0.05, rms: 0.5 }]);
 });
+
+test("index.html loads pauses.js right after tips.js and before screens/practice.js", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const sources = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const at = sources.indexOf("pauses.js");
+  assert.notEqual(at, -1, "pauses.js is not loaded");
+  assert.equal(sources[at - 1], "tips.js");
+  assert.equal(sources[at + 1], "screens/practice.js");
+});
