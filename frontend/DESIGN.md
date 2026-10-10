@@ -24,7 +24,7 @@ frontend/
   styles.css          tokens, base, components, screens, one file
   app.js              creates window.app, hash router, boots on DOMContentLoaded
   ui.js               app.ui: el, renderState, clear, announce, formatClock, formatDate,
-                      formatDay, icon
+                      formatDay, icon, getTheme, applyTheme, setTheme, nextTheme
   store.js            app.store: IndexedDB sessions + flags
   api.js              app.api.analyze
   passages.js         app.passages: [{id, kind, title, text, targetWpm: [lo, hi], source?,
@@ -48,7 +48,7 @@ Contracts (exact names):
 - `app.delivery.analyze(words, metrics) -> report` re-scores a stored take from its words, so every saved session uses today's rules: `kinds` (`"hesitation"`, `"habit"` or null per word), `fillers` (`{index, text, kind, start, end}`, "you know" is one event), `fillerCount`, `hesitationCount`, `habitCounts`, `topHabit` (`{text, count}` or null), `speechStart` (the first word's start, null without words), `speakingSeconds`, `wordsPerMinute` (hesitation sounds are not words), `fillersPerMinute`, `pauses` (`{at, length, midSentence}`), `midSentencePauseCount`, `longestMidSentencePause`, `cleanStretch` (`{start, end, seconds}` or null) and `repeatCount`. Every time in the report is in recording seconds, the clock the tips print. A session with no words falls back to the backend tallies. Results, tips and Progress read this report; `metrics` stays the backend dict unchanged.
 - `app.screens.results` also exports pure helpers that touch no DOM and no `app.ui`: `summarize(session)` (shared with History and Progress), `buildTranscriptPlan(words, pauses)`, `headlineFor(summary, previousSummary) -> {strength, focus}`, `compareWithPrevious(summary, previousSummary) -> null | [four {direction, text} or null, in card order]` and `timelineSegments(report) -> null | {start, seconds, fillers, pauses, cleanStretch}`. `app.screens.history.statusFor(summary) -> {text, tone} | null`. `app.screens.progress` exports `series`, `scale` and `summaryFor`.
 - `app.api.analyze(blob, contentType) -> Promise<{transcript, metrics}>`; rejects with an `Error` whose `.kind` is `"network" | "too_short" | "provider" | "unknown"` and whose `.message` is the matching string in section 8.
-- `app.ui.el(tag, attrs, children)`; `renderState(root, {kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary})`, kind `"empty" | "error" | "loading"`, icon `"mic" | "chart" | "search"`; `clear(root)`; `announce(text)` writes the `.sr-only` live region; `formatClock(seconds) -> "1:05"`; `formatDate(iso) -> "Oct 9, 10:21 PM"`; `formatDay(iso) -> "Oct 9"`; `icon(name) -> <svg>`, a 24-unit stroke icon in `currentColor`, `aria-hidden="true"`, built on each call: `mic`, `chart`, `search`, `alert`, `trash`, `check`, `arrow-right`, `refresh`, `triangle-up`, `triangle-down`, `dash`.
+- `app.ui.el(tag, attrs, children)`; `renderState(root, {kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary})`, kind `"empty" | "error" | "loading"`, icon `"mic" | "chart" | "search"`; `clear(root)`; `announce(text)` writes the `.sr-only` live region; `formatClock(seconds) -> "1:05"`; `formatDate(iso) -> "Oct 9, 10:21 PM"`; `formatDay(iso) -> "Oct 9"`; `icon(name) -> <svg>`, a 24-unit stroke icon in `currentColor`, `aria-hidden="true"`, built on each call: `mic`, `chart`, `search`, `alert`, `trash`, `check`, `arrow-right`, `refresh`, `triangle-up`, `triangle-down`, `dash`, `contrast`, `moon`, `sun`. Theme: `getTheme() -> "auto" | "dark" | "light"` ("auto" when nothing is saved or storage is blocked), `applyTheme(choice)` sets `data-theme` on `<html>` (none for auto) and points both theme-color metas at that theme's `--bg`, `setTheme(choice)` saves then applies, `nextTheme(choice)` cycles auto, dark, light. The theme is the one setting kept in `localStorage` (key `speech-coach-theme`, every access in try/catch), because it must apply before the first paint; `app.js` applies it at load. Sessions and flags stay in IndexedDB.
 - Practice keeps its state in one string, `app.screens.practice.state`; one `render(state)` function is the only code that touches that screen's DOM.
 
 ## 3. Layout and spacing
@@ -70,7 +70,7 @@ Only these values for margin, padding and gap. Rhythm: section gap `--s-6`, card
 
 ## 4. Color tokens
 
-Declare on `:root`, override under `@media (prefers-color-scheme: dark)`. Raw hex exists only in this block. `body` sets `background: var(--bg); color: var(--text)`.
+Declare on `:root`. Dark values apply under `@media (prefers-color-scheme: dark)` to `:root:not([data-theme="light"])`, and always to `:root[data-theme="dark"]`; the two dark blocks carry the same values. Each block sets `color-scheme`. Raw hex exists only in this block. `body` sets `background: var(--bg); color: var(--text)`.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
@@ -121,7 +121,7 @@ Class names are exact (`block__part`, `block--modifier`).
 
 **Buttons** `.btn`: `min-height: 48px; padding: 0 var(--s-5); border-radius: var(--r-btn); font: 600 var(--fs-body); display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2)`. Variants: `.btn--primary` (accent bg, on-accent text; one per screen), `.btn--secondary` (surface bg, text color, 1px border), `.btn--ghost` (transparent, accent text), `.btn--danger` (transparent, `--record-text` text and a 1px `--record` border; Delete only), `.btn--block` (width 100%). Disabled: `opacity: .5`, ignores clicks. `.icon-btn`: a 44 x 44 transparent button holding one 20px `app.ui.icon`, `--muted`, with an `aria-label`.
 
-**Header** `.screen__header` (Practice): the `h1` and, at the right, `.wordmark`: a 16px mic mark and "Speech Coach", small, 500, muted, no-wrap.
+**Header** `.screen__header` (Practice): the `h1` and, at the right, `.wordmark` (a 16px mic mark and "Speech Coach", small, 500, muted, no-wrap) followed by `button.icon-btn.theme-toggle`. The toggle shows the current choice, `contrast` for Auto, `moon` for Dark, `sun` for Light, and each tap moves to the next. Its `aria-label` names the choice and the next one: "Theme: Auto. Switch to dark." Its 44px hit area overlaps the header's padding so the row stays as tall as the `h1`.
 
 **Segmented control** `.segmented` (Practice mode, Progress metric): `role="group"` with an `aria-label`, one row of equal `button.segmented__option` (`aria-pressed`) in a `--surface` container with a 1px border, `--r-btn` radius and `--s-1` inner padding. Options are 44px tall, small, `--muted`; `.segmented__option--selected` is accent fill with on-accent text. Practice: "Talk" and "Read" (`aria-label="Practice mode"`), disabled outside idle. Progress: "Pace", "Fillers", "Pauses", "Clean" (`aria-label="Chart metric"`), which fits 288px.
 
@@ -181,6 +181,7 @@ Mic permission is requested on the first record tap, never on load. Stopping und
 - Results bad id: "Session not found". Action "History".
 - Sample failed: "Could not load the sample. Try again." Action "Try again" (back to idle).
 - Practice: tabs "Talk" and "Read"; "New topic"; recording hint "Tap Stop when you finish. It uploads right away."
+- Theme toggle: "Theme: Auto. Switch to dark.", "Theme: Dark. Switch to light.", "Theme: Light. Switch to auto." After a tap the live region says "Theme: Dark", "Theme: Light" or "Theme: Auto".
 - Results headline, first match wins. Strength: "Fillers are down from 4.2 to 1.8 a minute." (vs the last take, a drop of at least 0.5); "Your pace is inside the 130 to 150 target."; "Your fillers are under 3 a minute."; "No pause breaks a sentence."; "Your longest clean stretch is 4.9 seconds."; "This take is on your progress chart." Focus: "Next take, cut fillers under 3 a minute."; "Next take, slow toward 130 to 150 wpm."; "Next take, lift your pace toward 130 to 150 wpm."; "Next take, save pauses for the ends of sentences."; "Next take, stretch your clean run past 4.9 seconds."; "Next take, hold this delivery on a longer topic." The thresholds are the cards': the band ends count as inside, fillers over 3 are high, and a clean stretch under 15 seconds has room to grow.
 - Results: "Arrows compare with your last take."; "Speech timeline"; legend "Filler", "Mid-sentence pause", "Clean stretch".
 - History status: "On target", "Too slow", "Too fast", "Fillers over 3". After a delete the live region says "Session deleted".
@@ -192,7 +193,7 @@ Copy: second person, present tense, under 15 words a sentence, no exclamation ma
 
 - Tap targets are at least 44 x 44px; interactive elements are real `<button>` or `<a>`.
 - `:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px }` everywhere; never `outline: none` without a replacement. Scrollers and masked rows keep enough padding that a ring is never clipped.
-- The `.sr-only` region with `aria-live="polite"`, written only by `app.ui.announce`, says "Recording started", the elapsed time every 30 seconds, "Recording stopped, 42 seconds", "Results ready" and "Session deleted".
+- The `.sr-only` region with `aria-live="polite"`, written only by `app.ui.announce`, says "Recording started", the elapsed time every 30 seconds, "Recording stopped, 42 seconds", "Results ready", "Session deleted" and the theme after each toggle.
 - Focus moves on purpose: to the error title (`tabindex="-1"`) when Practice shows an error, to No when a delete confirm opens, back to the trash button on No, and to the next row after a delete. Every `focus()` call is guarded, because the test fakes have none.
 - Color never carries meaning alone: fillers are bold with labels, pause markers contain text, hints and status words carry words and an icon, deltas carry a triangle and words, the timeline has a legend and a hidden list, the chart has a table. Every text pair is at least 4.5:1 and every meaningful non-text mark at least 3:1 in both schemes (section 4).
 - Segmented controls are toggle buttons with `aria-pressed` inside `role="group"` with an `aria-label`.
@@ -202,4 +203,4 @@ Copy: second person, present tense, under 15 words a sentence, no exclamation ma
 
 ## 10. Done checklist for any screen
 
-Tokens only, spacing from the scale. One `.screen` with the required id, registered with `mount/show/hide`. Every empty, loading and error state built by `app.ui.renderState` and reachable (document how in `frontend/README.md`). One `.btn--primary` per screen. Correct at 320 x 568, 375 x 667, 375 x 844 and 1024 x 900, light and dark; Practice fits above the nav at 320 x 568 and 375 x 667. No console errors, no globals beyond `app`.
+Tokens only, spacing from the scale. One `.screen` with the required id, registered with `mount/show/hide`. Every empty, loading and error state built by `app.ui.renderState` and reachable (document how in `frontend/README.md`). One `.btn--primary` per screen. Correct at 320 x 568, 375 x 667, 375 x 844 and 1024 x 900, light and dark, both from the device setting and from the theme toggle; Practice fits above the nav at 320 x 568 and 375 x 667. `how.html` has no script, so it follows the device setting only. No console errors, no globals beyond `app`.
