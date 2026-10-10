@@ -277,3 +277,8 @@ test("nothing new animates: the bar has no transition", () => {
   );
   assert.deepEqual(animated, []);
 });
+
+test("the theme toggle's 44px target overlaps the header edges; the row stays h1-tall", () => {
+  assert.equal(valueFor(".theme-toggle", "margin-block"), "calc(-1 * var(--s-2))");
+  assert.equal(valueFor(".theme-toggle", "margin-right"), "calc(-1 * var(--s-2))");
+});

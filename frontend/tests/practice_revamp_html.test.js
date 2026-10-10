@@ -57,3 +57,11 @@ test("the wordmark is a 16px decorative mic mark plus the words Speech Coach", (
 function squashText(markup) {
   return markup.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
+
+test("the theme toggle is a button after the wordmark, inside the header", () => {
+  const header = element(practiceSection(), /<header class="screen__header">/, "header");
+  const toggle = element(header, /<button class="icon-btn theme-toggle"[^>]*>/, "button");
+  assert.match(toggle, /type="button"/);
+  assert.ok(header.indexOf('class="wordmark"') < header.indexOf("theme-toggle"));
+  assert.equal(count(practiceSection(), /<button/g), 1, "the only static button");
+});

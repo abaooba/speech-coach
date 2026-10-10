@@ -1,9 +1,10 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
    mount() builds the Talk / Read switch, the chips, the topic or passage card, the timer with its
    time limit, the record button, the hint and the state block inside its root once; render(state,
-   detail) is the only function that changes that DOM afterwards, apart from the timer tick. The
-   Record tap asks for the microphone, MediaRecorder collects the take, and Stop uploads it
-   through app.api and saves it with app.store. */
+   detail) is the only function that changes that DOM afterwards, apart from the timer tick and
+   the header's theme toggle, which repaints itself. The Record tap asks for the microphone,
+   MediaRecorder collects the take, and Stop uploads it through app.api and saves it with
+   app.store. */
 (function () {
   "use strict";
 
@@ -19,6 +20,26 @@
   const NEW_TOPIC_ICON_SIZE = 16;
   const LIMIT_PREFIX = "/ ";
   const LIMIT_OVER_CLASS = "practice__limit-bar--over";
+
+  // The theme toggle beside the wordmark shows the current choice; a tap moves to the next one
+  // (app.ui.nextTheme: auto, dark, light) and the live region names it (DESIGN.md section 8).
+  const THEME_TOGGLE = {
+    auto: {
+      icon: "contrast",
+      label: "Theme: Auto. Switch to dark.",
+      announcement: "Theme: Auto",
+    },
+    dark: {
+      icon: "moon",
+      label: "Theme: Dark. Switch to light.",
+      announcement: "Theme: Dark",
+    },
+    light: {
+      icon: "sun",
+      label: "Theme: Light. Switch to auto.",
+      announcement: "Theme: Light",
+    },
+  };
 
   const HINT_TEXT = "Tap to record. Stop uploads automatically.";
   const RECORDING_HINT_TEXT = "Tap Stop when you finish. It uploads right away.";
@@ -73,8 +94,14 @@
   const selectedIdByKind = {};
   const topicIndexById = {};
 
-  // Nodes built by mount() and repainted by render(); only tickTimer() writes the timer.
+  // The theme the toggle shows. Kept here rather than re-read from storage on each tap, so the
+  // toggle still cycles when localStorage is blocked and app.ui.getTheme() can only say "auto".
+  let themeChoice = "auto";
+
+  // Nodes built by mount() and repainted by render(); only tickTimer() writes the timer. The
+  // theme toggle is the one node index.html builds: mount() finds it in the header.
   const nodes = {
+    themeToggle: null,
     modeOptions: [],
     chipRow: null,
     chips: [],
@@ -196,6 +223,14 @@
       const [first] = entriesOfKind(passages, mode.kind);
       selectedIdByKind[mode.kind] = first ? first.id : null;
     });
+
+    // The header's toggle is absent from test sections that hold only the body.
+    nodes.themeToggle = root.querySelector(".theme-toggle");
+    if (nodes.themeToggle) {
+      themeChoice = app.ui.getTheme();
+      nodes.themeToggle.addEventListener("click", onThemeTap);
+      paintThemeToggle();
+    }
 
     const body = root.querySelector(".screen__body");
     body.appendChild(buildModeSwitch());
@@ -523,6 +558,22 @@
     if (typeof title.focus === "function") {
       title.focus();
     }
+  }
+
+  // Applies the next theme, saves it through app.ui and says which one is on. The screen's own
+  // state is untouched, so a tap works in any state.
+  function onThemeTap() {
+    themeChoice = app.ui.setTheme(app.ui.nextTheme(themeChoice));
+    paintThemeToggle();
+    app.ui.announce(THEME_TOGGLE[themeChoice].announcement);
+  }
+
+  // One 20px icon for the current choice, and a label naming it and the next one.
+  function paintThemeToggle() {
+    const look = THEME_TOGGLE[themeChoice];
+    app.ui.clear(nodes.themeToggle);
+    nodes.themeToggle.appendChild(app.ui.icon(look.icon));
+    nodes.themeToggle.setAttribute("aria-label", look.label);
   }
 
   // Coming back to the screen starts a fresh take unless one is already in flight.

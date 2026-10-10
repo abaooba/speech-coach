@@ -450,6 +450,13 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   margin: 0;
 }
 
+/* The theme toggle after the wordmark: its 44px target reaches past the header's top, bottom
+   and right edges, so the row stays as tall as the h1 and the icon lines up with the column. */
+.theme-toggle {
+  margin-block: calc(-1 * var(--s-2));
+  margin-right: calc(-1 * var(--s-2));
+}
+
 /* The app's name beside the h1: a 16px mic mark and "Speech Coach", small, muted, one line. */
 .wordmark {
   flex: none;

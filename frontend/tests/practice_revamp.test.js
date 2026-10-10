@@ -61,8 +61,10 @@ class RevampElement extends FakeElement {
   }
 }
 
+// The fake document also carries an <html> stand-in, where app.ui.applyTheme sets data-theme.
 function revampDocument(focusLog) {
   return {
+    documentElement: { dataset: {} },
     createElement: (tagName) => new RevampElement(tagName, null, focusLog),
     createElementNS: (namespaceURI, tagName) => new RevampElement(tagName, namespaceURI, focusLog),
     createTextNode: (text) => new FakeTextNode(text),
@@ -217,6 +219,9 @@ function setup(options = {}) {
     setInterval: clock.setInterval,
     clearInterval: clock.clearInterval,
   };
+  if (options.localStorage) {
+    context.localStorage = options.localStorage;
+  }
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
   app.ui.announce = (text) => calls.announce.push(text);
   vm.runInNewContext(PRACTICE_SOURCE, context, { filename: "practice.js" });
@@ -238,6 +243,7 @@ function setup(options = {}) {
     practice,
     root,
     body,
+    html: context.document.documentElement,
     clock,
     calls,
     focused,
@@ -738,4 +744,117 @@ test("a take saves the entry's title and id, whichever topic was showing", async
   assert.equal(t.calls.save.length, 1);
   assert.equal(t.calls.save[0].passageId, "day");
   assert.equal(t.calls.save[0].passageTitle, "Your day");
+});
+
+// The theme toggle beside the wordmark (DESIGN.md sections 6 and 8, queue T27). The shared fakes
+// only hold the body, so these tests mount into a section that has the header as well.
+const THEME_KEY = "speech-coach-theme";
+const THEME_LOOKS = {
+  auto: ["contrast", "Theme: Auto. Switch to dark."],
+  dark: ["moon", "Theme: Dark. Switch to light."],
+  light: ["sun", "Theme: Light. Switch to auto."],
+};
+
+function fakeStorage(saved) {
+  const items = saved ? { [THEME_KEY]: saved } : {};
+  return {
+    items,
+    getItem: (key) => (Object.hasOwn(items, key) ? items[key] : null),
+    setItem: (key, value) => {
+      items[key] = String(value);
+    },
+  };
+}
+
+function blockedStorage() {
+  return {
+    getItem() {
+      throw new Error("storage is blocked");
+    },
+    setItem() {
+      throw new Error("storage is blocked");
+    },
+  };
+}
+
+// A section holding header.screen__header (h1, wordmark, toggle) and the screen body.
+function sectionWithHeader() {
+  const focusLog = [];
+  const make = (tagName, className) => {
+    const node = new RevampElement(tagName, null, focusLog);
+    node.className = className || "";
+    return node;
+  };
+  const root = make("section");
+  const header = make("header", "screen__header");
+  const toggle = make("button", "icon-btn theme-toggle");
+  toggle.setAttribute("type", "button");
+  header.appendChild(make("h1"));
+  header.appendChild(make("span", "wordmark"));
+  header.appendChild(toggle);
+  root.appendChild(header);
+  root.appendChild(make("div", "screen__body"));
+  return { root, toggle };
+}
+
+function assertToggleShows(toggle, theme) {
+  const [iconName, label] = THEME_LOOKS[theme];
+  assert.equal(toggle.children.length, 1, "exactly one icon");
+  assert.equal(toggle.children[0].getAttribute("data-icon"), iconName);
+  assert.equal(toggle.children[0].getAttribute("aria-hidden"), "true");
+  assert.equal(toggle.getAttribute("aria-label"), label);
+}
+
+test("mount shows the saved theme on the toggle: contrast, moon or sun", () => {
+  for (const theme of ["auto", "dark", "light"]) {
+    const { root, toggle } = sectionWithHeader();
+    setup({ root, localStorage: fakeStorage(theme === "auto" ? null : theme) });
+    assertToggleShows(toggle, theme);
+  }
+});
+
+test("each tap moves to the next theme, applies and saves it, and announces it", () => {
+  const { root, toggle } = sectionWithHeader();
+  const storage = fakeStorage(null);
+  const t = setup({ root, localStorage: storage });
+
+  toggle.click();
+  assert.equal(t.html.dataset.theme, "dark");
+  assert.equal(storage.items[THEME_KEY], "dark");
+  assertToggleShows(toggle, "dark");
+
+  toggle.click();
+  assert.equal(t.html.dataset.theme, "light");
+  assertToggleShows(toggle, "light");
+
+  toggle.click();
+  assert.ok(!Object.hasOwn(t.html.dataset, "theme"), "auto leaves the device setting in charge");
+  assert.equal(storage.items[THEME_KEY], "auto");
+  assertToggleShows(toggle, "auto");
+  assert.deepEqual(t.calls.announce, ["Theme: Dark", "Theme: Light", "Theme: Auto"]);
+});
+
+test("the toggle keeps cycling when storage is blocked", () => {
+  const { root, toggle } = sectionWithHeader();
+  const t = setup({ root, localStorage: blockedStorage() });
+  assertToggleShows(toggle, "auto");
+  toggle.click();
+  toggle.click();
+  assert.equal(t.html.dataset.theme, "light");
+  assertToggleShows(toggle, "light");
+});
+
+test("the toggle works in any state and leaves the screen's state alone", () => {
+  const { root, toggle } = sectionWithHeader();
+  const t = setup({ root, localStorage: fakeStorage(null) });
+  t.practice.render("recording");
+  toggle.click();
+  assert.equal(t.root.dataset.state, "recording");
+  assert.equal(t.html.dataset.theme, "dark");
+});
+
+test("a section without the toggle mounts as before", () => {
+  const t = setup({ localStorage: fakeStorage("dark") });
+  assert.equal(t.root.dataset.state, "idle");
+  assert.ok(!Object.hasOwn(t.html.dataset, "theme"), "mount never applies a theme itself");
 });

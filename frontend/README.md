@@ -114,8 +114,15 @@ the block's red title (press Tab once to reach its button).
    no page scroll. At 320 x 568 the card drops to its 88px floor (its text scrolls inside), the
    hint words hide and the record button shrinks, so it and its label still sit above the nav.
 
+9. Theme toggle: the icon right of "Speech Coach" is a half-filled circle for Auto, and a
+   screen reader names it "Theme: Auto. Switch to dark." Tap it: the page turns dark whatever
+   the device setting, the icon becomes a moon and the live region says "Theme: Dark". Tap
+   again for Light (a sun, "Theme: Light"), and again for Auto (the device setting decides).
+   Reload: the choice is kept. The header stays one line, as tall as the "Practice" heading.
+
 Screen-reader users hear "Recording started", the clock every 30 seconds, "Recording
-stopped, N seconds" and "Results ready" through the live region.
+stopped, N seconds", "Results ready" and, after each theme tap, "Theme: Dark", "Theme: Light"
+or "Theme: Auto" through the live region. Errors are not announced on top of their alert role.
 
 **Results (about one minute).** Needs one saved session, so run the Practice happy path
 first; the hash is then `#/results/<id>`. Without a microphone, Practice in idle shows "See a
