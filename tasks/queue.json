@@ -166,12 +166,14 @@
    "title": "How we measure page and the legend's How we count link",
    "brief": "Implement Task 5 of docs/superpowers/plans/2026-10-10-next-level.md. Create frontend/how.html, a static page that loads styles.css only (no scripts) with an h1 'How we measure', a back link to ./#/practice, and one section per item in the plan's content outline, copied in plain language from the rules in frontend/delivery.js and the bands in frontend/tips.js, each band with its named source. In frontend/screens/results.js, buildLegend appends a link <a class=\"transcript__how\" href=\"how.html\">How we count</a> after the legend text as a child node (the legend's own text must stay exactly as Task 2 set it). Add .transcript__how to styles.css with tokens only. If frontend/sw.js exists, add 'how.html' to SHELL and bump CACHE_NAME. Tests in a new frontend/tests/how_page.test.js: the legend contains one a.transcript__how with href how.html; how.html exists, has exactly one h1, links styles.css, contains no <script and no '!' in its text, and names every rule word (like, so, you know, actually, basically) and every source in the outline. Do not edit existing tests. Commit when pytest, ruff and node --test frontend/tests pass.",
    "acceptance": "Script: `node --test frontend/tests` passes including how_page.test.js; `.venv/bin/pytest -q` passes. Manual (1 min): on Results tap 'How we count': the page opens at 320px with no horizontal scroll in light and dark, every metric has a rule and a source, and the back link returns to Practice.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T15"
    ],
-   "notes": []
+   "notes": [
+    "session 2026-10-10: 634fabe How we measure page, linked from the transcript legend"
+   ]
   },
   {
    "id": "T19",
