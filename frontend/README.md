@@ -219,19 +219,23 @@ sample result", which opens a real sample take on this screen.
 or save two with the store check above. Then open http://127.0.0.1:8000/#/history.
 
 1. Under the "History" heading, one row per session, newest first: the passage title over
-   the date on the left, the stats on the right as `152 wpm · 3.1 per min` (the same numbers
-   as that session's first two Results cards), and a "Delete" button. The History nav item
-   is highlighted.
+   the date, then the stats as `152 wpm · 3.1 /min` (the same numbers as that session's
+   first two Results cards) and a status word with its icon. A green check reads "On
+   target"; a rust warning triangle reads "Too slow", "Too fast" or "Fillers over 3", and
+   two misses read "Too slow · Fillers over 3". Pace is judged against that passage's
+   target range, ends included; fillers miss above 3 a minute. The store check's session
+   (150 wpm, one "um" in 12 seconds, so 5 a minute) reads "Fillers over 3". A muted trash
+   icon sits at the right of each row. The History nav item is highlighted.
 
 2. Tap a row: the hash becomes `#/results/<id>` and Results shows that session. Use the
    browser's back button to return.
 
-3. Tap "Delete": it becomes "Delete?" with "Yes" and "No". Tap "No": "Delete" comes back and
-   the row stays. Tap "Delete" on one row, then on another: the first row's "Delete" comes
-   back on its own, so only one row asks at a time.
+3. Tap the trash icon: it becomes "Delete?" with "Yes" and "No". Tap "No": the trash icon
+   comes back and the row stays. Tap the trash icon on one row, then on another: the first
+   row's trash icon comes back on its own, so only one row asks at a time.
 
-4. Tap "Delete", then "Yes": the row disappears and the others keep their order. In the
-   console:
+4. Tap the trash icon, then "Yes": the row disappears and the others keep their order. In
+   the console:
 
    ```js
    await app.store.list()
@@ -239,14 +243,24 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
 
    no longer includes that session.
 
-5. Empty state: delete the remaining sessions through the UI, or run
-   `indexedDB.deleteDatabase('speech-coach')` in the console and reload. The empty state
-   built by `app.ui.renderState` shows "No sessions yet" / "Your first recording will show
-   up here." with a "Record" button that opens Practice.
+5. Keyboard and screen reader: Tab to a trash icon; it is named "Delete session from
+   <date>". Press Enter: focus moves to "No", inside a group named "Delete session from
+   <date>?". Press Enter on "No": focus returns to the trash icon. Open the prompt again,
+   press Shift+Tab to reach "Yes" and press Enter: the live region says "Session deleted"
+   and focus moves to the row now in that place (the new bottom row after deleting the
+   bottom one), or to "Record" when no session is left.
 
-6. Narrow the window to 320px: the stats move under the title and date, "Delete" and the
-   "Delete? Yes / No" prompt stay on the row, no horizontal scroll, no console errors. At
-   640px each row is a single line.
+6. Empty state: delete the remaining sessions through the UI, or run
+   `indexedDB.deleteDatabase('speech-coach')` in the console and reload. The empty state
+   built by `app.ui.renderState` shows a microphone icon, "No sessions yet" / "Your first
+   recording will show up here." and a "Record" button that opens Practice.
+
+7. Narrow the window to 320px: the stats and the status sit under the title and date,
+   left-aligned, with the trash icon on the right. Open a prompt: "Delete? Yes / No" drops
+   below the status, at the right, and nothing overlaps. No horizontal scroll, no console
+   errors. From 480px the stats and the status move to the right of the title and date.
+   Switch the OS theme (or DevTools "Emulate CSS prefers-color-scheme: dark"): the green
+   and rust status words stay readable.
 
 **Progress (about one minute).** Needs two saved sessions; a real trend needs more. Seed five
 with varied numbers, one per day over the last five days: open DevTools on the app and paste

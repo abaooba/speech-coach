@@ -1,9 +1,7 @@
-/* screens/history.js: app.screens.history, the History screen (DESIGN.md sections 1 and 6).
-   formatStats(session) turns one stored session into its "152 wpm · 3.1 /min" line through
-   app.screens.results.summarize, so both screens show the same numbers. show() lists every
-   session from app.store newest first: tapping a row opens its Results, and the trash button
-   asks "Delete? Yes / No" in place before app.store.remove runs. Only one row confirms at a
-   time, and keyboard focus follows the prompt (DESIGN.md section 9). */
+/* screens/history.js: app.screens.history (DESIGN.md sections 1, 6 and 9). Each stored session
+   is a row: formatStats(session) ("152 wpm · 3.1 /min", from app.screens.results.summarize) and
+   the pure statusFor(summary) ("On target", "Too slow · Fillers over 3"). A tap reopens Results;
+   the trash button asks "Delete? Yes / No" in place, one row at a time, and focus follows. */
 (function () {
   "use strict";
 
@@ -12,6 +10,22 @@
   const FILLERS_UNIT = " /min";
   const STATS_SEPARATOR = " · ";
   const FILLERS_DECIMALS = 1;
+
+  // Status words (DESIGN.md sections 6 and 8). Pace is judged against the take's own band, ends
+  // included; fillers by the Results and tips rule, where more than 3 a minute is high (keep
+  // MAX_FILLERS_PER_MINUTE equal to the one in screens/results.js and tips.js).
+  const ON_TARGET = "On target";
+  const TOO_SLOW = "Too slow";
+  const TOO_FAST = "Too fast";
+  const FILLERS_HIGH = "Fillers over 3";
+  const MISS_SEPARATOR = " · ";
+  const MAX_FILLERS_PER_MINUTE = 3;
+  const TONE_OK = "ok";
+  const TONE_WARN = "warn";
+  const STATUS_CLASS = "session-row__status";
+  const STATUS_ICONS = { [TONE_OK]: "check", [TONE_WARN]: "alert" };
+  // The micro type size, so the icon is as tall as the words beside it.
+  const STATUS_ICON_SIZE = 12;
 
   // Fixed copy for the empty state (DESIGN.md section 8) and the delete controls (section 6).
   const EMPTY_TITLE = "No sessions yet";
@@ -48,9 +62,49 @@
   // "152 wpm · 3.1 /min" for one stored session. Reads app.screens.results.summarize when
   // called, never at load, so a change there reaches this screen too.
   function formatStats(session) {
-    const summary = app.screens.results.summarize(session);
+    return statsText(app.screens.results.summarize(session));
+  }
+
+  function statsText(summary) {
     const fillers = summary.fillersPerMinute.toFixed(FILLERS_DECIMALS);
     return summary.wpm + WPM_UNIT + STATS_SEPARATOR + fillers + FILLERS_UNIT;
+  }
+
+  // What a take missed, pace first and then fillers ("Too slow · Fillers over 3"), or
+  // "On target": {text, tone}. Null when nothing was measured, that is when wpm is not above 0.
+  // Pace is checked only when the summary carries a [lo, hi] band. Pure: no DOM, no app.ui.
+  function statusFor(summary) {
+    if (!summary || !(summary.wpm > 0)) {
+      return null;
+    }
+    const misses = [];
+    const pace = paceMiss(summary.wpm, summary.target);
+    if (pace !== null) {
+      misses.push(pace);
+    }
+    if (summary.fillersPerMinute > MAX_FILLERS_PER_MINUTE) {
+      misses.push(FILLERS_HIGH);
+    }
+    if (misses.length === 0) {
+      return { text: ON_TARGET, tone: TONE_OK };
+    }
+    return { text: misses.join(MISS_SEPARATOR), tone: TONE_WARN };
+  }
+
+  // "Too slow" under the band, "Too fast" over it; null inside it or without a band.
+  function paceMiss(wpm, target) {
+    if (!isBand(target)) {
+      return null;
+    }
+    const [lo, hi] = target;
+    if (wpm < lo) {
+      return TOO_SLOW;
+    }
+    return wpm > hi ? TOO_FAST : null;
+  }
+
+  function isBand(target) {
+    return Array.isArray(target) && target.length === 2 && target.every(Number.isFinite);
   }
 
   function show() {
@@ -147,7 +201,10 @@
     return { row, open };
   }
 
+  // Title over date, then the stats and the status word, both from one summary of the take.
   function buildOpenButton(session, date) {
+    const summary = app.screens.results.summarize(session);
+    const status = statusFor(summary);
     return app.ui.el(
       "button",
       {
@@ -160,8 +217,20 @@
           app.ui.el("div", { class: "session-row__title", text: session.passageTitle }),
           app.ui.el("div", { class: "session-row__date", text: date }),
         ]),
-        app.ui.el("span", { class: "session-row__stats num", text: formatStats(session) }),
+        app.ui.el("span", { class: "session-row__stats num", text: statsText(summary) }),
+        status === null ? null : buildStatus(status),
       ],
+    );
+  }
+
+  // The words, then the check or alert icon, which the stylesheet draws first; the text stays
+  // the words alone.
+  function buildStatus(status) {
+    const className = STATUS_CLASS + " " + STATUS_CLASS + "--" + status.tone;
+    return app.ui.el(
+      "span",
+      { class: className, text: status.text },
+      app.ui.icon(STATUS_ICONS[status.tone], STATUS_ICON_SIZE),
     );
   }
 
@@ -231,5 +300,5 @@
     }
   }
 
-  app.screens.history = { mount, show, hide, formatStats };
+  app.screens.history = { mount, show, hide, formatStats, statusFor };
 })();

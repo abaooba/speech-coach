@@ -430,7 +430,8 @@ test("the open button is a grid that keeps the stats under the title on a phone"
   const open = ruleFor(".session-row__open");
   assert.equal(open.display, "grid");
   assert.equal(open["min-width"], undefined, "it never shrinks under the stats line");
-  assert.equal(ruleFor(".session-row__text")["min-width"], "0");
+  const text = ruleFor(".session-row__text");
+  assert.equal(text["overflow-wrap"], "anywhere", "a long title wraps, never widens the row");
   assert.equal(ruleFor(".session-row__date")["white-space"], "nowrap");
   const stats = ruleFor(".session-row__stats");
   assert.equal(stats["white-space"], "nowrap");
@@ -439,12 +440,20 @@ test("the open button is a grid that keeps the stats under the title on a phone"
 
 test("from 480px the stats sit at the right of the title and date", () => {
   const open = ruleFor(".session-row__open", WIDE);
-  assert.equal(open["grid-template-columns"], "minmax(0, 1fr) auto");
+  assert.equal(open["grid-template-columns"], "minmax(min-content, 1fr) auto");
   assert.equal(ruleFor(".session-row__stats", WIDE)["justify-self"], "end");
 });
 
+test("the text column never gets narrower than its no-wrap date, so nothing overlaps it", () => {
+  const phone = ruleFor(".session-row__open")["grid-template-columns"];
+  const wide = ruleFor(".session-row__open", WIDE)["grid-template-columns"];
+  [phone, wide].forEach((columns) => assert.match(columns, /^minmax\(min-content, 1fr\)/));
+});
+
 test("from 480px an open confirm keeps a clear gap after the right-aligned stats", () => {
-  assert.equal(ruleFor(".session-row__confirm", WIDE)["margin-left"], "var(--s-5)");
+  const confirm = ruleFor(".session-row__confirm", WIDE);
+  assert.equal(confirm["padding-left"], "var(--s-5)");
+  assert.equal(confirm["margin-left"], undefined, "dropped below, it still keeps to the right");
 });
 
 test("a narrow row lets the open confirm drop below the stats, at the right", () => {
