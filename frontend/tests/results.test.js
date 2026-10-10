@@ -210,7 +210,7 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   const meta = body.children[0];
   assert.equal(meta.tagName, "p");
   assert.equal(
-    meta.textContent,
+    fullText(meta),
     "Gettysburg Address, opening · " + app.ui.formatDate(CREATED_AT),
   );
 

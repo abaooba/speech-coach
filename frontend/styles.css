@@ -878,12 +878,23 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* 8. Results screen: meta line, metric cards, actions */
+/* The meta line is the title's subtitle, so it sits close under the h1. */
+#screen-results h1 {
+  margin-bottom: var(--s-1);
+}
+
 .results__meta {
   margin: 0;
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
   color: var(--muted);
+}
+
+/* A narrow screen breaks the meta line between its parts, never inside the date or time. */
+.results__date,
+.results__time-used {
+  white-space: nowrap;
 }
 
 /* The four cards sit 2 x 2 at every width. The --s-3 between the two rows of cards is the
@@ -943,10 +954,21 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
+/* A hint is words plus an icon in the hint's color; the icon follows the words in the DOM and
+   is drawn first. Two-line hints balance their lines rather than strand the last word. */
 .metric-card__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
   font-size: var(--fs-small);
   line-height: 1.4;
-  font-weight: 500;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.metric-card__hint svg {
+  flex: none;
+  order: -1;
 }
 
 .metric-card__hint--ok {

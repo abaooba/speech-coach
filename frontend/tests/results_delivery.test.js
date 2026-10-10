@@ -139,7 +139,7 @@ test("a preset with a time limit adds the time used to the meta line", async () 
   const session = clipSession({ passageId: "congress-speech", passageTitle: "Congress speech" });
   const { app, body } = await showSession(session);
   assert.equal(
-    byClass(body, "results__meta").textContent,
+    fullText(byClass(body, "results__meta")),
     "Congress speech · " + app.ui.formatDate(CREATED_AT) + " · 0:30 of 3:00",
   );
 });

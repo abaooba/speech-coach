@@ -34,9 +34,15 @@
   const FILLERS_HIGH = "Aim for under 3";
   const TIME_USED_JOINER = " of ";
 
+  // A hint never relies on color alone: green hints carry a check, rust ones the alert
+  // triangle (DESIGN.md sections 4 and 9).
+  const HINT_ICONS = { [TONE_OK]: "check", [TONE_WARN]: "alert" };
+  const HINT_ICON_SIZE = 16;
+
   // Fixed copy for the bad-id state and the two actions (DESIGN.md sections 1 and 8).
   const NOT_FOUND_TITLE = "Session not found";
   const NOT_FOUND_BODY = "It may have been deleted.";
+  const NOT_FOUND_ICON = "search";
   const RECORD_AGAIN_LABEL = "Record again";
   const HISTORY_LABEL = "History";
   const META_SEPARATOR = " · ";
@@ -218,6 +224,7 @@
   function renderNotFound() {
     app.ui.renderState(body, {
       kind: "empty",
+      icon: NOT_FOUND_ICON,
       title: NOT_FOUND_TITLE,
       body: NOT_FOUND_BODY,
       actionLabel: HISTORY_LABEL,
@@ -312,13 +319,18 @@
     return app.ui.el("div", { class: "tip-card", text: tip.text });
   }
 
+  // "Gettysburg Address, opening · Oct 10, 10:30 AM", plus " · 2:41 of 3:00" for a timed
+  // preset. The date and the time used sit in no-wrap spans, so a narrow screen breaks the line
+  // between the parts, never inside "Oct 10, 10:30 AM".
   function buildMeta(session, timeUsed) {
-    const parts = [session.passageTitle, app.ui.formatDate(session.createdAt)];
+    const title = session.passageTitle ? String(session.passageTitle) + META_SEPARATOR : null;
+    const date = app.ui.formatDate(session.createdAt);
+    const parts = [title, app.ui.el("span", { class: "results__date", text: date })];
     if (timeUsed) {
-      parts.push(timeUsed);
+      const used = app.ui.el("span", { class: "results__time-used", text: timeUsed });
+      parts.push(META_SEPARATOR, used);
     }
-    const text = parts.join(META_SEPARATOR);
-    return app.ui.el("p", { class: "results__meta num", text });
+    return app.ui.el("p", { class: "results__meta num" }, parts);
   }
 
   // Exactly four cards, in the order DESIGN.md fixes; the pace and fillers cards carry hints.
@@ -344,14 +356,19 @@
       app.ui.el("div", { class: "metric-card__value num" }, valueParts),
     ];
     if (hint) {
-      parts.push(
-        app.ui.el("div", {
-          class: "metric-card__hint metric-card__hint--" + hint.tone,
-          text: hint.text,
-        }),
-      );
+      parts.push(hintLine(hint));
     }
     return app.ui.el("div", { class: "metric-card" }, parts);
+  }
+
+  // The hint's words, then its icon. The icon comes after the words in the DOM, so the line's
+  // text is exactly the words, and CSS draws it first (order: -1).
+  function hintLine(hint) {
+    return app.ui.el(
+      "div",
+      { class: "metric-card__hint metric-card__hint--" + hint.tone, text: hint.text },
+      [app.ui.icon(HINT_ICONS[hint.tone], HINT_ICON_SIZE)],
+    );
   }
 
   function buildActions() {
