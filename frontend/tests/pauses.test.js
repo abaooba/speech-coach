@@ -109,3 +109,89 @@ test("findSilences measures a run at either edge of the take by the samples it h
   const quietEnd = series([seconds(3, 0.3), seconds(2, 0.01)]);
   assert.deepEqual(plain(pauses.findSilences(quietEnd)), [[3, 1.95]]);
 });
+
+// A 12.5 s take: 2 s of room noise, speech from 2 s to 10 s with a 3 s silence from 5 s to
+// 8 s, then 2.5 s of room noise after the last word. The backend would report duration 8.
+function speechTake() {
+  return series([
+    seconds(2, 0.01),
+    seconds(3, 0.3),
+    seconds(3, 0.01),
+    seconds(2, 0.3),
+    seconds(2.5, 0.01),
+  ]);
+}
+
+const SPEECH_DURATION = 8;
+
+function metricsWith(overrides) {
+  return { words_per_minute: 150, duration: SPEECH_DURATION, pauses: [], ...overrides };
+}
+
+test("reconcile keeps a transcript pause an energy silence overlaps, with the longer length", () => {
+  const pauses = load();
+  const transcriptShorter = metricsWith({ pauses: [[5.1, 1.6]] });
+  assert.deepEqual(plain(pauses.reconcile(transcriptShorter, speechTake()).pauses), [[5.1, 3]]);
+
+  const transcriptLonger = metricsWith({ pauses: [[5.1, 3.4]] });
+  assert.deepEqual(plain(pauses.reconcile(transcriptLonger, speechTake()).pauses), [[5.1, 3.4]]);
+});
+
+test("reconcile adds an energy-only silence at its start, inside the speech span only", () => {
+  const pauses = load();
+  const result = pauses.reconcile(metricsWith({}), speechTake());
+  assert.deepEqual(plain(result.pauses), [[5, 3]], "room noise before and after is not a pause");
+  assert.equal(result.words_per_minute, 150, "the other metrics come through");
+  assert.equal(result.duration, SPEECH_DURATION);
+});
+
+test("reconcile keeps a transcript pause no silence confirms, even with no samples", () => {
+  const pauses = load();
+  const metrics = metricsWith({ pauses: [[3, 1.6]] });
+  assert.deepEqual(plain(pauses.reconcile(metrics, speechTake()).pauses), [[3, 1.6], [5, 3]]);
+  assert.deepEqual(plain(pauses.reconcile(metrics, []).pauses), [[3, 1.6]]);
+  assert.deepEqual(plain(pauses.reconcile(metrics, series([seconds(10, 0)])).pauses), [[3, 1.6]]);
+});
+
+test("reconcile skips the span check when metrics.duration is missing", () => {
+  const pauses = load();
+  const noDuration = { pauses: [] };
+  assert.deepEqual(plain(pauses.reconcile(noDuration, speechTake()).pauses), [
+    [0, 2],
+    [5, 3],
+    [10, 2.45],
+  ]);
+});
+
+test("reconcile sorts by at and drops duplicate entries", () => {
+  const pauses = load();
+  const metrics = metricsWith({ pauses: [[8.5, 1.5], [3, 1.6], [3, 1.6]] });
+  assert.deepEqual(plain(pauses.reconcile(metrics, speechTake()).pauses), [
+    [3, 1.6],
+    [5, 3],
+    [8.5, 1.5],
+  ]);
+});
+
+test("reconcile returns a new object and never changes its inputs", () => {
+  const pauses = load();
+  const metrics = metricsWith({ pauses: [[5.1, 1.6]], fillers: { um: 2 } });
+  const samples = speechTake();
+  const before = JSON.stringify({ metrics, samples });
+
+  const result = pauses.reconcile(metrics, samples);
+  assert.equal(JSON.stringify({ metrics, samples }), before);
+  assert.notEqual(result, metrics);
+  assert.notEqual(result.pauses, metrics.pauses);
+  assert.deepEqual(plain(result), { ...plain(metrics), pauses: [[5.1, 3]] });
+});
+
+test("reconcile drops malformed transcript pauses instead of crashing", () => {
+  const pauses = load();
+  const garbage = metricsWith({ pauses: [null, [1], ["x", "y"], [3, 1.6]] });
+  assert.deepEqual(plain(pauses.reconcile(garbage, speechTake()).pauses), [[3, 1.6], [5, 3]]);
+  assert.deepEqual(plain(pauses.reconcile(metricsWith({ pauses: "none" }), speechTake()).pauses), [
+    [5, 3],
+  ]);
+  assert.deepEqual(plain(pauses.reconcile(null, [])), { pauses: [] });
+});

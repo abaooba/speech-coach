@@ -88,5 +88,77 @@
     return noiseFloor + QUIET_FRACTION_OF_RANGE * (speechLevel - noiseFloor);
   }
 
-  app.pauses = { findSilences, rms, percentile };
+  // Folds the energy silences of a take into the backend's transcript pauses and returns a
+  // new metrics object with the merged list; neither input is changed. A transcript pause
+  // ([at, length], at being the end of the word before the gap) always stays, and grows to
+  // the length of any silence overlapping it when that is longer. A silence no transcript
+  // pause overlaps is added as [start, length] when it falls inside the speech span: its
+  // start is when the word before it went quiet, which is what `at` means to Results.
+  function reconcile(metrics, samples) {
+    const given = metrics && typeof metrics === "object" ? metrics : {};
+    const transcriptPauses = wellFormedPauses(given.pauses);
+    const silences = findSilences(samples);
+    const span = speechSpan(samples, given.duration);
+
+    const merged = transcriptPauses.map(([at, length]) => {
+      const longest = silences
+        .filter((silence) => overlaps([at, length], silence))
+        .reduce((best, silence) => Math.max(best, silence[1]), length);
+      return [at, longest];
+    });
+    silences.forEach((silence) => {
+      const confirmsTranscript = transcriptPauses.some((pause) => overlaps(pause, silence));
+      if (!confirmsTranscript && insideSpan(silence, span)) {
+        merged.push([silence[0], silence[1]]);
+      }
+    });
+    return { ...given, pauses: sortAndDedupe(merged) };
+  }
+
+  // Only [number, number] pairs are pauses; anything else in the list is dropped.
+  function wellFormedPauses(list) {
+    if (!Array.isArray(list)) {
+      return [];
+    }
+    return list
+      .filter((pause) => Array.isArray(pause) && isFinite(pause[0]) && isFinite(pause[1]))
+      .map((pause) => [pause[0], pause[1]]);
+  }
+
+  function isFinite(value) {
+    return typeof value === "number" && Number.isFinite(value);
+  }
+
+  // Where the words sit in sample time, without the transcript: speech begins at the first
+  // loud sample, and the backend's duration runs from the first word's start to the last
+  // word's end, so it ends `duration` seconds later. null (no span check) when duration is
+  // unknown or the take is too short to have a threshold.
+  function speechSpan(samples, duration) {
+    if (!isFinite(duration) || duration < 0) {
+      return null;
+    }
+    if (!Array.isArray(samples) || samples.length < MIN_SAMPLES) {
+      return null;
+    }
+    const threshold = quietThreshold(samples);
+    const firstLoud = samples.find((sample) => sample.rms >= threshold);
+    return firstLoud ? { start: firstLoud.t, end: firstLoud.t + duration } : null;
+  }
+
+  function insideSpan([start, length], span) {
+    return span === null || (start >= span.start && start + length <= span.end);
+  }
+
+  // Two [start, length] stretches share some time.
+  function overlaps([startA, lengthA], [startB, lengthB]) {
+    return startA < startB + lengthB && startB < startA + lengthA;
+  }
+
+  // In time order; of two entries at the same moment only the longer is kept.
+  function sortAndDedupe(pairs) {
+    const sorted = [...pairs].sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    return sorted.filter((pair, index) => index === 0 || pair[0] !== sorted[index - 1][0]);
+  }
+
+  app.pauses = { reconcile, findSilences, rms, percentile };
 })();
