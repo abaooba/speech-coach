@@ -569,7 +569,88 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   margin-top: var(--s-6);
 }
 
-/* 9. Reduced motion */
+/* 9. History screen: session list and rows */
+.session-list {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+}
+
+/* The divider sits on the row, so it runs under the Delete button as well as the text. */
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The open button fills the row beside Delete and may wrap: the title column keeps 160px
+   before the stats drop to their own line, so a 320px screen never scrolls sideways. */
+.session-row__open {
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-row__text {
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-row__title {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.session-row__date {
+  margin-top: var(--s-1);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.session-row__stats {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Delete, and the Yes / No that replace it, keep the 48px button height but take the 12px side
+   padding so a row still fits at 320px while it is confirming. */
+.session-row .btn {
+  flex: none;
+  padding: 0 var(--s-3);
+}
+
+.session-row__confirm {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* 10. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spinner,
   .rec-dot {
