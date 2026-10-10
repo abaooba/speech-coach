@@ -286,10 +286,11 @@
     return HEADLINE.holdDelivery;
   }
 
-  // A drop of at least half a filler a minute since the last take. Both takes must have words:
-  // a take saved without them was counted by the backend's rules, not these.
+  // A drop of at least half a filler a minute since the last take (DESIGN.md section 8), on the
+  // same numbers the Fillers card compares: a take saved without words counts its backend
+  // tallies there too, so the headline never contradicts the card's "4.2 fewer".
   function fillersDropped(summary, previousSummary) {
-    if (!previousSummary || !hasWords(summary) || !hasWords(previousSummary)) {
+    if (!previousSummary) {
       return false;
     }
     const drop = roundTo(previousSummary.fillersPerMinute - summary.fillersPerMinute, 1);

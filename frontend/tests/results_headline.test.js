@@ -163,18 +163,30 @@ test("a fillers drop under 0.5, a rise or a missing previous take does not lead"
   );
 });
 
-test("a fillers drop counts only when both takes have words", () => {
+test("a fillers drop counts with or without words, as the Fillers card does", () => {
   const withWords = spoken(120, spread(2, 50));
   const previousWithout = tallies({ wpm: 120, fillers: 6, passageId: "drill" });
   assert.equal(
     headline(withWords, previousWithout).strength,
-    "Your pace is inside the 100 to 130 target.",
-    "a previous take without words is scored by other rules",
+    "Fillers are down from 6 to 2 a minute.",
+    "a previous take without words is scored from the backend tallies",
   );
   const currentWithout = tallies({ wpm: 120, fillers: 2, passageId: "drill" });
   assert.equal(
     headline(currentWithout, spoken(120, spread(6, 15))).strength,
-    "Your pace is inside the 100 to 130 target.",
+    "Fillers are down from 6 to 2 a minute.",
+  );
+});
+
+test("the headline and the Fillers card's delta agree when the last take has no words", () => {
+  const results = loadPure();
+  const current = results.summarize(spoken(600, spread(9, 60)));
+  const previous = results.summarize(tallies({ wpm: 120, fillers: 6, passageId: "drill" }));
+  const fillersDelta = results.compareWithPrevious(current, previous)[1];
+  assert.deepEqual({ ...fillersDelta }, { direction: "down", text: "4.2 fewer" });
+  assert.equal(
+    results.headlineFor(current, previous).strength,
+    "Fillers are down from 6 to 1.8 a minute.",
   );
 });
 
