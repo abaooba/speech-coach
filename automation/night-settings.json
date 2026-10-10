@@ -1,55 +1,25 @@
 {
-  "allow": [
-    "Read",
-    "Edit",
-    "Write",
-    "Glob",
-    "Grep",
-    "Bash(.venv/bin/pytest:*)",
-    "Bash(.venv/bin/ruff:*)",
-    "Bash(.venv/bin/python:*)",
-    "Bash(.venv/bin/pip install:*)",
-    "Bash(node:*)",
-    "Bash(git status:*)",
-    "Bash(git diff:*)",
-    "Bash(git log:*)",
-    "Bash(git add:*)",
-    "Bash(git commit:*)",
-    "Bash(git show:*)",
-    "Bash(git branch:*)",
-    "Bash(ls:*)",
-    "Bash(cat:*)",
-    "Bash(head:*)",
-    "Bash(tail:*)",
-    "Bash(wc:*)",
-    "Bash(mkdir:*)",
-    "Bash(touch:*)",
-    "Bash(cp:*)",
-    "Bash(mv:*)",
-    "Bash(grep:*)",
-    "Bash(find:*)"
-  ],
-  "deny": [
-    "Bash(git push:*)",
-    "Bash(git reset:*)",
-    "Bash(git checkout:*)",
-    "Bash(git switch:*)",
-    "Bash(git rebase:*)",
-    "Bash(git merge:*)",
-    "Bash(git worktree:*)",
-    "Bash(git stash:*)",
-    "Bash(rm:*)",
-    "Bash(sudo:*)",
-    "Bash(curl:*)",
-    "Bash(wget:*)",
-    "Bash(gh:*)",
-    "Bash(launchctl:*)",
-    "Bash(pmset:*)",
-    "Read(.env)",
-    "Read(**/.env)",
-    "Edit(.env)",
-    "Write(.env)",
-    "WebFetch",
-    "WebSearch"
-  ]
+  "permissions": {
+    "allow": [
+      "Read", "Edit", "Write", "Glob", "Grep",
+      "Bash(.venv/bin/pytest:*)", "Bash(.venv/bin/ruff:*)", "Bash(.venv/bin/python:*)",
+      "Bash(.venv/bin/pip:*)", "Bash(python3:*)", "Bash(node:*)",
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git add:*)",
+      "Bash(git commit:*)", "Bash(git show:*)", "Bash(git branch:*)", "Bash(git rev-parse:*)",
+      "Bash(git rm:*)", "Bash(git mv:*)", "Bash(git restore:*)",
+      "Bash(ls:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)",
+      "Bash(mkdir:*)", "Bash(touch:*)", "Bash(cp:*)", "Bash(mv:*)", "Bash(grep:*)", "Bash(find:*)",
+      "Bash(echo:*)", "Bash(printf:*)", "Bash(sed:*)", "Bash(awk:*)", "Bash(sort:*)", "Bash(uniq:*)",
+      "Bash(tr:*)", "Bash(cut:*)", "Bash(diff:*)", "Bash(pwd:*)", "Bash(which:*)", "Bash(date:*)",
+      "Bash(xargs:*)", "Bash(test:*)", "Bash(true:*)", "Bash(file:*)", "Bash(stat:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)", "Bash(git reset:*)", "Bash(git checkout:*)", "Bash(git switch:*)",
+      "Bash(git rebase:*)", "Bash(git merge:*)", "Bash(git worktree:*)", "Bash(git stash:*)",
+      "Bash(rm:*)", "Bash(sudo:*)", "Bash(curl:*)", "Bash(wget:*)", "Bash(gh:*)",
+      "Bash(launchctl:*)", "Bash(pmset:*)",
+      "Read(.env)", "Read(**/.env)", "Edit(.env)", "Write(.env)",
+      "WebFetch", "WebSearch"
+    ]
+  }
 }

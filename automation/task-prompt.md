@@ -13,6 +13,8 @@ Tonight's date: {{DATE}}. You are on branch {{BRANCH}} in a worktree. Nobody is 
 - Commit in small steps with clear messages. Do not push. Do not create branches.
 - No placeholder code. If you cannot finish properly, stop, leave the branch in a clean committed state, and explain in the report.
 - Do not read .env. There is no network for tests.
+- Tool permissions are fixed and nobody can approve a prompt. A denied command is a wasted turn: run ONE command per Bash call, never chain with && or |, use `.venv/bin/python` and `.venv/bin/pytest`, `node --test frontend/tests` for JS tests, and `git rm` / `git mv` to delete or rename.
+- Frontend tasks: frontend/DESIGN.md is the law. Use its exact file names, class names, tokens and contracts. Never edit DESIGN.md.
 
 # When you are done (or blocked), write the report
 

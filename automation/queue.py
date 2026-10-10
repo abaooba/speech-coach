@@ -3,6 +3,7 @@
   queue.py next            -> prints id of first task with status todo and owner agent
   queue.py set ID STATUS [NOTE]
   queue.py get ID          -> prints the task as JSON
+  queue.py block-dependents ID -> todo tasks depending (transitively) on ID become blocked
   queue.py reset-doing NOTE -> any task left in 'doing' goes back to 'todo'
   queue.py show
 """
@@ -34,10 +35,30 @@ def main(argv: list[str]) -> None:
     cmd = argv[0] if argv else "show"
     q = load()
     if cmd == "next":
+        done = {t["id"] for t in q["tasks"] if t["status"] == "done"}
         for t in q["tasks"]:
-            if t["status"] == "todo" and t.get("owner", "agent") == "agent":
+            if (
+                t["status"] == "todo"
+                and t.get("owner", "agent") == "agent"
+                and set(t.get("depends_on", [])) <= done
+            ):
                 print(t["id"])
                 return
+        return
+    if cmd == "block-dependents":
+        failed = {argv[1]}
+        today = datetime.now().astimezone().date().isoformat()
+        changed = True
+        while changed:
+            changed = False
+            for t in q["tasks"]:
+                hit = failed & set(t.get("depends_on", []))
+                if t["status"] == "todo" and hit and t["id"] not in failed:
+                    t["status"] = "blocked"
+                    t["notes"].append(f"{today}: blocked, depends on failed {sorted(hit)}")
+                    failed.add(t["id"])
+                    changed = True
+        save(q)
         return
     if cmd == "get":
         print(json.dumps(find(q, argv[1]), indent=1))

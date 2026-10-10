@@ -9,6 +9,8 @@
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>30</integer></dict>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>/Users/arescajas/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>MAX_TASKS</key><string>8</string>
+    <key>EFFORT</key><string>xhigh</string>
     <key>HOME</key><string>/Users/arescajas</string>
   </dict>
   <key>StandardOutPath</key><string>/Users/arescajas/Projects/speech-coach/logs/launchd.out.log</string>
