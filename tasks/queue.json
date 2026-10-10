@@ -297,12 +297,14 @@
    "title": "Passages and tips content: six passages, nine tip rules",
    "brief": "Scope: edit frontend/passages.js only, plus a new test file frontend/tests/passages_content.test.js. tips.js is no longer part of this task (T15 replaces the tips). Do not edit passages.test.js; it tolerates this growth (at least four entries, a 60-word floor on passages, prompts of at least 10 words). Keep every existing id and the 'free-talk' prompt. Grow to exactly six passages plus four prompts. Passages: two debate-style rebuttal paragraphs you write yourself (80-110 words, Congress-style 'my opponent argues ... but' structure, target [150,170]); two persuasive public-domain excerpts of 90-130 words (Lincoln 1863, Frederick Douglass 1852, Sojourner Truth 1851 as commonly transcribed, or Patrick Henry 1775; a 'source' field naming speaker and year, target [130,150]); two clarity drills of 60-80 words built from repeated consonant clusters, written by you, titled as drills, target [120,140]. Prompts, all kind 'prompt' with text of at least 10 words: keep 'free-talk' (target [140,160]); add 'impromptu' ('Explain a rule your school should change and why, for one minute.', target [140,160]); add 'congress-speech' (title 'Congress speech', format 'Congress', timeLimitSeconds 180, target [130,160], text telling the speaker to give a three-minute speech for or against a bill of their choice, opening with a clear claim); add 'pf-constructive' (title 'PF constructive', format 'Public Forum', timeLimitSeconds 240, target [140,180], text telling the speaker to deliver a constructive case they are working on, clear enough for a lay judge). Only the two presets carry format and timeLimitSeconds. Every entry: lowercase slug id, title under 40 characters, no exclamation marks. Tests in passages_content.test.js: exactly 10 entries, 6 of kind passage, 4 prompts, unique ids, every passage 60-130 words, each targetWpm lo < hi, a non-empty string source on the two excerpts, exactly two entries with a positive integer timeLimitSeconds and a non-empty format (congress-speech 180, pf-constructive 240), no '!' anywhere, titles under 40 characters. Commit when pytest, ruff and node --test frontend/tests pass.",
    "acceptance": "Script: `node --test frontend/tests` passes including passages_content.test.js and the unchanged passages.test.js. Manual (1 min): the Practice chip row scrolls through ten chips at 320px without page overflow; the Congress speech card shows 'Target 130 to 160 wpm'; after T15, a Congress speech take shows '... \u00b7 m:ss of 3:00' in the Results meta line.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T05b"
    ],
-   "notes": []
+   "notes": [
+    "session 2026-10-10: 82fbd96 Passages: six readings, impromptu, and timed Congress and PF presets"
+   ]
   },
   {
    "id": "T11",
