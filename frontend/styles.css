@@ -541,6 +541,24 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   font-weight: 600;
 }
 
+/* A verbal habit is a real word used as filler: the filler color, underlined, no fill, so it
+   reads lighter than an um and still never relies on color alone. */
+.tok--habit {
+  color: var(--filler);
+  font-weight: 600;
+  text-decoration: underline dotted var(--filler);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
+/* One small muted line under the Transcript heading that explains the two highlight styles. */
+.transcript__legend {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 /* A pause marker is a small pill between words, not a word: inline-block, micro type. */
 .tok--pause {
   display: inline-block;

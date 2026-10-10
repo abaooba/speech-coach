@@ -1,24 +1,23 @@
 /* screens/results.js: app.screens.results, the Results screen after a take (DESIGN.md sections
-   1 and 6). Three pure helpers do the thinking without the DOM: summarize(session) turns the
-   backend metrics into the card numbers and the pace hint, isFiller(text) names the filler
-   words, buildTranscriptPlan(words, pauses) lays the transcript out with its pause markers.
-   show({id}) loads the session from app.store and builds the meta line, the metric grid, the
-   highlighted transcript, the tips from app.tips and the Record again / History actions. */
+   1 and 6). Two pure helpers do the thinking without the DOM: summarize(session) turns the
+   app.delivery report into the card numbers, hints and time line, and buildTranscriptPlan(words,
+   pauses) lays the transcript out with each filler's kind and the pause markers. show({id})
+   loads the session from app.store and builds the meta line, the metric grid, the highlighted
+   transcript with its legend, the tips from app.tips and the Record again / History actions. */
 (function () {
   "use strict";
 
   // Used when the session's passage is no longer in app.passages.
   const DEFAULT_TARGET_WPM = [140, 160];
-  const SECONDS_PER_MINUTE = 60;
 
   // Card labels and units (DESIGN.md sections 5 and 6), in display order.
   const WPM_LABEL = "Words per minute";
   const WPM_UNIT = "wpm";
   const FILLERS_LABEL = "Fillers per minute";
   const FILLERS_UNIT = "per min";
-  const PAUSES_LABEL = "Pauses over 1.5 s";
-  const LONGEST_PAUSE_LABEL = "Longest pause";
-  const LONGEST_PAUSE_UNIT = "s";
+  const PAUSES_LABEL = "Mid-sentence pauses";
+  const CLEAN_STRETCH_LABEL = "Longest clean stretch";
+  const CLEAN_STRETCH_UNIT = "s";
 
   // Pace hint copy: always words, never a bare number (DESIGN.md section 9).
   const TARGET_PREFIX = "Target ";
@@ -27,6 +26,12 @@
   const SPEED_UP = "Speed up";
   const TONE_OK = "ok";
   const TONE_WARN = "warn";
+
+  // Filler hint (Zoom and tl;dv put 0.6 to 3 fillers a minute in range) and the time line.
+  const MAX_FILLERS_PER_MINUTE = 3;
+  const FILLERS_OK = "Target under 3";
+  const FILLERS_HIGH = "Aim for under 3";
+  const TIME_USED_JOINER = " of ";
 
   // Fixed copy for the bad-id state and the two actions (DESIGN.md sections 1 and 8).
   const NOT_FOUND_TITLE = "Session not found";
@@ -39,12 +44,6 @@
   const TRANSCRIPT_TITLE = "Transcript";
   const TIPS_TITLE = "Tips";
 
-  // Fillers (DESIGN.md section 6, "Transcript"): single words matched one at a time, plus the
-  // two-word phrase "you know". The lists mirror backend/metrics.py so the highlighted tokens
-  // are exactly the ones the fillers card counted.
-  const FILLER_WORDS = ["um", "uh", "hmm", "like", "so", "basically", "actually"];
-  const FILLER_PHRASE = ["you", "know"];
-
   // Punctuation at either end of a token, the same rule as backend.metrics.clean: "Um," and
   // "um" compare equal while "so-called" and "day's" stay whole words.
   const EDGE_PUNCTUATION = /^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu;
@@ -54,6 +53,8 @@
   const PAUSE_ITEM = "pause";
   const TOKEN_SEPARATOR = " ";
   const FILLER_LABEL_SUFFIX = ", filler word";
+  const HABIT_LABEL_SUFFIX = ", verbal habit";
+  const LEGEND_TEXT = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
   const PAUSE_TEXT_SUFFIX = " s pause";
   const PAUSE_LABEL_PREFIX = "pause, ";
   const PAUSE_LABEL_SUFFIX = " seconds";
@@ -68,39 +69,32 @@
     body = root.querySelector(".screen__body");
   }
 
-  // The numbers on the four cards plus the pace hint, from one stored session. Pure: reads the
-  // session and app.passages, returns a fresh object. Missing or malformed numbers read as 0 so
-  // a bad record never breaks the screen.
+  // The numbers on the four cards, their hints and the time line, from one stored session,
+  // plus the app.delivery report the transcript and tips are drawn from. Pure: reads the session
+  // and app.passages, returns a fresh object. A take saved without words falls back to the
+  // backend tallies inside app.delivery, so a bad or old record never breaks the screen.
   function summarize(session) {
-    const metrics = session.metrics || {};
-    const fillers = metrics.fillers || {};
-    const pauses = Array.isArray(metrics.pauses) ? metrics.pauses : [];
-
-    const wpm = Math.round(numberOr0(metrics.words_per_minute));
-    const minutes = numberOr0(metrics.duration) / SECONDS_PER_MINUTE;
-    const fillerCount = Object.values(fillers).reduce((sum, count) => sum + numberOr0(count), 0);
-    const fillersPerMinute = minutes > 0 ? roundToTenth(fillerCount / minutes) : 0;
-    const pauseLengths = pauses.map((pause) => numberOr0(pause[1]));
-    const longestPause = pauseLengths.length > 0 ? roundToTenth(Math.max(...pauseLengths)) : 0;
+    const report = app.delivery.analyze(session.transcript, session.metrics);
+    const wpm = Math.round(report.wordsPerMinute);
     const target = targetFor(session.passageId);
-
     return {
       wpm,
-      fillersPerMinute,
-      pauseCount: pauses.length,
-      longestPause,
+      fillersPerMinute: report.fillersPerMinute,
+      pauseCount: report.midSentencePauseCount,
+      longestPause: report.longestMidSentencePause,
+      cleanStretchSeconds: report.cleanStretch ? report.cleanStretch.seconds : 0,
+      topHabit: report.topHabit,
       target,
       paceHint: paceHintFor(wpm, target),
+      fillersHint: fillersHintFor(report.fillersPerMinute),
+      timeUsed: timeUsedFor(session.passageId, report.speakingSeconds),
+      report,
     };
   }
 
   function numberOr0(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : 0;
-  }
-
-  function roundToTenth(value) {
-    return Math.round(value * 10) / 10;
   }
 
   // A copy of the passage's [lo, hi] target, or the default when the passage is unknown.
@@ -112,6 +106,23 @@
     return [range[0], range[1]];
   }
 
+  function fillersHintFor(fillersPerMinute) {
+    return fillersPerMinute > MAX_FILLERS_PER_MINUTE
+      ? { text: FILLERS_HIGH, tone: TONE_WARN }
+      : { text: FILLERS_OK, tone: TONE_OK };
+  }
+
+  // "2:41 of 3:00" for a preset with a time limit, else null.
+  function timeUsedFor(passageId, speakingSeconds) {
+    const passages = app.passages || [];
+    const passage = passages.find((entry) => entry.id === passageId);
+    if (!passage || !Number.isFinite(passage.timeLimitSeconds)) {
+      return null;
+    }
+    const used = app.ui.formatClock(speakingSeconds);
+    return used + TIME_USED_JOINER + app.ui.formatClock(passage.timeLimitSeconds);
+  }
+
   function paceHintFor(wpm, target) {
     const [lo, hi] = target;
     if (wpm > hi) {
@@ -121,12 +132,6 @@
       return { text: SPEED_UP, tone: TONE_WARN };
     }
     return { text: TARGET_PREFIX + lo + TARGET_JOINER + hi, tone: TONE_OK };
-  }
-
-  // True for a filler said on its own: "Um," and "so" yes, "umbrella" no. The phrase "you
-  // know" is a pair of tokens, so buildTranscriptPlan handles it instead.
-  function isFiller(text) {
-    return FILLER_WORDS.includes(normalizeWord(text));
   }
 
   function normalizeWord(text) {
@@ -141,7 +146,7 @@
   function buildTranscriptPlan(words, pauses) {
     const wordList = Array.isArray(words) ? words : [];
     const pauseList = Array.isArray(pauses) ? pauses : [];
-    const fillers = fillerFlags(wordList);
+    const kinds = app.delivery.classify(wordList);
 
     // Slot 0 holds the pauses that go before the first word; slot i + 1 those after word i.
     const slots = Array.from({ length: wordList.length + 1 }, () => []);
@@ -153,7 +158,12 @@
 
     const plan = [...slots[0]];
     wordList.forEach((word, index) => {
-      plan.push({ type: WORD_ITEM, text: textOf(word), filler: fillers[index] });
+      plan.push({
+        type: WORD_ITEM,
+        text: textOf(word),
+        filler: kinds[index] !== null,
+        kind: kinds[index],
+      });
       plan.push(...slots[index + 1]);
     });
     return plan;
@@ -167,19 +177,6 @@
       }
     }
     return -1;
-  }
-
-  // One flag per word: the single fillers by isFiller, then both halves of every "you know".
-  function fillerFlags(wordList) {
-    const tokens = wordList.map((word) => normalizeWord(textOf(word)));
-    const flags = tokens.map((token) => FILLER_WORDS.includes(token));
-    tokens.forEach((token, index) => {
-      if (token === FILLER_PHRASE[0] && tokens[index + 1] === FILLER_PHRASE[1]) {
-        flags[index] = true;
-        flags[index + 1] = true;
-      }
-    });
-    return flags;
   }
 
   function textOf(word) {
@@ -233,13 +230,14 @@
     const metrics = session.metrics || {};
     const plan = buildTranscriptPlan(session.transcript, metrics.pauses);
     const hasWords = plan.some((item) => item.type === WORD_ITEM);
-    const tips = selectTips(metrics, summary.target);
+    const tips = selectTips(summary.report, summary.target);
 
     app.ui.clear(body);
-    body.appendChild(buildMeta(session));
+    body.appendChild(buildMeta(session, summary.timeUsed));
     body.appendChild(buildMetricGrid(summary));
     if (hasWords) {
       body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
+      body.appendChild(buildLegend(summary.topHabit));
       body.appendChild(buildTranscript(plan));
     }
     if (tips.length > 0) {
@@ -251,11 +249,21 @@
 
   // tips.js loads before this file in index.html. Without it (a failed load, or a context that
   // stubs app without tips) the screen simply has no Tips section instead of an error.
-  function selectTips(metrics, target) {
+  function selectTips(report, target) {
     if (!app.tips || typeof app.tips.select !== "function") {
       return [];
     }
-    return app.tips.select(metrics, { targetWpm: target });
+    return app.tips.select(report, { targetWpm: target });
+  }
+
+  // What the two highlight styles mean, plus the most-used habit when there is one.
+  function buildLegend(topHabit) {
+    if (!topHabit) {
+      return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT });
+    }
+    const times = topHabit.count === 1 ? " time." : " times.";
+    const habitLine = " Most used: “" + topHabit.text + "”, " + topHabit.count + times;
+    return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT + habitLine });
   }
 
   function sectionTitle(text) {
@@ -278,9 +286,10 @@
     if (!item.filler) {
       return app.ui.el("span", { class: "tok", text: item.text });
     }
+    const habit = item.kind === app.delivery.HABIT;
     return app.ui.el("span", {
-      class: "tok tok--filler",
-      "aria-label": normalizeWord(item.text) + FILLER_LABEL_SUFFIX,
+      class: habit ? "tok tok--habit" : "tok tok--filler",
+      "aria-label": normalizeWord(item.text) + (habit ? HABIT_LABEL_SUFFIX : FILLER_LABEL_SUFFIX),
       text: item.text,
     });
   }
@@ -299,18 +308,22 @@
     return app.ui.el("div", { class: "tip-card", text: tip.text });
   }
 
-  function buildMeta(session) {
-    const text = session.passageTitle + META_SEPARATOR + app.ui.formatDate(session.createdAt);
+  function buildMeta(session, timeUsed) {
+    const parts = [session.passageTitle, app.ui.formatDate(session.createdAt)];
+    if (timeUsed) {
+      parts.push(timeUsed);
+    }
+    const text = parts.join(META_SEPARATOR);
     return app.ui.el("p", { class: "results__meta num", text });
   }
 
-  // Exactly four cards, in the order DESIGN.md fixes; only the pace card carries a hint.
+  // Exactly four cards, in the order DESIGN.md fixes; the pace and fillers cards carry hints.
   function buildMetricGrid(summary) {
     return app.ui.el("div", { class: "metric-grid" }, [
       metricCard(WPM_LABEL, summary.wpm, WPM_UNIT, summary.paceHint),
-      metricCard(FILLERS_LABEL, summary.fillersPerMinute, FILLERS_UNIT),
+      metricCard(FILLERS_LABEL, summary.fillersPerMinute, FILLERS_UNIT, summary.fillersHint),
       metricCard(PAUSES_LABEL, summary.pauseCount),
-      metricCard(LONGEST_PAUSE_LABEL, summary.longestPause, LONGEST_PAUSE_UNIT),
+      metricCard(CLEAN_STRETCH_LABEL, summary.cleanStretchSeconds, CLEAN_STRETCH_UNIT),
     ]);
   }
 
@@ -353,5 +366,5 @@
     ]);
   }
 
-  app.screens.results = { mount, show, hide, summarize, isFiller, buildTranscriptPlan };
+  app.screens.results = { mount, show, hide, summarize, buildTranscriptPlan };
 })();

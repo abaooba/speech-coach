@@ -16,6 +16,7 @@ const RESULTS_SOURCE = fs.readFileSync(
   path.join(__dirname, "..", "screens", "results.js"),
   "utf8",
 );
+const DELIVERY_SOURCE = fs.readFileSync(path.join(__dirname, "..", "delivery.js"), "utf8");
 const UI_SOURCE = fs.readFileSync(path.join(__dirname, "..", "ui.js"), "utf8");
 
 // One known passage so the target range is read from app.passages, never hard-coded.
@@ -40,8 +41,8 @@ const CREATED_AT = "2026-10-09T22:21:00.000Z";
 const EXPECTED_LABELS = [
   "Words per minute",
   "Fillers per minute",
-  "Pauses over 1.5 s",
-  "Longest pause",
+  "Mid-sentence pauses",
+  "Longest clean stretch",
 ];
 
 function sessionWith(metricOverrides, sessionOverrides) {
@@ -70,6 +71,7 @@ function bareApp() {
 // Loads results.js with no document and a stub app.ui, exactly as the brief describes.
 function loadPure() {
   const context = { app: bareApp() };
+  vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
   vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
   return { app: context.app, results: context.app.screens.results };
 }
@@ -88,6 +90,7 @@ function mountResults(sessions) {
     calls.routes.push({ name, params });
   };
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
+  vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
   vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
 
   const root = new FakeElement("section");
@@ -228,7 +231,7 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   );
   const values = cards.map((card) => byClass(card, "metric-card__value"));
   values.forEach((value) => assert.ok(value.classList.contains("num")));
-  assert.deepEqual(values.map(fullText), ["162 wpm", "18 per min", "2", "2.2 s"]);
+  assert.deepEqual(values.map(fullText), ["162 wpm", "18 per min", "2", "0 s"]);
   assert.deepEqual(
     values.map((value) => {
       const unit = byClass(value, "metric-card__unit");
@@ -241,8 +244,11 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   assert.equal(hint.textContent, "Slow down");
   assert.ok(hint.classList.contains("metric-card__hint--warn"));
   assert.ok(!hint.classList.contains("metric-card__hint--ok"));
-  for (const card of cards.slice(1)) {
-    assert.equal(byClass(card, "metric-card__hint"), undefined, "only the wpm card has a hint");
+  const fillersHint = byClass(cards[1], "metric-card__hint");
+  assert.equal(fillersHint.textContent, "Aim for under 3");
+  assert.ok(fillersHint.classList.contains("metric-card__hint--warn"));
+  for (const card of cards.slice(2)) {
+    assert.equal(byClass(card, "metric-card__hint"), undefined, "the last two cards have no hint");
   }
 
   const actions = body.children[2];

@@ -16,6 +16,7 @@
     { key: "wpm", label: "Words per minute", color: "var(--accent)", fromZero: false },
     { key: "fillersPerMinute", label: "Fillers per minute", color: "var(--filler)", fromZero: true },
     { key: "pauseCount", label: "Pauses", color: "var(--pause)", fromZero: true },
+    { key: "cleanStretchSeconds", label: "Clean stretch", color: "var(--ok)", fromZero: true },
   ];
   const DEFAULT_KEY = "wpm";
 

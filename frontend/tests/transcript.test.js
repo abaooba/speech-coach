@@ -14,6 +14,7 @@ const { FakeElement, fakeDocument, byClass } = require("./fake-dom");
 
 const FRONTEND_DIR = path.join(__dirname, "..");
 const RESULTS_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "screens", "results.js"), "utf8");
+const DELIVERY_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "delivery.js"), "utf8");
 const UI_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "ui.js"), "utf8");
 const TIPS_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "tips.js"), "utf8");
 
@@ -80,6 +81,7 @@ function bareApp() {
 
 function loadPure() {
   const context = { app: bareApp() };
+  vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
   vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
   return context.app.screens.results;
 }
@@ -103,6 +105,7 @@ function mountResults(sessions, tips) {
   } else if (tips === "real") {
     vm.runInNewContext(TIPS_SOURCE, context, { filename: "tips.js" });
   }
+  vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
   vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
 
   const root = new FakeElement("section");
@@ -124,27 +127,11 @@ function planShape(plan) {
   );
 }
 
-test("results.js exposes isFiller and buildTranscriptPlan beside mount, show, hide, summarize", () => {
+test("results.js exposes buildTranscriptPlan beside mount, show, hide, summarize", () => {
   const results = loadPure();
-  for (const name of ["isFiller", "buildTranscriptPlan"]) {
+  for (const name of ["buildTranscriptPlan"]) {
     assert.equal(typeof results[name], "function", `results.${name} should be a function`);
   }
-});
-
-test("isFiller ignores case and edge punctuation: 'Um,' yes, 'umbrella' no", () => {
-  const { isFiller } = loadPure();
-  assert.equal(isFiller("Um,"), true);
-  assert.equal(isFiller("umbrella"), false);
-  for (const word of FILLER_WORDS) {
-    assert.equal(isFiller(word), true, word);
-    assert.equal(isFiller(word.toUpperCase() + "."), true, word.toUpperCase() + ".");
-    assert.equal(isFiller('"' + word + '?"'), true, '"' + word + '?"');
-  }
-  for (const word of ["you", "know", "", "so-called", "likely", "hmmm", "day's"]) {
-    assert.equal(isFiller(word), false, word);
-  }
-  assert.doesNotThrow(() => isFiller(undefined));
-  assert.equal(isFiller(undefined), false);
 });
 
 test("buildTranscriptPlan marks both halves of 'you know' and nothing around them", () => {
@@ -178,7 +165,10 @@ test("buildTranscriptPlan puts the fixture pause right after 'basically,' (end 3
     ["m", false],
   ]);
   assert.deepEqual({ ...plan[4] }, { type: "pause", length: 1.308 });
-  assert.deepEqual({ ...plan[3] }, { type: "word", text: "basically,", filler: true });
+  assert.deepEqual(
+    { ...plan[3] },
+    { type: "word", text: "basically,", filler: true, kind: "habit" },
+  );
 });
 
 test("a pause before the first word goes first and one after the last word goes last", () => {
@@ -227,6 +217,7 @@ test("show draws Transcript and Tips between the metric grid and the actions", a
     "p.results__meta num",
     "div.metric-grid",
     "h2.results__heading",
+    "p.transcript__legend",
     "p.transcript",
     "h2.results__heading",
     "div.tip-card",
@@ -234,9 +225,9 @@ test("show draws Transcript and Tips between the metric grid and the actions", a
     "div.results__actions",
   ]);
   assert.equal(body.children[2].textContent, "Transcript");
-  assert.equal(body.children[4].textContent, "Tips");
+  assert.equal(body.children[5].textContent, "Tips");
   assert.deepEqual(
-    [body.children[5], body.children[6]].map((card) => card.textContent),
+    [body.children[6], body.children[7]].map((card) => card.textContent),
     ["First fake tip.", "Second fake tip."],
   );
   assert.equal(byClass(body, "metric-grid").children.length, 4, "the cards are untouched");
@@ -265,9 +256,9 @@ test("the transcript alternates tokens and spaces, marking fillers and the pause
     items.map((item) => item.className),
     [
       "tok",
+      "tok tok--habit",
       "tok tok--filler",
-      "tok tok--filler",
-      "tok tok--filler",
+      "tok tok--habit",
       "tok--pause num",
       "tok tok--filler",
       "tok",
@@ -277,9 +268,9 @@ test("the transcript alternates tokens and spaces, marking fillers and the pause
     items.map((item) => item.getAttribute("aria-label")),
     [
       null,
-      "so, filler word",
+      "so, verbal habit",
       "um, filler word",
-      "basically, filler word",
+      "basically, verbal habit",
       "pause, 1.3 seconds",
       "um, filler word",
       null,
@@ -303,26 +294,29 @@ test("pause chips always show one decimal", async () => {
   );
 });
 
-test("tips come from app.tips.select with the session metrics and the passage target", async () => {
+test("tips come from app.tips.select with the delivery report and the passage target", async () => {
   const known = sessionWith();
   const unknown = sessionWith({}, { id: "s2", passageId: "not-a-passage" });
   const { results, calls } = mountResults({ s1: known, s2: unknown }, "fake");
   await results.show({ id: "s1" });
   await results.show({ id: "s2" });
   assert.equal(calls.tips.length, 2);
-  assert.equal(calls.tips[0].metrics, known.metrics);
+  assert.equal(calls.tips[0].metrics.fillerCount, 4, "so, um, basically, um");
   assert.deepEqual(Array.from(calls.tips[0].options.targetWpm), [130, 150]);
-  assert.equal(calls.tips[1].metrics, unknown.metrics);
+  assert.equal(calls.tips[1].metrics.fillerCount, 4);
   assert.deepEqual(Array.from(calls.tips[1].options.targetWpm), FALLBACK_TARGET);
 });
 
-test("with the real tips.js, nine fillers in 30 seconds show exactly the filler tip", async () => {
+test("with the real tips.js, the six-word fixture gets the pace and fillers tips", async () => {
   const { results, body } = mountResults({ s1: sessionWith() }, "real");
   await results.show({ id: "s1" });
   const cards = body.children.filter((node) => node.className === "tip-card");
   assert.deepEqual(
     cards.map((card) => card.textContent),
-    ["Replace um with a silent beat. Judges hear silence as confidence."],
+    [
+      "You are under target pace. Shorten the pauses between ideas.",
+      "Fillers at 0:01, 0:02, 0:03 and 1 more. Next take, close your mouth and pause instead.",
+    ],
   );
 });
 
@@ -348,6 +342,7 @@ test("without app.tips the screen still renders, just with no Tips section", asy
     "p.results__meta num",
     "div.metric-grid",
     "h2.results__heading",
+    "p.transcript__legend",
     "p.transcript",
     "div.results__actions",
   ]);

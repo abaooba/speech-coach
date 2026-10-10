@@ -28,7 +28,7 @@ const CENTER_X = 172;
 const TOLERANCE = 1e-6;
 
 const EMPTY_STATE_CLASS = "state state--empty";
-const CHIP_LABELS = ["Words per minute", "Fillers per minute", "Pauses"];
+const CHIP_LABELS = ["Words per minute", "Fillers per minute", "Pauses", "Clean stretch"];
 const WPM_COLOR = "var(--accent)";
 const FILLERS_COLOR = "var(--filler)";
 const PAUSES_COLOR = "var(--pause)";
@@ -312,6 +312,7 @@ test("show() renders the chip row, the wpm chart and the sr-only table", async (
       ["chip chip--selected", "true"],
       ["chip", "false"],
       ["chip", "false"],
+      ["chip", "false"],
     ],
   );
 
@@ -459,6 +460,7 @@ test("tapping Fillers per minute swaps the chart and table in place, chip row st
       ["chip", "false"],
       ["chip chip--selected", "true"],
       ["chip", "false"],
+      ["chip", "false"],
     ],
   );
 
@@ -497,7 +499,7 @@ test("tapping Pauses draws the pause count in the pause color", async () => {
   childrenByTag(svg, "circle").forEach((dot) => assert.equal(dot.getAttribute("fill"), PAUSES_COLOR));
   assert.deepEqual(
     chipsOf(body).map((chip) => chip.getAttribute("aria-pressed")),
-    ["false", "false", "true"],
+    ["false", "false", "true", "false"],
   );
   assert.deepEqual(
     tableRows(tableOf(body)).map((cells) => cells[2]),
@@ -516,7 +518,7 @@ test("the chosen metric survives leaving and reopening the screen", async () => 
   assert.equal(body.children.length, 3, "a second show replaces the chart, never stacks");
   assert.deepEqual(
     chipsOf(body).map((chip) => chip.getAttribute("aria-pressed")),
-    ["false", "true", "false"],
+    ["false", "true", "false", "false"],
   );
   assert.equal(polylineOf(chartOf(body)).getAttribute("stroke"), FILLERS_COLOR);
 });
