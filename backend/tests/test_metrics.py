@@ -130,3 +130,92 @@ def test_count_fillers_does_not_match_words_that_merely_contain_a_filler() -> No
 def test_count_fillers_always_returns_all_eight_keys() -> None:
     assert list(metrics.count_fillers([])) == FILLER_KEYS
     assert all(count == 0 for count in metrics.count_fillers([]).values())
+
+
+# --- find_repeats -----------------------------------------------------------
+
+
+def test_find_repeats_on_clip_finds_the_and_i_restart() -> None:
+    assert metrics.find_repeats(load_clip()) == [{"text": "and I", "at": 16.515}]
+
+
+def test_find_repeats_skips_um_uh_hmm_between_the_copies() -> None:
+    assert metrics.find_repeats(words_from("and I, uh, and I")) == [{"text": "and I", "at": 0.0}]
+    assert metrics.find_repeats(words_from("so hmm, um, so"))[0]["text"] == "so"
+
+
+def test_find_repeats_does_not_skip_like_or_so_between_the_copies() -> None:
+    assert metrics.find_repeats(words_from("I, like, I")) == []
+    assert metrics.find_repeats(words_from("I, so, I")) == []
+
+
+def test_find_repeats_ignores_phrases_repeated_later_in_the_sentence() -> None:
+    assert metrics.find_repeats(words_from("I play tennis, I play piano")) == []
+
+
+def test_find_repeats_counts_each_extra_copy_of_a_stuttered_word() -> None:
+    assert metrics.find_repeats(words_from("the the end")) == [{"text": "the", "at": 0.0}]
+    assert metrics.find_repeats(words_from("I I I think")) == [
+        {"text": "I", "at": 0.0},
+        {"text": "I", "at": 0.4},
+    ]
+
+
+def test_find_repeats_is_empty_for_no_words_or_one_word() -> None:
+    assert metrics.find_repeats([]) == []
+    assert metrics.find_repeats(words_from("hello")) == []
+
+
+# --- pace_windows -----------------------------------------------------------
+
+
+def test_pace_windows_on_clip_splits_into_10_s_windows_from_the_first_word() -> None:
+    assert metrics.pace_windows(load_clip()) == [
+        {"start": 0.0, "end": 10.0, "wpm": 108.0},  # 18 words
+        {"start": 10.0, "end": 20.0, "wpm": 84.0},  # 14 words
+        {"start": 20.0, "end": 30.908, "wpm": 88.0},  # 16 words over the 10.908 s tail
+    ]
+
+
+def test_pace_windows_keeps_a_tail_of_at_least_half_a_window() -> None:
+    words = [
+        Word(text="a", start=0.0, end=0.5),
+        Word(text="b", start=5.0, end=5.5),
+        Word(text="c", start=10.0, end=10.5),
+        Word(text="d", start=14.5, end=15.0),
+    ]
+
+    assert metrics.pace_windows(words) == [
+        {"start": 0.0, "end": 10.0, "wpm": 12.0},
+        {"start": 10.0, "end": 15.0, "wpm": 24.0},
+    ]
+
+
+def test_pace_windows_folds_a_short_tail_into_the_last_window() -> None:
+    words = [
+        Word(text="a", start=0.0, end=0.5),
+        Word(text="b", start=9.0, end=9.5),
+        Word(text="c", start=10.5, end=11.0),
+    ]
+
+    assert metrics.pace_windows(words) == [{"start": 0.0, "end": 11.0, "wpm": 16.4}]
+
+
+def test_pace_windows_measures_from_the_first_spoken_word() -> None:
+    words = words_from("one two three", start=20.0)  # 1.1 s of speech after 20 s of silence
+
+    assert metrics.pace_windows(words) == [{"start": 0.0, "end": 1.1, "wpm": 163.6}]
+
+
+def test_pace_windows_honours_a_custom_window_size() -> None:
+    words = [Word(text=str(i), start=float(i), end=i + 0.5) for i in range(12)]  # 11.5 s
+
+    assert [w["start"] for w in metrics.pace_windows(words, window=4.0)] == [0.0, 4.0, 8.0]
+    assert metrics.pace_windows(words, window=4.0)[-1] == {"start": 8.0, "end": 11.5, "wpm": 68.6}
+
+
+def test_pace_windows_is_empty_for_no_words_and_single_for_one_word() -> None:
+    assert metrics.pace_windows([]) == []
+    assert metrics.pace_windows([Word(text="hi", start=2.0, end=2.5)]) == [
+        {"start": 0.0, "end": 0.5, "wpm": 120.0}
+    ]
