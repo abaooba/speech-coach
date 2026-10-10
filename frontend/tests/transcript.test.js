@@ -215,6 +215,7 @@ test("show draws Transcript and Tips between the metric grid and the actions", a
   await results.show({ id: "s1" });
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
+    "section.headline",
     "div.metric-grid",
     "h2.results__heading",
     "p.transcript__legend",
@@ -224,10 +225,14 @@ test("show draws Transcript and Tips between the metric grid and the actions", a
     "div.tip-card",
     "div.results__actions",
   ]);
-  assert.equal(body.children[2].textContent, "Transcript");
-  assert.equal(body.children[5].textContent, "Tips");
+  const headings = body.children.filter((node) => node.className === "results__heading");
   assert.deepEqual(
-    [body.children[6], body.children[7]].map((card) => card.textContent),
+    headings.map((heading) => heading.textContent),
+    ["Transcript", "Tips"],
+  );
+  const tipCards = body.children.filter((node) => node.className === "tip-card");
+  assert.deepEqual(
+    tipCards.map((card) => card.textContent),
     ["First fake tip.", "Second fake tip."],
   );
   assert.equal(byClass(body, "metric-grid").children.length, 4, "the cards are untouched");
@@ -327,12 +332,17 @@ test("no words means no Transcript section, even with pauses; a clean take still
   await results.show({ id: "s1" });
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
+    "section.headline",
     "div.metric-grid",
     "h2.results__heading",
     "div.tip-card",
     "div.results__actions",
   ]);
-  assert.equal(body.children[3].textContent, "Clean run. Push the pace a little next time.");
+  const tipCards = body.children.filter((node) => node.className === "tip-card");
+  assert.deepEqual(
+    tipCards.map((card) => card.textContent),
+    ["Clean run. Push the pace a little next time."],
+  );
 });
 
 test("without app.tips the screen still renders, just with no Tips section", async () => {
@@ -340,6 +350,7 @@ test("without app.tips the screen still renders, just with no Tips section", asy
   await assert.doesNotReject(() => results.show({ id: "s1" }));
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
+    "section.headline",
     "div.metric-grid",
     "h2.results__heading",
     "p.transcript__legend",

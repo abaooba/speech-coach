@@ -897,6 +897,50 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: nowrap;
 }
 
+/* The headline: one strength over one focus on a bordered surface card. */
+.headline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-5);
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.headline__strength,
+.headline__focus {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.headline__strength {
+  font-weight: 600;
+}
+
+/* Each 16px icon follows its words in the DOM and is drawn first, centered on the first
+   24px line. */
+.headline__strength svg,
+.headline__focus svg {
+  flex: none;
+  order: -1;
+  margin-top: var(--s-1);
+}
+
+.headline__strength svg {
+  color: var(--ok);
+}
+
+.headline__focus svg {
+  color: var(--accent);
+}
+
 /* The four cards sit 2 x 2 at every width. The --s-3 between the two rows of cards is the
    second row's top margin rather than a grid row gap, because the cards' subgrid rows are grid
    rows too: a row gap would also open up under a card row that has no hints or no deltas. */
@@ -904,7 +948,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: var(--s-3);
-  margin-top: var(--s-5);
+  margin-top: var(--s-6);
 }
 
 .metric-card:nth-child(n + 3) {

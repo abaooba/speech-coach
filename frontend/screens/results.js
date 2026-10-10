@@ -39,6 +39,31 @@
   const HINT_ICONS = { [TONE_OK]: "check", [TONE_WARN]: "alert" };
   const HINT_ICON_SIZE = 16;
 
+  // The headline's thresholds beyond the cards' own: a fillers drop counts from half a filler a
+  // minute, and a clean stretch under 15 seconds has room to grow (DebateDrills gives beginners
+  // 15 clean seconds; see how.html).
+  const MIN_FILLER_DROP = 0.5;
+  const CLEAN_STRETCH_GOAL_SECONDS = 15;
+
+  // Headline copy (DESIGN.md section 8): one strength and one focus, each under 15 words.
+  const HEADLINE = Object.freeze({
+    fillersDown: (from, to) => "Fillers are down from " + from + " to " + to + " a minute.",
+    paceInside: (band) => "Your pace is inside the " + band + " target.",
+    fillersUnder: "Your fillers are under 3 a minute.",
+    noBreaks: "No pause breaks a sentence.",
+    cleanStretch: (seconds) => "Your longest clean stretch is " + seconds + ".",
+    onChart: "This take is on your progress chart.",
+    cutFillers: "Next take, cut fillers under 3 a minute.",
+    slowDown: (band) => "Next take, slow toward " + band + " wpm.",
+    speedUp: (band) => "Next take, lift your pace toward " + band + " wpm.",
+    movePauses: "Next take, save pauses for the ends of sentences.",
+    stretchClean: (seconds) => "Next take, stretch your clean run past " + seconds + ".",
+    holdDelivery: "Next take, hold this delivery on a longer topic.",
+  });
+  const STRENGTH_ICON = "check";
+  const FOCUS_ICON = "arrow-right";
+  const HEADLINE_ICON_SIZE = 16;
+
   // Fixed copy for the bad-id state and the two actions (DESIGN.md sections 1 and 8).
   const NOT_FOUND_TITLE = "Session not found";
   const NOT_FOUND_BODY = "It may have been deleted.";
@@ -143,6 +168,88 @@
     return { text: TARGET_PREFIX + lo + TARGET_JOINER + hi, tone: TONE_OK };
   }
 
+  // The two headline sentences for a take, from its summary and, when there is one, the
+  // summary of the take before it (or null). Pure. Each list below is checked top to bottom
+  // and the first match wins; the thresholds are the cards', so the headline never contradicts
+  // a card: the band ends count as inside and fillers over 3 a minute are high.
+  function headlineFor(summary, previousSummary) {
+    const band = summary.target[0] + TARGET_JOINER + summary.target[1];
+    return {
+      strength: strengthFor(summary, previousSummary, band),
+      focus: focusFor(summary, band),
+    };
+  }
+
+  function strengthFor(summary, previousSummary, band) {
+    if (fillersDropped(summary, previousSummary)) {
+      return HEADLINE.fillersDown(previousSummary.fillersPerMinute, summary.fillersPerMinute);
+    }
+    if (paceIsInside(summary)) {
+      return HEADLINE.paceInside(band);
+    }
+    if (summary.fillersPerMinute <= MAX_FILLERS_PER_MINUTE) {
+      return HEADLINE.fillersUnder;
+    }
+    if (summary.pauseCount === 0) {
+      return HEADLINE.noBreaks;
+    }
+    if (summary.cleanStretchSeconds > 0) {
+      return HEADLINE.cleanStretch(secondsText(summary.cleanStretchSeconds));
+    }
+    return HEADLINE.onChart;
+  }
+
+  function focusFor(summary, band) {
+    const [lo, hi] = summary.target;
+    const clean = summary.cleanStretchSeconds;
+    if (summary.fillersPerMinute > MAX_FILLERS_PER_MINUTE) {
+      return HEADLINE.cutFillers;
+    }
+    if (summary.wpm > hi) {
+      return HEADLINE.slowDown(band);
+    }
+    if (summary.wpm < lo) {
+      return HEADLINE.speedUp(band);
+    }
+    if (summary.pauseCount > 0) {
+      return HEADLINE.movePauses;
+    }
+    if (clean > 0 && clean < CLEAN_STRETCH_GOAL_SECONDS) {
+      return HEADLINE.stretchClean(secondsText(clean));
+    }
+    return HEADLINE.holdDelivery;
+  }
+
+  // A drop of at least half a filler a minute since the last take. Both takes must have words:
+  // a take saved without them was counted by the backend's rules, not these.
+  function fillersDropped(summary, previousSummary) {
+    if (!previousSummary || !hasWords(summary) || !hasWords(previousSummary)) {
+      return false;
+    }
+    const drop = roundToTenth(previousSummary.fillersPerMinute - summary.fillersPerMinute);
+    return drop >= MIN_FILLER_DROP;
+  }
+
+  function paceIsInside(summary) {
+    const [lo, hi] = summary.target;
+    return summary.wpm >= lo && summary.wpm <= hi;
+  }
+
+  // True when the take was scored from its words: the report labels one kind per word.
+  function hasWords(summary) {
+    const kinds = summary && summary.report ? summary.report.kinds : null;
+    return Array.isArray(kinds) && kinds.length > 0;
+  }
+
+  // "4.9 seconds", or "1 second".
+  function secondsText(seconds) {
+    return seconds === 1 ? "1 second" : seconds + " seconds";
+  }
+
+  function roundToTenth(value) {
+    return Math.round(value * 10) / 10;
+  }
+
   function normalizeWord(text) {
     return String(text || "").toLowerCase().replace(EDGE_PUNCTUATION, "");
   }
@@ -244,6 +351,7 @@
 
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
+    body.appendChild(buildHeadline(headlineFor(summary, null)));
     body.appendChild(buildMetricGrid(summary));
     if (hasWords) {
       body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
@@ -333,6 +441,21 @@
     return app.ui.el("p", { class: "results__meta num" }, parts);
   }
 
+  // The strength over the focus. Each icon follows its words in the DOM, so each line's text
+  // is exactly its sentence, and CSS draws it first (order: -1).
+  function buildHeadline(headline) {
+    return app.ui.el("section", { class: "headline" }, [
+      headlineLine("headline__strength", headline.strength, STRENGTH_ICON),
+      headlineLine("headline__focus", headline.focus, FOCUS_ICON),
+    ]);
+  }
+
+  function headlineLine(className, sentence, iconName) {
+    return app.ui.el("p", { class: className, text: sentence }, [
+      app.ui.icon(iconName, HEADLINE_ICON_SIZE),
+    ]);
+  }
+
   // Exactly four cards, in the order DESIGN.md fixes; the pace and fillers cards carry hints.
   function buildMetricGrid(summary) {
     return app.ui.el("div", { class: "metric-grid" }, [
@@ -388,5 +511,5 @@
     ]);
   }
 
-  app.screens.results = { mount, show, hide, summarize, buildTranscriptPlan };
+  app.screens.results = { mount, show, hide, summarize, buildTranscriptPlan, headlineFor };
 })();

@@ -204,7 +204,7 @@ test("show({id}) builds the meta line, four metric cards in order and two action
 
   assert.deepEqual(
     body.children.map((child) => child.className),
-    ["results__meta num", "metric-grid", "results__actions"],
+    ["results__meta num", "headline", "metric-grid", "results__actions"],
   );
 
   const meta = body.children[0];
@@ -246,7 +246,7 @@ test("show({id}) builds the meta line, four metric cards in order and two action
     assert.equal(byClass(card, "metric-card__hint"), undefined, "the last two cards have no hint");
   }
 
-  const actions = body.children[2];
+  const actions = byClass(body, "results__actions");
   assert.deepEqual(
     actions.children.map((button) => [button.tagName, button.className, button.textContent]),
     [
@@ -270,7 +270,7 @@ test("an in-range pace gets the ok hint built from the passage target", async ()
 test("Record again goes to practice and History goes to history", async () => {
   const { results, body, calls } = mountResults({ s1: sessionWith() });
   await results.show({ id: "s1" });
-  const [recordAgain, history] = body.children[2].children;
+  const [recordAgain, history] = byClass(body, "results__actions").children;
   recordAgain.click();
   history.click();
   assert.deepEqual(
@@ -317,11 +317,11 @@ test("show rebuilds the body each time and hide leaves it alone", async () => {
   await results.show({ id: "nope" });
   assert.equal(body.children.length, 1);
   await results.show({ id: "s1" });
-  assert.equal(body.children.length, 3);
+  assert.equal(body.children.length, 4);
   await results.show({ id: "s2" });
-  assert.equal(body.children.length, 3, "a second session replaces the first, never stacks");
+  assert.equal(body.children.length, 4, "a second session replaces the first, never stacks");
   assert.doesNotThrow(() => results.hide());
-  assert.equal(body.children.length, 3);
+  assert.equal(body.children.length, 4);
 });
 
 test("when two loads overlap, the later show wins", async () => {
