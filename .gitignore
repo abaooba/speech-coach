@@ -19,3 +19,4 @@ nights/
 logs/
 .night.lock
 .claude/launch.json
+samples/labeled/
