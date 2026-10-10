@@ -172,3 +172,21 @@ def _window_edges(duration: float, window: float) -> list[float]:
     if full_windows and tail < window / 2:
         full_windows -= 1
     return [i * window for i in range(full_windows + 1)] + [duration]
+
+
+def analyze(words: Sequence[Word]) -> dict[str, object]:
+    """Every metric for one recording, in the shape the API returns and the frontend stores.
+
+    Keys: words_per_minute, duration (seconds from the first word), word_count,
+    pauses ([at, length] pairs), fillers (all eight keys), repeats ({text, at}) and
+    pace_windows ({start, end, wpm}). JSON-serializable as is.
+    """
+    return {
+        "words_per_minute": words_per_minute(words),
+        "duration": duration_seconds(words),
+        "word_count": len(words),
+        "pauses": find_pauses(words),
+        "fillers": count_fillers(words),
+        "repeats": find_repeats(words),
+        "pace_windows": pace_windows(words),
+    }

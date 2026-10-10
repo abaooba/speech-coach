@@ -219,3 +219,67 @@ def test_pace_windows_is_empty_for_no_words_and_single_for_one_word() -> None:
     assert metrics.pace_windows([Word(text="hi", start=2.0, end=2.5)]) == [
         {"start": 0.0, "end": 0.5, "wpm": 120.0}
     ]
+
+
+# --- analyze ----------------------------------------------------------------
+
+
+def test_analyze_on_clip_meets_the_acceptance_line() -> None:
+    result = metrics.analyze(load_clip())
+
+    assert result["fillers"]["um"] == 6
+    assert result["fillers"]["uh"] == 3
+    assert len(result["pauses"]) == 3
+    assert all(length >= 1.5 for _, length in result["pauses"])
+    assert result["duration"] == 30.908
+    assert result["word_count"] == 48
+    assert result["words_per_minute"] == 93.2
+    assert result["repeats"] == [{"text": "and I", "at": 16.515}]
+    assert len(result["pace_windows"]) == 3
+
+
+def test_analyze_returns_exactly_the_contract_keys_and_is_json_serializable() -> None:
+    result = metrics.analyze(load_clip())
+
+    assert list(result) == [
+        "words_per_minute",
+        "duration",
+        "word_count",
+        "pauses",
+        "fillers",
+        "repeats",
+        "pace_windows",
+    ]
+    assert json.loads(json.dumps(result))["pauses"][0] == [14.567, 1.531]
+
+
+def test_analyze_empty_list_returns_zeros_and_empty_lists() -> None:
+    assert metrics.analyze([]) == {
+        "words_per_minute": 0.0,
+        "duration": 0.0,
+        "word_count": 0,
+        "pauses": [],
+        "fillers": dict.fromkeys(FILLER_KEYS, 0),
+        "repeats": [],
+        "pace_windows": [],
+    }
+
+
+def test_analyze_single_word() -> None:
+    result = metrics.analyze([Word(text="Hello", start=2.0, end=2.5)])
+
+    assert result["duration"] == 0.5
+    assert result["word_count"] == 1
+    assert result["words_per_minute"] == 120.0
+    assert result["pauses"] == []
+    assert result["repeats"] == []
+    assert result["pace_windows"] == [{"start": 0.0, "end": 0.5, "wpm": 120.0}]
+
+
+def test_analyze_pause_at_start_is_neither_a_pause_nor_part_of_the_duration() -> None:
+    result = metrics.analyze(words_from("Hello there", start=4.0))  # 4 s of silence first
+
+    assert result["duration"] == 0.7
+    assert result["pauses"] == []
+    assert result["words_per_minute"] == 171.4
+    assert result["pace_windows"] == [{"start": 0.0, "end": 0.7, "wpm": 171.4}]
