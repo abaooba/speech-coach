@@ -180,12 +180,14 @@
    "title": "Accuracy scorer: scripts/measure_fillers.js",
    "brief": "Implement Task 6 of docs/superpowers/plans/2026-10-10-next-level.md. Create scripts/measure_fillers.js (node, no dependencies): it loads frontend/delivery.js into a vm context, exports score(transcript, labels) and, when run as `node scripts/measure_fillers.js <folder>`, reads every *.json in the folder in the labeled format the plan defines and prints one row per file plus a total row: hesitation precision and recall, habit precision and recall, and the fillers the transcript missed. Precision or recall with nothing to divide is printed as '-' and returned as null, never NaN. Tests in a new frontend/tests/measure_fillers.test.js covering the four exact cases in the plan. Add samples/labeled/ to .gitignore. Do not edit existing tests. Commit when pytest, ruff and node --test frontend/tests pass.",
    "acceptance": "Script: `node --test frontend/tests` passes including measure_fillers.test.js. Manual (2 min): label one real take into samples/labeled/ as the plan describes, run `node scripts/measure_fillers.js samples/labeled`, and check its row against your own count.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T14"
    ],
-   "notes": []
+   "notes": [
+    "session 2026-10-10: 547597d Accuracy scorer for hand-labeled takes"
+   ]
   },
   {
    "id": "T05a",
