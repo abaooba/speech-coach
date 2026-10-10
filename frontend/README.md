@@ -311,8 +311,11 @@ Then open http://127.0.0.1:8000/#/progress.
    by side with "From your average" across the row under them, every value bold at the heading
    size on one line, and nothing scrolls sideways; the chart fills the width with readable
    labels. From 600px the three cells share one row, and at 640px the chart scales up with the
-   column. Switch the theme with the toggle on Practice, or the OS setting: gridlines, labels,
-   the band, the ring and all four line colors stay visible in both themes.
+   column. Zoom to 200% on a phone (or narrow the window to 160px): the options form two rows
+   of two, the cells stack, a long change such as "4.9 s longer" may wrap after the number, and
+   still nothing scrolls sideways. Switch the theme with the toggle on Practice, or the OS
+   setting: gridlines, labels, the band, the ring and all four line colors stay visible in both
+   themes.
 
 6. Empty state: delete sessions in History until one is left (or run
    `indexedDB.deleteDatabase('speech-coach')`, reload and save one session with the store

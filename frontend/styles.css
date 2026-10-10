@@ -1504,10 +1504,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The change from the average leads with a muted triangle or dash, as on the Results delta
-   lines. */
+   lines. The icon's bottom edge sits on the first line's baseline, so it lines up with the
+   digits even when the words wrap at 200% zoom. */
 .progress-summary__change {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--s-1);
 }
 
@@ -1562,9 +1563,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-top: 2px dashed var(--ok);
 }
 
-/* The screen-reader table. A table ignores the 1px box of .sr-only and grows to its widest
-   row, which widened the page at 320px. Fixed layout caps it at its caption's width, and it
-   hangs from the bottom of the screen body, beside the chart, so it never lengthens the page. */
+/* The screen-reader table. A table ignores the 1px box of .sr-only and grows to its widest row
+   and to its caption, which .sr-only keeps on one line. Fixed layout drops the rows' widths, and
+   a caption that wraps is only as wide as its longest word, so the table never widens the page,
+   even at 200% zoom. It hangs from the bottom of the screen body, beside the chart, so it never
+   lengthens the page either. */
 #screen-progress .screen__body {
   position: relative;
 }
@@ -1573,6 +1576,27 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   bottom: 0;
   left: 0;
   table-layout: fixed;
+}
+
+#screen-progress table.sr-only caption {
+  white-space: normal;
+}
+
+/* 200% zoom on a phone leaves 160 to 187px: the four options form two rows of two, the summary
+   cells stack, and the change from the average may wrap between its words. */
+@media (max-width: 299px) {
+  #screen-progress .segmented {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .progress-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .progress-summary__change {
+    white-space: normal;
+  }
 }
 
 /* 11. Reduced motion */

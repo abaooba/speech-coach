@@ -1,7 +1,8 @@
 // Text checks on section 10 of frontend/styles.css, the Progress screen's own rules (DESIGN.md
 // section 6, "Chart"): every summary value keeps the section-title size, bold, on one line, and
 // the cells make room for it through the grid instead (Latest and Best side by side on a phone,
-// the change from the average across the row under them, three in a row from 600px). Spacing
+// the change from the average across the row under them, three in a row from 600px). At 200%
+// zoom (section 9) the options and cells reflow and the hidden table stays narrow. Spacing
 // comes from the --s scale only. The node suite has no layout engine, so these pin the rules;
 // the screenshot loop checks how they render.
 "use strict";
@@ -19,6 +20,10 @@ const VALUE = ".progress-summary__value";
 const CHANGE = ".progress-summary__change";
 const LAST_CELL = ".progress-summary__item:last-child";
 const WIDE = "@media (min-width: 600px)";
+
+// 200% zoom on a 320 or 375 phone leaves a 160 or 187px viewport (DESIGN.md section 9: the
+// layout survives 200% zoom).
+const ZOOMED = "@media (max-width: 299px)";
 
 function squash(text) {
   return text.replace(/\s+/g, " ").trim();
@@ -119,7 +124,8 @@ test("no width query shrinks or lightens a summary value", () => {
 });
 
 test("on a phone Latest and Best share a row and the change spans the row under them", () => {
-  assert.equal(declared(".progress-summary")["grid-template-columns"], "repeat(2, minmax(0, 1fr))");
+  const columns = declared(".progress-summary")["grid-template-columns"];
+  assert.equal(columns, "repeat(2, minmax(0, 1fr))");
   assert.equal(declared(LAST_CELL)["grid-column"], "1 / -1");
 });
 
@@ -130,6 +136,25 @@ test("from 600px the three cells share one row", () => {
     "repeat(3, minmax(0, 1fr))",
   );
   assert.equal(declared(LAST_CELL, WIDE)["grid-column"], "auto");
+});
+
+test("the hidden table's caption wraps, so the table never widens a narrow page", () => {
+  // .sr-only sets nowrap, and a table is at least as wide as its caption: "Longest clean
+  // stretch by session" held it 237px wide, wider than the page at 200% zoom.
+  assert.equal(declared("#screen-progress table.sr-only caption")["white-space"], "normal");
+});
+
+test("under 300px the options form two rows of two and the summary cells stack", () => {
+  const segmented = declared("#screen-progress .segmented", ZOOMED);
+  assert.equal(segmented["grid-auto-flow"], "row");
+  assert.equal(segmented["grid-template-columns"], "repeat(2, minmax(0, 1fr))");
+  assert.equal(declared(".progress-summary", ZOOMED)["grid-template-columns"], "minmax(0, 1fr)");
+});
+
+test("under 300px only the change from the average may wrap, between its words", () => {
+  // At 160px a full-width cell holds 110px of text; "12.5 s shorter" and its triangle need 138.
+  assert.equal(declared(CHANGE, ZOOMED)["white-space"], "normal");
+  assert.equal(declared(VALUE, ZOOMED)["white-space"], undefined, "Latest and Best still fit");
 });
 
 test("section 10 spaces only with the --s scale", () => {
