@@ -50,3 +50,44 @@ each line in the console, waiting for it to resolve before the next.
    ```
 
    It prints `4`.
+
+**Practice (about one minute).** Start the server with a real speech-to-text key in `.env`
+and open http://127.0.0.1:8000/ in Chrome:
+
+```bash
+.venv/bin/uvicorn backend.app:app --reload
+```
+
+`.env` is read when the server starts, so restart uvicorn after changing it. Every error
+block below is built by `app.ui.renderState`; the timer keeps its last value through each one.
+
+1. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
+   speak for about 10 seconds (the timer counts, the red dot pulses, the nav disappears), then
+   tap Stop. "Analyzing your speech" shows with a spinner and the record button is hidden.
+   The hash becomes `#/results/<id>`, and in the console:
+
+   ```js
+   await app.store.list()
+   ```
+
+   returns one session whose `metrics.words_per_minute` is a number.
+
+2. Microphone blocked: click the lock icon in the address bar, set Microphone to Block,
+   reload and tap Record. The red block reads "Microphone is blocked. Allow it in your
+   browser settings, then tap Record." with a "Try again" button that returns to idle. Set
+   Microphone back to Ask, reload, and the next Record tap prompts again.
+
+3. Too short: tap Record, then Stop before 5 seconds. The block reads "That was under
+   5 seconds. Try again." with "Record again", and the Network tab shows no request to
+   `/api/analyze`.
+
+4. Network: tap Record, stop uvicorn (Ctrl-C) while recording, then tap Stop. The block
+   reads "Could not reach the server. Your recording is still here." with "Retry upload".
+   Start uvicorn again and tap Retry upload: the same take uploads and Results opens.
+
+5. Provider (502): set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds
+   and tap Stop. The block reads "Analysis failed on our side. Your recording is still here."
+   with "Retry upload". Restore `STT_PROVIDER` and restart uvicorn afterwards.
+
+Screen-reader users hear "Recording started", the clock every 30 seconds, "Recording
+stopped, N seconds" and "Results ready" through the live region.
