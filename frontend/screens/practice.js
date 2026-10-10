@@ -1,7 +1,8 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
    mount() builds the passage chips, passage card, timer, record button, hint and state block
    inside its root once; render(state, detail) is the only function that changes that DOM
-   afterwards. Capturing audio, driving the timer and uploading belong to a later task. */
+   afterwards, apart from the timer tick. The Record tap asks for the microphone, MediaRecorder
+   collects the take, and Stop uploads it through app.api and saves it with app.store. */
 (function () {
   "use strict";
 
@@ -11,6 +12,31 @@
   const LOADING_TITLE = "Analyzing your speech";
   const LOADING_BODY = "Usually 5 to 15 seconds.";
   const TIMER_START = "0:00";
+
+  // Container types in order of preference; iPhone Safari only says yes to audio/mp4.
+  const MIME_CANDIDATES = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+  ];
+  const CHUNK_EVERY_MS = 1000;
+  const TIMER_TICK_MS = 250;
+  const ANNOUNCE_EVERY_SECONDS = 30;
+  const MIN_TAKE_SECONDS = 5;
+
+  // Fixed copy for the error blocks this screen shows (DESIGN.md section 8). The too-short
+  // and upload sentences live in app.api.messages so each exists exactly once.
+  const MIC_BLOCKED_TITLE = "Microphone blocked";
+  const MIC_BLOCKED_BODY =
+    "Microphone is blocked. Allow it in your browser settings, then tap Record.";
+  const MIC_BLOCKED_ACTION = "Try again";
+  const TOO_SHORT_TITLE = "Too short";
+  const TOO_SHORT_ACTION = "Record again";
+  const UPLOAD_FAILED_TITLE = "Upload failed";
+  const UPLOAD_FAILED_ACTION = "Retry upload";
+  const STARTED_ANNOUNCEMENT = "Recording started";
+  const RESULTS_READY_ANNOUNCEMENT = "Results ready";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
   const MIC_ICON_SIZE = "28";
@@ -22,16 +48,33 @@
   let state = "idle";
   let selectedPassageId = null;
 
-  // Nodes built by mount() and repainted by render(); the timer is owned by the next task.
+  // Nodes built by mount() and repainted by render(); only tickTimer() writes the timer.
   const nodes = {
     chips: [],
     cardTitle: null,
     cardTarget: null,
     cardText: null,
+    timer: null,
     recordButton: null,
     recordLabel: null,
     stateBlock: null,
   };
+
+  // Everything a live take holds, from the Record tap until Stop or hide() lets it go.
+  const capture = {
+    awaitingMic: false,
+    stream: null,
+    recorder: null,
+    chunks: [],
+    chosenMimeType: "",
+    startedAt: 0,
+    timerId: null,
+    announcedBlocks: 0,
+    pausesStarted: false,
+  };
+
+  // The finished take, kept through uploading and error so Retry re-sends the same blob.
+  let pendingTake = null;
 
   // The state table from DESIGN.md section 7 as plain data, so it can be tested without a DOM.
   // showHint and showRecord mirror the [data-state] rules in styles.css.
@@ -101,17 +144,19 @@
   }
 
   function buildTimer() {
+    nodes.timer = app.ui.el("div", { class: "timer num", "aria-live": "off", text: TIMER_START });
     return app.ui.el("div", { class: "practice__timer" }, [
       app.ui.el("span", { class: "rec-dot", "aria-hidden": "true" }),
-      app.ui.el("div", { class: "timer num", "aria-live": "off", text: TIMER_START }),
+      nodes.timer,
     ]);
   }
 
   function buildRecordButton() {
-    nodes.recordButton = app.ui.el("button", { class: "btn-record", type: "button" }, [
-      micIcon(),
-      stopIcon(),
-    ]);
+    nodes.recordButton = app.ui.el(
+      "button",
+      { class: "btn-record", type: "button", onClick: onRecordTap },
+      [micIcon(), stopIcon()],
+    );
     return nodes.recordButton;
   }
 
@@ -192,8 +237,213 @@
     }
   }
 
-  // Nothing to release yet: this screen holds no recorder, stream or interval.
-  function hide() {}
+  // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer and pause
+  // sampler go and drop the take. An upload in flight keeps going; show() will find it.
+  function hide() {
+    capture.awaitingMic = false;
+    if (state === "recording") {
+      releaseCapture();
+      render("idle");
+    }
+  }
+
+  // The record button: Stop while recording, otherwise ask for the microphone and begin.
+  // This is the only place the permission prompt can come from, so it never fires on load.
+  async function onRecordTap() {
+    if (state === "recording") {
+      stopTake();
+      return;
+    }
+    if (state === "uploading" || capture.awaitingMic) {
+      return;
+    }
+    capture.awaitingMic = true;
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      // Denied, dismissed or no microphone at all: shown as "blocked" below.
+    }
+    if (!capture.awaitingMic) {
+      // hide() ran while the prompt was open: nobody is watching, so let the mic go.
+      if (stream) {
+        stopTracks(stream);
+      }
+      return;
+    }
+    capture.awaitingMic = false;
+    if (stream === null) {
+      render("error", {
+        title: MIC_BLOCKED_TITLE,
+        body: MIC_BLOCKED_BODY,
+        actionLabel: MIC_BLOCKED_ACTION,
+        onAction: () => render("idle"),
+      });
+      return;
+    }
+    beginTake(stream);
+  }
+
+  function beginTake(stream) {
+    pendingTake = null;
+    capture.stream = stream;
+    if (app.pauses) {
+      app.pauses.start(stream);
+      capture.pausesStarted = true;
+    }
+    capture.chosenMimeType = supportedMimeType();
+    capture.chunks = [];
+    capture.recorder = capture.chosenMimeType
+      ? new MediaRecorder(stream, { mimeType: capture.chosenMimeType })
+      : new MediaRecorder(stream);
+    capture.recorder.addEventListener("dataavailable", collectChunk);
+    capture.recorder.addEventListener("stop", onRecorderStopped);
+    capture.recorder.start(CHUNK_EVERY_MS);
+    startTimer();
+    app.ui.announce(STARTED_ANNOUNCEMENT);
+    render("recording");
+  }
+
+  // The first container this browser can encode, or "" to let MediaRecorder pick its own
+  // (it then reports the choice in recorder.mimeType).
+  function supportedMimeType() {
+    return MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+  }
+
+  function collectChunk(event) {
+    if (event.data && event.data.size > 0) {
+      capture.chunks.push(event.data);
+    }
+  }
+
+  // Stop tap. The blob is built in onRecorderStopped, once the recorder hands over its last
+  // chunk; a second tap finds the recorder already inactive and does nothing.
+  function stopTake() {
+    const recorder = capture.recorder;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }
+
+  // Runs once per take: after a Stop tap, or on its own when the browser ends the track.
+  function onRecorderStopped() {
+    const durationSeconds = elapsedSeconds();
+    const contentType = capture.recorder.mimeType || capture.chosenMimeType;
+    const { chunks, samples } = releaseCapture();
+    app.ui.announce("Recording stopped, " + Math.floor(durationSeconds) + " seconds");
+
+    if (durationSeconds < MIN_TAKE_SECONDS) {
+      render("error", {
+        title: TOO_SHORT_TITLE,
+        body: app.api.messages.too_short,
+        actionLabel: TOO_SHORT_ACTION,
+        onAction: () => render("idle"),
+      });
+      return;
+    }
+
+    const passage = selectedPassage();
+    pendingTake = {
+      blob: new Blob(chunks, { type: contentType }),
+      contentType,
+      durationSeconds: Math.round(durationSeconds * 10) / 10,
+      samples,
+      passageId: passage ? passage.id : null,
+      passageTitle: passage ? passage.title : "",
+    };
+    upload();
+  }
+
+  // Lets go of everything the live take holds and hands back what the caller may still want:
+  // the chunks collected so far and the pause samples (null without app.pauses).
+  function releaseCapture() {
+    stopTimer();
+    const { recorder, stream, chunks } = capture;
+    if (recorder) {
+      recorder.removeEventListener("dataavailable", collectChunk);
+      recorder.removeEventListener("stop", onRecorderStopped);
+      if (recorder.state !== "inactive") {
+        recorder.stop();
+      }
+    }
+    if (stream) {
+      stopTracks(stream);
+    }
+    const samples = capture.pausesStarted ? app.pauses.stop() : null;
+    capture.recorder = null;
+    capture.stream = null;
+    capture.chunks = [];
+    capture.pausesStarted = false;
+    return { chunks, samples };
+  }
+
+  function stopTracks(stream) {
+    stream.getTracks().forEach((track) => track.stop());
+  }
+
+  // Sends the pending take, saves the session and hands off to Results. "Retry upload" calls
+  // this again with the same blob; app.pauses, when present, folds its samples into metrics.
+  async function upload() {
+    const take = pendingTake;
+    if (take === null) {
+      return;
+    }
+    render("uploading");
+    try {
+      const result = await app.api.analyze(take.blob, take.contentType);
+      const metrics =
+        app.pauses && take.samples
+          ? app.pauses.reconcile(result.metrics, take.samples)
+          : result.metrics;
+      const id = await app.store.save({
+        passageId: take.passageId,
+        passageTitle: take.passageTitle,
+        durationSeconds: take.durationSeconds,
+        metrics,
+        transcript: result.transcript,
+      });
+      pendingTake = null;
+      app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
+      render("idle");
+      app.router.go("results", { id });
+    } catch (error) {
+      render("error", {
+        title: UPLOAD_FAILED_TITLE,
+        body: error.message,
+        actionLabel: UPLOAD_FAILED_ACTION,
+        onAction: upload,
+      });
+    }
+  }
+
+  // The timer: a 250 ms tick paints the elapsed clock and announces it every 30 s.
+  function startTimer() {
+    capture.startedAt = performance.now();
+    capture.announcedBlocks = 0;
+    nodes.timer.textContent = TIMER_START;
+    capture.timerId = setInterval(tickTimer, TIMER_TICK_MS);
+  }
+
+  function tickTimer() {
+    const elapsed = elapsedSeconds();
+    nodes.timer.textContent = app.ui.formatClock(elapsed);
+    const blocks = Math.floor(elapsed / ANNOUNCE_EVERY_SECONDS);
+    if (blocks > capture.announcedBlocks) {
+      capture.announcedBlocks = blocks;
+      app.ui.announce(app.ui.formatClock(elapsed));
+    }
+  }
+
+  function stopTimer() {
+    if (capture.timerId !== null) {
+      clearInterval(capture.timerId);
+      capture.timerId = null;
+    }
+  }
+
+  function elapsedSeconds() {
+    return (performance.now() - capture.startedAt) / 1000;
+  }
 
   // White on the record button in both color schemes; the button itself uses --record.
   function micIcon() {
