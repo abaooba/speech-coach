@@ -9,6 +9,7 @@
   const STATES = ["idle", "recording", "uploading", "error"];
 
   const HINT_TEXT = "Tap to record. Stop uploads automatically.";
+  const RECORDING_HINT_TEXT = "Tap Stop when you finish. It uploads right away.";
   const LOADING_TITLE = "Analyzing your speech";
   const LOADING_BODY = "Usually 5 to 15 seconds.";
   const TIMER_START = "0:00";
@@ -83,6 +84,10 @@
   // The finished take, kept through uploading and error so Retry re-sends the same blob.
   let pendingTake = null;
 
+  // Which passage the card shows, so render() scrolls its text back to the top only when that
+  // changes and a state change never loses the reader's place.
+  let paintedPassageId = null;
+
   // True from the sample tap until its fetch, validation and save have settled.
   let loadingSample = false;
 
@@ -102,6 +107,7 @@
       recordPressed: recording,
       chipsDisabled: !idle,
       showHint: idle || recording,
+      hintText: recording ? RECORDING_HINT_TEXT : HINT_TEXT,
       showRecord: idle || recording,
     };
   }
@@ -259,6 +265,7 @@
     paintChips(view);
     paintPassageCard(selectedPassage());
     paintRecordButton(view);
+    nodes.hintText.textContent = view.hintText;
     paintStateBlock(view.dataState, detail || {});
   }
 
@@ -272,6 +279,11 @@
   }
 
   function paintPassageCard(passage) {
+    const passageId = passage ? passage.id : null;
+    if (passageId !== paintedPassageId) {
+      nodes.cardText.scrollTop = 0;
+      paintedPassageId = passageId;
+    }
     if (!passage) {
       nodes.cardTitle.textContent = "";
       nodes.cardTarget.textContent = "";
@@ -549,7 +561,8 @@
     return (performance.now() - capture.startedAt) / 1000;
   }
 
-  // White on the record button in both color schemes; the button itself uses --record.
+  // Both icons draw in currentColor, which the button sets to --on-record: white on the light
+  // red, near-black on the brighter dark-scheme red, at least 3:1 either way.
   function micIcon() {
     const svg = svgEl("svg", {
       class: "btn-record__mic",
@@ -557,7 +570,7 @@
       height: MIC_ICON_SIZE,
       viewBox: "0 0 24 24",
       fill: "none",
-      stroke: "white",
+      stroke: "currentColor",
       "stroke-width": "2",
       "stroke-linecap": "round",
       "stroke-linejoin": "round",
@@ -576,10 +589,10 @@
       width: STOP_ICON_SIZE,
       height: STOP_ICON_SIZE,
       viewBox: "0 0 24 24",
-      fill: "white",
+      fill: "currentColor",
       "aria-hidden": "true",
     });
-    svg.appendChild(svgEl("rect", { x: "4", y: "4", width: "16", height: "16", rx: "3" }));
+    svg.appendChild(svgEl("rect", { x: "6", y: "6", width: "12", height: "12", rx: "2" }));
     return svg;
   }
 

@@ -393,3 +393,42 @@ test("the hint text sits in its own span, followed by the sample button", () => 
   assert.equal(sample, t.sampleButton);
   assert.ok(sample.classList.contains("practice__sample"));
 });
+
+const RECORDING_HINT = "Tap Stop when you finish. It uploads right away.";
+
+test("viewFor gives the hint copy: tap to record in idle, tap Stop while recording (M2)", () => {
+  const { practice } = setup();
+  assert.equal(practice.viewFor("idle").hintText, IDLE_HINT);
+  assert.equal(practice.viewFor("recording").hintText, RECORDING_HINT);
+});
+
+test("render swaps the hint words and keeps the sample button in the hint (M2)", () => {
+  const t = setup();
+  const text = byClass(t.hint, "practice__hint-text");
+  t.practice.render("recording");
+  assert.equal(text.textContent, RECORDING_HINT);
+  assert.equal(t.hint.children[1], t.sampleButton, "the sample button stays a direct child");
+  t.practice.render("idle");
+  assert.equal(text.textContent, IDLE_HINT);
+});
+
+test("the record icons draw in currentColor so the button's --on-record colors them (L5)", () => {
+  const t = setup();
+  const [mic, stop] = t.recordButton.children;
+  assert.equal(mic.getAttribute("stroke"), "currentColor");
+  assert.equal(stop.getAttribute("fill"), "currentColor");
+});
+
+test("the passage text scrolls back to the top only when the passage changes (M1)", () => {
+  const t = setup();
+  const card = byClass(t.body, "passage-card");
+  const text = byClass(card, "passage-card__text");
+  const chips = byClass(t.body, "chip-row").children;
+  text.scrollTop = 50;
+  t.practice.render("recording");
+  t.practice.render("idle");
+  assert.equal(text.scrollTop, 50, "a state change keeps the reader's place");
+  const other = chips.find((chip) => chip.dataset.passageId === "b");
+  other.click();
+  assert.equal(text.scrollTop, 0);
+});

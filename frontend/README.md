@@ -64,8 +64,9 @@ the timer, the record button and its "Record" label are hidden, and keyboard foc
 the block's red title (press Tab once to reach its button).
 
 1. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
-   speak for about 10 seconds (the timer counts, the red dot pulses, the nav disappears), then
-   tap Stop. "Analyzing your speech" shows with a spinner under the held timer; the record
+   speak for about 10 seconds (the timer counts with the red dot pulsing to its left while the
+   clock stays centered, the nav disappears, and the hint reads "Tap Stop when you finish. It
+   uploads right away."), then tap Stop. "Analyzing your speech" shows with a spinner under the held timer; the record
    button and its label are both hidden. The hash becomes `#/results/<id>`, and in the console:
 
    ```js

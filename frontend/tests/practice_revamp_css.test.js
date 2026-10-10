@@ -154,3 +154,63 @@ test("the sample button keeps its room, invisible, while recording", () => {
 test("inside Practice the state block takes the record zone with --s-4 padding", () => {
   assert.equal(valueFor("#screen-practice .practice__state .state", "padding"), "var(--s-4)");
 });
+
+// Every mask in Practice fades with the keyword colors only: hex is for the token block alone.
+function assertKeywordMask(selector, direction, length) {
+  const expected = `linear-gradient(to ${direction}, black calc(100% - ${length}), transparent)`;
+  assert.equal(valueFor(selector, "mask-image"), expected, `${selector} mask-image`);
+  assert.equal(valueFor(selector, "-webkit-mask-image"), expected, `${selector} -webkit-mask-image`);
+}
+
+test("the passage text scrolls inside the card and fades over its last --s-5 (M1)", () => {
+  const text = "#screen-practice .passage-card__text";
+  assert.equal(valueFor(text, "overflow-y"), "auto");
+  assert.equal(valueFor(text, "min-height"), "0");
+  assert.equal(valueFor(text, "padding-bottom"), "var(--s-5)", "the last line scrolls clear");
+  assertKeywordMask(text, "bottom", "var(--s-5)");
+  assert.equal(valueFor(".passage-card", "display"), "flex");
+  assert.equal(valueFor(".passage-card", "flex-direction"), "column");
+  assert.equal(valueFor(".passage-card", "overflow-y"), undefined, "only the text scrolls");
+});
+
+test("Practice's chip row bleeds to the screen edges and fades over its last --s-6 (L2)", () => {
+  const row = "#screen-practice .chip-row";
+  assert.equal(valueFor(row, "margin-inline"), "calc(-1 * var(--s-4))");
+  assert.equal(valueFor(row, "padding-inline"), "var(--s-4) var(--s-6)");
+  assertKeywordMask(row, "right", "var(--s-6)");
+  assert.equal(valueFor(".chip-row", "mask-image"), undefined, "the shared row is untouched");
+});
+
+test("the clock stays centered in a three-column timer with the dot beside it (M3)", () => {
+  assert.equal(valueFor(".practice__timer", "display"), "grid");
+  assert.equal(valueFor(".practice__timer", "grid-template-columns"), "1fr auto 1fr");
+  assert.equal(valueFor(".rec-dot", "grid-column"), "1");
+  assert.equal(valueFor(".rec-dot", "justify-self"), "end");
+  assert.equal(valueFor(".rec-dot", "margin-right"), undefined, "no margin pushes the clock");
+  assert.equal(valueFor(".timer", "grid-column"), "2");
+});
+
+test("the record icon draws in --on-record (L5)", () => {
+  assert.equal(valueFor(".btn-record", "color"), "var(--on-record)");
+});
+
+test("a disabled chip dims unless it is the selected one (L7)", () => {
+  assert.equal(valueFor(".chip[disabled]:not(.chip--selected)", "opacity"), ".5");
+  const dimsSelected = RULES.some(
+    (rule) =>
+      rule.selectors.some(
+        (selector) =>
+          selector.includes(".chip") && selector.includes("[disabled]") && !selector.includes(":not("),
+      ) && "opacity" in rule.declarations,
+  );
+  assert.ok(!dimsSelected, "the selected chip keeps full contrast while disabled");
+});
+
+test("the header holds the h1 and a small muted wordmark that never wraps (L3)", () => {
+  assert.equal(valueFor(".screen__header", "display"), "flex");
+  assert.equal(valueFor(".screen__header", "align-items"), "center");
+  assert.equal(valueFor(".screen__header h1", "margin"), "0");
+  assert.equal(valueFor(".wordmark", "font-size"), "var(--fs-small)");
+  assert.equal(valueFor(".wordmark", "color"), "var(--muted)");
+  assert.equal(valueFor(".wordmark", "white-space"), "nowrap");
+});
