@@ -709,6 +709,9 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 }
 
 .how__back {
+  display: inline-block;
+  min-height: 44px;
+  line-height: 44px;
   color: var(--accent);
 }
 
