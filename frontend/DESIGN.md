@@ -26,19 +26,24 @@ frontend/
   ui.js               app.ui: el, renderState, clear, announce, formatClock, formatDate
   store.js            app.store: IndexedDB sessions + flags
   api.js              app.api.analyze
-  passages.js         app.passages: [{id, title, text, targetWpm: [lo, hi]}]
-  tips.js             app.tips.select(metrics) -> up to two {id, text}
+  passages.js         app.passages: [{id, kind, title, text, targetWpm: [lo, hi], source?,
+                      format?, timeLimitSeconds?}]
+  delivery.js         app.delivery: the filler rules and the delivery report (analyze, classify)
+  tips.js             app.tips.select(report, options) -> up to two {id, text}
   pauses.js           app.pauses, human-owned (T08); agents never touch it
   screens/practice.js results.js history.js progress.js onboarding.js
+  how.html            static "How we measure" page: each metric's rule, band and source
+  sample-session.json one real take, loaded by Practice's "See a sample result"
   manifest.json  sw.js  icons/   (T10)
 ```
 
-Script order: `app.js`, `ui.js`, `store.js`, `api.js`, `passages.js`, `tips.js`, then the five screens. Classic `<script>` tags, no modules, no build, no CDN. Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`.
+Script order: `app.js`, `ui.js`, `store.js`, `api.js`, `passages.js`, `delivery.js`, `tips.js`, `pauses.js`, then the five screens. Classic `<script>` tags, no modules, no build, no CDN. Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`.
 
 Contracts (exact names):
 
 - `app.router.go(name, params)`, `app.router.current()`. A screen registers `app.screens[name] = { mount(root), show(params), hide() }`; `app.js` calls `mount` once at boot with its `<section id="screen-<name>" class="screen">`, then `show`/`hide` on each hash change. A module never touches DOM outside its `root`; shared data goes through `app.store` and route params.
 - `app.store.save(session) -> Promise<id>`, `list()` newest first, `get(id)`, `remove(id)`, `getFlag(key)`, `setFlag(key, value)`. Session: `{id, createdAt, passageId, passageTitle, durationSeconds, metrics, transcript}`; `metrics` is the backend dict unchanged, `transcript` the backend word list `[{text, start, end}]`. Audio is never stored.
+- `app.delivery.analyze(words, metrics) -> report` re-scores a stored take from its words, so every saved session uses today's rules: `kinds` (`"hesitation"`, `"habit"` or null per word), `fillers` (`{index, text, kind, start, end}`, "you know" is one event), `fillerCount`, `hesitationCount`, `habitCounts`, `topHabit` (`{text, count}` or null), `speakingSeconds`, `wordsPerMinute` (hesitation sounds are not words), `fillersPerMinute`, `pauses` (`{at, length, midSentence}`), `midSentencePauseCount`, `longestMidSentencePause`, `cleanStretch` (`{start, end, seconds}` or null) and `repeatCount`. A session with no words falls back to the backend tallies. Results, tips and Progress read this report; `metrics` stays the backend dict unchanged.
 - `app.api.analyze(blob, contentType) -> Promise<{transcript, metrics}>`; rejects with an `Error` whose `.kind` is `"network" | "too_short" | "provider" | "unknown"` and whose `.message` is the matching string in section 8.
 - `app.ui.el(tag, attrs, children)`; `renderState(root, {kind, title, body, actionLabel, onAction})`, kind `"empty" | "error" | "loading"`; `clear(root)`; `announce(text)` writes the `.sr-only` live region; `formatClock(seconds) -> "1:05"`; `formatDate(iso) -> "Oct 9, 10:21 PM"`.
 - Practice keeps its state in one string, `app.screens.practice.state`; one `render(state)` function is the only code that touches that screen's DOM.
@@ -96,7 +101,7 @@ Red appears only on the record button, recording dot, error blocks and Delete. `
 --fs-micro:  12px / 1.3 / 500   uppercase labels, timestamps (letter-spacing 0.04em)
 ```
 
-Body never goes below 16px. Metric labels are full phrases: "Words per minute", "Fillers per minute", "Pauses over 1.5 s", "Longest pause".
+Body never goes below 16px. Metric labels are full phrases: "Words per minute", "Fillers per minute", "Mid-sentence pauses", "Longest clean stretch".
 
 ## 6. Component inventory
 
@@ -108,9 +113,9 @@ Class names are exact (`block__part`, `block--modifier`).
 
 **Timer** `.timer`: `--fs-hero`, centered, text `0:00`, `aria-live="off"` (announcements use `app.ui.announce`). **`.rec-dot`**: 8px `--record` circle before the timer, `opacity 1 -> .3` 1s pulse.
 
-**Metric card** `.metric-card` (surface, border, `--r-card`, padding `--s-4`): `.metric-card__label` (micro, uppercase, muted), `.metric-card__value` (metric size), `.metric-card__unit` (small, muted, inline: "wpm", "per min", "s"), `.metric-card__hint` (small; `--ok` or `--warn`, always words: "Target 140 to 160", "Slow down"). Results shows exactly four, in order: words per minute (`metrics.words_per_minute` rounded), fillers per minute (total fillers / (duration / 60), one decimal), pauses (`metrics.pauses.length`), longest pause (one decimal).
+**Metric card** `.metric-card` (surface, border, `--r-card`, padding `--s-4`): `.metric-card__label` (micro, uppercase, muted), `.metric-card__value` (metric size), `.metric-card__unit` (small, muted, inline: "wpm", "per min", "s"), `.metric-card__hint` (small; `--ok` or `--warn`, always words: "Target 140 to 160", "Slow down"). Results shows exactly four, in order: words per minute (`report.wordsPerMinute` rounded, pace hint as before), fillers per minute (`report.fillersPerMinute`, hint "Target under 3" in `--ok` at 3 or less and "Aim for under 3" in `--warn` above), mid-sentence pauses (`report.midSentencePauseCount`, no hint), longest clean stretch (`report.cleanStretch.seconds`, unit "s", 0 for a session without words, no hint). The meta line ends with " · 2:41 of 3:00" when the passage has `timeLimitSeconds`.
 
-**Transcript** `.transcript`: a `<p>` at body size, `line-height: 1.8`. Every word is `<span class="tok">` plus a space. `.tok--filler`: filler text and bg, `padding: 0 var(--s-1)`, radius `--r-tok`, weight 600, `aria-label="um, filler word"`. A word is a filler when its lowercased, punctuation-stripped text is one of `um uh hmm like so basically actually`, or starts the phrase `you know` (both words get the class). `.tok--pause`: an inline marker, not a word, inserted after the last word whose `end <= at` for each `[at, length]` in `metrics.pauses`: pause text and bg, radius `--r-chip`, `padding: 0 var(--s-2)`, micro size, text `2.1 s pause`, `aria-label="pause, 2.1 seconds"`. Repeats are not styled; they appear in tips only.
+**Transcript** `.transcript`: a `<p>` at body size, `line-height: 1.8`. Every word is `<span class="tok">` plus a space. Words are labeled by `app.delivery.classify`. `.tok--filler` marks a hesitation sound (um, uh, er, ah, hm at any length): filler text and bg, `padding: 0 var(--s-1)`, radius `--r-tok`, weight 600, `aria-label="um, filler word"`. `.tok--habit` marks a verbal habit the rules counted (like, so, you know, actually, basically): filler text color, weight 600, no background, a 2px dotted underline in `--filler` offset by `--s-1`, `aria-label="like, verbal habit"`. Between the Transcript heading and the paragraph, `.transcript__legend` (small, muted) reads "Highlighted words are ums and uhs. Underlined words are verbal habits.", adds "Most used: “like”, 4 times." when a habit was counted, and ends with a "How we count" link to `how.html`. `.tok--pause`: an inline marker, not a word, inserted after the last word whose `end <= at` for each `[at, length]` in `metrics.pauses`: pause text and bg, radius `--r-chip`, `padding: 0 var(--s-2)`, micro size, text `2.1 s pause`, `aria-label="pause, 2.1 seconds"`. Repeats are not styled; they appear in tips only.
 
 **Chips** `.chip`: `<button>`, `min-height: 44px; padding: 0 var(--s-4); border-radius: var(--r-chip); font: 500 var(--fs-small)`, surface bg, 1px border. `.chip--selected`: accent bg, on-accent text, `aria-pressed="true"`. `.chip-row`: horizontal flex, `gap: var(--s-2)`, `overflow-x: auto`. Used for the passage picker and the Progress metric toggle.
 
@@ -124,7 +129,7 @@ Class names are exact (`block__part`, `block--modifier`).
 
 **Nav** `<nav class="nav" aria-label="Main">`: fixed bottom, `height: calc(var(--nav-h) + env(safe-area-inset-bottom))`, surface bg, 1px top border, three `<a class="nav__item">` flex columns (flex 1, `min-height: 56px`): `.nav__icon` 24px SVG over `.nav__label` micro. `.nav__item--active`: `--accent`, `aria-current="page"`; inactive `--muted`.
 
-**Chart** `.chart`: inline SVG `viewBox="0 0 320 200"`, `width: 100%`. Gridlines `--grid` 1px, axes `--border`, labels micro `--muted`. One `<polyline>` at a time, `stroke-width: 2`, 4px circle points, colored by series: wpm `--accent`, fillers per minute `--filler`, pauses `--pause`; chosen by the chip row. `role="img"` with an `aria-label` naming series, latest value and session count; a `.sr-only` `<table>` lists the numbers.
+**Chart** `.chart`: inline SVG `viewBox="0 0 320 200"`, `width: 100%`. Gridlines `--grid` 1px, axes `--border`, labels micro `--muted`. One `<polyline>` at a time, `stroke-width: 2`, 4px circle points, colored by series: wpm `--accent`, fillers per minute `--filler`, pauses `--pause`, clean stretch `--ok`; chosen by the chip row of four. `role="img"` with an `aria-label` naming series, latest value and session count; a `.sr-only` `<table>` lists the numbers.
 
 **`.sr-only`**: the standard visually-hidden rule.
 
@@ -134,7 +139,7 @@ Class names are exact (`block__part`, `block--modifier`).
 
 | State | Timer | Record button | Chips | Below | Nav |
 |---|---|---|---|---|---|
-| `idle` | `0:00`, muted | mic, "Record" | enabled | `.practice__hint` "Tap to record. Stop uploads automatically." | visible |
+| `idle` | `0:00`, muted | mic, "Record" | enabled | `.practice__hint` "Tap to record. Stop uploads automatically." and a `.btn--ghost` "See a sample result" | visible |
 | `recording` | counting, text color, `.rec-dot` | stop, "Stop" | disabled | passage text stays readable | hidden |
 | `uploading` | final value held | hidden | disabled | `.state--loading` "Analyzing your speech" / "Usually 5 to 15 seconds." No cancel. | hidden |
 | `error` | last value | mic, "Record" | enabled | `.state--error`, fixed message, one action | visible |
@@ -150,6 +155,7 @@ Mic permission is requested on the first record tap, never on load. Stopping und
 - History empty: "No sessions yet" / "Your first recording will show up here." Action "Record".
 - Progress under two sessions: "Need two sessions" / "Record one more to see a trend." Action "Record".
 - Results bad id: "Session not found". Action "History".
+- Sample failed: "Could not load the sample. Try again." Action "Try again" (back to idle).
 
 Copy: second person, present tense, under 15 words a sentence, no exclamation marks, no blame.
 

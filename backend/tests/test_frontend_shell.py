@@ -34,6 +34,7 @@ SCRIPT_LOAD_ORDER = [
     "store.js",
     "api.js",
     "passages.js",
+    "delivery.js",
     "tips.js",
     "pauses.js",
     "screens/practice.js",
