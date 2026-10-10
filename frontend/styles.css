@@ -1433,10 +1433,85 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
-/* 10. Progress screen: metric switch, title and the line chart */
+/* 10. Progress screen: metric switch, title, summary row and the line chart */
 /* The segmented control sits first; the section gap separates it from the metric's full name. */
 .progress__title {
   margin-top: var(--s-6);
+}
+
+/* Summary row: three surface cells under the title, each a label over its value. The values
+   sit along the bottom of the row however the labels wrap. */
+.progress-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.progress-summary__item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--s-1);
+  min-width: 0;
+  padding: var(--s-3) var(--s-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.progress-summary__label {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.progress-summary__value {
+  margin: 0;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* With no measured take, Best reads "Not measured" in small muted words that may wrap. */
+.progress-summary__value--none {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: normal;
+  color: var(--muted);
+}
+
+/* The change from the average: small words after a muted triangle or dash, as on the Results
+   delta lines. In a narrow cell it wraps between the number and the word. */
+.progress-summary__change {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1);
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.progress-summary__change svg {
+  flex: none;
+  margin-top: var(--s-1);
+  color: var(--muted);
+}
+
+/* Under 360px a cell is about 90px wide: tighter sides and a body-size value keep "21.4 /min"
+   on one line. */
+@media (max-width: 359px) {
+  .progress-summary__item {
+    padding: var(--s-3) var(--s-1);
+  }
+
+  .progress-summary__value {
+    font-size: var(--fs-body);
+  }
 }
 
 /* The viewBox is 320 x 200, so the chart scales with the column and never scrolls sideways. */
@@ -1444,7 +1519,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: block;
   width: 100%;
   height: auto;
-  margin-top: var(--s-4);
+  margin-top: var(--s-6);
 }
 
 /* Axis labels: micro type in the muted color (set on each <text> node); tabular digits keep
@@ -1455,11 +1530,45 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-variant-numeric: tabular-nums;
 }
 
+/* The "Best" label is the series color at 600, with a halo in the page color that keeps it
+   readable where it meets a gridline or the line. */
+.chart .chart__best-label {
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* The fillers legend under the chart: a swatch of the band, then its words. */
+.chart__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.chart__swatch {
+  flex: none;
+  width: 16px;
+  height: 10px;
+  background: var(--ok-bg);
+  border-top: 2px dashed var(--ok);
+}
+
 /* The screen-reader table. A table ignores the 1px box of .sr-only and grows to its widest
-   row, which widened the page at 320px; fixed layout caps it at its caption's width, and the
-   page origin keeps it from lengthening the page under the chart. */
+   row, which widened the page at 320px. Fixed layout caps it at its caption's width, and it
+   hangs from the bottom of the screen body, beside the chart, so it never lengthens the page. */
+#screen-progress .screen__body {
+  position: relative;
+}
+
 #screen-progress table.sr-only {
-  top: 0;
+  bottom: 0;
   left: 0;
   table-layout: fixed;
 }

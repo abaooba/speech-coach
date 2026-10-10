@@ -279,31 +279,42 @@ for (const [daysAgo, wpm, um, pauses] of [[5,128,4,1],[4,141,3,2],[3,137,2,2],[2
 
 Then open http://127.0.0.1:8000/#/progress.
 
-1. Under the "Progress" heading: three chips, "Words per minute" (selected), "Fillers per
-   minute" and "Pauses", then the chart: five dots joined by a blue line, four grey gridlines
-   with the labels 100, 120, 140, 160 on the left, and 1 to 5 under the dots. Session 1 is
-   the oldest, on the left; the line climbs from 128 to 158 with a dip at 3. The Progress
-   nav item is highlighted.
+1. Under the "Progress" heading: a segmented control of four options, "Pace" (selected),
+   "Fillers", "Pauses" and "Clean", all on one row at 320px; then the heading "Words per
+   minute", a summary row of three cells and the chart. The cells read "Latest" 158 wpm,
+   "Best" 158 wpm (the most recent take inside the 140 to 160 band) and "From your average"
+   "19 faster" with an up triangle. The chart has five blue dots joined by a line, gridlines at
+   the round values 100, 120, 140 and 160, and a short date such as "Oct 5" under every dot,
+   oldest on the left, the last one ending at the right edge. The best take wears a ring and a
+   small "Best" label that does not touch the line. The Progress nav item is highlighted.
 
-2. Tap "Fillers per minute": that chip is selected, the line and dots turn amber, the y labels
-   read 0, 3, 7, 10 and the dots fall 4, 3, 2, 1, 1. Tap "Pauses": purple, dots at 1, 2, 2,
-   0, 1. Tap "Words per minute": blue again. Open History and come back: the chip you chose
-   is still selected.
+2. Tap "Fillers": that option is selected, the heading reads "Fillers per minute", the line
+   and dots turn amber, the y labels read 0, 2, 4, 6, 8, 10 and the dots fall 4, 3, 2, 1, 1.
+   A green band shades 0 to 3 with a dashed line at 3, and under the chart a legend with a
+   swatch reads "Shaded band: target under 3". The cells read 1.0 /min, 1.0 /min and "1.5
+   fewer" with a down triangle; the ring sits on the last dot (ties go to the most recent take).
+   Tap "Pauses": purple, the heading "Mid-sentence pauses", dots at 1, 2, 2, 0, 1, the ring on
+   the 0, and "No change" with a dash. Tap "Clean": green, "Longest clean stretch"; these
+   sessions have no words, so every value is 0.0 s. Open History and come back: the option you
+   chose is still selected. Only the fillers chart has the band and the legend.
 
 3. In the Elements panel the `<svg class="chart">` has `role="img"` and an `aria-label` such
    as "Words per minute over 5 sessions, latest 158"; under it a visually hidden table lists
-   one row per session (number, date, value). A screen reader reads the table.
+   one row per session (number, date, value) with the caption "Words per minute by session".
+   A screen reader reads the summary cells as text and then the table.
 
-4. Run the seed loop a second time (ten sessions): every session still gets a dot, but the
-   x labels thin to 1, 3, 5, 7, 9.
+4. Run the seed loop a second time (ten sessions, two a day): every session still gets a dot,
+   and the x axis shows five dates spread from the first take to the last. A second take on a
+   day that already has a label gets none.
 
-5. Narrow the window to 320px: the chart fills the width with no horizontal scroll and the
-   labels stay readable; at 640px it scales up with the column. Switch the OS theme (or
-   DevTools "Emulate CSS prefers-color-scheme: dark"): gridlines, labels and all three line
-   colors stay visible.
+5. Narrow the window to 320px: the four options and the three cells fit with no horizontal
+   scroll ("From your average" may wrap its words), and the chart fills the width with readable
+   labels; at 640px it scales up with the column. Switch the theme with the toggle on Practice,
+   or the OS setting: gridlines, labels, the band, the ring and all four line colors stay
+   visible in both themes.
 
 6. Empty state: delete sessions in History until one is left (or run
    `indexedDB.deleteDatabase('speech-coach')`, reload and save one session with the store
-   check above), then open `#/progress`. The block built by `app.ui.renderState` shows "Need
-   two sessions" / "Record one more to see a trend." with a "Record" button that opens
-   Practice.
+   check above), then open `#/progress`. The block built by `app.ui.renderState` shows a chart
+   icon, "Need two sessions" / "Record one more to see a trend." and a "Record" button that
+   opens Practice.

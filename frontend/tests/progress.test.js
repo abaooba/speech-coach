@@ -306,7 +306,7 @@ test("show() renders the segmented control, the wpm chart and the sr-only table"
   const { app, progress, body } = mountProgress(NEWEST_FIRST);
   await progress.show();
 
-  assert.equal(body.children.length, 4);
+  assert.equal(body.children.length, 5);
   const row = byClass(body, "segmented");
   const svg = chartOf(body);
   const table = tableOf(body);
@@ -336,16 +336,24 @@ test("show() renders the segmented control, the wpm chart and the sr-only table"
   assert.equal(svg.getAttribute("role"), "img");
   assert.equal(svg.getAttribute("aria-label"), "Words per minute over 3 sessions, latest 140");
 
-  // Gridlines first, then the axes, the labels, the line, the dots: later nodes paint on top.
+  // Short dates label the takes; a take on a day already labeled gets none, which depends on
+  // the time zone the tests run in, so the expected labels come from the same formatter.
+  const days = [FIRST, SECOND, THIRD].map((stored) => app.ui.formatDay(stored.createdAt));
+  const labeled = [0, 1, 2].filter((index) => index === 0 || days[index] !== days[index - 1]);
+
+  // Gridlines first, then the axes, the labels, the line, the dots and the best take's ring and
+  // label: later nodes paint on top.
   assert.deepEqual(
     svg.children.map((child) => child.tagName),
     [
       ...Array(5).fill("line"),
       ...Array(2).fill("line"),
       ...Array(5).fill("text"),
-      ...Array(3).fill("text"),
+      ...Array(labeled.length).fill("text"),
       "polyline",
       ...Array(3).fill("circle"),
+      "path",
+      "text",
     ],
   );
   svg.children.forEach((child) => {
@@ -398,10 +406,18 @@ test("show() renders the segmented control, the wpm chart and the sr-only table"
   );
 
   const xLabels = xLabelsOf(svg);
-  assert.deepEqual(xLabels.map((label) => label.textContent), ["1", "2", "3"]);
-  assert.deepEqual(xLabels.map((label) => label.getAttribute("x")), ["36", "172", "308"]);
+  const pointXs = ["36", "172", "308"];
+  assert.deepEqual(
+    xLabels.map((label) => label.textContent),
+    labeled.map((index) => days[index]),
+  );
+  assert.deepEqual(
+    xLabels.map((label) => label.getAttribute("x")),
+    labeled.map((index) => pointXs[index]),
+  );
   xLabels.forEach((label) => {
-    assert.equal(label.getAttribute("text-anchor"), "middle");
+    const last = label.getAttribute("x") === "308";
+    assert.equal(label.getAttribute("text-anchor"), last ? "end" : "middle");
     assert.equal(label.getAttribute("fill"), "var(--muted)");
     assert.ok(Number(label.getAttribute("y")) > BOTTOM, "x labels sit under the axis");
     assert.ok(Number(label.getAttribute("y")) <= 200, "x labels stay inside the box");
@@ -464,7 +480,7 @@ test("tapping Fillers swaps the chart and table in place; the control stays", as
 
   chips[1].click();
 
-  assert.equal(body.children.length, 4);
+  assert.equal(body.children.length, 6);
   assert.equal(body.children[0], row, "the segmented control is the same node");
   assert.deepEqual(chipsOf(body), chips, "the options are the same nodes");
   assert.deepEqual(
@@ -528,7 +544,7 @@ test("the chosen metric survives leaving and reopening the screen", async () => 
   await progress.show();
 
   assert.equal(calls.lists, 2);
-  assert.equal(body.children.length, 4, "a second show replaces the chart, never stacks");
+  assert.equal(body.children.length, 6, "a second show replaces the chart, never stacks");
   assert.deepEqual(
     chipsOf(body).map((chip) => chip.getAttribute("aria-pressed")),
     ["false", "true", "false", "false"],
@@ -536,23 +552,24 @@ test("the chosen metric survives leaving and reopening the screen", async () => 
   assert.equal(polylineOf(chartOf(body)).getAttribute("stroke"), FILLERS_COLOR);
 });
 
-test("x labels: every session up to eight, every other one beyond that", async () => {
+test("x labels: many takes on one day share one date, and every take keeps its dot", async () => {
   const eight = mountProgress(manySessions(8));
   await eight.progress.show();
   const eightLabels = xLabelsOf(chartOf(eight.body));
+  const day = eight.app.ui.formatDay("2026-10-10T10:00:00.000Z");
   assert.deepEqual(
     eightLabels.map((label) => label.textContent),
-    ["1", "2", "3", "4", "5", "6", "7", "8"],
+    [day],
   );
 
   const nine = mountProgress(manySessions(9));
   await nine.progress.show();
   const svg = chartOf(nine.body);
   const nineLabels = xLabelsOf(svg);
-  assert.deepEqual(nineLabels.map((label) => label.textContent), ["1", "3", "5", "7", "9"]);
+  assert.deepEqual(nineLabels.map((label) => label.textContent), [day]);
   assert.deepEqual(
     nineLabels.map((label) => label.getAttribute("x")),
-    ["36", "104", "172", "240", "308"],
+    ["36"],
   );
   assert.equal(childrenByTag(svg, "circle").length, 9, "every session still gets a dot");
   assert.equal(svg.getAttribute("aria-label"), "Words per minute over 9 sessions, latest 150");
