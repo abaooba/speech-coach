@@ -18,3 +18,4 @@ reports/
 nights/
 logs/
 .night.lock
+.claude/launch.json
