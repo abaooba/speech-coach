@@ -319,15 +319,19 @@
     return applyTheme(theme);
   }
 
-  // Sets data-theme on <html>: "dark" or "light" force that scheme in styles.css, and "auto"
-  // matches no rule there, so the device setting decides.
+  // Sets data-theme on <html> to "dark" or "light", which force that scheme in styles.css.
+  // Auto removes the attribute, so the device setting decides.
   function applyTheme(choice) {
     const theme = knownTheme(choice);
     const html = typeof document === "undefined" ? null : document.documentElement;
     if (!html || !html.dataset) {
       return theme;
     }
-    html.dataset.theme = theme;
+    if (theme === AUTO_THEME) {
+      delete html.dataset.theme;
+    } else {
+      html.dataset.theme = theme;
+    }
     pointThemeColor(html, theme);
     return theme;
   }

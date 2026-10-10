@@ -112,6 +112,12 @@ function metaContents(metas) {
   return metas.map((meta) => meta.getAttribute("content"));
 }
 
+// Whether <html> carries data-theme at all. The fake dataset is a plain object, so a key left
+// holding undefined still counts: a browser would have written data-theme="undefined".
+function hasDataTheme(page) {
+  return Object.hasOwn(page.documentElement.dataset, "theme");
+}
+
 test("ui.js adds the four theme helpers and touches no storage or document at load", () => {
   const storage = fakeStorage({ [STORAGE_KEY]: "dark" });
   let storageReads = 0;
@@ -167,7 +173,7 @@ test("setTheme saves the choice under speech-coach-theme, then applies it", () =
 
   ui.setTheme("auto");
   assert.equal(storage.items[STORAGE_KEY], "auto");
-  assert.equal(page.documentElement.dataset.theme, "auto");
+  assert.equal(hasDataTheme(page), false, "auto removes data-theme");
   assert.equal(ui.getTheme(), "auto");
 });
 
@@ -186,10 +192,10 @@ test("setTheme and applyTheme turn an unknown choice into auto", () => {
   const ui = loadUi({ localStorage: storage, document: page.document });
   assert.equal(ui.setTheme("blue"), "auto");
   assert.equal(storage.items[STORAGE_KEY], "auto");
-  assert.equal(page.documentElement.dataset.theme, "auto");
+  assert.equal(hasDataTheme(page), false, "auto removes data-theme");
   ui.applyTheme("dark");
   assert.equal(ui.applyTheme(undefined), "auto");
-  assert.equal(page.documentElement.dataset.theme, "auto");
+  assert.equal(hasDataTheme(page), false, "auto removes the forced dark");
 });
 
 test("nextTheme cycles auto, dark, light and back to auto", () => {
@@ -213,17 +219,19 @@ test("nextTheme answers auto for anything it does not know", () => {
   }
 });
 
-test("applyTheme sets data-theme on <html> and skips the metas without querySelectorAll", () => {
+test("applyTheme sets data-theme, drops it for auto, skips metas without querySelectorAll", () => {
   const page = themeDocument({ withQuery: false });
   const styleCalls = [];
   const ui = loadUi({
     document: page.document,
     getComputedStyle: fakeGetComputedStyle("light", styleCalls),
   });
-  for (const choice of ["dark", "light", "auto"]) {
+  for (const choice of ["dark", "light"]) {
     assert.equal(ui.applyTheme(choice), choice);
     assert.equal(page.documentElement.dataset.theme, choice);
   }
+  assert.equal(ui.applyTheme("auto"), "auto");
+  assert.equal(hasDataTheme(page), false, "auto removes the forced light");
   assert.deepEqual(metaContents(page.metas), [BACKGROUND.light, BACKGROUND.dark]);
   assert.deepEqual(page.metas[0].dataset, {});
   assert.deepEqual(styleCalls, []);
@@ -261,17 +269,18 @@ test("applyTheme with auto restores each meta's own content", () => {
   ui.applyTheme("dark");
   assert.deepEqual(metaContents(page.metas), [BACKGROUND.dark, BACKGROUND.dark]);
   ui.applyTheme("auto");
-  assert.equal(page.documentElement.dataset.theme, "auto");
+  assert.equal(hasDataTheme(page), false, "auto removes data-theme");
   assert.deepEqual(metaContents(page.metas), [BACKGROUND.light, BACKGROUND.dark]);
 });
 
-test("applyTheme with auto first leaves the metas as the page shipped them", () => {
+test("applyTheme with auto first leaves <html> and the metas as the page shipped them", () => {
   const page = themeDocument({ withQuery: true });
   const ui = loadUi({
     document: page.document,
     getComputedStyle: fakeGetComputedStyle("light", []),
   });
   ui.applyTheme("auto");
+  assert.equal(hasDataTheme(page), false, "a first visit at boot adds no data-theme");
   assert.deepEqual(metaContents(page.metas), [BACKGROUND.light, BACKGROUND.dark]);
 });
 
