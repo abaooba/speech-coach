@@ -157,8 +157,8 @@ test("scale picks the smallest round step with at most five intervals", () => {
     [[128, 141, 137, 152, 158], "wpm", [100, 120, 140, 160]],
     [[128, 141, 137, 152, 76], "wpm", [50, 75, 100, 125, 150, 175]],
     [[0, 0], "fillersPerMinute", [0, 2, 4, 6, 8, 10]],
-    [[0, 10.1], "fillersPerMinute", [0, 5, 10, 15, 20]],
-    [[4, 3, 2, 1, 21.4], "fillersPerMinute", [0, 10, 20, 30]],
+    [[0, 10.1], "fillersPerMinute", [0, 5, 10, 15]],
+    [[4, 3, 2, 1, 21.4], "fillersPerMinute", [0, 5, 10, 15, 20, 25]],
     [[1, 2, 2, 0, 3], "pauseCount", [0, 2, 4, 6, 8, 10]],
     [[0, 0, 0, 0, 4.9], "cleanStretchSeconds", [0, 2, 4, 6, 8, 10]],
     [[], "wpm", [0, 2, 4, 6, 8, 10]],
@@ -565,8 +565,8 @@ test("the change reads fewer, faster, shorter or No change with the matching ico
 test("the fillers chart shades the target band from 0 to 3 under the gridlines", async () => {
   const { body } = await showMetric(SEED, 1);
   const svg = chartOf(body);
-  // The seed's fillers axis runs 0 to 30, so 3 sits a tenth of the way up the 160-unit plot.
-  const bandTop = PLOT.bottom - 16;
+  // The seed's fillers axis runs 0 to 25, so 3 sits 3/25 of the way up the 160-unit plot.
+  const bandTop = "152.8";
 
   const [band] = svgChildren(svg, "chart__band");
   assert.ok(band, "a band rect");
@@ -574,7 +574,7 @@ test("the fillers chart shades the target band from 0 to 3 under the gridlines",
   assert.equal(band.namespaceURI, SVG_NS);
   assert.deepEqual(
     ["x", "width", "y", "height", "fill"].map((name) => band.getAttribute(name)),
-    ["36", "272", String(bandTop), "16", "var(--ok-bg)"],
+    ["36", "272", bandTop, "19.2", "var(--ok-bg)"],
   );
   assert.equal(svg.children[0], band, "the band is the bottom layer");
   const firstGrid = svg.children.findIndex(
@@ -587,9 +587,21 @@ test("the fillers chart shades the target band from 0 to 3 under the gridlines",
   assert.equal(target.tagName, "line");
   assert.deepEqual(
     ["x1", "x2", "y1", "y2", "stroke", "stroke-width"].map((name) => target.getAttribute(name)),
-    ["36", "308", String(bandTop), String(bandTop), "var(--ok)", "1"],
+    ["36", "308", bandTop, bandTop, "var(--ok)", "1"],
   );
   assert.ok(target.getAttribute("stroke-dasharray"), "the target line is dashed");
+});
+
+test("the seed's fillers axis reads 0 to 25 in fives, as in the approved design", async () => {
+  // The step comes from the data's own top, 21.4, not from a ten above it (0 to 30 in tens).
+  const { body } = await showMetric(SEED, 1);
+  const yLabels = childrenByTag(chartOf(body), "text").filter(
+    (label) => label.getAttribute("text-anchor") === "end" && Number(label.getAttribute("x")) < 36,
+  );
+  assert.deepEqual(
+    yLabels.map((label) => label.textContent),
+    ["0", "5", "10", "15", "20", "25"],
+  );
 });
 
 test("a legend under the fillers chart explains the band; no other metric has one", async () => {
@@ -617,10 +629,10 @@ test("a legend under the fillers chart explains the band; no other metric has on
 
 test("the best take gets a 7-unit ring and a Best label in the series color, on top", async () => {
   // Best points in the seed: pace 152 (Oct 8), fillers 1.0 (Oct 8), pauses 0 (Oct 8) and the
-  // clean stretch 4.9 (Oct 10), on axes of 50-175, 0-30, 0-10 and 0-10.
+  // clean stretch 4.9 (Oct 10), on axes of 50-175, 0-25, 0-10 and 0-10.
   const centers = [
     [240, 12 + (175 - 152) * 1.28],
-    [240, PLOT.bottom - 16 / 3],
+    [240, PLOT.bottom - 160 / 25],
     [240, PLOT.bottom],
     [308, PLOT.bottom - 4.9 * 16],
   ];
@@ -653,11 +665,11 @@ test("the best take gets a 7-unit ring and a Best label in the series color, on 
 test("the Best label sits above the point, away from the steeper segment", async () => {
   // Fillers 2.0 then 1.0 (best) then 21.4: the right segment is steeper, so the label goes left.
   const seed = await showMetric(SEED, 1);
-  assert.deepEqual(bestSpot(chartOf(seed.body)), ["231", "154.67", "end"]);
+  assert.deepEqual(bestSpot(chartOf(seed.body)), ["231", "153.6", "end"]);
 
   // The mirror image: a steep left segment sends the label right of the point.
   const mirrored = await showMetric(sessionsWith("fillersPerMinute", [21.4, 1, 2, 3, 4]), 1);
-  assert.deepEqual(bestSpot(chartOf(mirrored.body)), ["113", "154.67", "start"]);
+  assert.deepEqual(bestSpot(chartOf(mirrored.body)), ["113", "153.6", "start"]);
 });
 
 test("the Best label centers over a dip when both sides would cross the line", async () => {

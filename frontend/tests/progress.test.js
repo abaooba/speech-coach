@@ -258,13 +258,13 @@ test("scale([3], 'pauseCount') starts the axis at 0", () => {
   assert.equal(scaled.points[0].y, TOP + ((BOTTOM - TOP) * 7) / 10);
 });
 
-test("scale rounds the top up to a ten, keeps the wpm floor at or above 0, and tolerates []", () => {
+test("scale rounds the top up to a round step, keeps the wpm floor at or above 0, and tolerates []", () => {
   const { progress } = loadPure();
   assert.equal(progress.scale([0, 7.2], "fillersPerMinute").yMax, 10);
-  assert.equal(progress.scale([0, 10.1], "fillersPerMinute").yMax, 20);
+  assert.equal(progress.scale([0, 10.1], "fillersPerMinute").yMax, 15);
   const lowPace = progress.scale([5, 15], "wpm");
   assert.equal(lowPace.yMin, 0);
-  assert.equal(lowPace.yMax, 20);
+  assert.equal(lowPace.yMax, 15);
   const nothing = progress.scale([], "wpm");
   assert.deepEqual(nothing.points, []);
   assert.equal(nothing.yMin, 0);

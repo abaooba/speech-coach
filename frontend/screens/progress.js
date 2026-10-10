@@ -99,15 +99,17 @@
     padBottom: 28,
   };
 
-  // The data range snaps to multiples of 10, starts 20 under the slowest take for pace, and spans
-  // at least 10 so a flat series (or a single point) still has a height to draw against.
-  const AXIS_STEP = 10;
+  // The data range runs from 0 for the counts, or from the ten at or below 20 under the slowest
+  // take for pace, up to the highest value; it spans at least 10 so a flat series (or a single
+  // point) still has a height to draw against.
+  const FLOOR_STEP = 10;
   const WPM_HEADROOM = 20;
   const MIN_RANGE = 10;
 
   // Round ticks (DESIGN.md section 6): the smallest of these steps that splits the data range
-  // into at most five intervals, with the axis padded out to whole steps. A range no listed step
-  // fits (only a malformed record gets there) keeps multiplying the largest one by ten.
+  // into at most five intervals, with the axis padded out to whole steps, so a top of 21.4 reads
+  // 0 to 25 in fives. A range no listed step fits (only a malformed record gets there) keeps
+  // multiplying the largest one by ten.
   const ROUND_STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200];
   const MAX_INTERVALS = 5;
   const STEP_GROWTH = 10;
@@ -214,7 +216,8 @@
     const geometry = Object.assign({}, DEFAULT_GEOMETRY, opts || {});
     const numbers = (Array.isArray(values) ? values : []).map(numberOr0);
     const low = axisFloor(numbers, key);
-    const { yMin, yMax, yTicks } = roundAxis(low, axisCeiling(numbers, low));
+    const highest = numbers.length > 0 ? Math.max(...numbers) : 0;
+    const { yMin, yMax, yTicks } = roundAxis(low, Math.max(highest, low + MIN_RANGE));
     const points = numbers.map((value, index) => ({
       x: xFor(index, numbers.length, geometry),
       y: yFor(value, yMin, yMax, geometry),
@@ -228,17 +231,12 @@
       return 0;
     }
     const lowest = Math.min(...numbers);
-    return Math.max(0, Math.floor((lowest - WPM_HEADROOM) / AXIS_STEP) * AXIS_STEP);
-  }
-
-  // The ten at or above the highest value, and at least one step above the floor.
-  function axisCeiling(numbers, yMin) {
-    const highest = numbers.length > 0 ? Math.max(...numbers) : 0;
-    return Math.max(Math.ceil(highest / AXIS_STEP) * AXIS_STEP, yMin + MIN_RANGE);
+    return Math.max(0, Math.floor((lowest - WPM_HEADROOM) / FLOOR_STEP) * FLOOR_STEP);
   }
 
   // The data range [low, high] padded out to whole round steps, and every tick on it: 120 to 160
-  // reads 120, 130, 140, 150, 160, and 50 to 160 becomes 50 to 175 in steps of 25.
+  // reads 120, 130, 140, 150, 160, 50 to 152 becomes 50 to 175 in steps of 25, and 0 to 21.4
+  // becomes 0 to 25 in steps of 5.
   function roundAxis(low, high) {
     const intervals = (step) => Math.ceil(high / step) - Math.floor(low / step);
     let step = ROUND_STEPS.find((candidate) => intervals(candidate) <= MAX_INTERVALS);
