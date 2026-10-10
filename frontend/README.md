@@ -102,7 +102,8 @@ the block's red title (press Tab once to reach its button).
    reads "Could not reach the server. Your recording is still here." with "Retry upload" and,
    under it, a blue "Record a new take". Start uvicorn again and tap Retry upload: the same
    take uploads and Results opens. Repeat the failure and tap "Record a new take" instead:
-   Practice returns to idle with the record button back, and nothing is uploaded.
+   Practice returns to idle with the record button back, the clock at 0:00 and the bar empty,
+   and nothing is uploaded. Coming back from Results also starts at 0:00 with an empty bar.
 
 7. Provider (502): set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds
    and tap Stop. The block reads "Analysis failed on our side. Your recording is still here."

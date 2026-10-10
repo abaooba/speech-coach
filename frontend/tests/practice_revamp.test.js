@@ -717,22 +717,98 @@ test("the bar fills with elapsed over the limit and turns over at the limit", as
   assert.equal(t.clock.activeIntervals(), 1);
 });
 
-test("render keeps the bar where the last take left it; a new take empties it", async () => {
+// Idle shows "0:00" and an empty bar (DESIGN.md section 7): a take that is let go takes its time
+// with it. Uploading holds the final value.
+const EMPTY_FILL = "transform: scaleX(0)";
+
+test("uploading holds the bar; Record a new take empties it and resets the clock", async () => {
   const t = setup({ passages: MODES });
   const parts = modeParts(t);
   await recordTake(t, 30000);
+  assert.equal(t.root.dataset.state, "uploading");
   assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.5)");
+  assert.equal(t.timer.textContent, "0:30");
   t.rejectUpload(apiError("network"));
   await flush();
   stateBlock(t).children[4].click();
-  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.5)");
-  assert.equal(t.timer.textContent, "0:30", "idle holds the last take, as the clock does");
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+  assert.equal(t.timer.textContent, "0:00", "the dropped take's time goes with it");
 
   t.recordButton.click();
   t.grantMic();
   await flush();
-  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0)");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
   assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"));
+});
+
+test("an over-limit take leaves no rust bar in idle; other chips never rescale it", async () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  await recordTake(t, 70000);
+  assert.ok(parts.limitBar.classList.contains("practice__limit-bar--over"), "uploading holds it");
+  t.rejectUpload(apiError("network"));
+  await flush();
+  stateBlock(t).children[4].click();
+  assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"));
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+  chipFor(parts, "imp").click();
+  assert.equal(parts.limit.textContent, "/ 2:00");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+  assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"));
+});
+
+test("a saved take resets the clock and empties the bar before Results opens", async () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  await recordTake(t, 42000);
+  t.resolveUpload({ transcript: [], metrics: {} });
+  await flush();
+  assert.equal(t.calls.go[0].name, "results");
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(t.timer.textContent, "0:00");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+});
+
+test("leaving mid-take and coming back starts at 0:00 with an empty bar", async () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  t.recordButton.click();
+  t.grantMic();
+  await flush();
+  t.clock.advance(40000);
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.6667)");
+  t.practice.hide();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(t.timer.textContent, "0:00");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+});
+
+test("after a too-short take idle keeps its time on the clock, the bar empty", async () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  await recordTake(t, 3000);
+  assert.equal(byClass(stateBlock(t), "state__title").textContent, "Too short");
+  stateBlock(t).children[3].click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(t.timer.textContent, "0:03", "practice-capture.test.js pins this clock");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+
+  t.practice.hide();
+  t.practice.show({});
+  assert.equal(t.timer.textContent, "0:00", "coming back to the screen lets it go");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+});
+
+test("show() while a take uploads keeps its clock and its bar", async () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  await recordTake(t, 30000);
+  t.practice.hide();
+  t.practice.show({});
+  assert.equal(t.root.dataset.state, "uploading");
+  assert.equal(t.timer.textContent, "0:30");
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.5)");
 });
 
 test("a take saves the entry's title and id, whichever topic was showing", async () => {

@@ -132,8 +132,9 @@
   // The finished take, kept through uploading and error so Retry re-sends the same blob.
   let pendingTake = null;
 
-  // The seconds the clock shows: the live take's, or the last take's until the next one starts.
-  // render() redraws the limit bar from it, for whichever entry is selected.
+  // The seconds on the clock: the live take's, held through uploading. A take that is let go
+  // (saved, dropped, or left behind by leaving the screen) goes back to 0:00 through
+  // resetClock(). After a too-short take the clock keeps its time until the next take starts.
   let shownSeconds = 0;
 
   // What the card and the chip row last showed, so render() scrolls the text back to the top
@@ -434,9 +435,9 @@
   }
 
   // Applies one state to the screen. It is the only code that changes this screen's DOM, apart
-  // from the timer tick, which writes the clock and the bar, and the header's theme toggle, which
-  // repaints itself. `detail` is only read for "error": {title, body, actionLabel, onAction,
-  // secondaryLabel?, onSecondary?}, passed straight to app.ui.renderState.
+  // from the clock (the timer tick writes it and the bar, resetClock() puts it back to 0:00) and
+  // the header's theme toggle, which repaints itself. `detail` is only read for "error": {title,
+  // body, actionLabel, onAction, secondaryLabel?, onSecondary?}, passed to app.ui.renderState.
   function render(nextState, detail) {
     const view = viewFor(nextState);
     state = nextState;
@@ -510,12 +511,14 @@
     paintLimitFill(limit);
   }
 
-  // Scales the fill to the seconds on the clock. From the limit on it stays full and turns rust;
-  // the take keeps going. The style goes through setAttribute, the one way the test fakes take.
+  // Scales the fill to the clock while a take records or uploads; idle and error show an empty
+  // bar, whatever the clock holds. From the limit on it stays full and turns rust; the take keeps
+  // going. The style goes through setAttribute, the one way the test fakes take.
   function paintLimitFill(limit) {
-    const ratio = limit === null ? 0 : limitRatio(shownSeconds, limit);
+    const seconds = state === "recording" || state === "uploading" ? shownSeconds : 0;
+    const ratio = limit === null ? 0 : limitRatio(seconds, limit);
     nodes.limitFill.setAttribute("style", "transform: scaleX(" + ratio + ")");
-    nodes.limitBar.classList.toggle(LIMIT_OVER_CLASS, limit !== null && shownSeconds >= limit);
+    nodes.limitBar.classList.toggle(LIMIT_OVER_CLASS, limit !== null && seconds >= limit);
   }
 
   function paintRecordButton(view) {
@@ -576,9 +579,10 @@
     nodes.themeToggle.setAttribute("aria-label", look.label);
   }
 
-  // Coming back to the screen starts a fresh take unless one is already in flight.
+  // Coming back to the screen starts a fresh take at 0:00 unless one is already in flight.
   function show() {
     if (state !== "recording" && state !== "uploading") {
+      resetClock();
       render("idle");
     }
   }
@@ -589,6 +593,7 @@
     capture.awaitingMic = false;
     if (state === "recording") {
       releaseCapture();
+      resetClock();
       render("idle");
     }
   }
@@ -750,6 +755,7 @@
       });
       pendingTake = null;
       app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
+      resetClock();
       render("idle");
       app.router.go("results", { id });
     } catch (error) {
@@ -767,6 +773,7 @@
   // "Record a new take" after a failed upload: let the held take go and start over in idle.
   function dropTake() {
     pendingTake = null;
+    resetClock();
     render("idle");
   }
 
@@ -798,6 +805,13 @@
       clearInterval(capture.timerId);
       capture.timerId = null;
     }
+  }
+
+  // A take that is let go takes its time with it: the clock reads 0:00 again. The bar is drawn
+  // from the state in paintLimitFill, so render() empties it.
+  function resetClock() {
+    shownSeconds = 0;
+    nodes.timer.textContent = TIMER_START;
   }
 
   function elapsedSeconds() {
