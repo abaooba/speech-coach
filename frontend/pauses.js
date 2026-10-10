@@ -2,7 +2,7 @@
    start(stream) samples the microphone's loudness every 50 ms while a take records and
    stop() hands the samples back; findSilences turns them into quiet stretches and
    reconcile folds those into the transcript pauses the backend found. rms and percentile
-   are the two sums everything else is built from. Nothing here touches the DOM. */
+   are the two bits of arithmetic everything else is built from. No DOM is touched here. */
 (function () {
   "use strict";
 
@@ -206,12 +206,14 @@
     if (!Array.isArray(list)) {
       return [];
     }
-    return list
-      .filter((pause) => Array.isArray(pause) && isFinite(pause[0]) && isFinite(pause[1]))
-      .map((pause) => [pause[0], pause[1]]);
+    return list.filter(isPausePair).map((pause) => [pause[0], pause[1]]);
   }
 
-  function isFinite(value) {
+  function isPausePair(pause) {
+    return Array.isArray(pause) && isFiniteNumber(pause[0]) && isFiniteNumber(pause[1]);
+  }
+
+  function isFiniteNumber(value) {
     return typeof value === "number" && Number.isFinite(value);
   }
 
@@ -220,7 +222,7 @@
   // word's end, so it ends `duration` seconds later. null (no span check) when duration is
   // unknown or the take is too short to have a threshold.
   function speechSpan(samples, duration) {
-    if (!isFinite(duration) || duration < 0) {
+    if (!isFiniteNumber(duration) || duration < 0) {
       return null;
     }
     if (!Array.isArray(samples) || samples.length < MIN_SAMPLES) {

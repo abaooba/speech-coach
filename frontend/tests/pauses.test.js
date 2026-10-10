@@ -128,7 +128,7 @@ function metricsWith(overrides) {
   return { words_per_minute: 150, duration: SPEECH_DURATION, pauses: [], ...overrides };
 }
 
-test("reconcile keeps a transcript pause an energy silence overlaps, with the longer length", () => {
+test("reconcile keeps an overlapping transcript pause with the longer length", () => {
   const pauses = load();
   const transcriptShorter = metricsWith({ pauses: [[5.1, 1.6]] });
   assert.deepEqual(plain(pauses.reconcile(transcriptShorter, speechTake()).pauses), [[5.1, 3]]);
