@@ -19,6 +19,92 @@
   const QUIET_FRACTION_OF_RANGE = 0.15;
   const DEFAULT_MIN_SILENCE_SECONDS = 1.5;
 
+  // The live sampler: a 2048-point analyser read every 50 ms, twenty loudness values a second.
+  const FFT_SIZE = 2048;
+  const SAMPLE_EVERY_MS = 50;
+
+  // Everything one take's sampler holds, from start() until stop() lets it go.
+  const live = {
+    context: null,
+    source: null,
+    analyser: null,
+    frame: null,
+    timerId: null,
+    startedAt: 0,
+    samples: [],
+  };
+
+  // Begins sampling the stream's loudness every 50 ms into {t, rms} pairs, t in seconds since
+  // this call. Nothing is decided live: the samples wait for reconcile() once the backend
+  // has answered. A browser without Web Audio, or one that refuses to open a context, leaves
+  // stop() with nothing to return and the take otherwise unaffected.
+  function start(stream) {
+    stop();
+    const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+    try {
+      live.context = new AudioContextClass();
+      live.source = live.context.createMediaStreamSource(stream);
+      live.analyser = live.context.createAnalyser();
+      live.analyser.fftSize = FFT_SIZE;
+      live.source.connect(live.analyser);
+    } catch {
+      release();
+      return;
+    }
+    live.frame = new Float32Array(FFT_SIZE);
+    live.samples = [];
+    live.startedAt = performance.now();
+    live.timerId = setInterval(takeSample, SAMPLE_EVERY_MS);
+    // iOS Safari may hand over a suspended context, and a suspended graph reads as all zeros.
+    if (live.context.state === "suspended" && typeof live.context.resume === "function") {
+      ignoreRejection(live.context.resume());
+    }
+  }
+
+  function takeSample() {
+    live.analyser.getFloatTimeDomainData(live.frame);
+    live.samples.push({
+      t: (performance.now() - live.startedAt) / MILLISECONDS,
+      rms: rms(live.frame),
+    });
+  }
+
+  // Ends sampling, lets the audio graph go and returns the samples taken; [] when nothing
+  // was started. Safe to call twice: the second call finds nothing to release and returns [].
+  function stop() {
+    const samples = live.samples;
+    release();
+    return samples;
+  }
+
+  function release() {
+    if (live.timerId !== null) {
+      clearInterval(live.timerId);
+      live.timerId = null;
+    }
+    if (live.source) {
+      live.source.disconnect();
+    }
+    if (live.context && live.context.state !== "closed") {
+      ignoreRejection(live.context.close());
+    }
+    live.context = null;
+    live.source = null;
+    live.analyser = null;
+    live.frame = null;
+    live.samples = [];
+  }
+
+  // resume() and close() answer with promises whose outcome changes nothing here.
+  function ignoreRejection(promise) {
+    if (promise && typeof promise.catch === "function") {
+      promise.catch(() => {});
+    }
+  }
+
   // Root mean square of one analyser frame: the frame's loudness as a single number
   // between 0 (silence) and 1 (full scale). An empty frame is silent.
   function rms(buffer) {
@@ -160,5 +246,5 @@
     return sorted.filter((pair, index) => index === 0 || pair[0] !== sorted[index - 1][0]);
   }
 
-  app.pauses = { reconcile, findSilences, rms, percentile };
+  app.pauses = { start, stop, reconcile, findSilences, rms, percentile };
 })();

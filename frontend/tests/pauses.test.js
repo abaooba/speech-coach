@@ -195,3 +195,220 @@ test("reconcile drops malformed transcript pauses instead of crashing", () => {
   ]);
   assert.deepEqual(plain(pauses.reconcile(null, [])), { pauses: [] });
 });
+
+// A clock the tests move by hand: performance.now reads it and setInterval callbacks fire in
+// order as advance() passes their due times.
+function fakeClock() {
+  let now = 0;
+  let nextId = 1;
+  const intervals = new Map();
+
+  function nextDue(end) {
+    let due = null;
+    intervals.forEach((entry, id) => {
+      if (entry.next <= end && (due === null || entry.next < due.entry.next)) {
+        due = { id, entry };
+      }
+    });
+    return due;
+  }
+
+  function advance(ms) {
+    const end = now + ms;
+    for (let due = nextDue(end); due !== null; due = nextDue(end)) {
+      now = due.entry.next;
+      due.entry.next += due.entry.ms;
+      due.entry.callback();
+    }
+    now = end;
+  }
+
+  return {
+    performance: { now: () => now },
+    setInterval(callback, ms) {
+      const id = nextId++;
+      intervals.set(id, { callback, ms, next: now + ms });
+      return id;
+    },
+    clearInterval(id) {
+      intervals.delete(id);
+    },
+    advance,
+    activeIntervals: () => intervals.size,
+  };
+}
+
+// The analyser fills every frame with one amplitude taken from `levels` in turn (so the
+// frame's rms is that amplitude), repeating the last level once they run out.
+class FakeAnalyserNode {
+  constructor(levels) {
+    this.fftSize = 0;
+    this.levels = levels;
+    this.reads = 0;
+  }
+
+  getFloatTimeDomainData(buffer) {
+    const level = this.levels[Math.min(this.reads, this.levels.length - 1)];
+    this.reads += 1;
+    buffer.fill(level);
+  }
+}
+
+class FakeMediaStreamSource {
+  constructor(stream) {
+    this.stream = stream;
+    this.connectedTo = null;
+    this.disconnectCalls = 0;
+  }
+
+  connect(node) {
+    this.connectedTo = node;
+  }
+
+  disconnect() {
+    this.disconnectCalls += 1;
+  }
+}
+
+// An AudioContext stand-in whose analyser plays back `levels`; `state` is what the browser
+// reports right after construction ("running", or "suspended" as iOS Safari may).
+function fakeAudioContextClass(levels, state = "running") {
+  class FakeAudioContext {
+    constructor() {
+      this.state = state;
+      this.source = null;
+      this.analyser = null;
+      this.resumeCalls = 0;
+      this.closeCalls = 0;
+      FakeAudioContext.instances.push(this);
+    }
+
+    createMediaStreamSource(stream) {
+      this.source = new FakeMediaStreamSource(stream);
+      return this.source;
+    }
+
+    createAnalyser() {
+      this.analyser = new FakeAnalyserNode(levels);
+      return this.analyser;
+    }
+
+    resume() {
+      this.resumeCalls += 1;
+      this.state = "running";
+      return Promise.resolve();
+    }
+
+    close() {
+      this.closeCalls += 1;
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  FakeAudioContext.instances = [];
+  return FakeAudioContext;
+}
+
+// Loads pauses.js with a fake clock and the given AudioContext globals.
+function loadLive(audioGlobals) {
+  const clock = fakeClock();
+  const pauses = load({
+    performance: clock.performance,
+    setInterval: clock.setInterval,
+    clearInterval: clock.clearInterval,
+    ...audioGlobals,
+  });
+  return { pauses, clock, stream: { id: "mic" } };
+}
+
+test("start wires the stream into a 2048-point analyser and samples rms every 50 ms", () => {
+  const AudioContext = fakeAudioContextClass([0.5, 0.25, 0]);
+  const { pauses, clock, stream } = loadLive({ AudioContext });
+  clock.advance(1234);
+  pauses.start(stream);
+
+  const context = AudioContext.instances[0];
+  assert.equal(context.source.stream, stream);
+  assert.equal(context.source.connectedTo, context.analyser);
+  assert.equal(context.analyser.fftSize, 2048);
+  assert.equal(clock.activeIntervals(), 1);
+  assert.equal(context.resumeCalls, 0, "a running context is left alone");
+
+  clock.advance(49);
+  assert.equal(context.analyser.reads, 0, "the first sample waits for the first tick");
+  clock.advance(1);
+  assert.equal(context.analyser.reads, 1);
+  clock.advance(100);
+  assert.deepEqual(plain(pauses.stop()), [
+    { t: 0.05, rms: 0.5 },
+    { t: 0.1, rms: 0.25 },
+    { t: 0.15, rms: 0 },
+  ]);
+});
+
+test("stop clears the interval, disconnects, closes the context and then returns []", () => {
+  const AudioContext = fakeAudioContextClass([0.5]);
+  const { pauses, clock, stream } = loadLive({ AudioContext });
+  pauses.start(stream);
+  clock.advance(100);
+
+  const samples = pauses.stop();
+  const context = AudioContext.instances[0];
+  assert.equal(samples.length, 2);
+  assert.equal(clock.activeIntervals(), 0);
+  assert.equal(context.source.disconnectCalls, 1);
+  assert.equal(context.closeCalls, 1);
+
+  clock.advance(100);
+  assert.deepEqual(plain(pauses.stop()), [], "a second stop has nothing to hand back");
+  assert.equal(samples.length, 2, "the first stop's samples are untouched");
+  assert.equal(context.closeCalls, 1, "nothing is closed twice");
+  assert.equal(context.source.disconnectCalls, 1);
+});
+
+test("stop before start returns [] without any Web Audio globals", () => {
+  assert.deepEqual(plain(load().stop()), []);
+});
+
+test("start falls back to webkitAudioContext and resumes a suspended context", () => {
+  const webkitAudioContext = fakeAudioContextClass([0.5], "suspended");
+  const { pauses, clock, stream } = loadLive({ webkitAudioContext });
+  pauses.start(stream);
+  const context = webkitAudioContext.instances[0];
+  assert.equal(context.resumeCalls, 1);
+  clock.advance(50);
+  assert.deepEqual(plain(pauses.stop()), [{ t: 0.05, rms: 0.5 }]);
+});
+
+test("start without Web Audio, or with a context that refuses to open, samples nothing", () => {
+  const none = loadLive({});
+  none.pauses.start(none.stream);
+  assert.equal(none.clock.activeIntervals(), 0);
+  assert.deepEqual(plain(none.pauses.stop()), []);
+
+  class RefusingAudioContext {
+    constructor() {
+      throw new Error("too many contexts");
+    }
+  }
+  const refusing = loadLive({ AudioContext: RefusingAudioContext });
+  refusing.pauses.start(refusing.stream);
+  assert.equal(refusing.clock.activeIntervals(), 0);
+  assert.deepEqual(plain(refusing.pauses.stop()), []);
+});
+
+test("a second start releases the first context and begins a fresh sample list", () => {
+  const AudioContext = fakeAudioContextClass([0.5]);
+  const { pauses, clock, stream } = loadLive({ AudioContext });
+  pauses.start(stream);
+  clock.advance(100);
+  pauses.start({ id: "second mic" });
+
+  const [first, second] = AudioContext.instances;
+  assert.equal(first.closeCalls, 1);
+  assert.equal(first.source.disconnectCalls, 1);
+  assert.equal(second.source.stream.id, "second mic");
+  assert.equal(clock.activeIntervals(), 1);
+  clock.advance(50);
+  assert.deepEqual(plain(pauses.stop()), [{ t: 0.05, rms: 0.5 }]);
+});
