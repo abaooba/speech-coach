@@ -1,0 +1,22 @@
+# Render Blueprint: one free web service that serves the API and the static frontend.
+# Render reads this file when the repo is connected as a Blueprint.
+# Spec: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: speech-coach
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.5"
+      - key: STT_PROVIDER
+        value: assemblyai
+      # sync: false means the value is never stored in the repo. Render asks for it
+      # in the dashboard when the Blueprint is first applied.
+      - key: ASSEMBLYAI_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
