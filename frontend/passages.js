@@ -19,7 +19,7 @@
   ];
 
   const IMPROMPTU_TOPICS = [
-    "Explain a rule your school should change and why.",
+    "Explain one rule your school should change, and say why.",
     "Argue for or against school uniforms, with two clear reasons.",
     "Should every student learn a second language? Take a side.",
     "Argue whether homework should be optional in high school.",

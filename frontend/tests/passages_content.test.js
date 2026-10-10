@@ -100,13 +100,10 @@ test("the two clarity drills have 60 to 80 words and are titled as drills", () =
   }
 });
 
-test("every prompt's text and topics are full sentences of at least eight words", () => {
+test("every prompt has text of at least ten words", () => {
   for (const entry of loadPassages().filter((item) => item.kind === "prompt")) {
-    for (const text of [entry.text, ...(entry.topics || [])]) {
-      const count = wordCount(text);
-      assert.ok(count >= 8, `${entry.id}: "${text}" has ${count} words`);
-      assert.match(text, /[.?]$/, `${entry.id}: "${text}" ends a sentence`);
-    }
+    const count = wordCount(entry.text);
+    assert.ok(count >= 10, `${entry.id} has ${count} words`);
   }
 });
 
@@ -136,7 +133,7 @@ test("the four prompts are free-talk, impromptu and the two presets", () => {
   assert.equal(byId(passages, "pf-constructive").title, "PF constructive");
   assert.equal(
     byId(passages, "impromptu").text,
-    "Explain a rule your school should change and why.",
+    "Explain one rule your school should change, and say why.",
   );
 });
 

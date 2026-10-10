@@ -23,7 +23,7 @@ const YOUR_DAY_TOPICS = [
 ];
 
 const IMPROMPTU_TOPICS = [
-  "Explain a rule your school should change and why.",
+  "Explain one rule your school should change, and say why.",
   "Argue for or against school uniforms, with two clear reasons.",
   "Should every student learn a second language? Take a side.",
   "Argue whether homework should be optional in high school.",
@@ -86,6 +86,20 @@ test("every prompt has a time limit and only prompts carry topics", () => {
     } else {
       assert.ok(!Object.hasOwn(entry, "timeLimitSeconds"), `${entry.id} is untimed`);
       assert.ok(!Object.hasOwn(entry, "topics"), `${entry.id} has no topics`);
+    }
+  }
+});
+
+// The ten-word floor on every prompt's text lives in passages_content.test.js; a topic only has to
+// be a whole sentence of at least eight words, since it shows alone in the card.
+test("every prompt's text and topics end a sentence; every topic has at least eight words", () => {
+  for (const entry of loadPassages().filter((item) => item.kind === "prompt")) {
+    for (const text of [entry.text, ...(entry.topics || [])]) {
+      assert.match(text, /[.?]$/, `${entry.id}: "${text}" ends a sentence`);
+    }
+    for (const topic of entry.topics || []) {
+      const count = wordCount(topic);
+      assert.ok(count >= 8, `${entry.id}: "${topic}" has ${count} words`);
     }
   }
 });
