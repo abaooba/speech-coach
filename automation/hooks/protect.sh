@@ -2,6 +2,8 @@
 # PreToolUse hook: block edits to human-owned paths and to existing test files.
 # Exit 2 = block the tool call and show the message to the agent.
 set -u
+# Only enforce for the unattended night agent; interactive sessions are the human.
+[ "${NIGHT_RUN:-}" = "1" ] || exit 0
 input=$(cat)
 path=$(printf '%s' "$input" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("tool_input",{}).get("file_path") or d.get("tool_input",{}).get("notebook_path") or "")' 2>/dev/null)
 [ -z "$path" ] && exit 0

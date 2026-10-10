@@ -67,7 +67,7 @@ PY
   base_sha="$(git -C "$WT" rev-parse HEAD)"
   OUT="$NIGHT_DIR/$TID.out.json"; ERR="$NIGHT_DIR/$TID.err.log"
   start=$(date +%s)
-  ( cd "$WT" && claude -p "$PROMPT" --permission-mode dontAsk --permission-prompts none \
+  ( cd "$WT" && NIGHT_RUN=1 claude -p "$PROMPT" --settings "$REPO/automation/night-settings.json" --permission-mode dontAsk --permission-prompts none \
       --max-budget-usd "$BUDGET_USD" --output-format json --no-session-persistence ) > "$OUT" 2> "$ERR" &
   pid=$!
   ( sleep "$TASK_TIMEOUT"; kill "$pid" 2>/dev/null && echo "TIMEOUT after ${TASK_TIMEOUT}s" >> "$ERR" ) & wd=$!
@@ -86,6 +86,15 @@ PY
   [ -f "$WT/nights/$TID.md" ] && mv "$WT/nights/$TID.md" "$NIGHT_DIR/$TID.md"
   echo "rc=$rc elapsed=${elapsed}s turns=$turns cost=\$$cost commits=$commits dirty=$dirty pytest=$t_rc ruff=$r_rc"
 
+  # Uncommitted leftovers but passing checks: discard the leftovers and re-verify the committed state.
+  if [ "$rc" -eq 0 ] && [ "$commits" -gt 0 ] && [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && [ "$dirty" -gt 0 ]; then
+    git -C "$WT" status --porcelain > "$NIGHT_DIR/$TID.leftovers.txt"
+    git -C "$WT" checkout -q -- . ; git -C "$WT" clean -qfd -e nights
+    (cd "$WT" && .venv/bin/pytest -q > "$NIGHT_DIR/$TID.pytest.log" 2>&1); t_rc=$?
+    (cd "$WT" && .venv/bin/ruff check . > "$NIGHT_DIR/$TID.ruff.log" 2>&1); r_rc=$?
+    echo "discarded $dirty uncommitted paths; re-verify pytest=$t_rc ruff=$r_rc"
+    [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && dirty=0
+  fi
   if [ "$rc" -eq 0 ] && [ "$commits" -gt 0 ] && [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && [ "$dirty" -eq 0 ]; then
     Q set "$TID" done "night $DATE: $commits commits, $turns turns, \$$cost"
     done_ids+=("$TID"); consecutive_fail=0

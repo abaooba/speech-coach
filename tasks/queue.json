@@ -3,13 +3,14 @@
   {
    "id": "T01",
    "title": "Metrics module",
-   "brief": "Create backend/metrics.py with pure functions over a list of Word(text, start, end) in seconds: words_per_minute, find_pauses(min_gap=1.5) returning (at, length) tuples, count_fillers returning per-word counts for um/uh/hmm/like/you know/so/basically/actually (phrase 'you know' counts as one), find_repeats (immediate repeats and restarts like 'and I, uh, and I'), pace_windows(window=10s) returning wpm per window, and analyze(words) returning a dict with all of these plus duration and word_count. Load backend/tests/fixtures/test_clip_assemblyai.json in tests; the fixture has 6 um, 3 uh, and three pauses over 1.5 s. Add hand-made word lists for edge cases: empty list, single word, pause at start.",
+   "brief": "Create backend/metrics.py with pure functions over a list of Word(text, start, end) in seconds: words_per_minute, find_pauses(min_gap=1.5) returning (at, length) tuples, count_fillers returning per-word counts for um/uh/hmm/like/you know/so/basically/actually (phrase 'you know' counts as one), find_repeats (immediate repeats and restarts like 'and I, uh, and I'), pace_windows(window=10s) returning wpm per window, and analyze(words) returning a dict with all of these plus duration and word_count. Load backend/tests/fixtures/test_clip_assemblyai.json in tests; the fixture has 6 um, 3 uh, and three pauses over 1.5 s. Add hand-made word lists for edge cases: empty list, single word, pause at start. DECISIONS: all metrics start at the first spoken word (leading silence is not a pause and not part of duration). Repeat detection strips only um/uh/hmm between copies, not like/so.",
    "acceptance": "backend/tests/test_metrics.py exists with at least 10 tests covering every function, all pass; analyze() on the fixture returns filler counts um=6 uh=3 and exactly 3 pauses >= 1.5 s.",
    "status": "todo",
    "owner": "agent",
    "notes": [
     "2026-10-08: night 2026-10-08 failed: rc=0 commits=0 pytest=0 ruff=1 dirty=2",
-    "2026-10-09: dry run 10/8 failed: workspace not trusted, agent could not write; fixed in night.sh"
+    "2026-10-09: dry run 10/8 failed: workspace not trusted, agent could not write; fixed in night.sh",
+    "2026-10-09: morning run succeeded (29 tests) but a script bug discarded it over a stray uv.lock; patch in nights/2026-10-09/T01.failed.patch. Re-queued with decisions."
    ]
   },
   {
@@ -17,18 +18,22 @@
    "title": "Provider abstraction",
    "brief": "Create backend/providers/ with base.py defining Word dataclass and a transcribe(audio_bytes, content_type) -> list[Word] protocol; assemblyai.py (upload, create transcript with disfluencies=true, poll until completed, map ms to seconds); deepgram.py (nova-3 with filler_words=true). get_provider() reads STT_PROVIDER env var, default assemblyai. Use httpx. Tests mock httpx with respx or monkeypatching; no network.",
    "acceptance": "backend/tests/test_providers.py passes with network blocked; both providers return list[Word] from recorded sample responses; get_provider() selects by env var.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
-   "notes": []
+   "notes": [
+    "2026-10-09: night 2026-10-09: 1 commits, 51 turns, $2.58"
+   ]
   },
   {
    "id": "T03",
    "title": "Analyze endpoint",
-   "brief": "Add POST /api/analyze to backend/app.py accepting multipart audio (field 'audio'), calling get_provider().transcribe then metrics.analyze, returning JSON {transcript: [words], metrics: {...}}. Reject empty files and recordings under 5 s with 400 and a clear message. Audio must only live in memory; never write it to disk. Map provider failures to 502 with a friendly message.",
+   "brief": "Add POST /api/analyze to backend/app.py accepting multipart audio (field 'audio'), calling get_provider().transcribe then metrics.analyze, returning JSON {transcript: [words], metrics: {...}}. Reject empty files and recordings under 5 s with 400 and a clear message. Audio must only live in memory; never write it to disk. Map provider failures to 502 with a friendly message. DECISIONS: accept a FastAPI UploadFile and read it fully with await upload.read(); Starlette's transient spool file is acceptable and must be described honestly in the README privacy note. Check the empty upload before calling the provider; check the 5 s minimum from the last word's end time after transcription.",
    "acceptance": "backend/tests/test_api.py covers success (provider mocked), empty upload, too-short recording, and provider failure; all pass.",
    "status": "todo",
    "owner": "agent",
-   "notes": []
+   "notes": [
+    "2026-10-09: blocked only because T01 had been discarded; re-queued to run after T01."
+   ]
   },
   {
    "id": "T04",
