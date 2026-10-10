@@ -450,7 +450,84 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   display: none;
 }
 
-/* 8. Reduced motion */
+/* 8. Results screen: meta line, metric cards, actions */
+.results__meta {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+}
+
+@media (min-width: 600px) {
+  .metric-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* min-width 0 lets a card shrink below its longest word, so the grid never widens the page. */
+.metric-card {
+  min-width: 0;
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.metric-card__label {
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.metric-card__value {
+  margin-top: var(--s-1);
+  font-size: var(--fs-metric);
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* The unit lives inside the value line, so it resets the big number's size and weight. */
+.metric-card__unit {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.metric-card__hint {
+  margin-top: var(--s-1);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.metric-card__hint--ok {
+  color: var(--ok);
+}
+
+.metric-card__hint--warn {
+  color: var(--warn);
+}
+
+.results__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+}
+
+/* 9. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spinner,
   .rec-dot {
