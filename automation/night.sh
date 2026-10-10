@@ -5,15 +5,16 @@ set -u
 set -m   # job control: each task runs in its own process group so a timeout kills the whole agent
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 DATE="${DATE:-$(date +%Y-%m-%d)}"
+RUN="${RUN:-$DATE-$(date +%H%M)}"   # unique per run: one branch, worktree, report and log each
 MAX_TASKS="${MAX_TASKS:-3}"
 EFFORT="${EFFORT:-high}"
 TASK_TIMEOUT="${TASK_TIMEOUT:-2400}"
 BUDGET_USD="${BUDGET_USD:-30}"
 WT_ROOT="$(dirname "$REPO")/.night-worktrees"
-BRANCH="night/$DATE"
-WT="$WT_ROOT/$DATE"
-NIGHT_DIR="$REPO/nights/$DATE"
-LOG="$REPO/logs/night-$DATE.log"
+BRANCH="night/$RUN"
+WT="$WT_ROOT/$RUN"
+NIGHT_DIR="$REPO/nights/$RUN"
+LOG="$REPO/logs/night-$RUN.log"
 mkdir -p "$REPO/logs" "$NIGHT_DIR" "$WT_ROOT"
 exec > >(tee -a "$LOG") 2>&1
 echo "=== night.sh start $(date) repo=$REPO max_tasks=$MAX_TASKS effort=$EFFORT timeout=${TASK_TIMEOUT}s budget=\$$BUDGET_USD"
@@ -31,7 +32,7 @@ git fetch -q origin main || { echo "fetch failed"; exit 1; }
 # Fresh worktree from origin/main. If today's branch already exists, add a suffix.
 n=1
 while git show-ref --quiet "refs/heads/$BRANCH" || [ -d "$WT" ]; do
-  n=$((n+1)); BRANCH="night/$DATE-$n"; WT="$WT_ROOT/$DATE-$n"
+  n=$((n+1)); BRANCH="night/$RUN-$n"; WT="$WT_ROOT/$RUN-$n"; NIGHT_DIR="$REPO/nights/$RUN-$n"; mkdir -p "$NIGHT_DIR"
 done
 git worktree add -q -b "$BRANCH" "$WT" origin/main || { echo "worktree add failed"; exit 1; }
 ln -s "$REPO/.venv" "$WT/.venv"
@@ -105,14 +106,14 @@ PY
   fi
   if [ "$commits" -gt 0 ] && [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && [ "$dirty" -eq 0 ]; then
     status_word=done; [ "$rc" -ne 0 ] && status_word="partial ($subtype)"
-    Q set "$TID" done "night $DATE: $commits commits, $turns turns, \$$cost, rc=$rc $status_word"
+    Q set "$TID" done "run $RUN: $commits commits, $turns turns, \$$cost, rc=$rc $status_word"
     done_ids+=("$TID"); consecutive_fail=0
     summary_rows+="| $TID | $status_word | $commits | $turns | \$$cost | ${elapsed}s |\n"
   else
     reason="rc=$rc subtype=$subtype commits=$commits pytest=$t_rc ruff=$r_rc dirty=$dirty"
     git -C "$WT" diff "$base_sha" > "$NIGHT_DIR/$TID.failed.patch"
     git -C "$WT" reset -q --hard "$base_sha"; git -C "$WT" clean -qfd -e nights
-    Q set "$TID" blocked "night $DATE failed: $reason"
+    Q set "$TID" blocked "run $RUN failed: $reason"
     Q block-dependents "$TID"
     blocked_ids+=("$TID"); consecutive_fail=$((consecutive_fail+1))
     summary_rows+="| $TID | FAILED ($reason) | $commits | $turns | \$$cost | ${elapsed}s |\n"
@@ -126,18 +127,18 @@ total="$(git -C "$WT" rev-list --count "origin/main..HEAD")"
 pr_url="(no PR: no commits)"
 if [ "$total" -gt 0 ]; then
   git -C "$WT" push -q -u origin "$BRANCH" && \
-  pr_url="$(cd "$WT" && gh pr create --base main --head "$BRANCH" --title "Night $DATE: ${done_ids[*]:-nothing}" \
-    --body "Automated overnight build. Review nights/$DATE.md locally before merging." 2>&1 | tail -1)"
+  pr_url="$(cd "$WT" && gh pr create --base main --head "$BRANCH" --title "Run $RUN: ${done_ids[*]:-nothing}" \
+    --body "Automated overnight build. Review nights/$RUN.md locally before merging." 2>&1 | tail -1)"
 fi
 
 # Morning report.
-REPORT="$REPO/nights/$DATE.md"
+REPORT="$REPO/nights/$RUN.md"
 {
-  echo "# Night $DATE"
+  echo "# Run $RUN"
   echo
   echo "Done: ${done_ids[*]:-none}. Blocked: ${blocked_ids[*]:-none}. Usage limit hit: $usage_limit."
   echo "PR: $pr_url"
-  echo "Approve: \`automation/approve.sh $DATE\`   Reject: \`automation/reject.sh $DATE \"reason\"\`"
+  echo "Approve: \`automation/approve.sh $RUN\`   Reject: \`automation/reject.sh $RUN \"reason\"\`"
   echo
   echo "| task | result | commits | turns | cost | time |"; echo "|---|---|---|---|---|---|"
   printf "%b" "$summary_rows"

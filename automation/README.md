@@ -7,15 +7,16 @@
 | Day batch (manual) | weekends, between hands-on blocks | `MAX_TASKS=2 TASK_TIMEOUT=1800 bash automation/night.sh` |
 | Single task | testing or a quick fix | `MAX_TASKS=1 bash automation/night.sh` |
 
-Every run makes its own branch (`night/<date>`, `night/<date>-2`, ...) and its own PR.
+Every run gets a unique id `<date>-<HHMM>` (for example `2026-10-10-0030`): its own branch `night/<id>`, worktree, PR, report `nights/<id>.md` and log.
 Approve or reject each run before starting the next so the next one branches from updated main:
 
 ```bash
-automation/approve.sh            # merges today's latest run
-automation/reject.sh 2026-10-11 "results screen crashes on empty transcript"
+automation/approve.sh                    # merges today's latest run
+automation/approve.sh 2026-10-11         # latest run on that date
+automation/approve.sh 2026-10-11-0030    # one specific run
+automation/reject.sh 2026-10-11-1038 "results screen crashes on empty transcript"
 ```
 
-Pass the date suffix when there were several runs that day, e.g. `approve.sh 2026-10-11-2`.
 
 ## Stop everything
 ```bash
@@ -30,6 +31,6 @@ Before any day batch, open Claude Code and run `/usage`. If the weekly bar is ov
 Video week (Oct 21 to 24) must not start throttled.
 
 ## Where things land
-- `nights/<date>.md`: morning report. `nights/<date>/`: raw agent output, test logs, failed patches.
+- `nights/<id>.md`: report for one run. `nights/<id>/`: raw agent output, test logs, failed patches.
 - `logs/`: script and launchd logs.
 - `tasks/queue.json`: task status and notes. Edit tasks by hand; the script flips status.
