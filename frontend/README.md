@@ -59,12 +59,14 @@ and open http://127.0.0.1:8000/ in Chrome:
 ```
 
 `.env` is read when the server starts, so restart uvicorn after changing it. Every error
-block below is built by `app.ui.renderState`; the timer keeps its last value through each one.
+block below is built by `app.ui.renderState` and takes the record zone right under the card:
+the timer, the record button and its "Record" label are hidden, and keyboard focus lands on
+the block's red title (press Tab once to reach its button).
 
 1. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
    speak for about 10 seconds (the timer counts, the red dot pulses, the nav disappears), then
-   tap Stop. "Analyzing your speech" shows with a spinner and the record button is hidden.
-   The hash becomes `#/results/<id>`, and in the console:
+   tap Stop. "Analyzing your speech" shows with a spinner under the held timer; the record
+   button and its label are both hidden. The hash becomes `#/results/<id>`, and in the console:
 
    ```js
    await app.store.list()
@@ -82,12 +84,20 @@ block below is built by `app.ui.renderState`; the timer keeps its last value thr
    `/api/analyze`.
 
 4. Network: tap Record, stop uvicorn (Ctrl-C) while recording, then tap Stop. The block
-   reads "Could not reach the server. Your recording is still here." with "Retry upload".
-   Start uvicorn again and tap Retry upload: the same take uploads and Results opens.
+   reads "Could not reach the server. Your recording is still here." with "Retry upload" and,
+   under it, a blue "Record a new take". Start uvicorn again and tap Retry upload: the same
+   take uploads and Results opens. Repeat the failure and tap "Record a new take" instead:
+   Practice returns to idle with the record button back, and nothing is uploaded.
 
 5. Provider (502): set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds
    and tap Stop. The block reads "Analysis failed on our side. Your recording is still here."
-   with "Retry upload". Restore `STT_PROVIDER` and restart uvicorn afterwards.
+   with "Retry upload" and "Record a new take". Restore `STT_PROVIDER` and restart uvicorn
+   afterwards.
+
+6. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole card, the
+   record button, "Record", the hint and "See a sample result" above the nav with no page
+   scroll. At 320 x 568 the hint words hide and the record button shrinks, so it and its label
+   still sit above the nav.
 
 Screen-reader users hear "Recording started", the clock every 30 seconds, "Recording
 stopped, N seconds" and "Results ready" through the live region.

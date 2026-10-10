@@ -35,6 +35,7 @@
   const TOO_SHORT_ACTION = "Record again";
   const UPLOAD_FAILED_TITLE = "Upload failed";
   const UPLOAD_FAILED_ACTION = "Retry upload";
+  const NEW_TAKE_ACTION = "Record a new take";
   const SAMPLE_URL = "sample-session.json";
   const SAMPLE_LABEL = "See a sample result";
   const SAMPLE_ERROR_TITLE = "Sample unavailable";
@@ -62,6 +63,7 @@
     timer: null,
     recordButton: null,
     recordLabel: null,
+    hintText: null,
     stateBlock: null,
   };
 
@@ -85,20 +87,22 @@
   let loadingSample = false;
 
   // The state table from DESIGN.md section 7 as plain data, so it can be tested without a DOM.
-  // showHint and showRecord mirror the [data-state] rules in styles.css.
+  // showHint and showRecord mirror the [data-state] rules in styles.css: the record button and
+  // its label show in idle and recording only, and error puts its block in their place.
   function viewFor(nextState) {
     if (!STATES.includes(nextState)) {
       throw new Error("practice: unknown state " + JSON.stringify(nextState));
     }
+    const idle = nextState === "idle";
     const recording = nextState === "recording";
     return {
       dataState: nextState,
       recordLabel: recording ? "Stop" : "Record",
       recordAriaLabel: recording ? "Stop recording" : "Start recording",
       recordPressed: recording,
-      chipsDisabled: nextState !== "idle",
-      showHint: nextState === "idle" || recording,
-      showRecord: nextState !== "uploading",
+      chipsDisabled: !idle,
+      showHint: idle || recording,
+      showRecord: idle || recording,
     };
   }
 
@@ -119,9 +123,11 @@
     body.appendChild(buildRecordButton());
     nodes.recordLabel = app.ui.el("span", { class: "btn-record__label" });
     body.appendChild(nodes.recordLabel);
-    const hint = app.ui.el("p", { class: "practice__hint", text: HINT_TEXT });
-    hint.appendChild(buildSampleButton());
-    body.appendChild(hint);
+    // The words get their own span so short screens can hide them and keep the sample button.
+    nodes.hintText = app.ui.el("span", { class: "practice__hint-text", text: HINT_TEXT });
+    body.appendChild(
+      app.ui.el("p", { class: "practice__hint" }, [nodes.hintText, buildSampleButton()]),
+    );
     nodes.stateBlock = app.ui.el("div", { class: "practice__state" });
     body.appendChild(nodes.stateBlock);
 
@@ -243,8 +249,8 @@
     render("idle");
   }
 
-  // Applies one state to the screen. `detail` is only read for "error":
-  // {title, body, actionLabel, onAction}, passed straight to app.ui.renderState.
+  // Applies one state to the screen. `detail` is only read for "error": {title, body,
+  // actionLabel, onAction, secondaryLabel?, onSecondary?}, passed straight to app.ui.renderState.
   function render(nextState, detail) {
     const view = viewFor(nextState);
     state = nextState;
@@ -292,15 +298,31 @@
         body: LOADING_BODY,
       });
     } else if (dataState === "error") {
-      app.ui.renderState(nodes.stateBlock, {
+      const block = app.ui.renderState(nodes.stateBlock, {
         kind: "error",
         title: detail.title,
         body: detail.body,
         actionLabel: detail.actionLabel,
         onAction: detail.onAction,
+        secondaryLabel: detail.secondaryLabel,
+        onSecondary: detail.onSecondary,
       });
+      focusTitle(block);
     } else {
       app.ui.clear(nodes.stateBlock);
+    }
+  }
+
+  // The error block replaces the button that had focus, so focus moves to its title. The
+  // block's role="alert" already speaks it; nothing is announced on top of that.
+  function focusTitle(block) {
+    const title = block ? block.querySelector(".state__title") : null;
+    if (!title) {
+      return;
+    }
+    title.setAttribute("tabindex", "-1");
+    if (typeof title.focus === "function") {
+      title.focus();
     }
   }
 
@@ -486,8 +508,16 @@
         body: error.message,
         actionLabel: UPLOAD_FAILED_ACTION,
         onAction: upload,
+        secondaryLabel: NEW_TAKE_ACTION,
+        onSecondary: dropTake,
       });
     }
+  }
+
+  // "Record a new take" after a failed upload: let the held take go and start over in idle.
+  function dropTake() {
+    pendingTake = null;
+    render("idle");
   }
 
   // The timer: a 250 ms tick paints the elapsed clock and announces it every 30 s.

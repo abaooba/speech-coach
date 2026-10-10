@@ -244,7 +244,7 @@ test("viewFor hides the record button while uploading and the hint on error", ()
 
   const error = practice.viewFor("error");
   assert.equal(error.showHint, false);
-  assert.equal(error.showRecord, true);
+  assert.equal(error.showRecord, false);
   assert.equal(error.recordLabel, "Record");
   assert.equal(error.recordPressed, false);
 });
@@ -310,7 +310,10 @@ test("mount builds the chip row, passage card, timer, record button, hint and st
   );
   assert.equal(parts.recordLabel.textContent, "Record");
 
-  assert.equal(parts.hint.textContent, "Tap to record. Stop uploads automatically.");
+  assert.equal(
+    byClass(parts.hint, "practice__hint-text").textContent,
+    "Tap to record. Stop uploads automatically.",
+  );
   assert.deepEqual(parts.stateEl.children, []);
   assert.equal(parts.root.dataset.state, "idle");
   assert.equal(parts.practice.selectedPassage().id, "a");

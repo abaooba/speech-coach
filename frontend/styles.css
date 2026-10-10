@@ -412,6 +412,30 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 }
 
 /* 7. Practice screen: chips, passage card, timer, record button */
+
+/* Practice fits one screen: the active section is a column at least as tall as the viewport
+   minus main's padding, so the record zone sits in the thumb zone above the nav. Scoped to
+   .screen--active, because an id selector alone would beat .screen[hidden] on other routes.
+   The 100vh line is the fallback for browsers without dynamic viewport units. */
+#screen-practice.screen--active {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
+  min-height: calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
+}
+
+#screen-practice .screen__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Every part keeps its natural size (a flex item would otherwise shrink); only the passage
+   card, below, takes the height that is left over or gives it up. */
+#screen-practice .screen__body > * {
+  flex: none;
+}
+
 .chip-row {
   display: flex;
   gap: var(--s-2);
@@ -449,11 +473,17 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 .passage-card {
   margin-top: var(--s-3);
   padding: var(--s-4);
-  max-height: 40vh;
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
+}
+
+/* min-height, never height: a fixed height would push the record zone under the nav in
+   landscape, where the column has to grow and the page scrolls instead. */
+#screen-practice .passage-card {
+  flex: 1 1 0;
+  min-height: 120px;
 }
 
 .passage-card__title {
@@ -483,7 +513,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: var(--s-6);
+  margin-top: var(--s-4);
 }
 
 .timer {
@@ -519,7 +549,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   display: block;
   width: 88px;
   height: 88px;
-  margin: var(--s-6) auto 0;
+  margin: var(--s-3) auto 0;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -539,15 +569,19 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 
 .btn-record__label {
   display: block;
-  margin-top: var(--s-2);
+  margin-top: var(--s-1);
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 600;
   text-align: center;
 }
 
+/* The hint's words over the sample button, stacked at every width. */
 .practice__hint {
-  margin: var(--s-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: var(--s-2) 0 0;
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
@@ -572,11 +606,50 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   display: block;
 }
 
-/* Uploading and error replace the hint with the state block; uploading has no button. */
+/* Uploading and error replace the hint with the state block, and neither shows the record
+   button or its label. Error also hides the timer, so its block sits right under the card. */
 #screen-practice[data-state="uploading"] .practice__hint,
+#screen-practice[data-state="uploading"] .btn-record,
+#screen-practice[data-state="uploading"] .btn-record__label,
 #screen-practice[data-state="error"] .practice__hint,
-#screen-practice[data-state="uploading"] .btn-record {
+#screen-practice[data-state="error"] .practice__timer,
+#screen-practice[data-state="error"] .btn-record,
+#screen-practice[data-state="error"] .btn-record__label {
   display: none;
+}
+
+/* Inside Practice the state block takes the record zone: --s-4 padding, tighter rhythm and
+   full-width actions, so an upload error fits above the nav on a 375 x 667 phone. */
+#screen-practice .practice__state .state {
+  gap: var(--s-2);
+  margin: var(--s-4) auto 0;
+  padding: var(--s-4);
+}
+
+#screen-practice .practice__state .state__action,
+#screen-practice .practice__state .state__secondary {
+  align-self: stretch;
+}
+
+#screen-practice .practice__state .state__action + .state__secondary {
+  margin-top: 0;
+}
+
+/* Short phones (320 x 568): a lower card floor, a smaller record button and no hint words,
+   so the record button and its label still sit above the nav. */
+@media (max-height: 600px) {
+  #screen-practice .passage-card {
+    min-height: 88px;
+  }
+
+  #screen-practice .btn-record {
+    width: 72px;
+    height: 72px;
+  }
+
+  #screen-practice .practice__hint-text {
+    display: none;
+  }
 }
 
 /* 8. Results screen: meta line, metric cards, actions */
@@ -879,9 +952,11 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 }
 
 .practice__sample {
-  margin-top: var(--s-2);
+  min-height: 44px;
 }
 
-.screen[data-state]:not([data-state="idle"]) .practice__sample {
-  display: none;
+/* The sample is for idle only. While recording it keeps its room, invisible and out of the tab
+   order, so the record button never moves; uploading and error hide the whole hint. */
+#screen-practice[data-state="recording"] .practice__sample {
+  visibility: hidden;
 }
