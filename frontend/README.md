@@ -131,36 +131,56 @@ Screen-reader users hear "Recording started", the clock every 30 seconds, "Recor
 stopped, N seconds", "Results ready" and, after each theme tap, "Theme: Dark", "Theme: Light"
 or "Theme: Auto" through the live region. Errors are not announced on top of their alert role.
 
-**Results (about one minute).** Needs one saved session, so run the Practice happy path
+**Results (about two minutes).** Needs one saved session, so run the Practice happy path
 first; the hash is then `#/results/<id>`. Without a microphone, Practice in idle shows "See a
 sample result", which opens a real sample take on this screen.
 
 1. Under the "Results" heading: a muted line with the passage title and the date (for a timed
-   preset such as Congress speech it ends with "· m:ss of 3:00"), then exactly four cards in
-   this order: "Words per minute", "Fillers per minute", "Mid-sentence pauses", "Longest clean
-   stretch". Hesitation sounds (um, uh) are not counted as words. The first card's hint reads
-   "Target lo to hi" in green when the pace is inside the passage's range, or "Slow down" /
-   "Speed up" in amber outside it; the numbers come from the passage you recorded (Gettysburg
-   and Patrick Henry are 130 to 150, the rebuttal 150 to 170, Free talk 140 to 160). The
-   fillers card's hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in
-   amber above. The pauses card has no hint. The clean stretch card shows seconds and has no
-   hint. No nav item is highlighted.
+   preset such as Congress speech it ends with "· m:ss of 3:00"). Then a headline card with
+   two sentences: a green check before one strength and a blue arrow before one focus, such
+   as "Your longest clean stretch is 4.9 seconds." and "Next take, cut fillers under 3 a
+   minute." Then exactly four cards, two per row, in this order: "Pace", "Fillers",
+   "Mid-sentence pauses", "Clean stretch". Hesitation sounds (um, uh) are not counted as
+   words. The Pace hint reads "Target lo to hi" in green with a check when the pace is inside
+   the passage's range, or "Slow down" / "Speed up" in rust with a warning triangle outside
+   it; the numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to
+   150, the rebuttal 150 to 170, Free talk 140 to 160). The Fillers card shows "/min" and its
+   hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in rust above. The
+   pauses card has no hint. The clean stretch card shows seconds and has no hint. No nav item
+   is highlighted.
 
-2. Tap "Record again": Practice opens in idle. Use the browser's back button to return, then
-   tap "History": the hash becomes `#/history`.
+2. Compare with the last take: tap "See a sample result" twice. The second time every card
+   ends with a small grey line, a triangle or a dash and words such as "12 faster", "1.2
+   fewer" or "No change", and "Arrows compare with your last take." sits under the cards.
+   The very first session in the store shows neither. A take saved without words (the store
+   check above) has no clean-stretch line.
 
-3. Transcript: under the cards, a "Transcript" heading, a small legend and every word of the
+3. "History" and "Record again" sit in one bar stuck above the nav while the page scrolls under
+   it. Tap "Record again": Practice opens in idle. Use the browser's back button to return,
+   then tap "History": the hash becomes `#/history`.
+
+4. Speech timeline: under the cards, a "Speech timeline" heading and a strip from the first
+   word to the last: amber ticks for fillers, purple blocks for mid-sentence pauses and a pale
+   green band with a darker green base line for the longest clean stretch. Under it, the
+   first word's time, the midpoint and the last word's time (the same clock as the tips), then
+   a legend. A screen reader reads the strip as one image, "Speech timeline from 0:01 to 0:32:
+   11 fillers, 3 mid-sentence pauses, a 4.9 second clean stretch", and then a list of every
+   moment. A session saved with an empty transcript shows no timeline.
+
+5. Transcript: under the timeline, a "Transcript" heading, a small legend and every word of the
    take. The legend reads "Highlighted words are ums and uhs. Underlined words are verbal
    habits.", names the most-used habit (for example "Most used: “like”, 4 times.") and ends
    with a "How we count" link to `how.html`. Ums and uhs ("um", "uh", "er", "ah", "hm") get an
    amber highlight. Verbal habits ("like", "so", "you know", "actually", "basically") get a
    dotted underline, and only where the context rules count them: "I like this plan" is not
-   marked. Each pause of 1.5 s or more is a purple pill such as "2.1 s pause" right after the
-   word before the gap. Record 10 seconds, say "um" five times and stop talking for 3 seconds
-   mid-sentence: five amber "um" tokens and one "x.x s pause" pill. A session saved with an
-   empty transcript (the store check above) shows no Transcript section at all.
+   marked. Each mid-sentence pause of 1.5 s or more is a purple pill such as "2.1 s pause"
+   right after the word before the gap. A pause after a period is not marked, so the
+   transcript, the Mid-sentence pauses card and the timeline always show the same pauses.
+   Record 10 seconds, say "um" five times and stop talking for 3 seconds mid-sentence: five
+   amber "um" tokens and one "x.x s pause" pill. A session saved with an empty transcript
+   (the store check above) shows no Transcript section at all.
 
-4. Tips: a "Tips" heading with one or two cards, chosen in this order. Tips that point at
+6. Tips: a "Tips" heading with one or two cards, chosen in this order. Tips that point at
    moments name them as m:ss, such as "0:42". Record 10 to 15 seconds doing one thing at a
    time:
 
@@ -178,16 +198,18 @@ sample result", which opens a real sample take on this screen.
 
    Talking fast and full of "um" shows two cards, pace first; a third problem is dropped.
 
-5. Session not found: open http://127.0.0.1:8000/#/results/nope. The empty state built by
-   `app.ui.renderState` shows "Session not found" / "It may have been deleted." with a
-   "History" button that goes to `#/history`. The same block appears for `#/results` with
-   no id, and for a session id that was deleted.
+7. Session not found: open http://127.0.0.1:8000/#/results/nope. The empty state built by
+   `app.ui.renderState` shows a magnifying glass, "Session not found" / "It may have been
+   deleted." and a "History" button that goes to `#/history`. The same block appears for
+   `#/results` with no id, and for a session id that was deleted.
 
-6. Narrow the window to 320px (DevTools device toolbar): two cards per row, the transcript
-   wraps with the pause pills staying on their line, the tip cards fit, no horizontal
-   scroll, no console errors. At 640px the four cards share one row. Switch the OS theme
-   (or DevTools "Emulate CSS prefers-color-scheme: dark"): amber and purple tokens stay
-   readable on both backgrounds.
+8. Narrow the window to 320px (DevTools device toolbar): two cards per row with each number
+   and its unit on one line, the date in the meta line never split, the timeline and its
+   legend inside the column, the transcript wrapping with the pause pills staying on their
+   line, no horizontal scroll, no console errors. At 1024px the cards are still two per row
+   and "Record again" is at most 320px wide. Switch the OS theme (or DevTools "Emulate CSS
+   prefers-color-scheme: dark", or the theme toggle): the rust warnings, amber
+   and purple marks and the green band stay readable on both backgrounds.
 
 **History (about one minute).** Needs two saved sessions: run the Practice happy path twice,
 or save two with the store check above. Then open http://127.0.0.1:8000/#/history.

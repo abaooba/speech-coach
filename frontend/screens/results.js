@@ -399,10 +399,10 @@
   }
 
   // The transcript as a list of items to draw, in reading order: {type: "word", text, filler}
-  // for every backend word and {type: "pause", length} for every [at, length] in
-  // metrics.pauses. A pause goes right after the last word whose end is at or before `at`;
-  // when no word has ended by then it goes before the first word. Pure: fresh objects, and
-  // neither input is changed.
+  // for every backend word and {type: "pause", length} for every [at, length] in `pauses`
+  // (Results passes only the mid-sentence pauses the card counts). A pause goes right after
+  // the last word whose end is at or before `at`; when no word has ended by then it goes before
+  // the first word. Pure: fresh objects, and neither input is changed.
   function buildTranscriptPlan(words, pauses) {
     const wordList = Array.isArray(words) ? words : [];
     const pauseList = Array.isArray(pauses) ? pauses : [];
@@ -520,8 +520,7 @@
     const summary = summarize(session);
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
-    const metrics = session.metrics || {};
-    const plan = buildTranscriptPlan(session.transcript, metrics.pauses);
+    const plan = buildTranscriptPlan(session.transcript, countedPauses(summary.report));
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const segments = hasTranscript ? timelineSegments(summary.report) : null;
     const tips = selectTips(summary.report, summary.target);
@@ -548,6 +547,14 @@
     body.appendChild(buildActions());
   }
 
+  // The pauses the Mid-sentence pauses card counts, as [at, length] pairs for the transcript,
+  // so the transcript, the card and the timeline always show the same pauses.
+  function countedPauses(report) {
+    return listOf(report.pauses)
+      .filter((pause) => pause.midSentence)
+      .map((pause) => [pause.at, pause.length]);
+  }
+
   // tips.js loads before this file in index.html. Without it (a failed load, or a context that
   // stubs app without tips) the screen simply has no Tips section instead of an error.
   function selectTips(report, target) {
@@ -557,15 +564,17 @@
     return app.tips.select(report, { targetWpm: target });
   }
 
-  // What the two highlight styles mean, plus the most-used habit when there is one.
+  // What the two highlight styles mean, plus the most-used habit when there is one. The link
+  // follows the text after a plain space, which disappears when the link wraps to a new line,
+  // so a wrapped link starts flush with the text above it.
   function buildLegend(topHabit) {
     const link = app.ui.el("a", { class: "transcript__how", href: HOW_HREF, text: HOW_LINK_TEXT });
-    if (!topHabit) {
-      return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT }, [link]);
+    let text = LEGEND_TEXT;
+    if (topHabit) {
+      const times = topHabit.count === 1 ? " time." : " times.";
+      text += " Most used: “" + topHabit.text + "”, " + topHabit.count + times;
     }
-    const times = topHabit.count === 1 ? " time." : " times.";
-    const habitLine = " Most used: “" + topHabit.text + "”, " + topHabit.count + times;
-    return app.ui.el("p", { class: "transcript__legend", text: LEGEND_TEXT + habitLine }, [link]);
+    return app.ui.el("p", { class: "transcript__legend", text }, [TOKEN_SEPARATOR, link]);
   }
 
   function sectionTitle(text) {
@@ -897,19 +906,21 @@
     return String(Math.round(value * COORD_SCALE) / COORD_SCALE);
   }
 
+  // The bar CSS keeps stuck above the nav: a quiet History, then the screen's one primary
+  // button, Record again.
   function buildActions() {
     return app.ui.el("div", { class: "results__actions" }, [
       app.ui.el("button", {
-        class: "btn btn--primary btn--block",
-        type: "button",
-        text: RECORD_AGAIN_LABEL,
-        onClick: () => app.router.go("practice"),
-      }),
-      app.ui.el("button", {
-        class: "btn btn--secondary btn--block",
+        class: "btn btn--ghost",
         type: "button",
         text: HISTORY_LABEL,
         onClick: () => app.router.go("history"),
+      }),
+      app.ui.el("button", {
+        class: "btn btn--primary",
+        type: "button",
+        text: RECORD_AGAIN_LABEL,
+        onClick: () => app.router.go("practice"),
       }),
     ]);
   }

@@ -877,7 +877,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
-/* 8. Results screen: meta line, metric cards, actions */
+/* 8. Results screen: meta line, headline, metric cards, timeline, transcript, tips, actions */
+/* Every figure on the screen, in hints, headline, legend and tips too, uses tabular numbers. */
+#screen-results {
+  font-variant-numeric: tabular-nums;
+}
+
 /* The meta line is the title's subtitle, so it sits close under the h1. */
 #screen-results h1 {
   margin-bottom: var(--s-1);
@@ -1212,11 +1217,26 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-radius: var(--r-card);
 }
 
+/* The action bar stays stuck above the nav while the page scrolls under it: one row, a ghost
+   History and the primary Record again, which caps at 320px on wide screens, where the pair
+   sits at the column's end. The negative bottom margin gives back main's spare bottom padding,
+   so at the end of the page the bar still meets the nav. */
 .results__actions {
+  position: sticky;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--s-3);
-  margin-top: var(--s-6);
+  margin: var(--s-6) 0 calc(-1 * var(--s-5));
+  padding: var(--s-3) 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.results__actions .btn--primary {
+  flex: 1 1 auto;
+  max-width: 320px;
 }
 
 /* 9. History screen: session list and rows */
@@ -1374,12 +1394,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-weight: 600;
 }
 
-/* The "How we count" link after the transcript legend: a quiet inline link, 44 px tall to tap. */
+/* The "How we count" link after the transcript legend: a quiet link that flows with the legend's
+   text after a space. Its padding makes the tap target 44 px tall, and the matching negative
+   margins keep that padding from stretching the legend's line. */
 .transcript__how {
   display: inline-block;
   min-height: 44px;
-  margin-left: var(--s-2);
-  line-height: 44px;
+  margin: calc(-1 * var(--s-3)) 0;
+  padding: var(--s-3) 0;
+  line-height: 1.4;
   color: var(--accent);
 }
 

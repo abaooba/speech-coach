@@ -212,3 +212,7 @@ test("under 360px the cards pad --s-3 and the values drop to --fs-metric-narrow"
   assert.equal(narrowValue["font-size"], "var(--fs-metric-narrow)");
   assert.equal(ruleFor(".metric-card__value")["font-size"], "var(--fs-metric)");
 });
+
+test("every figure on Results uses tabular numbers, hints and headline included", () => {
+  assert.equal(ruleFor("#screen-results")["font-variant-numeric"], "tabular-nums");
+});

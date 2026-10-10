@@ -250,8 +250,8 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   assert.deepEqual(
     actions.children.map((button) => [button.tagName, button.className, button.textContent]),
     [
-      ["button", "btn btn--primary btn--block", "Record again"],
-      ["button", "btn btn--secondary btn--block", "History"],
+      ["button", "btn btn--ghost", "History"],
+      ["button", "btn btn--primary", "Record again"],
     ],
   );
   actions.children.forEach((button) => assert.equal(button.getAttribute("type"), "button"));
@@ -270,7 +270,9 @@ test("an in-range pace gets the ok hint built from the passage target", async ()
 test("Record again goes to practice and History goes to history", async () => {
   const { results, body, calls } = mountResults({ s1: sessionWith() });
   await results.show({ id: "s1" });
-  const [recordAgain, history] = byClass(body, "results__actions").children;
+  const actions = byClass(body, "results__actions");
+  const recordAgain = byClass(actions, "btn--primary");
+  const history = byClass(actions, "btn--ghost");
   recordAgain.click();
   history.click();
   assert.deepEqual(
