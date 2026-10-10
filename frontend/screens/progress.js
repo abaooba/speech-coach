@@ -1,25 +1,51 @@
 /* screens/progress.js: app.screens.progress, the Progress screen (DESIGN.md sections 1 and 6).
    Two pure helpers do the maths without the DOM: series(sessions, key) pulls one metric out of
    the stored sessions oldest first through app.screens.results.summarize, and scale(values, key)
-   turns those numbers into SVG points, a y axis snapped to tens and four gridline values. show()
-   draws a chip row and a hand-rolled SVG line chart with a screen-reader table under it; tapping
-   a chip redraws the chart for that metric, and the choice survives leaving the screen. */
+   turns those numbers into SVG points on a y axis with round ticks. show() draws a segmented
+   control, the metric's full name and a hand-rolled SVG line chart with a screen-reader table;
+   tapping an option redraws everything under the control, and the choice survives leaving. */
 (function () {
   "use strict";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
 
-  // The four metrics the chart can show, in chip order. `key` names a field of the summary
-  // app.screens.results.summarize returns; `color` is the line's token (DESIGN.md section 6,
-  // "Chart"); the three that start at zero (fillers per minute, pauses and clean stretch)
-  // are `fromZero`, so their axis always starts at 0.
+  // The four metrics the chart can show, in option order. `key` names a field of the summary
+  // app.screens.results.summarize returns; `short` labels the option, `label` is the full name
+  // for the title, the chart's aria-label and the table; `color` is the line's token (DESIGN.md
+  // section 6, "Chart"). The three that start at zero (fillers per minute, mid-sentence pauses
+  // and the clean stretch) are `fromZero`, so their axis always starts at 0.
   const METRICS = [
-    { key: "wpm", label: "Words per minute", color: "var(--accent)", fromZero: false },
-    { key: "fillersPerMinute", label: "Fillers per minute", color: "var(--filler)", fromZero: true },
-    { key: "pauseCount", label: "Pauses", color: "var(--pause)", fromZero: true },
-    { key: "cleanStretchSeconds", label: "Clean stretch", color: "var(--ok)", fromZero: true },
+    {
+      key: "wpm",
+      short: "Pace",
+      label: "Words per minute",
+      color: "var(--accent)",
+      fromZero: false,
+    },
+    {
+      key: "fillersPerMinute",
+      short: "Fillers",
+      label: "Fillers per minute",
+      color: "var(--filler)",
+      fromZero: true,
+    },
+    {
+      key: "pauseCount",
+      short: "Pauses",
+      label: "Mid-sentence pauses",
+      color: "var(--pause)",
+      fromZero: true,
+    },
+    {
+      key: "cleanStretchSeconds",
+      short: "Clean",
+      label: "Longest clean stretch",
+      color: "var(--ok)",
+      fromZero: true,
+    },
   ];
   const DEFAULT_KEY = "wpm";
+  const CONTROL_LABEL = "Chart metric";
 
   // The drawing box in viewBox units, and the padding that leaves room for the labels.
   const DEFAULT_GEOMETRY = {
@@ -31,11 +57,18 @@
     padBottom: 28,
   };
 
-  // The y axis snaps to multiples of 10, starts 20 under the slowest take for pace, and spans at
-  // least 10 so a flat series (or a single point) still has a height to draw against.
+  // The data range snaps to multiples of 10, starts 20 under the slowest take for pace, and spans
+  // at least 10 so a flat series (or a single point) still has a height to draw against.
   const AXIS_STEP = 10;
   const WPM_HEADROOM = 20;
   const MIN_RANGE = 10;
+
+  // Round ticks (DESIGN.md section 6): the smallest of these steps that splits the data range
+  // into at most five intervals, with the axis padded out to whole steps. A range no listed step
+  // fits (only a malformed record gets there) keeps multiplying the largest one by ten.
+  const ROUND_STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200];
+  const MAX_INTERVALS = 5;
+  const STEP_GROWTH = 10;
 
   // Coordinates are written with at most two decimals so the markup stays readable.
   const COORD_SCALE = 100;
@@ -72,7 +105,7 @@
   // Counts show() calls so a slow load from an earlier visit cannot paint over a newer one.
   let showCount = 0;
 
-  // The metric whose chip is selected; module state so it survives leaving the screen.
+  // The metric whose option is selected; module state so it survives leaving the screen.
   let selectedKey = DEFAULT_KEY;
 
   function mount(root) {
@@ -91,17 +124,18 @@
 
   // SVG coordinates for `values` (oldest first) plus the axis they sit on. x spreads the points
   // evenly across the plot (a single point sits in the middle); y runs from yMax at the top
-  // padding down to yMin at the bottom padding. yTicks are the four gridline values.
+  // padding down to yMin at the bottom padding. yTicks are the gridline values, a round step
+  // apart from yMin to yMax.
   function scale(values, key, opts) {
     const geometry = Object.assign({}, DEFAULT_GEOMETRY, opts || {});
     const numbers = (Array.isArray(values) ? values : []).map(numberOr0);
-    const yMin = axisFloor(numbers, key);
-    const yMax = axisCeiling(numbers, yMin);
+    const low = axisFloor(numbers, key);
+    const { yMin, yMax, yTicks } = roundAxis(low, axisCeiling(numbers, low));
     const points = numbers.map((value, index) => ({
       x: xFor(index, numbers.length, geometry),
       y: yFor(value, yMin, yMax, geometry),
     }));
-    return { points, yMin, yMax, yTicks: ticksBetween(yMin, yMax) };
+    return { points, yMin, yMax, yTicks };
   }
 
   // 0 for the counts; for pace, the ten at or below 20 under the slowest take, never below 0.
@@ -119,10 +153,24 @@
     return Math.max(Math.ceil(highest / AXIS_STEP) * AXIS_STEP, yMin + MIN_RANGE);
   }
 
-  // Both ends of the axis and the two thirds between them.
-  function ticksBetween(yMin, yMax) {
-    const third = (yMax - yMin) / 3;
-    return [yMin, yMin + third, yMin + 2 * third, yMax];
+  // The data range [low, high] padded out to whole round steps, and every tick on it: 120 to 160
+  // reads 120, 130, 140, 150, 160, and 50 to 160 becomes 50 to 175 in steps of 25.
+  function roundAxis(low, high) {
+    const intervals = (step) => Math.ceil(high / step) - Math.floor(low / step);
+    let step = ROUND_STEPS.find((candidate) => intervals(candidate) <= MAX_INTERVALS);
+    if (step === undefined) {
+      step = ROUND_STEPS[ROUND_STEPS.length - 1];
+      while (intervals(step) > MAX_INTERVALS) {
+        step *= STEP_GROWTH;
+      }
+    }
+    const yMin = Math.floor(low / step) * step;
+    const yMax = Math.ceil(high / step) * step;
+    const yTicks = [];
+    for (let tick = yMin; tick <= yMax; tick += step) {
+      yTicks.push(tick);
+    }
+    return { yMin, yMax, yTicks };
   }
 
   function xFor(index, count, geometry) {
@@ -141,7 +189,7 @@
     return top + ((yMax - value) / (yMax - yMin)) * (bottom - top);
   }
 
-  // The metric for a chip key; an unknown key draws like pace rather than throwing.
+  // The metric for a key; an unknown key draws like pace rather than throwing.
   function metricFor(key) {
     return METRICS.find((metric) => metric.key === key) || METRICS[0];
   }
@@ -192,19 +240,20 @@
     });
   }
 
-  // The chip row is built once per show(); a tap only swaps the chart and the table under it,
-  // so the tapped chip keeps focus and the row never flickers.
+  // The segmented control is built once per show(); a tap only swaps what sits under it (the
+  // title, the chart and the table), so the tapped option keeps focus and never flickers.
   function renderChart(sessions) {
-    const chips = METRICS.map((metric) => buildChip(metric, () => choose(metric.key)));
+    const options = METRICS.map((metric) => buildOption(metric, () => choose(metric.key)));
     let drawn = [];
 
+    const control = { class: "segmented", role: "group", "aria-label": CONTROL_LABEL };
     app.ui.clear(body);
-    body.appendChild(app.ui.el("div", { class: "chip-row" }, chips));
+    body.appendChild(app.ui.el("div", control, options));
     draw();
 
     function choose(key) {
       selectedKey = key;
-      chips.forEach((chip, index) => markChip(chip, METRICS[index].key === key));
+      options.forEach((option, index) => markOption(option, METRICS[index].key === key));
       draw();
     }
 
@@ -212,20 +261,30 @@
       drawn.forEach((node) => body.removeChild(node));
       const metric = metricFor(selectedKey);
       const values = series(sessions, metric.key);
-      drawn = [buildSvg(metric, values), buildTable(metric, sessions, values)];
+      drawn = [
+        app.ui.el("h2", { class: "progress__title", text: metric.label }),
+        buildSvg(metric, values),
+        buildTable(metric, sessions, values),
+      ];
       drawn.forEach((node) => body.appendChild(node));
     }
   }
 
-  function buildChip(metric, onClick) {
-    const chip = app.ui.el("button", { class: "chip", type: "button", text: metric.label, onClick });
-    markChip(chip, metric.key === selectedKey);
-    return chip;
+  // A toggle button in the segmented control, labeled with the metric's short name.
+  function buildOption(metric, onClick) {
+    const option = app.ui.el("button", {
+      class: "segmented__option",
+      type: "button",
+      text: metric.short,
+      onClick,
+    });
+    markOption(option, metric.key === selectedKey);
+    return option;
   }
 
-  function markChip(chip, selected) {
-    chip.classList.toggle("chip--selected", selected);
-    chip.setAttribute("aria-pressed", String(selected));
+  function markOption(option, selected) {
+    option.classList.toggle("segmented__option--selected", selected);
+    option.setAttribute("aria-pressed", String(selected));
   }
 
   // The chart, bottom layer first: gridlines, axes, labels, the line, then the dots on top.

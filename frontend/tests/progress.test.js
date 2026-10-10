@@ -28,7 +28,7 @@ const CENTER_X = 172;
 const TOLERANCE = 1e-6;
 
 const EMPTY_STATE_CLASS = "state state--empty";
-const CHIP_LABELS = ["Words per minute", "Fillers per minute", "Pauses", "Clean stretch"];
+const CHIP_LABELS = ["Pace", "Fillers", "Pauses", "Clean"];
 const WPM_COLOR = "var(--accent)";
 const FILLERS_COLOR = "var(--filler)";
 const PAUSES_COLOR = "var(--pause)";
@@ -125,9 +125,21 @@ function fullText(node) {
 }
 
 function chipsOf(body) {
-  const row = byClass(body, "chip-row");
-  assert.ok(row, "the body should hold the chip row");
+  const row = byClass(body, "segmented");
+  assert.ok(row, "the body should hold the segmented control");
   return row.children;
+}
+
+// The y labels are the end-anchored texts left of the axis; the x labels sit under the plot.
+function yLabelsOf(svg) {
+  return childrenByTag(svg, "text").filter(
+    (label) =>
+      label.getAttribute("text-anchor") === "end" && Number(label.getAttribute("x")) < LEFT,
+  );
+}
+
+function xLabelsOf(svg) {
+  return childrenByTag(svg, "text").filter((label) => Number(label.getAttribute("y")) > BOTTOM);
 }
 
 // SVG elements take their class through setAttribute, so the lookup reads the attribute.
@@ -190,7 +202,7 @@ test("series hands each session to summarize at call time and reads a bad value 
   assert.deepEqual(progress.series([], "wpm"), []);
 });
 
-test("scale([150,160,140], 'wpm'): x from 36 to 308, y axis 120 to 160 in thirds", () => {
+test("scale([150,160,140], 'wpm'): x from 36 to 308, y axis 120 to 160 in steps of 10", () => {
   const { progress } = loadPure();
   const scaled = progress.scale([150, 160, 140], "wpm");
   assert.equal(scaled.points.length, 3);
@@ -199,7 +211,7 @@ test("scale([150,160,140], 'wpm'): x from 36 to 308, y axis 120 to 160 in thirds
   assert.equal(scaled.points[2].x, RIGHT);
   assert.equal(scaled.yMin, 120);
   assert.equal(scaled.yMax, 160);
-  assertAllCloseTo(scaled.yTicks, [120, 120 + 40 / 3, 120 + 80 / 3, 160], "yTicks");
+  assertAllCloseTo(scaled.yTicks, [120, 130, 140, 150, 160], "yTicks");
   // 160 is the top of the axis; 150 and 140 sit a quarter and a half of the way down the
   // 160px plot, so a value of 120 (the axis floor) would land on the bottom line at 172.
   assert.equal(scaled.points[1].y, TOP);
@@ -231,7 +243,7 @@ test("scale([0,0], 'fillersPerMinute') spans 0 to 10 and never divides by zero",
   const scaled = progress.scale([0, 0], "fillersPerMinute");
   assert.equal(scaled.yMin, 0);
   assert.equal(scaled.yMax, 10);
-  assertAllCloseTo(scaled.yTicks, [0, 10 / 3, 20 / 3, 10], "yTicks");
+  assertAllCloseTo(scaled.yTicks, [0, 2, 4, 6, 8, 10], "yTicks");
   scaled.points.forEach((point) => {
     assert.ok(Number.isFinite(point.x) && Number.isFinite(point.y), "finite coordinates");
     assert.equal(point.y, BOTTOM);
@@ -290,15 +302,17 @@ test("show() with fewer than two sessions renders Need two sessions with a Recor
   }
 });
 
-test("show() renders the chip row, the wpm chart and the sr-only table", async () => {
+test("show() renders the segmented control, the wpm chart and the sr-only table", async () => {
   const { app, progress, body } = mountProgress(NEWEST_FIRST);
   await progress.show();
 
-  assert.equal(body.children.length, 3);
-  const [row, svg, table] = body.children;
-  assert.equal(row.className, "chip-row");
-  assert.equal(svg, chartOf(body));
-  assert.equal(table, tableOf(body));
+  assert.equal(body.children.length, 4);
+  const row = byClass(body, "segmented");
+  const svg = chartOf(body);
+  const table = tableOf(body);
+  assert.equal(row.className, "segmented");
+  assert.equal(body.children[0], row);
+  assert.equal(body.children[body.children.length - 1], table);
 
   const chips = chipsOf(body);
   assert.deepEqual(chips.map(fullText), CHIP_LABELS);
@@ -309,10 +323,10 @@ test("show() renders the chip row, the wpm chart and the sr-only table", async (
   assert.deepEqual(
     chips.map((chip) => [chip.className, chip.getAttribute("aria-pressed")]),
     [
-      ["chip chip--selected", "true"],
-      ["chip", "false"],
-      ["chip", "false"],
-      ["chip", "false"],
+      ["segmented__option segmented__option--selected", "true"],
+      ["segmented__option", "false"],
+      ["segmented__option", "false"],
+      ["segmented__option", "false"],
     ],
   );
 
@@ -326,9 +340,9 @@ test("show() renders the chip row, the wpm chart and the sr-only table", async (
   assert.deepEqual(
     svg.children.map((child) => child.tagName),
     [
-      ...Array(4).fill("line"),
+      ...Array(5).fill("line"),
       ...Array(2).fill("line"),
-      ...Array(4).fill("text"),
+      ...Array(5).fill("text"),
       ...Array(3).fill("text"),
       "polyline",
       ...Array(3).fill("circle"),
@@ -339,22 +353,22 @@ test("show() renders the chip row, the wpm chart and the sr-only table", async (
   });
 
   const lines = childrenByTag(svg, "line");
-  const gridlines = lines.slice(0, 4);
+  const gridlines = lines.filter((line) => line.getAttribute("stroke") === "var(--grid)");
   assert.deepEqual(
     gridlines.map((line) => [line.getAttribute("stroke"), line.getAttribute("stroke-width")]),
-    Array(4).fill(["var(--grid)", "1"]),
+    Array(5).fill(["var(--grid)", "1"]),
   );
   assert.deepEqual(
     gridlines.map((line) => [line.getAttribute("x1"), line.getAttribute("x2")]),
-    Array(4).fill(["36", "308"]),
+    Array(5).fill(["36", "308"]),
   );
   assert.deepEqual(
     gridlines.map((line) => line.getAttribute("y1")),
-    ["172", "118.67", "65.33", "12"],
+    ["172", "132", "92", "52", "12"],
   );
   gridlines.forEach((line) => assert.equal(line.getAttribute("y1"), line.getAttribute("y2")));
 
-  const [yAxis, xAxis] = lines.slice(4);
+  const [yAxis, xAxis] = lines.filter((line) => line.getAttribute("stroke") === "var(--border)");
   assert.deepEqual(
     [yAxis, xAxis].map((line) => line.getAttribute("stroke")),
     ["var(--border)", "var(--border)"],
@@ -368,11 +382,10 @@ test("show() renders the chip row, the wpm chart and the sr-only table", async (
     ["36", "308", "172", "172"],
   );
 
-  const texts = childrenByTag(svg, "text");
-  const yLabels = texts.slice(0, 4);
+  const yLabels = yLabelsOf(svg);
   assert.deepEqual(
     yLabels.map((label) => label.textContent),
-    ["120", "133", "147", "160"],
+    ["120", "130", "140", "150", "160"],
   );
   yLabels.forEach((label) => {
     assert.equal(label.getAttribute("text-anchor"), "end");
@@ -381,10 +394,10 @@ test("show() renders the chip row, the wpm chart and the sr-only table", async (
   });
   assert.deepEqual(
     yLabels.map((label) => label.getAttribute("y")),
-    ["172", "118.67", "65.33", "12"],
+    ["172", "132", "92", "52", "12"],
   );
 
-  const xLabels = texts.slice(4);
+  const xLabels = xLabelsOf(svg);
   assert.deepEqual(xLabels.map((label) => label.textContent), ["1", "2", "3"]);
   assert.deepEqual(xLabels.map((label) => label.getAttribute("x")), ["36", "172", "308"]);
   xLabels.forEach((label) => {
@@ -442,7 +455,7 @@ test("no color attribute in the chart is a hex literal", async () => {
   });
 });
 
-test("tapping Fillers per minute swaps the chart and table in place, chip row stays", async () => {
+test("tapping Fillers swaps the chart and table in place; the control stays", async () => {
   const { progress, body } = mountProgress(NEWEST_FIRST);
   await progress.show();
   const row = body.children[0];
@@ -451,16 +464,16 @@ test("tapping Fillers per minute swaps the chart and table in place, chip row st
 
   chips[1].click();
 
-  assert.equal(body.children.length, 3);
-  assert.equal(body.children[0], row, "the chip row is the same node");
-  assert.deepEqual(chipsOf(body), chips, "the chips are the same nodes");
+  assert.equal(body.children.length, 4);
+  assert.equal(body.children[0], row, "the segmented control is the same node");
+  assert.deepEqual(chipsOf(body), chips, "the options are the same nodes");
   assert.deepEqual(
     chips.map((chip) => [chip.className, chip.getAttribute("aria-pressed")]),
     [
-      ["chip", "false"],
-      ["chip chip--selected", "true"],
-      ["chip", "false"],
-      ["chip", "false"],
+      ["segmented__option", "false"],
+      ["segmented__option segmented__option--selected", "true"],
+      ["segmented__option", "false"],
+      ["segmented__option", "false"],
     ],
   );
 
@@ -473,8 +486,8 @@ test("tapping Fillers per minute swaps the chart and table in place, chip row st
   assert.equal(polyline.getAttribute("points"), "36,108 172,132 308,156");
   childrenByTag(svg, "circle").forEach((dot) => assert.equal(dot.getAttribute("fill"), FILLERS_COLOR));
   assert.deepEqual(
-    childrenByTag(svg, "text").slice(0, 4).map((label) => label.textContent),
-    ["0", "3", "7", "10"],
+    yLabelsOf(svg).map((label) => label.textContent),
+    ["0", "2", "4", "6", "8", "10"],
   );
 
   const table = tableOf(body);
@@ -491,7 +504,7 @@ test("tapping Pauses draws the pause count in the pause color", async () => {
   chipsOf(body)[2].click();
 
   const svg = chartOf(body);
-  assert.equal(svg.getAttribute("aria-label"), "Pauses over 3 sessions, latest 0");
+  assert.equal(svg.getAttribute("aria-label"), "Mid-sentence pauses over 3 sessions, latest 0");
   const polyline = polylineOf(svg);
   assert.equal(polyline.getAttribute("stroke"), PAUSES_COLOR);
   // Pauses 1, 3, 0 on a 0 to 10 axis.
@@ -515,7 +528,7 @@ test("the chosen metric survives leaving and reopening the screen", async () => 
   await progress.show();
 
   assert.equal(calls.lists, 2);
-  assert.equal(body.children.length, 3, "a second show replaces the chart, never stacks");
+  assert.equal(body.children.length, 4, "a second show replaces the chart, never stacks");
   assert.deepEqual(
     chipsOf(body).map((chip) => chip.getAttribute("aria-pressed")),
     ["false", "true", "false", "false"],
@@ -526,7 +539,7 @@ test("the chosen metric survives leaving and reopening the screen", async () => 
 test("x labels: every session up to eight, every other one beyond that", async () => {
   const eight = mountProgress(manySessions(8));
   await eight.progress.show();
-  const eightLabels = childrenByTag(chartOf(eight.body), "text").slice(4);
+  const eightLabels = xLabelsOf(chartOf(eight.body));
   assert.deepEqual(
     eightLabels.map((label) => label.textContent),
     ["1", "2", "3", "4", "5", "6", "7", "8"],
@@ -535,7 +548,7 @@ test("x labels: every session up to eight, every other one beyond that", async (
   const nine = mountProgress(manySessions(9));
   await nine.progress.show();
   const svg = chartOf(nine.body);
-  const nineLabels = childrenByTag(svg, "text").slice(4);
+  const nineLabels = xLabelsOf(svg);
   assert.deepEqual(nineLabels.map((label) => label.textContent), ["1", "3", "5", "7", "9"]);
   assert.deepEqual(
     nineLabels.map((label) => label.getAttribute("x")),

@@ -1433,7 +1433,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
-/* 10. Progress screen: the line chart */
+/* 10. Progress screen: metric switch, title and the line chart */
+/* The segmented control sits first; the section gap separates it from the metric's full name. */
+.progress__title {
+  margin-top: var(--s-6);
+}
+
 /* The viewBox is 320 x 200, so the chart scales with the column and never scrolls sideways. */
 .chart {
   display: block;
@@ -1448,6 +1453,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-size: var(--fs-micro);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+/* The screen-reader table. A table ignores the 1px box of .sr-only and grows to its widest
+   row, which widened the page at 320px; fixed layout caps it at its caption's width, and the
+   page origin keeps it from lengthening the page under the chart. */
+#screen-progress table.sr-only {
+  top: 0;
+  left: 0;
+  table-layout: fixed;
 }
 
 /* 11. Reduced motion */
