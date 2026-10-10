@@ -2,9 +2,10 @@
 // section 6, "Chart"): every summary value keeps the section-title size, bold, on one line, and
 // the cells make room for it through the grid instead (Latest and Best side by side on a phone,
 // the change from the average across the row under them, three in a row from 600px). At 200%
-// zoom (section 9) the options and cells reflow and the hidden table stays narrow. Spacing
-// comes from the --s scale only. The node suite has no layout engine, so these pin the rules;
-// the screenshot loop checks how they render.
+// zoom (section 9) the options and cells reflow and the hidden table stays narrow. "Need two
+// sessions" sits centered above the nav with a full-width button, as in the approved draft.
+// Spacing comes from the --s scale only. The node suite has no layout engine, so these pin the
+// rules; the screenshot loop checks how they render.
 "use strict";
 
 const test = require("node:test");
@@ -190,7 +191,7 @@ test("section 10 spaces only with the --s scale", () => {
   const stepSum = /^calc\(var\(--s-[1-7]\) [-+] var\(--s-[1-7]\)\)$/;
   RULES.forEach((rule) => {
     Object.entries(rule.declarations)
-      .filter(([name]) => spacing.test(name) && !stepSum.test(rule.declarations[name]))
+      .filter(([name, value]) => spacing.test(name) && !stepSum.test(value))
       .forEach(([name, value]) => {
         value.split(" ").forEach((part) => {
           assert.match(part, step, `${rule.selectors.join(", ")} ${name}: ${value}`);
