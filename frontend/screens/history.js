@@ -1,26 +1,30 @@
 /* screens/history.js: app.screens.history, the History screen (DESIGN.md sections 1 and 6).
-   formatStats(session) turns one stored session into its "152 wpm · 3.1 per min" line through
+   formatStats(session) turns one stored session into its "152 wpm · 3.1 /min" line through
    app.screens.results.summarize, so both screens show the same numbers. show() lists every
-   session from app.store newest first: tapping a row opens its Results, and Delete asks
-   "Delete? Yes / No" in place before app.store.remove runs. Only one row confirms at a time. */
+   session from app.store newest first: tapping a row opens its Results, and the trash button
+   asks "Delete? Yes / No" in place before app.store.remove runs. Only one row confirms at a
+   time, and keyboard focus follows the prompt (DESIGN.md section 9). */
 (function () {
   "use strict";
 
   // The stats line: the units the Results cards use, joined by a middle dot.
   const WPM_UNIT = " wpm";
-  const FILLERS_UNIT = " per min";
+  const FILLERS_UNIT = " /min";
   const STATS_SEPARATOR = " · ";
   const FILLERS_DECIMALS = 1;
 
   // Fixed copy for the empty state (DESIGN.md section 8) and the delete controls (section 6).
   const EMPTY_TITLE = "No sessions yet";
   const EMPTY_BODY = "Your first recording will show up here.";
+  const EMPTY_ICON = "mic";
   const RECORD_LABEL = "Record";
-  const DELETE_LABEL = "Delete";
+  const DELETE_ICON = "trash";
   const DELETE_LABEL_PREFIX = "Delete session from ";
+  const CONFIRM_LABEL_SUFFIX = "?";
   const CONFIRM_PROMPT = "Delete?";
   const YES_LABEL = "Yes";
   const NO_LABEL = "No";
+  const DELETED_ANNOUNCEMENT = "Session deleted";
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -28,15 +32,20 @@
   // Counts show() calls so a slow load from an earlier visit cannot paint over a newer one.
   let showCount = 0;
 
-  // Puts the Delete button back on the one row currently showing "Delete? Yes / No"; null when
-  // no row is confirming.
+  // Puts the trash button back on the one row currently showing "Delete? Yes / No", leaving
+  // focus where it is; null when no row is confirming.
   let closeOpenConfirm = null;
+
+  // Where focus lands after a delete: the open button of each row on screen, top to bottom, or
+  // the empty state's Record action when no row is left.
+  let openButtons = [];
+  let emptyAction = null;
 
   function mount(root) {
     body = root.querySelector(".screen__body");
   }
 
-  // "152 wpm · 3.1 per min" for one stored session. Reads app.screens.results.summarize when
+  // "152 wpm · 3.1 /min" for one stored session. Reads app.screens.results.summarize when
   // called, never at load, so a change there reaches this screen too.
   function formatStats(session) {
     const summary = app.screens.results.summarize(session);
@@ -44,8 +53,12 @@
     return summary.wpm + WPM_UNIT + STATS_SEPARATOR + fillers + FILLERS_UNIT;
   }
 
-  async function show() {
-    const ticket = ++showCount;
+  function show() {
+    return draw(++showCount);
+  }
+
+  // Loads the sessions and paints them, unless a newer show() started while the store was read.
+  async function draw(ticket) {
     const sessions = await loadSessions();
     if (ticket !== showCount) {
       return;
@@ -73,27 +86,34 @@
   function hide() {}
 
   function renderEmpty() {
-    app.ui.renderState(body, {
+    const block = app.ui.renderState(body, {
       kind: "empty",
+      icon: EMPTY_ICON,
       title: EMPTY_TITLE,
       body: EMPTY_BODY,
       actionLabel: RECORD_LABEL,
       onAction: () => app.router.go("practice"),
     });
+    openButtons = [];
+    emptyAction = block.querySelector(".state__action");
   }
 
   function renderList(sessions) {
-    const rows = sessions.map((session) => buildRow(session));
+    const built = sessions.map((session, index) => buildRow(session, index));
+    openButtons = built.map((entry) => entry.open);
+    emptyAction = null;
     app.ui.clear(body);
-    body.appendChild(app.ui.el("ul", { class: "session-list" }, rows));
+    body.appendChild(app.ui.el("ul", { class: "session-list" }, built.map((entry) => entry.row)));
   }
 
-  // One row: the open button, then the delete control. The control is always the row's last
-  // child and swaps between the Delete button and the "Delete? Yes / No" prompt, so swapping is
-  // a remove followed by an append.
-  function buildRow(session) {
+  // One row and its open button. The row holds the open button, then the delete control. The
+  // control is always the row's last child and swaps between the trash button and the
+  // "Delete? Yes / No" group, so swapping is a remove followed by an append. `index` is the
+  // row's place in the list, where focus goes back to after this session is deleted.
+  function buildRow(session, index) {
     const date = app.ui.formatDate(session.createdAt);
-    const row = app.ui.el("li", { class: "session-row" }, buildOpenButton(session, date));
+    const open = buildOpenButton(session, date);
+    const row = app.ui.el("li", { class: "session-row" }, open);
     let control = buildDeleteButton(date, askToConfirm);
     row.appendChild(control);
 
@@ -103,20 +123,28 @@
       row.appendChild(control);
     }
 
-    function restoreDeleteButton() {
+    // No focuses the trash button it brings back. Another row's trash closing this prompt
+    // leaves focus alone, because that row's prompt takes it next.
+    function restoreDeleteButton(moveFocus) {
       replaceControl(buildDeleteButton(date, askToConfirm));
       closeOpenConfirm = null;
+      if (moveFocus) {
+        focusIfPossible(control);
+      }
     }
 
     function askToConfirm() {
       if (closeOpenConfirm !== null) {
         closeOpenConfirm();
       }
-      replaceControl(buildConfirm(session.id, restoreDeleteButton));
-      closeOpenConfirm = restoreDeleteButton;
+      const yes = buildAnswer(YES_LABEL, "btn btn--danger", () => removeSession(session, index));
+      const no = buildAnswer(NO_LABEL, "btn btn--ghost", () => restoreDeleteButton(true));
+      replaceControl(buildConfirm(date, yes, no));
+      closeOpenConfirm = () => restoreDeleteButton(false);
+      focusIfPossible(no);
     }
 
-    return row;
+    return { row, open };
   }
 
   function buildOpenButton(session, date) {
@@ -137,45 +165,70 @@
     );
   }
 
-  // The label names the session by date, so a screen reader hears which one Delete would remove.
+  // A muted trash icon with no visible word. The label names the session by date, so a screen
+  // reader hears which one it would remove. The icon is drawn fresh for every button.
   function buildDeleteButton(date, onClick) {
-    return app.ui.el("button", {
-      class: "btn btn--ghost session-row__delete",
-      type: "button",
-      "aria-label": DELETE_LABEL_PREFIX + date,
-      text: DELETE_LABEL,
-      onClick,
-    });
+    return app.ui.el(
+      "button",
+      {
+        class: "icon-btn session-row__delete",
+        type: "button",
+        "aria-label": DELETE_LABEL_PREFIX + date,
+        onClick,
+      },
+      app.ui.icon(DELETE_ICON),
+    );
   }
 
-  // "Delete?" with Yes (removes, then redraws the list) and No (puts the Delete button back).
-  function buildConfirm(id, onNo) {
-    return app.ui.el("span", { class: "session-row__confirm" }, [
-      CONFIRM_PROMPT,
-      app.ui.el("button", {
-        class: "btn btn--danger",
-        type: "button",
-        text: YES_LABEL,
-        onClick: () => removeSession(id),
-      }),
-      app.ui.el("button", {
-        class: "btn btn--ghost",
-        type: "button",
-        text: NO_LABEL,
-        onClick: onNo,
-      }),
-    ]);
+  function buildAnswer(label, className, onClick) {
+    return app.ui.el("button", { class: className, type: "button", text: label, onClick });
+  }
+
+  // "Delete?" with Yes (removes, then redraws the list) and No (puts the trash button back), in
+  // a group whose label asks about this session by date.
+  function buildConfirm(date, yes, no) {
+    const attrs = {
+      class: "session-row__confirm",
+      role: "group",
+      "aria-label": DELETE_LABEL_PREFIX + date + CONFIRM_LABEL_SUFFIX,
+    };
+    return app.ui.el("span", attrs, [CONFIRM_PROMPT, yes, no]);
   }
 
   // Deletes the session, then redraws the list from the store. When the delete fails, the
-  // redraw still runs and shows the row where it was, which is the truth about what is stored.
-  async function removeSession(id) {
+  // redraw still runs and shows the row where it was, which is the truth about what is stored,
+  // and nothing is announced. Focus moves to the row now in that place, or to the empty state's
+  // action, unless a newer show() started meanwhile.
+  async function removeSession(session, index) {
+    let removed = false;
     try {
-      await app.store.remove(id);
+      await app.store.remove(session.id);
+      removed = true;
     } catch {
       // Nothing extra to show: the redraw below reflects whatever the store still holds.
     }
-    await show();
+    const ticket = ++showCount;
+    await draw(ticket);
+    if (ticket === showCount) {
+      focusIfPossible(focusTargetAt(index));
+    }
+    if (removed) {
+      app.ui.announce(DELETED_ANNOUNCEMENT);
+    }
+  }
+
+  function focusTargetAt(index) {
+    if (openButtons.length === 0) {
+      return emptyAction;
+    }
+    return openButtons[Math.min(index, openButtons.length - 1)];
+  }
+
+  // Moves keyboard focus when the node can take it; the test fakes have no focus().
+  function focusIfPossible(node) {
+    if (node && typeof node.focus === "function") {
+      node.focus();
+    }
   }
 
   app.screens.history = { mount, show, hide, formatStats };

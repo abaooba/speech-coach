@@ -21,10 +21,10 @@ const UI_SOURCE = fs.readFileSync(path.join(__dirname, "..", "ui.js"), "utf8");
 
 const STUB_SUMMARY = { wpm: 152, fillersPerMinute: 3.1 };
 const ZERO_SUMMARY = { wpm: 0, fillersPerMinute: 0 };
-const STUB_STATS = "152 wpm · 3.1 per min";
-const ZERO_STATS = "0 wpm · 0.0 per min";
+const STUB_STATS = "152 wpm · 3.1 /min";
+const ZERO_STATS = "0 wpm · 0.0 /min";
 
-const DELETE_BUTTON_CLASS = "btn btn--ghost session-row__delete";
+const DELETE_BUTTON_CLASS = "icon-btn session-row__delete";
 const CONFIRM_CLASS = "session-row__confirm";
 const EMPTY_STATE_CLASS = "state state--empty";
 
@@ -143,12 +143,12 @@ test("history.js registers app.screens.history and touches no DOM at load time",
   }
 });
 
-test("formatStats gives '152 wpm · 3.1 per min' from the stub summary", () => {
+test("formatStats gives '152 wpm · 3.1 /min' from the stub summary", () => {
   const { history } = loadPure();
   assert.equal(history.formatStats(OLDER), STUB_STATS);
 });
 
-test("formatStats reads summarize at call time: the zero stub gives '0 wpm · 0.0 per min'", () => {
+test("formatStats reads summarize at call time: the zero stub gives '0 wpm · 0.0 /min'", () => {
   const { app, history } = loadPure();
   assert.equal(history.formatStats(OLDER), STUB_STATS);
   app.screens.results.summarize = () => ({ ...ZERO_SUMMARY });
@@ -224,7 +224,10 @@ test("show() lists the sessions in store order: title over date, stats, Delete",
   assert.equal(remove.tagName, "button");
   assert.equal(remove.className, DELETE_BUTTON_CLASS);
   assert.equal(remove.getAttribute("type"), "button");
-  assert.equal(remove.textContent, "Delete");
+  assert.deepEqual(
+    remove.children.map((child) => [child.tagName, child.getAttribute("data-icon")]),
+    [["svg", "trash"]],
+  );
   assert.equal(
     remove.getAttribute("aria-label"),
     "Delete session from " + app.ui.formatDate(NEWER.createdAt),
@@ -243,7 +246,7 @@ test("each row's stats come from summarize of that session", async () => {
   const stats = rowsOf(body).map((row) => byClass(openButtonOf(row), "session-row__stats"));
   assert.deepEqual(
     stats.map((node) => node.textContent),
-    ["160 wpm · 1.0 per min", "120.4 wpm · 4.3 per min"],
+    ["160 wpm · 1.0 /min", "120.4 wpm · 4.3 /min"],
   );
 });
 
@@ -292,7 +295,10 @@ test("Delete swaps to 'Delete? Yes / No' and No puts the Delete button back", as
   await settle();
   const restored = deleteControlOf(row);
   assert.equal(restored.className, DELETE_BUTTON_CLASS);
-  assert.equal(restored.textContent, "Delete");
+  assert.deepEqual(
+    restored.children.map((child) => [child.tagName, child.getAttribute("data-icon")]),
+    [["svg", "trash"]],
+  );
   assert.equal(
     restored.getAttribute("aria-label"),
     "Delete session from " + app.ui.formatDate(NEWER.createdAt),

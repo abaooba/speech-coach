@@ -1264,31 +1264,42 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* 9. History screen: session list and rows */
+/* The list, or the empty state, sits a section gap under the heading. */
+#screen-history .screen__body {
+  margin-top: var(--s-6);
+}
+
 .session-list {
   list-style: none;
-  margin: var(--s-5) 0 0;
+  margin: 0;
   padding: 0;
 }
 
-/* The divider sits on the row, so it runs under the Delete button as well as the text. */
+/* The divider sits on the row, so it runs under the trash button as well as the text. The row
+   wraps only when an open "Delete? Yes / No" group does not fit beside the stats line, as on a
+   320px phone: the group then drops below the stats, at the right. */
 .session-row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  border-bottom: 1px solid var(--border);
-}
-
-/* The open button fills the row beside Delete and may wrap: the title column keeps 160px
-   before the stats drop to their own line, so a 320px screen never scrolls sideways. */
-.session-row__open {
-  flex: 1;
-  min-width: 0;
-  min-height: 64px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-3);
-  padding: var(--s-3) 0;
+  column-gap: var(--s-2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The open button fills the row beside the trash button. It is a grid: on a phone the title
+   and date sit over the stats, all left-aligned. It keeps its automatic minimum width, the
+   stats line, which never wraps, so a narrow row moves the prompt instead of the numbers. */
+.session-row__open {
+  flex: 1 1 0;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: center;
+  align-items: center;
+  justify-items: start;
+  row-gap: var(--s-1);
+  column-gap: var(--s-3);
+  padding: var(--s-2) 0;
   border: 0;
   background: transparent;
   color: var(--text);
@@ -1298,7 +1309,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 .session-row__text {
-  flex: 1 1 160px;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -1315,10 +1325,33 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   line-height: 1.3;
   font-weight: 500;
   color: var(--muted);
+  white-space: nowrap;
 }
 
+/* Under the date the stats start a second group, one step further down. */
 .session-row__stats {
+  margin-top: var(--s-1);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Yes and No keep the 48px button height but take the 12px side padding, so the group fits
+   beside the stats on most phones. */
+.session-row .btn {
   flex: none;
+  padding: 0 var(--s-3);
+}
+
+/* Beside the stats the group is centered on the row. Dropped below them, it keeps to the
+   right with --s-2 above and below. */
+.session-row__confirm {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-block: var(--s-2);
   margin-left: auto;
   font-size: var(--fs-small);
   line-height: 1.4;
@@ -1326,22 +1359,27 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: nowrap;
 }
 
-/* Delete, and the Yes / No that replace it, keep the 48px button height but take the 12px side
-   padding so a row still fits at 320px while it is confirming. */
-.session-row .btn {
-  flex: none;
-  padding: 0 var(--s-3);
-}
+/* From 480px the stats move to the right of the title and date, right-aligned. */
+@media (min-width: 480px) {
+  .session-row__open {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "text stats";
+  }
 
-.session-row__confirm {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  font-weight: 500;
-  white-space: nowrap;
+  .session-row__text {
+    grid-area: text;
+  }
+
+  .session-row__stats {
+    grid-area: stats;
+    justify-self: end;
+    margin-top: 0;
+  }
+
+  /* The group never wraps at this width; a wider gap keeps "Delete?" apart from the stats. */
+  .session-row__confirm {
+    margin-left: var(--s-5);
+  }
 }
 
 /* 10. Progress screen: the line chart */
