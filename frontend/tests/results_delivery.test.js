@@ -93,7 +93,7 @@ test("on the real clip the cards show pace without ums, breaks and the clean str
   const cards = cardsOf(body);
   assert.deepEqual(
     cards.map((card) => fullText(byClass(card, "metric-card__value"))),
-    ["76 wpm", "21.4 per min", "3", "4.9 s"],
+    ["76 wpm", "21.4 /min", "3", "4.9 s"],
   );
   assert.deepEqual(cards.map(hintOf), [
     ["Speed up", "metric-card__hint metric-card__hint--warn"],

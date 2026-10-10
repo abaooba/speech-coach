@@ -38,12 +38,7 @@ const METRICS = {
 
 const CREATED_AT = "2026-10-09T22:21:00.000Z";
 
-const EXPECTED_LABELS = [
-  "Words per minute",
-  "Fillers per minute",
-  "Mid-sentence pauses",
-  "Longest clean stretch",
-];
+const EXPECTED_LABELS = ["Pace", "Fillers", "Mid-sentence pauses", "Clean stretch"];
 
 function sessionWith(metricOverrides, sessionOverrides) {
   return {
@@ -231,13 +226,13 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   );
   const values = cards.map((card) => byClass(card, "metric-card__value"));
   values.forEach((value) => assert.ok(value.classList.contains("num")));
-  assert.deepEqual(values.map(fullText), ["162 wpm", "18 per min", "2", "0 s"]);
+  assert.deepEqual(values.map(fullText), ["162 wpm", "18 /min", "2", "0 s"]);
   assert.deepEqual(
     values.map((value) => {
       const unit = byClass(value, "metric-card__unit");
       return unit ? unit.textContent : null;
     }),
-    ["wpm", "per min", null, "s"],
+    ["wpm", "/min", null, "s"],
   );
 
   const hint = byClass(cards[0], "metric-card__hint");

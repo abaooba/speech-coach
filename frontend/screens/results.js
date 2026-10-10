@@ -10,13 +10,14 @@
   // Used when the session's passage is no longer in app.passages.
   const DEFAULT_TARGET_WPM = [140, 160];
 
-  // Card labels and units (DESIGN.md sections 5 and 6), in display order.
-  const WPM_LABEL = "Words per minute";
+  // Card labels and units (DESIGN.md sections 5 and 6), in display order. Labels stay short so
+  // two cards fit side by side at 320px; the units are small text after the number.
+  const WPM_LABEL = "Pace";
   const WPM_UNIT = "wpm";
-  const FILLERS_LABEL = "Fillers per minute";
-  const FILLERS_UNIT = "per min";
+  const FILLERS_LABEL = "Fillers";
+  const FILLERS_UNIT = "/min";
   const PAUSES_LABEL = "Mid-sentence pauses";
-  const CLEAN_STRETCH_LABEL = "Longest clean stretch";
+  const CLEAN_STRETCH_LABEL = "Clean stretch";
   const CLEAN_STRETCH_UNIT = "s";
 
   // Pace hint copy: always words, never a bare number (DESIGN.md section 9).
@@ -331,7 +332,8 @@
   }
 
   // The unit sits inside the value line, after a space, so "162 wpm" reads as one phrase and
-  // the small unit shares the big number's baseline.
+  // the small unit shares the big number's baseline. The line never wraps (styles.css), so the
+  // unit cannot drop below its number.
   function metricCard(label, value, unit, hint) {
     const valueParts = [String(value)];
     if (unit) {
