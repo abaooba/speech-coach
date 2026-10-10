@@ -280,9 +280,180 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   display: none;
 }
 
-/* 7. Reduced motion */
+/* 7. Practice screen: chips, passage card, timer, record button */
+.chip-row {
+  display: flex;
+  gap: var(--s-2);
+  overflow-x: auto;
+  padding-bottom: var(--s-1);
+}
+
+.chip {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip--selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.chip[disabled] {
+  opacity: .5;
+  pointer-events: none;
+}
+
+.passage-card {
+  margin-top: var(--s-3);
+  padding: var(--s-4);
+  max-height: 40vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.passage-card__title {
+  margin: 0 0 var(--s-1);
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.passage-card__target {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.passage-card__text {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* The dot and the clock sit on one centered line; the wrapper carries the gap above. */
+.practice__timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--s-6);
+}
+
+.timer {
+  font-size: var(--fs-hero);
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--muted);
+}
+
+.rec-dot {
+  display: none;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--s-2);
+  border-radius: 50%;
+  background: var(--record);
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: .3;
+  }
+}
+
+.btn-record {
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: var(--s-6) auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--record);
+  cursor: pointer;
+}
+
+.btn-record__mic,
+.btn-record__stop {
+  display: block;
+  margin: 0 auto;
+}
+
+.btn-record__stop {
+  display: none;
+}
+
+.btn-record__label {
+  display: block;
+  margin-top: var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+  text-align: center;
+}
+
+.practice__hint {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Recording state: live clock color, pulsing dot, stop icon instead of the mic. */
+#screen-practice[data-state="recording"] .timer {
+  color: var(--text);
+}
+
+#screen-practice[data-state="recording"] .rec-dot {
+  display: inline-block;
+}
+
+#screen-practice[data-state="recording"] .btn-record__mic {
+  display: none;
+}
+
+#screen-practice[data-state="recording"] .btn-record__stop {
+  display: block;
+}
+
+/* Uploading and error replace the hint with the state block; uploading has no button. */
+#screen-practice[data-state="uploading"] .practice__hint,
+#screen-practice[data-state="error"] .practice__hint,
+#screen-practice[data-state="uploading"] .btn-record {
+  display: none;
+}
+
+/* 8. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
+  .spinner,
+  .rec-dot {
     animation: none;
   }
 }
