@@ -1,5 +1,5 @@
 /* screens/results.js: app.screens.results, the Results screen after a take (DESIGN.md sections
-   1, 6 and 8). Pure helpers do the thinking without the DOM: summarize, headlineFor,
+   1, 6 and 8). Pure helpers do the thinking without the DOM or app.ui: summarize, headlineFor,
    compareWithPrevious, timelineSegments and buildTranscriptPlan. show({id}) loads the take and
    the one before it from app.store and draws the meta line, headline, cards, speech timeline,
    transcript, tips and actions. */
@@ -168,10 +168,11 @@
     body = root.querySelector(".screen__body");
   }
 
-  // The numbers on the four cards, their hints and the time line, from one stored session,
+  // The numbers on the four cards, their hints and the time used, from one stored session,
   // plus the app.delivery report the transcript and tips are drawn from. Pure: reads the session
-  // and app.passages, returns a fresh object. A take saved without words falls back to the
-  // backend tallies inside app.delivery, so a bad or old record never breaks the screen.
+  // and app.passages, never the DOM or app.ui, and returns a fresh object. A take saved without
+  // words falls back to the backend tallies inside app.delivery, so a bad or old record never
+  // breaks the screen.
   function summarize(session) {
     const report = app.delivery.analyze(session.transcript, session.metrics);
     const wpm = Math.round(report.wordsPerMinute);
@@ -211,15 +212,15 @@
       : { text: FILLERS_OK, tone: TONE_OK };
   }
 
-  // "2:41 of 3:00" for a preset with a time limit, else null.
+  // {seconds, limitSeconds} for a preset with a time limit, else null. Seconds, not clock text,
+  // so summarize never needs app.ui; the meta line prints it as "2:41 of 3:00".
   function timeUsedFor(passageId, speakingSeconds) {
     const passages = app.passages || [];
     const passage = passages.find((entry) => entry.id === passageId);
     if (!passage || !Number.isFinite(passage.timeLimitSeconds)) {
       return null;
     }
-    const used = app.ui.formatClock(speakingSeconds);
-    return used + TIME_USED_JOINER + app.ui.formatClock(passage.timeLimitSeconds);
+    return { seconds: speakingSeconds, limitSeconds: passage.timeLimitSeconds };
   }
 
   function paceHintFor(wpm, target) {
@@ -627,7 +628,9 @@
     const date = app.ui.formatDate(session.createdAt);
     const parts = [title, app.ui.el("span", { class: "results__date", text: date })];
     if (timeUsed) {
-      const used = app.ui.el("span", { class: "results__time-used", text: timeUsed });
+      const clock = app.ui.formatClock;
+      const text = clock(timeUsed.seconds) + TIME_USED_JOINER + clock(timeUsed.limitSeconds);
+      const used = app.ui.el("span", { class: "results__time-used", text });
       parts.push(META_SEPARATOR, used);
     }
     return app.ui.el("p", { class: "results__meta num" }, parts);
