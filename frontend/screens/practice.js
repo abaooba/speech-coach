@@ -1,10 +1,7 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
-   mount() builds the Talk / Read switch, the chips, the topic or passage card, the timer with its
-   time limit, the record button, the hint and the state block inside its root once; render(state,
-   detail) is the only function that changes that DOM afterwards, apart from the timer tick and
-   the header's theme toggle, which repaints itself. The Record tap asks for the microphone,
-   MediaRecorder collects the take, and Stop uploads it through app.api and saves it with
-   app.store. */
+   mount() builds the Talk / Read switch, chips, card, timer, record button, hint and state block
+   once; render(state, detail) repaints them. Record asks for the microphone, MediaRecorder
+   collects the take, and Stop uploads it through app.api and saves it with app.store. */
 (function () {
   "use strict";
 
@@ -436,8 +433,10 @@
     render("idle");
   }
 
-  // Applies one state to the screen. `detail` is only read for "error": {title, body,
-  // actionLabel, onAction, secondaryLabel?, onSecondary?}, passed straight to app.ui.renderState.
+  // Applies one state to the screen. It is the only code that changes this screen's DOM, apart
+  // from the timer tick, which writes the clock and the bar, and the header's theme toggle, which
+  // repaints itself. `detail` is only read for "error": {title, body, actionLabel, onAction,
+  // secondaryLabel?, onSecondary?}, passed straight to app.ui.renderState.
   function render(nextState, detail) {
     const view = viewFor(nextState);
     state = nextState;
