@@ -105,10 +105,38 @@ first; the hash is then `#/results/<id>`.
 2. Tap "Record again": Practice opens in idle. Use the browser's back button to return, then
    tap "History": the hash becomes `#/history`.
 
-3. Session not found: open http://127.0.0.1:8000/#/results/nope. The empty state built by
+3. Transcript: under the cards, a "Transcript" heading and every word of the take. Fillers
+   ("um", "uh", "hmm", "like", "so", "basically", "actually" and both words of "you know")
+   are bold amber tokens; each gap of 1.5 s or more is a purple pill such as "2.1 s pause"
+   right after the word before the gap. Record 10 seconds, say "um" five times and stop
+   talking for 3 seconds mid-sentence: five amber "um" tokens and one "x.x s pause" pill.
+   A session saved with an empty transcript (the store check above) shows no Transcript
+   section at all.
+
+4. Tips: a "Tips" heading with one or two cards, chosen in this order. Record 10 to 15
+   seconds doing one thing at a time:
+
+   - "You are above target pace." Read the passage faster than its top target plus 15 wpm
+     (over 175 wpm on Free talk).
+   - "You are under target pace." Read slower than the bottom target minus 15 wpm (under
+     125 wpm on Free talk).
+   - "Replace um with a silent beat." Say "um" five times in 10 seconds (more than 6 per
+     minute).
+   - "One pause ran past 3 seconds." Stop mid-sentence for 4 seconds, then keep talking;
+     silence before the first word or after the last one is not a pause.
+   - "You restarted phrases three times." Say a word twice in a row ("the the") on three
+     separate occasions.
+   - "Clean run." None of the above.
+
+   Talking fast and full of "um" shows two cards, pace first; a third problem is dropped.
+
+5. Session not found: open http://127.0.0.1:8000/#/results/nope. The empty state built by
    `app.ui.renderState` shows "Session not found" / "It may have been deleted." with a
    "History" button that goes to `#/history`. The same block appears for `#/results` with
    no id, and for a session id that was deleted.
 
-4. Narrow the window to 320px (DevTools device toolbar): two cards per row, no horizontal
-   scroll, no console errors. At 640px the four cards share one row.
+6. Narrow the window to 320px (DevTools device toolbar): two cards per row, the transcript
+   wraps with the pause pills staying on their line, the tip cards fit, no horizontal
+   scroll, no console errors. At 640px the four cards share one row. Switch the OS theme
+   (or DevTools "Emulate CSS prefers-color-scheme: dark"): amber and purple tokens stay
+   readable on both backgrounds.
