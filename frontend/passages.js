@@ -10,10 +10,38 @@
     "a backpack, or a phone. The real problem is school culture, and a dress code does",
     "not change culture. Second, they argue that uniforms save families money. In",
     "practice, parents still buy everyday clothes for evenings and weekends, which makes",
-    "the uniform an added cost, not a replacement. Finally, consider what we lose.",
+    "the uniform an added cost, not a replacement. Consider what we lose.",
     "Choosing how to present yourself is one of the few decisions a student makes every",
-    "day. Taking that away teaches compliance, not confidence. For these reasons, the",
-    "proposal fails on its own terms.",
+    "day. Taking that away teaches compliance, not confidence. The proposal fails on",
+    "its own terms.",
+  ].join(" ");
+
+  const REBUTTAL_HOMEWORK = [
+    "My opponents argue that homework builds discipline, but the examples they offer show",
+    "effort, not learning. Discipline comes from habits a student chooses, not from",
+    "worksheets handed out at night. They also say homework prepares students for college.",
+    "Yet a seventh grader who sleeps six hours is not preparing for anything. Tired",
+    "students retain less, and the students with the least quiet time at home fall",
+    "further behind. Finally, my opponents ignore what homework replaces: sleep, family",
+    "dinners, sports, and play. A fair policy asks which of these a school is willing to",
+    "trade. On that question, their case offers no answer.",
+  ].join(" ");
+
+  const DRILL_ST_CLUSTERS = [
+    "Strong students study strict, stress-tested strategies. Streets stretch past stone",
+    "stairs, and steady steps stir still streams. Strangers struggle to stack stray straw,",
+    "so skilled stewards sweep stale stalls first. Stan stresses structure, strength, and",
+    "stamina, then stops, steadies his stance, and starts again. Strictly speaking, stray",
+    "stories strain the stage, so stay straight, stay steady, and state each strong,",
+    "simple statement.",
+  ].join(" ");
+
+  const DRILL_PL_BL_CLUSTERS = [
+    "Plain blue planes plan blunt, bleak climbs. Clever clerks clap as black clouds blow",
+    "clear. Please place the plump plums on the blank plate, then blend, clip, and clean",
+    "the bleached cloth. Blake plays the clarinet, and Claire plays the cello, climbing",
+    "slowly through each clear, clean phrase. Clean clay plates clink. Plan the pause,",
+    "place the stress, and let every blend land.",
   ].join(" ");
 
   const GETTYSBURG_OPENING = [
@@ -48,6 +76,13 @@
       targetWpm: [150, 170],
     },
     {
+      id: "rebuttal-homework",
+      kind: "passage",
+      title: "Rebuttal: homework",
+      text: REBUTTAL_HOMEWORK,
+      targetWpm: [150, 170],
+    },
+    {
       id: "gettysburg-opening",
       kind: "passage",
       title: "Gettysburg Address, opening",
@@ -64,11 +99,52 @@
       source: "Patrick Henry, speech to the Virginia Convention, 1775",
     },
     {
+      id: "drill-st-clusters",
+      kind: "passage",
+      title: "Drill: st and str clusters",
+      text: DRILL_ST_CLUSTERS,
+      targetWpm: [120, 140],
+    },
+    {
+      id: "drill-pl-bl-clusters",
+      kind: "passage",
+      title: "Drill: pl, bl and cl clusters",
+      text: DRILL_PL_BL_CLUSTERS,
+      targetWpm: [120, 140],
+    },
+    {
       id: "free-talk",
       kind: "prompt",
       title: "Free talk",
-      text: "Argue for or against school uniforms for one minute.",
+      text: "Argue for or against school uniforms for one minute, with two clear reasons.",
       targetWpm: [140, 160],
+    },
+    {
+      id: "impromptu",
+      kind: "prompt",
+      title: "Impromptu",
+      text: "Explain a rule your school should change and why, for one minute.",
+      targetWpm: [140, 160],
+    },
+    {
+      id: "congress-speech",
+      kind: "prompt",
+      title: "Congress speech",
+      text: "Give a three-minute speech for or against a bill of your choice. " +
+        "Open with a clear claim.",
+      targetWpm: [130, 160],
+      format: "Congress",
+      timeLimitSeconds: 180,
+    },
+    {
+      id: "pf-constructive",
+      kind: "prompt",
+      title: "PF constructive",
+      text: "Deliver a constructive case you are working on, " +
+        "clear enough for a lay judge to follow.",
+      targetWpm: [140, 180],
+      format: "Public Forum",
+      timeLimitSeconds: 240,
     },
   ];
 })();
