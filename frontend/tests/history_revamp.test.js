@@ -1,8 +1,9 @@
 // Tests for the History row revamp (DESIGN.md section 6, "Session row", and section 9): the
 // "/min" stats, the muted trash button, the labelled "Delete? Yes / No" group, where keyboard
-// focus lands through a delete, the "Session deleted" announcement, the mic on the empty state
-// and the row grid in styles.css section 9. ui.js and screens/history.js run against the shared
-// fake DOM; elements made here also record focus() calls, which fake-dom.js does not have.
+// focus lands through a delete, the "Session deleted" announcement, the mic on the empty state,
+// and in styles.css section 9 the row grid and the scroll margins that keep a focused control's
+// ring clear of the fixed nav. ui.js and screens/history.js run against the shared fake DOM;
+// elements made here also record focus() calls, which fake-dom.js does not have.
 "use strict";
 
 const test = require("node:test");
@@ -469,6 +470,51 @@ test("at 200% zoom the prompt wraps inside the row and the trash keeps right", (
   assert.equal(confirm["flex-wrap"], "wrap");
   assert.equal(confirm["justify-content"], "flex-end");
   assert.equal(ruleFor(".session-row__delete")["margin-left"], "auto");
+});
+
+// Every control a row can focus: the row itself, its trash button, and Yes and No.
+const FOCUSABLE_ROW_CONTROLS = [
+  ".session-row__open",
+  ".session-row__delete",
+  ".session-row__confirm .btn",
+];
+
+// How far the focus ring reaches past the border box: outline-offset plus outline width, from
+// the :focus-visible rule in styles.css section 3.
+function focusRingReachPx() {
+  const focus = CSS.match(/:focus-visible\s*\{([^}]*)\}/);
+  assert.ok(focus, "styles.css has a :focus-visible rule");
+  const width = focus[1].match(/outline:\s*(\d+)px/);
+  const offset = focus[1].match(/outline-offset:\s*(\d+)px/);
+  assert.ok(width && offset, "the focus ring has a px width and a px offset");
+  return Number(width[1]) + Number(offset[1]);
+}
+
+function spacingTokenPx(name) {
+  const token = CSS.match(new RegExp(`\\s${name}:\\s*(\\d+)px;`));
+  assert.ok(token, `styles.css defines ${name} in px`);
+  return Number(token[1]);
+}
+
+test("a row control focused by keyboard scrolls in clear of the nav, ring and all", () => {
+  const clearOfNav = "calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom))";
+  FOCUSABLE_ROW_CONTROLS.forEach((control) => {
+    const rule = RULES.find(
+      ({ at, selector, declarations }) =>
+        at === null &&
+        selector.split(",").map(squash).includes(control) &&
+        "scroll-margin-bottom" in declarations,
+    );
+    assert.ok(rule, `${control} keeps a scroll margin`);
+    assert.equal(rule.declarations["scroll-margin-bottom"], clearOfNav, control);
+    assert.equal(rule.declarations["scroll-margin-top"], "var(--s-2)", control);
+  });
+  const navHeight = CSS.match(/\.nav\s*\{[^}]*?\sheight:\s*calc\(([^;]*)\);/);
+  assert.ok(navHeight, "the nav's height is a calc() in styles.css section 6");
+  navHeight[1].split(" + ").forEach((term) => {
+    assert.ok(clearOfNav.includes(term), `the bottom margin covers the nav's ${term}`);
+  });
+  assert.ok(spacingTokenPx("--s-2") >= focusRingReachPx(), "--s-2 holds the whole ring");
 });
 
 test("section 9 spaces only from --s-*, sizes type from --fs-* and colors from tokens", () => {

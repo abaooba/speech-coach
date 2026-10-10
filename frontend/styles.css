@@ -1392,6 +1392,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-left: auto;
 }
 
+/* Keyboard focus scrolls a control only until it touches the window's edge: at the bottom the
+   fixed nav covers it, at the top the edge cuts off its ring. These margins stop a focused row
+   control --s-2 short of both, room for the whole focus ring. */
+.session-row__open,
+.session-row__delete,
+.session-row__confirm .btn {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
 /* From 480px the stats, then the status under them, move to the right of the title and date,
    right-aligned. */
 @media (min-width: 480px) {

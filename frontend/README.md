@@ -248,7 +248,10 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
    <date>?". Press Enter on "No": focus returns to the trash icon. Open the prompt again,
    press Shift+Tab to reach "Yes" and press Enter: the live region says "Session deleted"
    and focus moves to the row now in that place (the new bottom row after deleting the
-   bottom one), or to "Record" when no session is left.
+   bottom one), or to "Record" when no session is left. On a 320 x 568 window with five or
+   more sessions, Tab down to the bottom row, open its prompt, then Shift+Tab back to the
+   top. Each focused control scrolls fully into view, its whole blue ring clear of the nav
+   and of the top edge.
 
 6. Empty state: delete the remaining sessions through the UI, or run
    `indexedDB.deleteDatabase('speech-coach')` in the console and reload. The empty state
