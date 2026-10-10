@@ -157,6 +157,33 @@ test("under 300px only the change from the average may wrap, between its words",
   assert.equal(declared(VALUE, ZOOMED)["white-space"], undefined, "Latest and Best still fit");
 });
 
+// Only the active screen matches, so the hidden one keeps .screen[hidden]'s display: none.
+const EMPTY_SCREEN = "#screen-progress.screen--active:has(.state)";
+
+test("Need two sessions sits centered in the free height above the nav", () => {
+  // As in the approved draft: the active screen fills the window inside main's padding, its
+  // body takes the height under the heading, and .state's auto margins center the block.
+  const screen = declared(EMPTY_SCREEN);
+  assert.equal(screen.display, "flex");
+  assert.equal(screen["flex-direction"], "column");
+  assert.equal(
+    screen["min-height"],
+    "calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom))",
+    "main's top and bottom padding come off the window height",
+  );
+  const body = declared(EMPTY_SCREEN + " .screen__body");
+  assert.equal(body.display, "flex");
+  assert.equal(body["flex-direction"], "column");
+  assert.equal(body.flex, "1 0 auto");
+});
+
+test("its Record button spans the block, 32px under the words", () => {
+  const action = declared("#screen-progress .state__action");
+  assert.equal(action["align-self"], "stretch");
+  // .state already puts --s-3 between its children, so the button's margin adds the rest.
+  assert.equal(action["margin-top"], "calc(var(--s-6) - var(--s-3))");
+});
+
 test("section 10 spaces only with the --s scale", () => {
   const spacing = /^(margin|padding|gap|row-gap|column-gap)(-(top|right|bottom|left))?$/;
   const step = /^(0|auto|var\(--s-[1-7]\))$/;

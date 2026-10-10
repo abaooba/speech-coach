@@ -319,6 +319,7 @@ Then open http://127.0.0.1:8000/#/progress.
 
 6. Empty state: delete sessions in History until one is left (or run
    `indexedDB.deleteDatabase('speech-coach')`, reload and save one session with the store
-   check above), then open `#/progress`. The block built by `app.ui.renderState` shows a chart
-   icon, "Need two sessions" / "Record one more to see a trend." and a "Record" button that
-   opens Practice.
+   check above), then open `#/progress`. The block built by `app.ui.renderState` sits centered
+   between the heading and the nav: a chart icon, "Need two sessions" / "Record one more to see
+   a trend." and a "Record" button as wide as the words above it, which opens Practice. Open
+   History: the Progress block does not show there.

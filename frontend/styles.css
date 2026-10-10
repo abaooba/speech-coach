@@ -1582,6 +1582,28 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: normal;
 }
 
+/* "Need two sessions" sits centered between the heading and the nav, as in the approved design:
+   while it shows, the active screen is a flex column at least as tall as the window inside
+   main's padding, its body takes the height under the heading, and the block's auto margins
+   center it. Only the active screen matches, so the hidden one keeps display: none. The Record
+   button spans the block, 32px under the words. */
+#screen-progress.screen--active:has(.state) {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
+}
+
+#screen-progress.screen--active:has(.state) .screen__body {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+#screen-progress .state__action {
+  align-self: stretch;
+  margin-top: calc(var(--s-6) - var(--s-3));
+}
+
 /* 200% zoom on a phone leaves 160 to 187px: the four options form two rows of two, the summary
    cells stack, and the change from the average may wrap between its words. */
 @media (max-width: 299px) {
