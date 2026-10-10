@@ -1,17 +1,288 @@
+/* Speech Coach stylesheet, one file: tokens, base, components, screens.
+   Raw hex colors live only in the token block above the "end tokens" line. */
+
+/* 1. Tokens (light scheme) */
 :root {
-  --bg: #ffffff;
-  --fg: #111111;
+  --bg: #FFFFFF;
+  --surface: #F4F5F7;
+  --text: #111318;
+  --muted: #5B6270;
+  --border: #D9DDE3;
+  --grid: #E4E6EA;
+  --accent: #2457F5;
+  --on-accent: #FFFFFF;
+  --accent-soft: #E3ECFA;
+  --record: #E5484D;
+  --record-bg: #FEE2E2;
+  --filler: #B45309;
+  --filler-bg: #FEF3C7;
+  --pause: #6D28D9;
+  --pause-bg: #EDE9FE;
+  --ok: #15803D;
+  --warn: #B45309;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+
+  --r-card: 12px;
+  --r-btn: 10px;
+  --r-tok: 4px;
+  --r-chip: 999px;
+
+  --nav-h: 56px;
+
+  --fs-hero: 64px;
+  --fs-metric: 40px;
+  --fs-h1: 24px;
+  --fs-h2: 18px;
+  --fs-body: 16px;
+  --fs-small: 14px;
+  --fs-micro: 12px;
+}
+
+/* 2. Tokens (dark scheme) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1115;
+    --surface: #1A1D24;
+    --text: #F2F4F7;
+    --muted: #9AA3B2;
+    --border: #2A2F3A;
+    --grid: #2B3038;
+    --accent: #6B93FF;
+    --on-accent: #0F1115;
+    --accent-soft: #1E2C44;
+    --record: #FF6369;
+    --record-bg: #3F1414;
+    --filler: #FBBF24;
+    --filler-bg: #3B2A05;
+    --pause: #B49CFF;
+    --pause-bg: #2A1F4D;
+    --ok: #4ADE80;
+    --warn: #FBBF24;
+  }
+}
+/* end tokens */
+
+/* 3. Base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
-  color: var(--fg);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: 1.5;
 }
 
 main {
   max-width: 640px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: var(--s-4) var(--s-4) calc(var(--nav-h) + var(--s-5) + env(safe-area-inset-bottom));
+}
+
+h1 {
+  margin: 0 0 var(--s-5);
+  font-size: var(--fs-h1);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+h2 {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.screen[hidden] {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4. Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: 48px;
+  padding: 0 var(--s-5);
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--accent);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--record);
+  border-color: var(--record);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn[disabled] {
+  opacity: .5;
+  pointer-events: none;
+}
+
+/* 5. State blocks and spinner */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--s-3);
+  max-width: 320px;
+  margin: auto;
+  padding: var(--s-7) var(--s-4);
+}
+
+.state__icon {
+  width: 32px;
+  height: 32px;
+  color: var(--muted);
+}
+
+.state__title {
+  margin: 0;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.state__body {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+
+.state__action {
+  margin-top: var(--s-2);
+}
+
+.state--error {
+  background: var(--record-bg);
+  border-radius: var(--r-card);
+}
+
+.state--error .state__title {
+  color: var(--record);
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 6. Bottom nav */
+.nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.nav__item {
+  flex: 1;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.nav__label {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.nav__item--active {
+  color: var(--accent);
+}
+
+body:has(#screen-onboarding.screen--active) .nav,
+body:has(#screen-practice[data-state="recording"]) .nav,
+body:has(#screen-practice[data-state="uploading"]) .nav {
+  display: none;
+}
+
+/* 7. Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
 }
