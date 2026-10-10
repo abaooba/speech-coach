@@ -536,13 +536,14 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   opacity: .5;
 }
 
-/* A column: the title and target keep their size and the text below scrolls inside. At the
-   88px floor the text's end padding is taller than the room left, so the card clips it at the
-   border; clip (hidden is the fallback) never makes the card a scroll container itself. */
+/* A column on a grid: the title shares its row with New topic (the auto column, empty when the
+   button hides), the target and the text span both columns, and only the text's row flexes, so
+   the text scrolls inside. clip (hidden is the fallback) clips at the border and never makes the
+   card a scroll container itself. */
 .passage-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
   overflow: clip;
   margin-top: var(--s-3);
@@ -560,15 +561,19 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 }
 
 .passage-card__title {
-  flex: none;
+  grid-column: 1;
   margin: 0 0 var(--s-1);
   font-size: var(--fs-h2);
   line-height: 1.3;
   font-weight: 600;
 }
 
+.passage-card__target,
+.passage-card__text {
+  grid-column: 1 / -1;
+}
+
 .passage-card__target {
-  flex: none;
   margin: 0 0 var(--s-2);
   font-size: var(--fs-small);
   line-height: 1.4;
@@ -588,7 +593,6 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
    so the last line scrolls clear of the fade (keyword colors in the mask, as for the chips). A
    focus ring is drawn inset, inside the box the mask keeps. */
 #screen-practice .passage-card__text {
-  flex: 1 1 auto;
   min-height: 0;
   padding-bottom: var(--s-5);
   overflow-y: auto;
@@ -600,13 +604,18 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   outline-offset: calc(-1 * var(--s-1));
 }
 
-/* New topic: a small ghost button in the card's top-right corner, so the topic keeps the
-   room below. It sits --s-2 in from the edges, which keeps its focus ring inside the card. */
+/* New topic: a small ghost button in the title's row, at the card's top right, so the topic
+   keeps the room below. Its 44px target reaches --s-3 above and below the row, which keeps the
+   row as tall as the title; it sits --s-2 in from the card's edge, so its focus ring shows whole.
+   The --s-2 on its left keeps a long title clear of it. */
 .passage-card__new {
-  position: absolute;
-  top: var(--s-2);
-  right: var(--s-2);
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
   min-height: 44px;
+  margin-block: calc(-1 * var(--s-3));
+  margin-left: var(--s-2);
+  margin-right: calc(-1 * var(--s-2));
   padding: 0 var(--s-2);
   gap: var(--s-1);
   font-size: var(--fs-small);
@@ -621,11 +630,6 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
 /* .btn's display would otherwise beat the hidden attribute. */
 .passage-card__new[hidden] {
   display: none;
-}
-
-/* While New topic shows, the title keeps clear of it (the button is about 100px wide). */
-.passage-card:has(.passage-card__new:not([hidden])) .passage-card__title {
-  padding-right: calc(2 * var(--s-7));
 }
 
 /* A three-column grid keeps the clock centered: the recording dot sits in the left column

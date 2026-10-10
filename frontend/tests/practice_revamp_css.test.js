@@ -169,8 +169,8 @@ test("the passage text scrolls inside the card and fades over its last --s-5 (M1
   assert.equal(valueFor(text, "min-height"), "0");
   assert.equal(valueFor(text, "padding-bottom"), "var(--s-5)", "the last line scrolls clear");
   assertKeywordMask(text, "bottom", "var(--s-5)");
-  assert.equal(valueFor(".passage-card", "display"), "flex");
-  assert.equal(valueFor(".passage-card", "flex-direction"), "column");
+  assert.equal(valueFor(".passage-card", "display"), "grid");
+  assert.equal(valueFor(".passage-card", "grid-template-rows"), "auto auto minmax(0, 1fr)");
   assert.equal(valueFor(".passage-card", "overflow-y"), undefined, "only the text scrolls");
 });
 
@@ -237,17 +237,77 @@ test("timed chips use tabular figures", () => {
   assert.equal(valueFor("#screen-practice .chip", "font-variant-numeric"), "tabular-nums");
 });
 
-test("New topic sits in the card's top-right corner, a small 44px ghost button", () => {
-  assert.equal(valueFor(".passage-card", "position"), "relative");
+test("New topic shares the title's row in the card's grid, a small 44px ghost button", () => {
+  const card = ".passage-card";
+  assert.equal(valueFor(card, "display"), "grid");
+  assert.equal(valueFor(card, "grid-template-columns"), "minmax(0, 1fr) auto");
+  assert.equal(valueFor(card, "grid-template-rows"), "auto auto minmax(0, 1fr)");
+  assert.equal(valueFor(".passage-card__title", "grid-column"), "1");
+  for (const part of [".passage-card__target", ".passage-card__text"]) {
+    assert.equal(valueFor(part, "grid-column"), "1 / -1", `${part} spans both columns`);
+  }
   const button = ".passage-card__new";
-  assert.equal(valueFor(button, "position"), "absolute");
-  assert.equal(valueFor(button, "top"), "var(--s-2)", "inset enough for a whole focus ring");
-  assert.equal(valueFor(button, "right"), "var(--s-2)");
+  assert.equal(valueFor(button, "grid-column"), "2");
+  assert.equal(valueFor(button, "grid-row"), "1");
+  assert.equal(valueFor(button, "margin-block"), "calc(-1 * var(--s-3))", "the row stays h2-tall");
+  assert.equal(valueFor(button, "position"), undefined, "no longer pinned to a corner");
   assert.equal(valueFor(button, "min-height"), "44px");
   assert.equal(valueFor(button, "font-size"), "var(--fs-small)");
   assert.equal(valueFor(".passage-card__new svg", "order"), "-1", "the icon is drawn first");
-  const titleRoom = ".passage-card:has(.passage-card__new:not([hidden])) .passage-card__title";
-  assert.ok(valueFor(titleRoom, "padding-right"), "the title keeps clear of the button");
+  const padsTitle = RULES.filter((rule) =>
+    rule.selectors.some((selector) => selector.includes(":has(.passage-card__new")),
+  );
+  assert.deepEqual(padsTitle, [], "no rule pads the title to make room for the button");
+});
+
+// Section 3: only --s-* values for margin, padding and gap. Every such value in Practice's rules
+// (section 7 and the sample rules at the end of the file) is built from the scale: 0, auto,
+// var(--s-N), its negative, or --s-N plus the bottom safe area.
+const SCALE_TERM = new RegExp(
+  "^(0|auto|var\\(--s-[1-7]\\)|calc\\(-1 \\* var\\(--s-[1-7]\\)\\)|" +
+    "calc\\(var\\(--s-[1-7]\\) \\+ env\\(safe-area-inset-bottom\\)\\))$",
+);
+const SPACING_PROPERTY = /^(margin|padding|scroll-padding)(-[a-z]+)*$|^(row-|column-)?gap$/;
+
+function topLevelTerms(value) {
+  const terms = [];
+  let depth = 0;
+  let current = "";
+  for (const char of value) {
+    depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+    if (char === " " && depth === 0) {
+      terms.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  return [...terms, current].filter(Boolean);
+}
+
+function practiceRules() {
+  const css = withoutComments(CSS);
+  const start = CSS.indexOf("/* 7. Practice screen");
+  const end = CSS.indexOf("/* 8. Results screen");
+  assert.ok(start !== -1 && end > start, "styles.css keeps its section 7 heading");
+  const section = parseRules(withoutComments(CSS.slice(start, end)));
+  const sampleRules = parseRules(css).filter((rule) =>
+    rule.selectors.some((selector) => selector.includes("practice__sample")),
+  );
+  return [...section, ...sampleRules];
+}
+
+test("every margin, padding and gap in Practice's rules comes from the --s-* scale", () => {
+  const offenders = [];
+  for (const rule of practiceRules()) {
+    for (const [property, value] of Object.entries(rule.declarations)) {
+      if (SPACING_PROPERTY.test(property) && !topLevelTerms(value).every((term) =>
+        SCALE_TERM.test(term))) {
+        offenders.push(`${rule.selectors.join(", ")} { ${property}: ${value} }`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, []);
 });
 
 test("the time limit sits right of the clock and its bar spans the next row (T26)", () => {
