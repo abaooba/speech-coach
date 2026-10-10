@@ -130,7 +130,8 @@ test("short screens lower the card floor, shrink the record button and hide the 
   assert.equal(valueFor("#screen-practice .passage-card", "min-height", SHORT_SCREENS), "88px");
   assert.equal(valueFor("#screen-practice .btn-record", "width", SHORT_SCREENS), "72px");
   assert.equal(valueFor("#screen-practice .btn-record", "height", SHORT_SCREENS), "72px");
-  assert.equal(valueFor("#screen-practice .practice__hint-text", "display", SHORT_SCREENS), "none");
+  const hintText = "#screen-practice .practice__hint-text";
+  assert.equal(valueFor(hintText, "display", SHORT_SCREENS), "none");
   const hidesSample = RULES.some(
     (rule) =>
       rule.at === SHORT_SCREENS &&
@@ -159,7 +160,7 @@ test("inside Practice the state block takes the record zone with --s-4 padding",
 function assertKeywordMask(selector, direction, length) {
   const expected = `linear-gradient(to ${direction}, black calc(100% - ${length}), transparent)`;
   assert.equal(valueFor(selector, "mask-image"), expected, `${selector} mask-image`);
-  assert.equal(valueFor(selector, "-webkit-mask-image"), expected, `${selector} -webkit-mask-image`);
+  assert.equal(valueFor(selector, "-webkit-mask-image"), expected, `${selector} webkit mask`);
 }
 
 test("the passage text scrolls inside the card and fades over its last --s-5 (M1)", () => {
@@ -200,7 +201,9 @@ test("a disabled chip dims unless it is the selected one (L7)", () => {
     (rule) =>
       rule.selectors.some(
         (selector) =>
-          selector.includes(".chip") && selector.includes("[disabled]") && !selector.includes(":not("),
+          selector.includes(".chip") &&
+          selector.includes("[disabled]") &&
+          !selector.includes(":not("),
       ) && "opacity" in rule.declarations,
   );
   assert.ok(!dimsSelected, "the selected chip keeps full contrast while disabled");
@@ -213,4 +216,64 @@ test("the header holds the h1 and a small muted wordmark that never wraps (L3)",
   assert.equal(valueFor(".wordmark", "font-size"), "var(--fs-small)");
   assert.equal(valueFor(".wordmark", "color"), "var(--muted)");
   assert.equal(valueFor(".wordmark", "white-space"), "nowrap");
+});
+
+test("the mode switch sits --s-3 above the chips", () => {
+  assert.equal(valueFor("#screen-practice .segmented", "margin-bottom"), "var(--s-3)");
+});
+
+test("hidden chips, New topic and the limit stay hidden despite their display rules", () => {
+  for (const selector of [
+    "#screen-practice .chip[hidden]",
+    ".passage-card__new[hidden]",
+    ".practice__limit[hidden]",
+    ".practice__limit-bar[hidden]",
+  ]) {
+    assert.equal(valueFor(selector, "display"), "none", selector);
+  }
+});
+
+test("timed chips use tabular figures", () => {
+  assert.equal(valueFor("#screen-practice .chip", "font-variant-numeric"), "tabular-nums");
+});
+
+test("New topic sits in the card's top-right corner, a small 44px ghost button", () => {
+  assert.equal(valueFor(".passage-card", "position"), "relative");
+  const button = ".passage-card__new";
+  assert.equal(valueFor(button, "position"), "absolute");
+  assert.equal(valueFor(button, "top"), "var(--s-2)", "inset enough for a whole focus ring");
+  assert.equal(valueFor(button, "right"), "var(--s-2)");
+  assert.equal(valueFor(button, "min-height"), "44px");
+  assert.equal(valueFor(button, "font-size"), "var(--fs-small)");
+  assert.equal(valueFor(".passage-card__new svg", "order"), "-1", "the icon is drawn first");
+  const titleRoom = ".passage-card:has(.passage-card__new:not([hidden])) .passage-card__title";
+  assert.ok(valueFor(titleRoom, "padding-right"), "the title keeps clear of the button");
+});
+
+test("the time limit sits right of the clock and its bar spans the next row (T26)", () => {
+  assert.equal(valueFor(".practice__limit", "grid-column"), "3");
+  assert.equal(valueFor(".practice__limit", "justify-self"), "start");
+  assert.equal(valueFor(".practice__limit", "font-size"), "var(--fs-small)");
+  assert.equal(valueFor(".practice__limit", "color"), "var(--muted)");
+  const bar = ".practice__limit-bar";
+  assert.equal(valueFor(bar, "grid-column"), "1 / -1");
+  assert.equal(valueFor(bar, "width"), "min(100%, 240px)");
+  assert.equal(valueFor(bar, "height"), "4px");
+  assert.equal(valueFor(bar, "background"), "var(--grid)");
+  assert.equal(valueFor(bar, "border-radius"), "var(--r-chip)");
+  assert.equal(valueFor(".practice__limit-fill", "background"), "var(--accent)");
+  assert.equal(valueFor(".practice__limit-fill", "transform"), "scaleX(0)");
+  assert.equal(
+    valueFor(".practice__limit-bar--over .practice__limit-fill", "background"),
+    "var(--warn)",
+  );
+});
+
+test("nothing new animates: the bar has no transition", () => {
+  const animated = RULES.filter(
+    (rule) =>
+      rule.selectors.some((selector) => selector.includes("practice__limit")) &&
+      ("transition" in rule.declarations || "animation" in rule.declarations),
+  );
+  assert.deepEqual(animated, []);
 });

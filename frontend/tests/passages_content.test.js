@@ -13,7 +13,12 @@ const PASSAGES_SOURCE = fs.readFileSync(path.join(__dirname, "..", "passages.js"
 const REBUTTAL_IDS = ["rebuttal-uniforms", "rebuttal-homework"];
 const EXCERPT_IDS = ["gettysburg-opening", "liberty-or-death"];
 const DRILL_IDS = ["drill-st-clusters", "drill-pl-bl-clusters"];
-const PRESET_LIMITS = { "congress-speech": 180, "pf-constructive": 240 };
+const PROMPT_LIMITS = {
+  "free-talk": 60,
+  impromptu: 120,
+  "congress-speech": 180,
+  "pf-constructive": 240,
+};
 
 function loadPassages() {
   const context = { app: {} };
@@ -95,10 +100,13 @@ test("the two clarity drills have 60 to 80 words and are titled as drills", () =
   }
 });
 
-test("every prompt has text of at least ten words", () => {
+test("every prompt's text and topics are full sentences of at least eight words", () => {
   for (const entry of loadPassages().filter((item) => item.kind === "prompt")) {
-    const count = wordCount(entry.text);
-    assert.ok(count >= 10, `${entry.id} has ${count} words`);
+    for (const text of [entry.text, ...(entry.topics || [])]) {
+      const count = wordCount(text);
+      assert.ok(count >= 8, `${entry.id}: "${text}" has ${count} words`);
+      assert.match(text, /[.?]$/, `${entry.id}: "${text}" ends a sentence`);
+    }
   }
 });
 
@@ -128,19 +136,17 @@ test("the four prompts are free-talk, impromptu and the two presets", () => {
   assert.equal(byId(passages, "pf-constructive").title, "PF constructive");
   assert.equal(
     byId(passages, "impromptu").text,
-    "Explain a rule your school should change and why, for one minute.",
+    "Explain a rule your school should change and why.",
   );
 });
 
-test("exactly two entries are timed presets, with the right format and limit", () => {
+test("four prompts are timed at 60, 120, 180 and 240; only the presets carry a format", () => {
   const passages = loadPassages();
   const timed = Array.from(passages).filter((entry) => Object.hasOwn(entry, "timeLimitSeconds"));
-  assert.deepEqual(timed.map((entry) => entry.id).sort(), Object.keys(PRESET_LIMITS).sort());
+  assert.deepEqual(timed.map((entry) => entry.id).sort(), Object.keys(PROMPT_LIMITS).sort());
   for (const entry of timed) {
     assert.ok(Number.isInteger(entry.timeLimitSeconds) && entry.timeLimitSeconds > 0);
-    assert.equal(entry.timeLimitSeconds, PRESET_LIMITS[entry.id], `limit of ${entry.id}`);
-    assert.equal(typeof entry.format, "string");
-    assert.ok(entry.format.trim().length > 0, `format of ${entry.id} is empty`);
+    assert.equal(entry.timeLimitSeconds, PROMPT_LIMITS[entry.id], `limit of ${entry.id}`);
   }
   assert.equal(byId(passages, "congress-speech").format, "Congress");
   assert.equal(byId(passages, "pf-constructive").format, "Public Forum");

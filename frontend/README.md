@@ -63,42 +63,56 @@ block below is built by `app.ui.renderState` and takes the record zone right und
 the timer, the record button and its "Record" label are hidden, and keyboard focus lands on
 the block's red title (press Tab once to reach its button).
 
-1. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
+1. Talk and Read: Practice opens on the Talk tab with "Your day 1:00" selected. The chips
+   read "Your day 1:00", "Impromptu 2:00", "Congress speech 3:00" and "PF constructive 4:00",
+   and the card shows "Talk about the best part of your day and why it stood out." Tap "New
+   topic" at the card's top right: the next topic shows, and after the eighth the first comes
+   back. Tap "Read": the chips become the six passages (no times), the card shows the passage
+   and New topic is gone. Tap "Talk": "Your day" is still selected, on the topic you left.
+   Under the clock a timed chip shows "/ 1:00" and an empty bar; a passage shows neither.
+
+2. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
    speak for about 10 seconds (the timer counts with the red dot pulsing to its left while the
-   clock stays centered, the nav disappears, and the hint reads "Tap Stop when you finish. It
-   uploads right away."), then tap Stop. "Analyzing your speech" shows with a spinner under the held timer; the record
+   clock stays centered, the bar under it fills toward the limit, the nav disappears, and the
+   hint reads "Tap Stop when you finish. It uploads right away."), then tap Stop. While
+   recording, the tabs, the chips and New topic are disabled; the selected tab and chip stay
+   readable. "Analyzing your speech" shows with a spinner under the held timer; the record
    button and its label are both hidden. The hash becomes `#/results/<id>`, and in the console:
 
    ```js
    await app.store.list()
    ```
 
-   returns one session whose `metrics.words_per_minute` is a number.
+   returns one session whose `metrics.words_per_minute` is a number and whose `passageTitle`
+   is the chip's title ("Your day"), not the topic.
 
-2. Microphone blocked: click the lock icon in the address bar, set Microphone to Block,
+3. Time limit: record "Your day" past 1:00. At the limit the bar stays full and turns rust,
+   the clock keeps counting ("1:05 / 1:00") and the take goes on until you tap Stop.
+
+4. Microphone blocked: click the lock icon in the address bar, set Microphone to Block,
    reload and tap Record. The red block reads "Microphone is blocked. Allow it in your
    browser settings, then tap Record." with a "Try again" button that returns to idle. Set
    Microphone back to Ask, reload, and the next Record tap prompts again.
 
-3. Too short: tap Record, then Stop before 5 seconds. The block reads "That was under
+5. Too short: tap Record, then Stop before 5 seconds. The block reads "That was under
    5 seconds. Try again." with "Record again", and the Network tab shows no request to
    `/api/analyze`.
 
-4. Network: tap Record, stop uvicorn (Ctrl-C) while recording, then tap Stop. The block
+6. Network: tap Record, stop uvicorn (Ctrl-C) while recording, then tap Stop. The block
    reads "Could not reach the server. Your recording is still here." with "Retry upload" and,
    under it, a blue "Record a new take". Start uvicorn again and tap Retry upload: the same
    take uploads and Results opens. Repeat the failure and tap "Record a new take" instead:
    Practice returns to idle with the record button back, and nothing is uploaded.
 
-5. Provider (502): set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds
+7. Provider (502): set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds
    and tap Stop. The block reads "Analysis failed on our side. Your recording is still here."
    with "Retry upload" and "Record a new take". Restore `STT_PROVIDER` and restart uvicorn
    afterwards.
 
-6. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole card, the
-   record button, "Record", the hint and "See a sample result" above the nav with no page
-   scroll. At 320 x 568 the hint words hide and the record button shrinks, so it and its label
-   still sit above the nav.
+8. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole "Your day"
+   topic, the record button, "Record", the hint and "See a sample result" above the nav with
+   no page scroll. At 320 x 568 the card drops to its 88px floor (its text scrolls inside), the
+   hint words hide and the record button shrinks, so it and its label still sit above the nav.
 
 Screen-reader users hear "Recording started", the clock every 30 seconds, "Recording
 stopped, N seconds" and "Results ready" through the live region.

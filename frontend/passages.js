@@ -1,8 +1,33 @@
-/* passages.js: app.passages, the fixed reading material for the Practice screen.
-   Each entry is {id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?};
-   kind "passage" is read aloud word for word, kind "prompt" is a topic the speaker improvises on. No DOM here. */
+/* passages.js: app.passages, the fixed material for the Practice screen. Each entry is
+   {id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}.
+   Kind "prompt" is a timed topic to talk on (the Talk tab) and kind "passage" is read aloud word
+   for word (the Read tab). Prompts come first: Practice opens on the first entry. No DOM here. */
 (function () {
   "use strict";
+
+  // One topic shows at a time and New topic moves to the next, so each prompt's text repeats
+  // its first topic and every entry still has text.
+  const YOUR_DAY_TOPICS = [
+    "Talk about the best part of your day and why it stood out.",
+    "Walk through your morning, from waking up to your first class.",
+    "Describe something you learned today and how you would teach it.",
+    "Tell the story of a small problem you solved today.",
+    "Describe a meal you ate today as if you were reviewing it.",
+    "Explain what you plan to do after school and why.",
+    "Talk about a conversation today that made you think.",
+    "Describe a place you spent time today, using three senses.",
+  ];
+
+  const IMPROMPTU_TOPICS = [
+    "Explain a rule your school should change and why.",
+    "Argue for or against school uniforms, with two clear reasons.",
+    "Should every student learn a second language? Take a side.",
+    "Argue whether homework should be optional in high school.",
+    "Make the case for or against a four-day school week.",
+    "Should phones be banned during the school day? Defend your answer.",
+    "Argue whether voting should start at age sixteen.",
+    "Make the case for one change that would improve your town.",
+  ];
 
   const REBUTTAL_UNIFORMS = [
     "My opponents claim that uniforms erase bullying, but the evidence says otherwise.",
@@ -68,6 +93,46 @@
   ].join(" ");
 
   app.passages = [
+    // The free-talk id is older than the "Your day" title and stays, so saved takes still find
+    // their band.
+    {
+      id: "free-talk",
+      kind: "prompt",
+      title: "Your day",
+      text: YOUR_DAY_TOPICS[0],
+      targetWpm: [140, 160],
+      timeLimitSeconds: 60,
+      topics: YOUR_DAY_TOPICS,
+    },
+    {
+      id: "impromptu",
+      kind: "prompt",
+      title: "Impromptu",
+      text: IMPROMPTU_TOPICS[0],
+      targetWpm: [140, 160],
+      timeLimitSeconds: 120,
+      topics: IMPROMPTU_TOPICS,
+    },
+    {
+      id: "congress-speech",
+      kind: "prompt",
+      title: "Congress speech",
+      text: "Give a three-minute speech for or against a bill of your choice. " +
+        "Open with a clear claim.",
+      targetWpm: [130, 160],
+      format: "Congress",
+      timeLimitSeconds: 180,
+    },
+    {
+      id: "pf-constructive",
+      kind: "prompt",
+      title: "PF constructive",
+      text: "Deliver a constructive case you are working on, " +
+        "clear enough for a lay judge to follow.",
+      targetWpm: [140, 180],
+      format: "Public Forum",
+      timeLimitSeconds: 240,
+    },
     {
       id: "rebuttal-uniforms",
       kind: "passage",
@@ -111,40 +176,6 @@
       title: "Drill: pl, bl and cl clusters",
       text: DRILL_PL_BL_CLUSTERS,
       targetWpm: [120, 140],
-    },
-    {
-      id: "free-talk",
-      kind: "prompt",
-      title: "Free talk",
-      text: "Argue for or against school uniforms for one minute, with two clear reasons.",
-      targetWpm: [140, 160],
-    },
-    {
-      id: "impromptu",
-      kind: "prompt",
-      title: "Impromptu",
-      text: "Explain a rule your school should change and why, for one minute.",
-      targetWpm: [140, 160],
-    },
-    {
-      id: "congress-speech",
-      kind: "prompt",
-      title: "Congress speech",
-      text: "Give a three-minute speech for or against a bill of your choice. " +
-        "Open with a clear claim.",
-      targetWpm: [130, 160],
-      format: "Congress",
-      timeLimitSeconds: 180,
-    },
-    {
-      id: "pf-constructive",
-      kind: "prompt",
-      title: "PF constructive",
-      text: "Deliver a constructive case you are working on, " +
-        "clear enough for a lay judge to follow.",
-      targetWpm: [140, 180],
-      format: "Public Forum",
-      timeLimitSeconds: 240,
     },
   ];
 })();

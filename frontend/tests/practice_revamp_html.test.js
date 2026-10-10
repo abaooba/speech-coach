@@ -49,7 +49,8 @@ test("the wordmark is a 16px decorative mic mark plus the words Speech Coach", (
   assert.match(svgTag, /height="16"/);
   assert.match(svgTag, /stroke="currentColor"/);
   assert.equal(squashText(wordmark.replace(svg, "")), "Speech Coach");
-  assert.ok(header.indexOf("<h1>") < header.indexOf('class="wordmark"'), "h1 first, then the mark");
+  const h1At = header.indexOf("<h1>");
+  assert.ok(h1At < header.indexOf('class="wordmark"'), "h1 first, then the mark");
 });
 
 // The visible text of a markup fragment: tags dropped, whitespace collapsed.

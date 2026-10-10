@@ -1,4 +1,4 @@
-// Tests for the revamped Practice screen (frontend/screens/practice.js, DESIGN.md sections 6 to 8):
+// Tests for the revamped Practice screen (frontend/screens/practice.js, DESIGN.md sections 6-8):
 // the record zone per state, the error block's focus and second action, and the hint copy. The
 // screen and the real ui.js run in a vm context against the shared fake DOM, extended here (and
 // only here) with focus() and a descendant querySelector; the browser APIs a take touches
@@ -51,7 +51,8 @@ class RevampElement extends FakeElement {
       if (child.classList && child.classList.contains(wanted)) {
         return child;
       }
-      const deeper = typeof child.querySelector === "function" ? child.querySelector(selector) : null;
+      const canSearch = typeof child.querySelector === "function";
+      const deeper = canSearch ? child.querySelector(selector) : null;
       if (deeper) {
         return deeper;
       }
@@ -431,4 +432,310 @@ test("the passage text scrolls back to the top only when the passage changes (M1
   const other = chips.find((chip) => chip.dataset.passageId === "b");
   other.click();
   assert.equal(text.scrollTop, 0);
+});
+
+// Talk and Read (DESIGN.md sections 6 and 7, queue T26). Prompts come first, as in passages.js.
+const MODES = [
+  {
+    id: "day",
+    kind: "prompt",
+    title: "Your day",
+    text: "First topic.",
+    topics: ["First topic.", "Second topic.", "Third topic."],
+    targetWpm: [140, 160],
+    timeLimitSeconds: 60,
+  },
+  {
+    id: "imp",
+    kind: "prompt",
+    title: "Impromptu",
+    text: "Rule topic.",
+    topics: ["Rule topic.", "Uniform topic."],
+    targetWpm: [140, 160],
+    timeLimitSeconds: 120,
+  },
+  {
+    id: "congress",
+    kind: "prompt",
+    title: "Congress speech",
+    text: "Pick a bill.",
+    targetWpm: [130, 160],
+    timeLimitSeconds: 180,
+    format: "Congress",
+  },
+  { id: "read1", kind: "passage", title: "Gettysburg", text: "Four score", targetWpm: [130, 150] },
+  { id: "read2", kind: "passage", title: "Drill", text: "Strong students", targetWpm: [120, 140] },
+];
+
+const PASSAGES_SOURCE = fs.readFileSync(path.join(__dirname, "..", "passages.js"), "utf8");
+
+function realPassages() {
+  const context = { app: {} };
+  vm.runInNewContext(PASSAGES_SOURCE, context, { filename: "passages.js" });
+  return JSON.parse(JSON.stringify(context.app.passages));
+}
+
+// Handles for the parts P3 adds, read straight from the body like the other Practice tests.
+function modeParts(t) {
+  const modeSwitch = byClass(t.body, "segmented");
+  const card = byClass(t.body, "passage-card");
+  const timerWrap = byClass(t.body, "practice__timer");
+  const limitBar = byClass(timerWrap, "practice__limit-bar");
+  const chipRow = byClass(t.body, "chip-row");
+  return {
+    modeSwitch,
+    options: modeSwitch.children,
+    talk: modeSwitch.children.find((option) => option.textContent === "Talk"),
+    read: modeSwitch.children.find((option) => option.textContent === "Read"),
+    chipRow,
+    chips: chipRow.children,
+    cardTitle: byClass(card, "passage-card__title"),
+    cardText: byClass(card, "passage-card__text"),
+    newTopic: byClass(card, "passage-card__new"),
+    limit: byClass(timerWrap, "practice__limit"),
+    limitBar,
+    limitFill: limitBar.children[0],
+  };
+}
+
+function visibleChipLabels(parts) {
+  return parts.chips.filter((chip) => !chip.hidden).map((chip) => chip.textContent);
+}
+
+function chipFor(parts, id) {
+  return parts.chips.find((chip) => chip.dataset.passageId === id);
+}
+
+test("the mode switch is a labeled group of Talk and Read toggles, first in the body", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  assert.equal(t.body.children[0], parts.modeSwitch);
+  assert.equal(parts.modeSwitch.className, "segmented");
+  assert.equal(parts.modeSwitch.getAttribute("role"), "group");
+  assert.equal(parts.modeSwitch.getAttribute("aria-label"), "Practice mode");
+  assert.deepEqual(
+    parts.options.map((option) => option.textContent),
+    ["Talk", "Read"],
+  );
+  for (const option of parts.options) {
+    assert.equal(option.tagName, "button");
+    assert.equal(option.getAttribute("type"), "button");
+    assert.ok(option.classList.contains("segmented__option"));
+  }
+});
+
+test("Practice opens on the first entry's tab with that entry selected", () => {
+  const talkFirst = modeParts(setup({ passages: MODES }));
+  assert.equal(talkFirst.talk.getAttribute("aria-pressed"), "true");
+  assert.ok(talkFirst.talk.classList.contains("segmented__option--selected"));
+  assert.equal(talkFirst.read.getAttribute("aria-pressed"), "false");
+  assert.ok(!talkFirst.read.classList.contains("segmented__option--selected"));
+  assert.equal(talkFirst.cardTitle.textContent, "Your day");
+
+  const readFirst = setup({ passages: [...MODES.slice(3), ...MODES.slice(0, 3)] });
+  const parts = modeParts(readFirst);
+  assert.equal(parts.read.getAttribute("aria-pressed"), "true");
+  assert.equal(readFirst.practice.selectedPassage().id, "read1");
+});
+
+test("with the real passages Practice opens on Talk with Your day and its first topic", () => {
+  const t = setup({ passages: realPassages() });
+  const parts = modeParts(t);
+  assert.equal(parts.talk.getAttribute("aria-pressed"), "true");
+  assert.equal(t.practice.selectedPassage().id, "free-talk");
+  assert.equal(parts.cardTitle.textContent, "Your day");
+  assert.equal(
+    parts.cardText.textContent,
+    "Talk about the best part of your day and why it stood out.",
+  );
+  assert.deepEqual(visibleChipLabels(parts), [
+    "Your day 1:00",
+    "Impromptu 2:00",
+    "Congress speech 3:00",
+    "PF constructive 4:00",
+  ]);
+});
+
+test("each tab lists only its own entries; timed chips read the title and the limit", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  assert.deepEqual(visibleChipLabels(parts), [
+    "Your day 1:00",
+    "Impromptu 2:00",
+    "Congress speech 3:00",
+  ]);
+  parts.read.click();
+  assert.deepEqual(visibleChipLabels(parts), ["Gettysburg", "Drill"]);
+  assert.equal(parts.read.getAttribute("aria-pressed"), "true");
+  assert.equal(parts.talk.getAttribute("aria-pressed"), "false");
+});
+
+test("each tab keeps its own selection, and switching tabs scrolls the chips back", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  chipFor(parts, "imp").click();
+  parts.read.click();
+  assert.equal(t.practice.selectedPassage().id, "read1");
+  chipFor(parts, "read2").click();
+  assert.equal(parts.cardTitle.textContent, "Drill");
+  assert.equal(chipFor(parts, "read2").getAttribute("aria-pressed"), "true");
+
+  parts.chipRow.scrollLeft = 120;
+  parts.talk.click();
+  assert.equal(parts.chipRow.scrollLeft, 0);
+  assert.equal(t.practice.selectedPassage().id, "imp");
+  assert.ok(chipFor(parts, "imp").classList.contains("chip--selected"));
+  assert.ok(!chipFor(parts, "read2").classList.contains("chip--selected"), "hidden tab");
+  parts.read.click();
+  assert.equal(t.practice.selectedPassage().id, "read2");
+});
+
+test("New topic moves to the next topic, wraps, and each prompt keeps its place", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  assert.equal(parts.newTopic.tagName, "button");
+  assert.ok(parts.newTopic.classList.contains("btn"));
+  assert.ok(parts.newTopic.classList.contains("btn--ghost"));
+  assert.equal(parts.newTopic.textContent, "New topic");
+  const icon = parts.newTopic.children[0];
+  assert.equal(icon.getAttribute("data-icon"), "refresh", "the refresh icon follows the words");
+
+  assert.equal(parts.cardText.textContent, "First topic.");
+  parts.newTopic.click();
+  assert.equal(parts.cardText.textContent, "Second topic.");
+  parts.newTopic.click();
+  assert.equal(parts.cardText.textContent, "Third topic.");
+  parts.newTopic.click();
+  assert.equal(parts.cardText.textContent, "First topic.", "wraps to the first topic");
+  parts.newTopic.click();
+
+  chipFor(parts, "imp").click();
+  assert.equal(parts.cardText.textContent, "Rule topic.");
+  chipFor(parts, "day").click();
+  assert.equal(parts.cardText.textContent, "Second topic.", "the topic stays as it was left");
+});
+
+test("a new topic scrolls the text back to the top", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  parts.cardText.scrollTop = 40;
+  parts.newTopic.click();
+  assert.equal(parts.cardText.scrollTop, 0);
+});
+
+test("New topic shows only for a prompt with topics, and only in idle", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  assert.equal(parts.newTopic.hidden, false);
+  chipFor(parts, "congress").click();
+  assert.equal(parts.newTopic.hidden, true, "no topics to cycle");
+  parts.read.click();
+  assert.equal(parts.newTopic.hidden, true, "passages have no topics");
+  parts.talk.click();
+  chipFor(parts, "day").click();
+  for (const state of ["recording", "uploading", "error"]) {
+    t.practice.render(state, { title: "t", body: "b" });
+    assert.equal(parts.newTopic.hidden, true, state);
+    assert.equal(parts.newTopic.disabled, true, state);
+    parts.newTopic.click();
+    assert.equal(parts.cardText.textContent, "First topic.", `${state} keeps the topic`);
+  }
+  t.practice.render("idle");
+  assert.equal(parts.newTopic.hidden, false);
+  assert.equal(parts.newTopic.disabled, false);
+});
+
+test("tabs, chips and New topic are disabled while recording, uploading and in error", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  for (const state of ["recording", "uploading", "error"]) {
+    t.practice.render(state, { title: "t", body: "b" });
+    parts.options.forEach((option) => assert.equal(option.disabled, true, `${state} tab`));
+    parts.chips.forEach((chip) => assert.equal(chip.disabled, true, `${state} chip`));
+    parts.read.click();
+    assert.equal(parts.talk.getAttribute("aria-pressed"), "true", `${state} keeps the tab`);
+  }
+  t.practice.render("idle");
+  parts.options.forEach((option) => assert.equal(option.disabled, false));
+});
+
+test("a tab with no entries is disabled", () => {
+  const t = setup({ passages: MODES.slice(3) });
+  const parts = modeParts(t);
+  assert.equal(parts.talk.disabled, true);
+  assert.equal(parts.read.disabled, false);
+  assert.equal(parts.read.getAttribute("aria-pressed"), "true");
+});
+
+test("a timed entry shows / 1:00 and an empty bar; untimed entries hide both", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  assert.equal(parts.limit.tagName, "span");
+  assert.ok(parts.limit.classList.contains("num"));
+  assert.equal(parts.limit.textContent, "/ 1:00");
+  assert.equal(parts.limit.hidden, false);
+  assert.equal(parts.limitBar.hidden, false);
+  assert.equal(parts.limitBar.getAttribute("aria-hidden"), "true");
+  assert.ok(parts.limitFill.classList.contains("practice__limit-fill"));
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0)");
+
+  chipFor(parts, "imp").click();
+  assert.equal(parts.limit.textContent, "/ 2:00");
+  parts.read.click();
+  assert.equal(parts.limit.hidden, true);
+  assert.equal(parts.limitBar.hidden, true);
+});
+
+test("the bar fills with elapsed over the limit and turns over at the limit", async () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  t.recordButton.click();
+  t.grantMic();
+  await flush();
+  assert.equal(t.clock.activeIntervals(), 1, "one interval drives the clock and the bar");
+
+  t.clock.advance(15000);
+  assert.equal(t.timer.textContent, "0:15");
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.25)");
+  assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"));
+
+  t.clock.advance(45000);
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(1)");
+  assert.ok(parts.limitBar.classList.contains("practice__limit-bar--over"));
+
+  t.clock.advance(5000);
+  assert.equal(t.root.dataset.state, "recording", "the limit never stops a take");
+  assert.equal(t.timer.textContent, "1:05");
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(1)");
+  assert.ok(parts.limitBar.classList.contains("practice__limit-bar--over"));
+  assert.equal(t.clock.activeIntervals(), 1);
+});
+
+test("render keeps the bar where the last take left it; a new take empties it", async () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  await recordTake(t, 30000);
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.5)");
+  t.rejectUpload(apiError("network"));
+  await flush();
+  stateBlock(t).children[4].click();
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.5)");
+  assert.equal(t.timer.textContent, "0:30", "idle holds the last take, as the clock does");
+
+  t.recordButton.click();
+  t.grantMic();
+  await flush();
+  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0)");
+  assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"));
+});
+
+test("a take saves the entry's title and id, whichever topic was showing", async () => {
+  const t = setup({ passages: MODES });
+  modeParts(t).newTopic.click();
+  await recordTake(t, 6000);
+  t.resolveUpload({ transcript: [], metrics: {} });
+  await flush();
+  assert.equal(t.calls.save.length, 1);
+  assert.equal(t.calls.save[0].passageId, "day");
+  assert.equal(t.calls.save[0].passageTitle, "Your day");
 });

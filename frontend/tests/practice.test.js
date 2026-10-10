@@ -261,6 +261,7 @@ test("mount builds the chip row, passage card, timer, record button, hint and st
   assert.deepEqual(
     parts.body.children.map((child) => child.className),
     [
+      "segmented",
       "chip-row",
       "passage-card",
       "practice__timer",

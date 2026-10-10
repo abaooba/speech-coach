@@ -484,6 +484,11 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   mask-image: linear-gradient(to right, black calc(100% - var(--s-6)), transparent);
 }
 
+/* The Talk / Read switch heads the body. */
+#screen-practice .segmented {
+  margin-bottom: var(--s-3);
+}
+
 .chip {
   flex: none;
   min-height: 44px;
@@ -506,6 +511,15 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   border-color: var(--accent);
 }
 
+/* Timed chips read "Your day 1:00". Only the current tab's chips show. */
+#screen-practice .chip {
+  font-variant-numeric: tabular-nums;
+}
+
+#screen-practice .chip[hidden] {
+  display: none;
+}
+
 .chip[disabled] {
   pointer-events: none;
 }
@@ -519,6 +533,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
    88px floor the text's end padding is taller than the room left, so the card clips it at the
    border; clip (hidden is the fallback) never makes the card a scroll container itself. */
 .passage-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -577,6 +592,34 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   outline-offset: calc(-1 * var(--s-1));
 }
 
+/* New topic: a small ghost button in the card's top-right corner, so the topic keeps the
+   room below. It sits --s-2 in from the edges, which keeps its focus ring inside the card. */
+.passage-card__new {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+  min-height: 44px;
+  padding: 0 var(--s-2);
+  gap: var(--s-1);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+/* The refresh icon follows the words in the DOM and is drawn first. */
+.passage-card__new svg {
+  order: -1;
+}
+
+/* .btn's display would otherwise beat the hidden attribute. */
+.passage-card__new[hidden] {
+  display: none;
+}
+
+/* While New topic shows, the title keeps clear of it (the button is about 100px wide). */
+.passage-card:has(.passage-card__new:not([hidden])) .passage-card__title {
+  padding-right: calc(2 * var(--s-7));
+}
+
 /* A three-column grid keeps the clock centered: the recording dot sits in the left column
    beside it, and the right column is free for a time limit. The wrapper carries the gap above. */
 .practice__timer {
@@ -584,7 +627,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   grid-template-columns: 1fr auto 1fr;
   align-items: baseline;
   column-gap: var(--s-2);
-  margin-top: var(--s-4);
+  margin-top: var(--s-3);
 }
 
 .timer {
@@ -619,6 +662,48 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   to {
     opacity: .3;
   }
+}
+
+/* "/ 1:00" in the right column, on the clock's baseline. */
+.practice__limit {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* The time-limit bar spans the next row: a --grid track with an --accent fill scaled by elapsed
+   over limit (practice.js sets the transform). From the limit on it stays full in --warn. */
+.practice__limit-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: center;
+  width: min(100%, 240px);
+  height: 4px;
+  margin-top: var(--s-2);
+  overflow: hidden;
+  border-radius: var(--r-chip);
+  background: var(--grid);
+}
+
+.practice__limit-fill {
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.practice__limit-bar--over .practice__limit-fill {
+  background: var(--warn);
+}
+
+.practice__limit[hidden],
+.practice__limit-bar[hidden] {
+  display: none;
 }
 
 /* The icons inside draw in currentColor: --on-record keeps them at least 3:1 in both schemes. */
@@ -659,7 +744,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: var(--s-2) 0 0;
+  margin: var(--s-1) 0 0;
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;

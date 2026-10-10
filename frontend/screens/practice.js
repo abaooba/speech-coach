@@ -1,12 +1,24 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
-   mount() builds the passage chips, passage card, timer, record button, hint and state block
-   inside its root once; render(state, detail) is the only function that changes that DOM
-   afterwards, apart from the timer tick. The Record tap asks for the microphone, MediaRecorder
-   collects the take, and Stop uploads it through app.api and saves it with app.store. */
+   mount() builds the Talk / Read switch, the chips, the topic or passage card, the timer with its
+   time limit, the record button, the hint and the state block inside its root once; render(state,
+   detail) is the only function that changes that DOM afterwards, apart from the timer tick. The
+   Record tap asks for the microphone, MediaRecorder collects the take, and Stop uploads it
+   through app.api and saves it with app.store. */
 (function () {
   "use strict";
 
   const STATES = ["idle", "recording", "uploading", "error"];
+
+  // The mode switch's tabs, in order: Talk lists the prompts and Read the passages.
+  const MODES = [
+    { kind: "prompt", label: "Talk" },
+    { kind: "passage", label: "Read" },
+  ];
+  const MODE_SWITCH_LABEL = "Practice mode";
+  const NEW_TOPIC_LABEL = "New topic";
+  const NEW_TOPIC_ICON_SIZE = 16;
+  const LIMIT_PREFIX = "/ ";
+  const LIMIT_OVER_CLASS = "practice__limit-bar--over";
 
   const HINT_TEXT = "Tap to record. Stop uploads automatically.";
   const RECORDING_HINT_TEXT = "Tap Stop when you finish. It uploads right away.";
@@ -53,15 +65,27 @@
   let root = null;
   // The one string every other piece of this screen is derived from.
   let state = "idle";
-  let selectedPassageId = null;
+
+  // What the speaker picked, kept as they left it while the app is open: the tab showing
+  // ("prompt" is Talk, "passage" is Read), each tab's own selected entry id, and the topic each
+  // prompt with topics is on (by entry id; a prompt starts on its first topic).
+  let currentKind = MODES[0].kind;
+  const selectedIdByKind = {};
+  const topicIndexById = {};
 
   // Nodes built by mount() and repainted by render(); only tickTimer() writes the timer.
   const nodes = {
+    modeOptions: [],
+    chipRow: null,
     chips: [],
     cardTitle: null,
     cardTarget: null,
     cardText: null,
+    newTopic: null,
     timer: null,
+    limit: null,
+    limitBar: null,
+    limitFill: null,
     recordButton: null,
     recordLabel: null,
     hintText: null,
@@ -84,9 +108,15 @@
   // The finished take, kept through uploading and error so Retry re-sends the same blob.
   let pendingTake = null;
 
-  // Which passage the card shows, so render() scrolls its text back to the top only when that
-  // changes and a state change never loses the reader's place.
-  let paintedPassageId = null;
+  // The seconds the clock shows: the live take's, or the last take's until the next one starts.
+  // render() redraws the limit bar from it, for whichever entry is selected.
+  let shownSeconds = 0;
+
+  // What the card and the chip row last showed, so render() scrolls the text back to the top
+  // only when the passage or topic changes, and the chips back to the start only when the tab
+  // changes; a state change never loses the reader's place.
+  let paintedTextKey = null;
+  let paintedKind = null;
 
   // True from the sample tap until its fetch, validation and save have settled.
   let loadingSample = false;
@@ -94,6 +124,7 @@
   // The state table from DESIGN.md section 7 as plain data, so it can be tested without a DOM.
   // showHint and showRecord mirror the [data-state] rules in styles.css: the record button and
   // its label show in idle and recording only, and error puts its block in their place.
+  // chipsDisabled holds the tabs and New topic as well; New topic shows in idle only.
   function viewFor(nextState) {
     if (!STATES.includes(nextState)) {
       throw new Error("practice: unknown state " + JSON.stringify(nextState));
@@ -106,23 +137,68 @@
       recordAriaLabel: recording ? "Stop recording" : "Start recording",
       recordPressed: recording,
       chipsDisabled: !idle,
+      showNewTopic: idle,
       showHint: idle || recording,
       hintText: recording ? RECORDING_HINT_TEXT : HINT_TEXT,
       showRecord: idle || recording,
     };
   }
 
+  // The entry the current tab has selected, or null before mount or for an empty tab.
   function selectedPassage() {
-    const passages = app.passages || [];
-    return passages.find((entry) => entry.id === selectedPassageId) || passages[0] || null;
+    const id = selectedIdByKind[currentKind];
+    return (app.passages || []).find((entry) => entry.id === id) || null;
+  }
+
+  // Helpers over the passage data; none of them touches the DOM or app.ui.
+
+  // The tab Practice opens on is the first entry's, so the data's order decides; passages.js
+  // lists the prompts first because Talk is home.
+  function firstKind(passages) {
+    const first = passages.find((entry) => MODES.some((mode) => mode.kind === entry.kind));
+    return first ? first.kind : MODES[0].kind;
+  }
+
+  function entriesOfKind(passages, kind) {
+    return passages.filter((entry) => entry.kind === kind);
+  }
+
+  function hasTopics(entry) {
+    return Boolean(entry) && Array.isArray(entry.topics) && entry.topics.length > 0;
+  }
+
+  // The time limit in seconds, or null for an untimed entry.
+  function limitOf(entry) {
+    const limit = entry ? entry.timeLimitSeconds : null;
+    return Number.isFinite(limit) && limit > 0 ? limit : null;
+  }
+
+  // How full the time-limit bar is: elapsed over limit, capped at 1, to four decimals.
+  function limitRatio(seconds, limit) {
+    const ratio = Math.min(1, Math.max(0, seconds / limit));
+    return Math.round(ratio * 10000) / 10000;
+  }
+
+  function topicIndexOf(entry) {
+    return topicIndexById[entry.id] || 0;
+  }
+
+  // What the card shows: the current topic of a prompt with topics, otherwise the entry's text.
+  function cardTextOf(entry) {
+    return hasTopics(entry) ? entry.topics[topicIndexOf(entry)] : entry.text;
   }
 
   function mount(screenRoot) {
     root = screenRoot;
     const passages = app.passages || [];
-    selectedPassageId = passages.length > 0 ? passages[0].id : null;
+    currentKind = firstKind(passages);
+    MODES.forEach((mode) => {
+      const [first] = entriesOfKind(passages, mode.kind);
+      selectedIdByKind[mode.kind] = first ? first.id : null;
+    });
 
     const body = root.querySelector(".screen__body");
+    body.appendChild(buildModeSwitch());
     body.appendChild(buildChipRow(passages));
     body.appendChild(buildPassageCard());
     body.appendChild(buildTimer());
@@ -204,36 +280,84 @@
     );
   }
 
+  // Talk or Read: toggle buttons in a labeled group (DESIGN.md section 6, "Segmented control").
+  function buildModeSwitch() {
+    nodes.modeOptions = MODES.map((mode) =>
+      app.ui.el("button", {
+        class: "segmented__option",
+        type: "button",
+        "aria-pressed": "false",
+        dataset: { kind: mode.kind },
+        text: mode.label,
+        onClick: () => selectKind(mode.kind),
+      }),
+    );
+    return app.ui.el(
+      "div",
+      { class: "segmented", role: "group", "aria-label": MODE_SWITCH_LABEL },
+      nodes.modeOptions,
+    );
+  }
+
+  // One chip per entry, built once; render() shows only the current tab's chips.
   function buildChipRow(passages) {
     nodes.chips = passages.map((passage) =>
       app.ui.el("button", {
         class: "chip",
         type: "button",
         "aria-pressed": "false",
-        dataset: { passageId: passage.id },
-        text: passage.title,
+        dataset: { passageId: passage.id, kind: passage.kind },
+        text: chipLabel(passage),
         onClick: () => selectPassage(passage.id),
       }),
     );
-    return app.ui.el("div", { class: "chip-row" }, nodes.chips);
+    nodes.chipRow = app.ui.el("div", { class: "chip-row" }, nodes.chips);
+    return nodes.chipRow;
   }
 
+  // "Your day 1:00" for a timed entry, the bare title for an untimed one.
+  function chipLabel(passage) {
+    const limit = limitOf(passage);
+    return limit === null ? passage.title : passage.title + " " + app.ui.formatClock(limit);
+  }
+
+  // The card holds the title, the target, the text and New topic. The refresh icon follows the
+  // words in the DOM, so the label is plain text; CSS draws the icon first.
   function buildPassageCard() {
     nodes.cardTitle = app.ui.el("h2", { class: "passage-card__title" });
     nodes.cardTarget = app.ui.el("p", { class: "passage-card__target" });
     nodes.cardText = app.ui.el("p", { class: "passage-card__text" });
+    nodes.newTopic = app.ui.el(
+      "button",
+      {
+        class: "btn btn--ghost passage-card__new",
+        type: "button",
+        text: NEW_TOPIC_LABEL,
+        onClick: showNextTopic,
+      },
+      [app.ui.icon("refresh", NEW_TOPIC_ICON_SIZE)],
+    );
     return app.ui.el("section", { class: "passage-card" }, [
       nodes.cardTitle,
       nodes.cardTarget,
       nodes.cardText,
+      nodes.newTopic,
     ]);
   }
 
+  // The clock, plus "/ 1:00" and a bar that fills toward the limit for a timed entry.
   function buildTimer() {
     nodes.timer = app.ui.el("div", { class: "timer num", "aria-live": "off", text: TIMER_START });
+    nodes.limit = app.ui.el("span", { class: "practice__limit num" });
+    nodes.limitFill = app.ui.el("div", { class: "practice__limit-fill" });
+    nodes.limitBar = app.ui.el("div", { class: "practice__limit-bar", "aria-hidden": "true" }, [
+      nodes.limitFill,
+    ]);
     return app.ui.el("div", { class: "practice__timer" }, [
       app.ui.el("span", { class: "rec-dot", "aria-hidden": "true" }),
       nodes.timer,
+      nodes.limit,
+      nodes.limitBar,
     ]);
   }
 
@@ -246,12 +370,33 @@
     return nodes.recordButton;
   }
 
-  // Chips only respond in idle; the disabled flag already blocks taps in the other states.
+  // Tabs, chips and New topic only respond in idle; their disabled flags already block taps in
+  // the other states. A chip selects its entry on that entry's own tab.
   function selectPassage(passageId) {
-    if (state !== "idle") {
+    const entry = (app.passages || []).find((candidate) => candidate.id === passageId);
+    if (state !== "idle" || !entry) {
       return;
     }
-    selectedPassageId = passageId;
+    currentKind = entry.kind;
+    selectedIdByKind[entry.kind] = entry.id;
+    render("idle");
+  }
+
+  function selectKind(kind) {
+    if (state !== "idle" || kind === currentKind) {
+      return;
+    }
+    currentKind = kind;
+    render("idle");
+  }
+
+  // The selected prompt's next topic, back to the first after the last.
+  function showNextTopic() {
+    const entry = selectedPassage();
+    if (state !== "idle" || !hasTopics(entry)) {
+      return;
+    }
+    topicIndexById[entry.id] = (topicIndexOf(entry) + 1) % entry.topics.length;
     render("idle");
   }
 
@@ -262,28 +407,53 @@
     state = nextState;
     root.dataset.state = view.dataState;
 
+    const passage = selectedPassage();
+    paintModeSwitch(view);
     paintChips(view);
-    paintPassageCard(selectedPassage());
+    paintPassageCard(view, passage);
+    paintTimeLimit(passage);
     paintRecordButton(view);
     nodes.hintText.textContent = view.hintText;
     paintStateBlock(view.dataState, detail || {});
   }
 
+  // A tab with no entries stays disabled, so the screen never shows an empty card.
+  function paintModeSwitch(view) {
+    const passages = app.passages || [];
+    nodes.modeOptions.forEach((option) => {
+      const kind = option.dataset.kind;
+      const selected = kind === currentKind;
+      option.classList.toggle("segmented__option--selected", selected);
+      option.setAttribute("aria-pressed", String(selected));
+      option.disabled = view.chipsDisabled || entriesOfKind(passages, kind).length === 0;
+    });
+  }
+
+  // Only the current tab's chips show; switching tabs scrolls the row back to its start.
   function paintChips(view) {
+    const selectedId = selectedIdByKind[currentKind];
     nodes.chips.forEach((chip) => {
-      const selected = chip.dataset.passageId === selectedPassageId;
+      const inTab = chip.dataset.kind === currentKind;
+      const selected = inTab && chip.dataset.passageId === selectedId;
+      chip.hidden = !inTab;
       chip.classList.toggle("chip--selected", selected);
       chip.setAttribute("aria-pressed", String(selected));
       chip.disabled = view.chipsDisabled;
     });
+    if (currentKind !== paintedKind) {
+      nodes.chipRow.scrollLeft = 0;
+      paintedKind = currentKind;
+    }
   }
 
-  function paintPassageCard(passage) {
-    const passageId = passage ? passage.id : null;
-    if (passageId !== paintedPassageId) {
+  function paintPassageCard(view, passage) {
+    const textKey = passage ? passage.id + "/" + topicIndexOf(passage) : null;
+    if (textKey !== paintedTextKey) {
       nodes.cardText.scrollTop = 0;
-      paintedPassageId = passageId;
+      paintedTextKey = textKey;
     }
+    nodes.newTopic.hidden = !(view.showNewTopic && hasTopics(passage));
+    nodes.newTopic.disabled = view.chipsDisabled;
     if (!passage) {
       nodes.cardTitle.textContent = "";
       nodes.cardTarget.textContent = "";
@@ -293,7 +463,24 @@
     const [lo, hi] = passage.targetWpm;
     nodes.cardTitle.textContent = passage.title;
     nodes.cardTarget.textContent = "Target " + lo + " to " + hi + " wpm";
-    nodes.cardText.textContent = passage.text;
+    nodes.cardText.textContent = cardTextOf(passage);
+  }
+
+  // "/ 1:00" and the bar for a timed entry; an untimed entry hides both.
+  function paintTimeLimit(passage) {
+    const limit = limitOf(passage);
+    nodes.limit.hidden = limit === null;
+    nodes.limitBar.hidden = limit === null;
+    nodes.limit.textContent = limit === null ? "" : LIMIT_PREFIX + app.ui.formatClock(limit);
+    paintLimitFill(limit);
+  }
+
+  // Scales the fill to the seconds on the clock. From the limit on it stays full and turns rust;
+  // the take keeps going. The style goes through setAttribute, the one way the test fakes take.
+  function paintLimitFill(limit) {
+    const ratio = limit === null ? 0 : limitRatio(shownSeconds, limit);
+    nodes.limitFill.setAttribute("style", "transform: scaleX(" + ratio + ")");
+    nodes.limitBar.classList.toggle(LIMIT_OVER_CLASS, limit !== null && shownSeconds >= limit);
   }
 
   function paintRecordButton(view) {
@@ -532,17 +719,22 @@
     render("idle");
   }
 
-  // The timer: a 250 ms tick paints the elapsed clock and announces it every 30 s.
+  // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, and announces
+  // the clock every 30 s.
   function startTimer() {
     capture.startedAt = performance.now();
     capture.announcedBlocks = 0;
+    shownSeconds = 0;
     nodes.timer.textContent = TIMER_START;
+    paintLimitFill(limitOf(selectedPassage()));
     capture.timerId = setInterval(tickTimer, TIMER_TICK_MS);
   }
 
   function tickTimer() {
     const elapsed = elapsedSeconds();
+    shownSeconds = elapsed;
     nodes.timer.textContent = app.ui.formatClock(elapsed);
+    paintLimitFill(limitOf(selectedPassage()));
     const blocks = Math.floor(elapsed / ANNOUNCE_EVERY_SECONDS);
     if (blocks > capture.announcedBlocks) {
       capture.announcedBlocks = blocks;
