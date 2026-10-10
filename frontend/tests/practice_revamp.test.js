@@ -858,3 +858,17 @@ test("a section without the toggle mounts as before", () => {
   assert.equal(t.root.dataset.state, "idle");
   assert.ok(!Object.hasOwn(t.html.dataset, "theme"), "mount never applies a theme itself");
 });
+
+test("New topic follows the title in the card, so focus order runs top to bottom", () => {
+  const t = setup({ passages: MODES });
+  const card = byClass(t.body, "passage-card");
+  assert.deepEqual(
+    card.children.map((child) => child.className),
+    [
+      "passage-card__title",
+      "btn btn--ghost passage-card__new",
+      "passage-card__target",
+      "passage-card__text",
+    ],
+  );
+});

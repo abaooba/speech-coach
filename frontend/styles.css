@@ -573,6 +573,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
@@ -794,6 +795,7 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   gap: var(--s-2);
   margin: var(--s-4) auto 0;
   padding: var(--s-4);
+  font-variant-numeric: tabular-nums;
 }
 
 #screen-practice .practice__state .state__action,
@@ -1121,8 +1123,11 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   color: var(--accent);
 }
 
+/* A quiet link-like ghost button under the hint: small text, as New topic, on a 44px target. */
 .practice__sample {
   min-height: 44px;
+  font-size: var(--fs-small);
+  font-weight: 500;
 }
 
 /* The sample is for idle only. While recording it keeps its room, invisible and out of the tab

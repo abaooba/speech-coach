@@ -282,3 +282,15 @@ test("the theme toggle's 44px target overlaps the header edges; the row stays h1
   assert.equal(valueFor(".theme-toggle", "margin-block"), "calc(-1 * var(--s-2))");
   assert.equal(valueFor(".theme-toggle", "margin-right"), "calc(-1 * var(--s-2))");
 });
+
+test("figures in the target line and the state block use tabular digits", () => {
+  assert.equal(valueFor(".passage-card__target", "font-variant-numeric"), "tabular-nums");
+  const block = "#screen-practice .practice__state .state";
+  assert.equal(valueFor(block, "font-variant-numeric"), "tabular-nums");
+});
+
+test("See a sample result is small, like New topic, with a 44px target", () => {
+  assert.equal(valueFor(".practice__sample", "min-height"), "44px");
+  assert.equal(valueFor(".practice__sample", "font-size"), "var(--fs-small)");
+  assert.equal(valueFor(".practice__sample", "font-weight"), "500");
+});

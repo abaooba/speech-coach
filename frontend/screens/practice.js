@@ -356,7 +356,8 @@
     return limit === null ? passage.title : passage.title + " " + app.ui.formatClock(limit);
   }
 
-  // The card holds the title, the target, the text and New topic. The refresh icon follows the
+  // The card holds the title, New topic, the target and the text. New topic comes right after
+  // the title, so focus order matches its place at the top right. Its refresh icon follows the
   // words in the DOM, so the label is plain text; CSS draws the icon first.
   function buildPassageCard() {
     nodes.cardTitle = app.ui.el("h2", { class: "passage-card__title" });
@@ -374,9 +375,9 @@
     );
     return app.ui.el("section", { class: "passage-card" }, [
       nodes.cardTitle,
+      nodes.newTopic,
       nodes.cardTarget,
       nodes.cardText,
-      nodes.newTopic,
     ]);
   }
 
