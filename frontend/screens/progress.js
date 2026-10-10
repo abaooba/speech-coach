@@ -118,11 +118,14 @@
   const COORD_SCALE = 100;
 
   // Where the labels sit relative to the axes, in viewBox units; dy centers a y label on its
-  // gridline. Up to five takes every one gets a date; past that, five dates spread evenly.
+  // gridline. Up to five takes every one gets a date; past that, five dates spread evenly, or
+  // fewer where five would crowd. The widest short date, "May 28", is about 43 units wide at the
+  // micro size, so centered dates keep their centers X_LABEL_SPACING apart.
   const Y_LABEL_GAP = 6;
   const Y_LABEL_DY = "0.35em";
   const X_LABEL_DROP = 18;
   const MAX_X_LABELS = 5;
+  const X_LABEL_SPACING = 44;
 
   // Strokes and fills are tokens only, never hex (DESIGN.md section 4).
   const GRID_COLOR = "var(--grid)";
@@ -605,13 +608,13 @@
     );
   }
 
-  // Short dates ("Oct 9") under the points, oldest first: every take up to five, else five
+  // Short dates ("Oct 9") under the points, oldest first: every take up to five, else up to five
   // spread from the first take to the last. A date the label before it already shows is skipped,
   // and the label under the last point is anchored at its end so it stays inside the chart.
   function xLabels(points, days, frame) {
     const last = points.length - 1;
     let shown = null;
-    return labelIndexes(points.length).flatMap((index) => {
+    return labelIndexes(points.length, frame).flatMap((index) => {
       const day = days[index];
       if (!day || day === shown) {
         return [];
@@ -628,11 +631,35 @@
     });
   }
 
-  // Every index up to five takes; past that, five spread evenly, the first and last included.
-  function labelIndexes(count) {
-    return Array.from({ length: Math.min(count, MAX_X_LABELS) }, (_, step) =>
-      count <= MAX_X_LABELS ? step : Math.round((step * (count - 1)) / (MAX_X_LABELS - 1)),
+  // Every index up to five takes. Past that, five indexes spread from the first to the last,
+  // or four, three or two when the closest pair would sit under X_LABEL_SPACING apart (eight
+  // takes get four). Rounding down makes the last gap the widest, at least 68 units for five, so
+  // the end-anchored last date always has room for its full width.
+  function labelIndexes(count, frame) {
+    if (count <= MAX_X_LABELS) {
+      return Array.from({ length: count }, (_, index) => index);
+    }
+    const pointGap = (frame.right - frame.left) / (count - 1);
+    let labels = MAX_X_LABELS;
+    let indexes = spreadIndexes(count, labels);
+    while (labels > 2 && closestGap(indexes) * pointGap < X_LABEL_SPACING) {
+      labels -= 1;
+      indexes = spreadIndexes(count, labels);
+    }
+    return indexes;
+  }
+
+  // `labels` indexes from 0 to count - 1, evenly spread and rounded down: 20 takes give 0, 4, 9,
+  // 14 and 19.
+  function spreadIndexes(count, labels) {
+    return Array.from({ length: labels }, (_, step) =>
+      Math.floor((step * (count - 1)) / (labels - 1)),
     );
+  }
+
+  // The fewest takes between two neighboring indexes.
+  function closestGap(indexes) {
+    return Math.min(...indexes.slice(1).map((index, at) => index - indexes[at]));
   }
 
   function line(points, color) {

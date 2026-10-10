@@ -312,17 +312,37 @@ const SERIES_COLORS = ["var(--accent)", "var(--filler)", "var(--pause)", "var(--
 const SVG_NS = "http://www.w3.org/2000/svg";
 const PLOT = { left: 36, right: 308, top: 12, bottom: 172 };
 
-// Sessions one per day at noon UTC from Oct 1, newest first, all with the same numbers.
-function dailySessions(count) {
+// Sessions one per day at noon UTC from Oct `firstDay` (running on into November), newest first,
+// all with the same numbers.
+function dailySessions(count, firstDay = 1) {
   return Array.from({ length: count }, (_, index) => {
-    const day = String(index + 1).padStart(2, "0");
-    return session("d" + index, `2026-10-${day}T12:00:00.000Z`, {
+    const createdAt = new Date(Date.UTC(2026, 9, firstDay + index, 12)).toISOString();
+    return session("d" + index, createdAt, {
       wpm: 150,
       fillersPerMinute: 1,
       pauseCount: 1,
       cleanStretchSeconds: 5,
     });
   }).reverse();
+}
+
+// The widest short date, "May 28", is about 43 viewBox units wide at the micro size, so two
+// centered dates need 44 units between their centers, and a centered date needs 44 plus half
+// of that, 66, before the end-anchored last one.
+const DATE_SPACING = 44;
+const LAST_DATE_SPACING = 66;
+
+function assertDatesApart(labels, label) {
+  labels.slice(1).forEach((current, index) => {
+    const previous = labels[index];
+    const distance = Number(current.getAttribute("x")) - Number(previous.getAttribute("x"));
+    const last = current.getAttribute("text-anchor") === "end";
+    const needed = last ? LAST_DATE_SPACING : DATE_SPACING;
+    assert.ok(
+      distance >= needed,
+      `${label}: ${previous.textContent} to ${current.textContent} is ${distance} units`,
+    );
+  });
 }
 
 // Sessions newest first whose numbers for one metric are `values`, oldest first in time.
@@ -784,8 +804,43 @@ test("past five takes the x axis shows five dates spread from first to last", as
 
   const twenty = await showMetric(dailySessions(20), 0);
   const spread = xLabelsOf(chartOf(twenty.body)).map((label) => label.getAttribute("x"));
-  // Takes 0, 5, 10, 14 and 19 of 20, spaced 272 / 19 apart.
-  assert.deepEqual(spread, [0, 5, 10, 14, 19].map((index) => round2(36 + (272 * index) / 19)));
+  // Takes 0, 4, 9, 14 and 19 of 20, spaced 272 / 19 apart: the middle ones round down, away
+  // from the end-anchored last date.
+  assert.deepEqual(spread, [0, 4, 9, 14, 19].map((index) => round2(36 + (272 * index) / 19)));
+});
+
+test("six to eight takes on two-digit days keep every date clear of the next", async () => {
+  // Eight takes cannot hold five dates 44 units apart (the points are 38.9 apart), so they get
+  // four, spread the same way.
+  const expected = [
+    [6, [0, 1, 2, 3, 5]],
+    [7, [0, 1, 3, 4, 6]],
+    [8, [0, 2, 4, 7]],
+  ];
+  for (const [count, indexes] of expected) {
+    const sessions = dailySessions(count, 10);
+    const { app, body } = await showMetric(sessions, 0);
+    const labels = xLabelsOf(chartOf(body));
+    const oldestFirst = [...sessions].reverse();
+    assert.deepEqual(
+      labels.map((label) => label.textContent),
+      indexes.map((index) => app.ui.formatDay(oldestFirst[index].createdAt)),
+      `${count} takes`,
+    );
+    assert.equal(labels[labels.length - 1].getAttribute("text-anchor"), "end");
+    assertDatesApart(labels, `${count} takes`);
+  }
+});
+
+test("6 to 40 daily takes: the dates never crowd and the first and last keep theirs", async () => {
+  for (let count = 6; count <= 40; count += 1) {
+    const { body } = await showMetric(dailySessions(count, 10), 0);
+    const labels = xLabelsOf(chartOf(body));
+    assert.equal(labels.length, count === 8 ? 4 : 5, `${count} takes`);
+    assert.equal(labels[0].getAttribute("x"), "36", `${count} takes: the first take`);
+    assert.equal(labels[labels.length - 1].getAttribute("x"), "308", `${count} takes: the last`);
+    assertDatesApart(labels, `${count} takes`);
+  }
 });
 
 test("a second take on the same day adds no second date label", async () => {

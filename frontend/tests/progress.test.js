@@ -258,7 +258,7 @@ test("scale([3], 'pauseCount') starts the axis at 0", () => {
   assert.equal(scaled.points[0].y, TOP + ((BOTTOM - TOP) * 7) / 10);
 });
 
-test("scale rounds the top up to a round step, keeps the wpm floor at or above 0, and tolerates []", () => {
+test("scale pads the top to a round step, keeps the wpm floor at or above 0, tolerates []", () => {
   const { progress } = loadPure();
   assert.equal(progress.scale([0, 7.2], "fillersPerMinute").yMax, 10);
   assert.equal(progress.scale([0, 10.1], "fillersPerMinute").yMax, 15);
