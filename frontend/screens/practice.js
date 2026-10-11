@@ -75,6 +75,7 @@
   const SAMPLE_ERROR_BODY = "Could not load the sample. Try again.";
   const SAMPLE_ERROR_ACTION = "Try again";
   const STARTED_ANNOUNCEMENT = "Recording started";
+  const STOPPED_ANNOUNCEMENT = "Recording stopped, ";
   const RESULTS_READY_ANNOUNCEMENT = "Results ready";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
@@ -740,7 +741,7 @@
     const durationSeconds = elapsedSeconds();
     const contentType = capture.recorder.mimeType || capture.chosenMimeType;
     const { chunks, samples } = releaseCapture();
-    app.ui.announce("Recording stopped, " + Math.floor(durationSeconds) + " seconds");
+    app.ui.announce(stoppedAnnouncement(Math.floor(durationSeconds)));
 
     if (durationSeconds < MIN_TAKE_SECONDS) {
       render("error", {
@@ -762,6 +763,11 @@
       passageTitle: passage ? passage.title : "",
     };
     upload();
+  }
+
+  // "Recording stopped, 12 seconds", or "1 second" for a one-second take.
+  function stoppedAnnouncement(seconds) {
+    return STOPPED_ANNOUNCEMENT + seconds + (seconds === 1 ? " second" : " seconds");
   }
 
   // Lets go of everything the live take holds and hands back what the caller may still want:

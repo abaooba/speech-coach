@@ -505,6 +505,19 @@ test("Retry upload hands focus from the error block to the loading title", async
   assert.equal(lastFocused(t), byClass(stateBlock(t), "state__title"));
 });
 
+test("the stop announcement says 1 second for a one-second take", async () => {
+  const cases = [
+    [400, "Recording stopped, 0 seconds"],
+    [1500, "Recording stopped, 1 second"],
+    [2500, "Recording stopped, 2 seconds"],
+  ];
+  for (const [ms, words] of cases) {
+    const t = setup();
+    await recordTake(t, ms);
+    assert.deepEqual(t.calls.announce, ["Recording started", words], `${ms} ms`);
+  }
+});
+
 test("an upload leaves focus alone when it sat outside the record zone", async () => {
   const t = setup();
   t.recordButton.click();
