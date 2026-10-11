@@ -239,7 +239,7 @@ test("there every focused link or button, the bar's own too, scrolls clear of th
   assert.equal(last.at, SHORT_OR_ZOOMED, "it follows the stuck bar's room, so it wins there");
 });
 
-test("the stuck bar's own buttons ask for no scroll room, so tabbing into it never scrolls", () => {
+test("the stuck bar's buttons ask for no scroll room, so tabbing into it never scrolls", () => {
   for (const { at, selector, declarations } of ALL_RULES) {
     if (!/screen-results|results__/.test(selector)) {
       continue;

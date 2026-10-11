@@ -620,7 +620,7 @@ test("every metric paints its gridlines under the axes", async () => {
     const lastGrid = strokes.lastIndexOf("var(--grid)");
     const firstAxis = strokes.indexOf("var(--border)");
     assert.ok(lastGrid !== -1 && firstAxis !== -1, `${label}: gridlines and axes`);
-    assert.ok(lastGrid < firstAxis, `${label}: a gridline at ${lastGrid}, an axis at ${firstAxis}`);
+    assert.ok(lastGrid < firstAxis, `${label}: gridline ${lastGrid}, axis ${firstAxis}`);
   }
 });
 

@@ -10,7 +10,8 @@
   const DEFAULT_TARGET_WPM = [140, 160];
 
   // Practice's "See a sample result" saves the bundled take (sample-session.json) under a title
-  // that starts with this, so History lists it like any session.
+  // that starts with this. It is saved like any session, so History lists it; isSample reads the
+  // prefix to keep it out of every comparison.
   const SAMPLE_TITLE_PREFIX = "Sample: ";
 
   // Card labels and units (DESIGN.md sections 5 and 6), in display order. Labels stay short so
@@ -940,8 +941,8 @@
     return String(Math.round(value * COORD_SCALE) / COORD_SCALE);
   }
 
-  // The bar CSS keeps stuck above the nav: a quiet History, then the screen's one primary
-  // button, Record again.
+  // The bar CSS keeps stuck above the nav, or at the end of the page on a short or zoomed
+  // window: a quiet History, then the screen's one primary button, Record again.
   function buildActions() {
     return app.ui.el("div", { class: "results__actions" }, [
       app.ui.el("button", {

@@ -15,7 +15,8 @@
   const app = { screens: {}, router: {} };
   window.app = app;
 
-  // Name of the screen whose show() ran last, so route() can call its hide().
+  // Name of the screen whose show() ran last, so route() can call its hide(); null until the
+  // boot route, which is how route() knows not to move focus then.
   let shownScreenName = null;
   // The id that screen was shown with (a session id on Results), or null.
   let shownId = null;

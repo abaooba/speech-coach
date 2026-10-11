@@ -325,6 +325,7 @@ h2 {
   margin: 0;
   font-size: var(--fs-body);
   color: var(--muted);
+  text-wrap: pretty;
 }
 
 .state__action {
@@ -1353,7 +1354,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* Landscape phones and 200% zoom leave too little height for a stuck bar: with the nav it
    covered two thirds of a 160 x 284 window. There the bar stays in the page at its end, where
-   main's bottom padding keeps it clear of the nav (under 320px it still wraps onto two rows).
+   main's bottom padding keeps it clear of the nav (at 200% zoom it wraps onto two rows).
    A focused link or button, the bar's own included, then only has to clear the nav, as on
    History. */
 @media (max-height: 480px), (max-width: 319px) {

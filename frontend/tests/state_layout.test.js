@@ -78,6 +78,11 @@ test("its body takes the height under the heading, so the block's auto margins c
   assert.deepEqual(declared(".state").margin, ["auto"]);
 });
 
+test("a block's sentence never strands its last word on a line of its own", () => {
+  // At 320px "Record two sessions to see a trend." otherwise left "trend." alone.
+  assert.deepEqual(declared(".state__body")["text-wrap"], ["pretty"]);
+});
+
 test("the action spans the block, --s-6 under the words", () => {
   const action = declared(ACTION);
   assert.deepEqual(action["align-self"], ["stretch"]);
