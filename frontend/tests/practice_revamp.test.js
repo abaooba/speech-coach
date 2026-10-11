@@ -1,8 +1,9 @@
 // Tests for the revamped Practice screen (frontend/screens/practice.js, DESIGN.md sections 6-8):
 // the record zone per state, the error block's focus and second action, and the hint copy. The
 // screen and the real ui.js run in a vm context against the shared fake DOM, extended here (and
-// only here) with focus() and a descendant querySelector; the browser APIs a take touches
-// (getUserMedia, MediaRecorder, Blob, performance.now, setInterval, fetch) are fakes as well.
+// only here) with focus(), contains(), a descendant querySelector and the document's
+// activeElement; the browser APIs a take touches (getUserMedia, MediaRecorder, Blob,
+// performance.now, setInterval, fetch) are fakes as well.
 "use strict";
 
 const test = require("node:test");
@@ -33,8 +34,8 @@ const MESSAGES = Object.freeze({
 const IDLE_HINT = "Tap to record. Stop uploads automatically.";
 const NEW_TAKE = "Record a new take";
 
-// A fake element that also records focus() calls and finds a class anywhere below it, which the
-// shared fake (direct children only, no focus) cannot.
+// A fake element that also records focus() calls, finds a class anywhere below it and says
+// whether a node sits inside it, which the shared fake (direct children only, no focus) cannot.
 class RevampElement extends FakeElement {
   constructor(tagName, namespaceURI, focusLog) {
     super(tagName, namespaceURI);
@@ -43,6 +44,14 @@ class RevampElement extends FakeElement {
 
   focus() {
     this.focusLog.push(this);
+  }
+
+  // Like Node.contains: true for the element itself and for anything below it.
+  contains(node) {
+    return (
+      node === this ||
+      this.children.some((child) => typeof child.contains === "function" && child.contains(node))
+    );
   }
 
   querySelector(selector) {
@@ -61,10 +70,14 @@ class RevampElement extends FakeElement {
   }
 }
 
-// The fake document also carries an <html> stand-in, where app.ui.applyTheme sets data-theme.
+// The fake document also carries an <html> stand-in, where app.ui.applyTheme sets data-theme,
+// and an activeElement: the element focused last, or null before the first focus() call.
 function revampDocument(focusLog) {
   return {
     documentElement: { dataset: {} },
+    get activeElement() {
+      return focusLog.length > 0 ? focusLog[focusLog.length - 1] : null;
+    },
     createElement: (tagName) => new RevampElement(tagName, null, focusLog),
     createElementNS: (namespaceURI, tagName) => new RevampElement(tagName, namespaceURI, focusLog),
     createTextNode: (text) => new FakeTextNode(text),
@@ -389,6 +402,121 @@ test("every error path moves focus to its title and none of them is announced", 
   assert.equal(denied.focused.length, 1);
   assert.equal(denied.focused[0], byClass(stateBlock(denied), "state__title"));
   assert.deepEqual(denied.calls.announce, []);
+});
+
+// Where focus goes when the record zone changes (DESIGN.md section 9). Leaving an error block
+// clears the node that held focus; without a move, focus falls to <body> and the next Tab skips
+// Record for the nav. The fake click() never focuses, like a tap in Safari; a keyboard user's
+// button is focused first.
+function lastFocused(t) {
+  return t.focused[t.focused.length - 1];
+}
+
+function cardTextOf(t) {
+  return byClass(byClass(t.body, "passage-card"), "passage-card__text");
+}
+
+test("Try again after Microphone blocked hands focus back to Record", async () => {
+  const t = setup();
+  t.recordButton.click();
+  t.denyMic();
+  await flush();
+  const tryAgain = byClass(stateBlock(t), "state__action");
+  tryAgain.focus();
+  tryAgain.click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(lastFocused(t), t.recordButton);
+});
+
+test("Record again after a too-short take hands focus from the title back to Record", async () => {
+  const t = setup();
+  await recordTake(t, 2000);
+  assert.equal(lastFocused(t), byClass(stateBlock(t), "state__title"));
+  byClass(stateBlock(t), "state__action").click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(lastFocused(t), t.recordButton);
+});
+
+test("Record a new take after a failed upload hands focus back to Record", async () => {
+  const t = setup();
+  await recordTake(t, 8000);
+  t.rejectUpload(apiError("network"));
+  await flush();
+  const newTake = byClass(stateBlock(t), "state__secondary");
+  newTake.focus();
+  newTake.click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(lastFocused(t), t.recordButton);
+});
+
+test("Try again after the sample failed hands focus back to the sample button", async () => {
+  const t = setup();
+  t.sampleButton.focus();
+  t.sampleButton.click();
+  await flush();
+  await flush();
+  assert.equal(byClass(stateBlock(t), "state__title").textContent, "Sample unavailable");
+  const tryAgain = byClass(stateBlock(t), "state__action");
+  tryAgain.focus();
+  tryAgain.click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(lastFocused(t), t.sampleButton);
+});
+
+test("leaving an error block leaves focus alone when the block did not hold it", async () => {
+  const t = setup();
+  t.recordButton.click();
+  t.denyMic();
+  await flush();
+  const tryAgain = byClass(stateBlock(t), "state__action");
+  cardTextOf(t).focus();
+  const moves = t.focused.length;
+  tryAgain.click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(t.focused.length, moves);
+});
+
+test("Stop from the keyboard hands focus to the loading title, so it is read out", async () => {
+  const t = setup();
+  t.recordButton.focus();
+  await recordTake(t, 8000);
+  assert.equal(t.root.dataset.state, "uploading");
+  const title = byClass(stateBlock(t), "state__title");
+  assert.equal(title.textContent, "Analyzing your speech");
+  assert.equal(title.getAttribute("tabindex"), "-1", "script can focus it; Tab never stops");
+  assert.equal(lastFocused(t), title);
+
+  const moves = t.focused.length;
+  t.resolveUpload({ transcript: [], metrics: {} });
+  await flush();
+  assert.equal(t.calls.go[0].name, "results");
+  assert.equal(t.focused.length, moves, "a saved take moves no focus before Results opens");
+});
+
+test("Retry upload hands focus from the error block to the loading title", async () => {
+  const t = setup();
+  await recordTake(t, 8000);
+  t.rejectUpload(apiError("network"));
+  await flush();
+  const retry = byClass(stateBlock(t), "state__action");
+  retry.focus();
+  retry.click();
+  assert.equal(t.root.dataset.state, "uploading");
+  assert.equal(lastFocused(t), byClass(stateBlock(t), "state__title"));
+});
+
+test("an upload leaves focus alone when it sat outside the record zone", async () => {
+  const t = setup();
+  t.recordButton.click();
+  t.grantMic();
+  await flush();
+  const text = cardTextOf(t);
+  text.focus();
+  t.clock.advance(8000);
+  FakeMediaRecorder.last.finish();
+  await flush();
+  assert.equal(t.root.dataset.state, "uploading", "the track ended on its own");
+  assert.equal(lastFocused(t), text);
 });
 
 test("the hint text sits in its own span, followed by the sample button", () => {

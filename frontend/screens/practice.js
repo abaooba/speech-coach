@@ -115,6 +115,7 @@
     recordButton: null,
     recordLabel: null,
     hintText: null,
+    sampleButton: null,
     stateBlock: null,
   };
 
@@ -252,12 +253,13 @@
   }
 
   function buildSampleButton() {
-    return app.ui.el("button", {
+    nodes.sampleButton = app.ui.el("button", {
       class: "btn btn--ghost practice__sample",
       type: "button",
       text: SAMPLE_LABEL,
       onClick: onSampleTap,
     });
+    return nodes.sampleButton;
   }
 
   // Loads the bundled take for visitors without a microphone and opens it in Results. The
@@ -298,7 +300,7 @@
         title: SAMPLE_ERROR_TITLE,
         body: SAMPLE_ERROR_BODY,
         actionLabel: SAMPLE_ERROR_ACTION,
-        onAction: () => render("idle"),
+        onAction: () => backToIdle(nodes.sampleButton),
       });
       return;
     }
@@ -558,7 +560,7 @@
         body: LOADING_BODY,
       });
     } else if (dataState === "error") {
-      const block = app.ui.renderState(nodes.stateBlock, {
+      app.ui.renderState(nodes.stateBlock, {
         kind: "error",
         title: detail.title,
         body: detail.body,
@@ -567,22 +569,56 @@
         secondaryLabel: detail.secondaryLabel,
         onSecondary: detail.onSecondary,
       });
-      focusTitle(block);
     } else {
       app.ui.clear(nodes.stateBlock);
+      return;
     }
-  }
-
-  // The error block replaces the button that had focus, so focus moves to its title. The
-  // block's role="alert" already speaks it; nothing is announced on top of that.
-  function focusTitle(block) {
-    const title = block ? block.querySelector(".state__title") : null;
+    // Either block's title can take focus from script (tabindex -1) but is never a Tab stop. The
+    // error block replaces the button that had focus, so focus moves to its title; the block's
+    // role="alert" already speaks it, and nothing is announced on top of that. upload() decides
+    // for the loading title.
+    const title = stateTitle();
     if (!title) {
       return;
     }
     title.setAttribute("tabindex", "-1");
-    if (typeof title.focus === "function") {
-      title.focus();
+    if (dataState === "error") {
+      focusIfPossible(title);
+    }
+  }
+
+  // The title of the block in the record zone, or null while the zone is empty.
+  function stateTitle() {
+    const block = nodes.stateBlock.firstChild;
+    return block ? block.querySelector(".state__title") : null;
+  }
+
+  // True when keyboard focus is on `node` or inside it. The test fakes have no activeElement,
+  // and some have no contains().
+  function holdsFocus(node) {
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    if (!active || !node) {
+      return false;
+    }
+    return active === node || (typeof node.contains === "function" && node.contains(active));
+  }
+
+  // Moves keyboard focus when the node can take it; the test fakes have no focus().
+  function focusIfPossible(node) {
+    if (node && typeof node.focus === "function") {
+      node.focus();
+    }
+  }
+
+  // The way back to idle from an error block: Try again, Record again or Record a new take.
+  // Clearing the block drops the focus it held (its title, or the button just used) to <body>,
+  // where the next Tab would skip Record for the nav, so focus moves on to `next`: the record
+  // button, or the sample button after the sample failed to load.
+  function backToIdle(next) {
+    const blockHadFocus = holdsFocus(nodes.stateBlock);
+    render("idle");
+    if (blockHadFocus) {
+      focusIfPossible(next);
     }
   }
 
@@ -651,7 +687,7 @@
         title: MIC_BLOCKED_TITLE,
         body: MIC_BLOCKED_BODY,
         actionLabel: MIC_BLOCKED_ACTION,
-        onAction: () => render("idle"),
+        onAction: () => backToIdle(nodes.recordButton),
       });
       return;
     }
@@ -711,7 +747,7 @@
         title: TOO_SHORT_TITLE,
         body: app.api.messages.too_short,
         actionLabel: TOO_SHORT_ACTION,
-        onAction: () => render("idle"),
+        onAction: () => backToIdle(nodes.recordButton),
       });
       return;
     }
@@ -762,7 +798,14 @@
     if (take === null) {
       return;
     }
+    // Stop and the error block both vanish as the take uploads. When focus sat on either, it
+    // moves to the loading title, so it stays in the record zone and "Analyzing your speech" is
+    // read out.
+    const focusInRecordZone = holdsFocus(nodes.recordButton) || holdsFocus(nodes.stateBlock);
     render("uploading");
+    if (focusInRecordZone) {
+      focusIfPossible(stateTitle());
+    }
     try {
       const result = await app.api.analyze(take.blob, take.contentType);
       const metrics =
@@ -797,7 +840,7 @@
   function dropTake() {
     pendingTake = null;
     resetClock();
-    render("idle");
+    backToIdle(nodes.recordButton);
   }
 
   // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, and announces
