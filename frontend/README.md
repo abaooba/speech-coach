@@ -6,29 +6,55 @@ from the repository root.
 
 ## Manual checks
 
-**Onboarding (about one minute).** A first launch opens this screen whatever the hash. Open
-DevTools on the app, run `indexedDB.deleteDatabase('speech-coach')` in the console and reload.
+Start the server with a real speech-to-text key in `.env` and open http://127.0.0.1:8000/
+in Chrome. `.env` is read when the server starts, so restart uvicorn after changing it.
 
-1. The Onboarding screen shows under its "Speech Coach" heading, with no nav: the line
-   "Record a practice speech. Get your pace, pauses and filler words in seconds.", three
-   items, each after an icon (a microphone, a magnifying glass, a chart), the muted line
-   "Audio is deleted right after analysis. Transcripts stay on this device." and a full-width
-   "Start practicing" button. The tab reads "Speech Coach" and nothing has focus.
+```bash
+.venv/bin/uvicorn backend.app:app --reload
+```
 
-2. Tap "Start practicing": Practice shows with the nav. Reload: Practice opens directly, and
+Every block in the table is built by `app.ui.renderState` inside the screen's
+`div.screen__body`, so the screen's h1 stays above it. On Practice the block takes the record
+zone under the card: the timer, the record button and its "Record" label hide, and an error
+block's red title takes keyboard focus (press Tab once to reach its button). On Results,
+History and Progress the block sits centered between the heading and the nav, its button as
+wide as the block. "Empty the store" is the first DevTools snippet under the table.
 
-   ```js
-   await app.store.getFlag('onboarded')
-   ```
+| Screen | State | How to trigger | Expected copy |
+|---|---|---|---|
+| Practice | Uploading | Tap Record, allow the microphone, speak about 10 seconds, tap Stop. DevTools network throttling ("Slow 4G") holds the state longer. | Spinner, "Analyzing your speech" / "Usually 5 to 15 seconds." No button. Results opens when the reply arrives. |
+| Practice | Microphone blocked | Click the lock icon in the address bar, set Microphone to Block, reload, tap Record. | "Microphone blocked" / "Microphone is blocked. Allow it in your browser settings, then try again." Button "Try again". |
+| Practice | Too short | Tap Record, then Stop before 5 seconds; the Network tab shows no request to `/api/analyze`. Or record 8 seconds and speak only in the first 2: the backend answers 400. | "Too short" / "That was under 5 seconds. Try again." Button "Record again", never "Retry upload". |
+| Practice | Upload failed, network | Tap Record, stop uvicorn (Ctrl-C) while recording, tap Stop. | "Upload failed" / "Could not reach the server. Your recording is still here." Button "Retry upload", then a ghost "Record a new take". |
+| Practice | Upload failed, provider | Set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds, tap Stop. Restore `STT_PROVIDER` and restart afterwards. | "Upload failed" / "Analysis failed on our side. Your recording is still here." Button "Retry upload", then a ghost "Record a new take". |
+| Practice | Sample unavailable | In DevTools tick Application > Service workers > "Bypass for network", block the URL pattern `sample-session.json` under More tools > Network request blocking, tap "See a sample result". | "Sample unavailable" / "Could not load the sample. Try again." Button "Try again". |
+| Results | Session not found | Open `#/results/nope`. The same block shows for `#/results` with no id and for a deleted session's id. | Magnifying glass, "Session not found" / "It may have been deleted." Button "History", which opens `#/history`. |
+| History | No sessions yet | Empty the store, tap "Start practicing", open `#/history`. Deleting the last session in History shows it too. | Microphone, "No sessions yet" / "Your first recording will show up here." Button "Record", which opens Practice. |
+| Progress | Need two sessions, one take | Empty the store, tap "Start practicing", save one session (store round trip, step 1), open `#/progress`. A sample is not a take: tap "See a sample result" on Practice, come back, and the same block shows. | Chart, "Need two sessions" / "Record one more to see a trend." Button "Record", which opens Practice. |
+| Progress | Need two sessions, no take | Empty the store, tap "Start practicing", open `#/progress`. | Chart, "Need two sessions" / "Record two sessions to see a trend." Button "Record". |
 
-   prints `true`.
+### DevTools snippets
 
-3. To see it again, run `await app.store.setFlag('onboarded', false)` and reload. Deleting
-   the database, as the History and Progress empty-state checks below do, brings it back too:
-   tap "Start practicing", then open the hash the check names.
+Run each line in the DevTools console on the app, waiting for it to resolve before the next.
 
-**Store and passages (about one minute).** Open the app in a browser, open DevTools and run
-each line in the console, waiting for it to resolve before the next.
+**Empty the store.** A first launch opens Onboarding whatever the hash:
+
+```js
+indexedDB.deleteDatabase('speech-coach')
+```
+
+Reload, tap "Start practicing", then open the hash the check names.
+
+**Onboarding flag.** After "Start practicing",
+
+```js
+await app.store.getFlag('onboarded')
+```
+
+prints `true`. To see Onboarding again, run `await app.store.setFlag('onboarded', false)` and
+reload.
+
+**Store round trip.**
 
 1. Save one session:
 
@@ -72,19 +98,62 @@ each line in the console, waiting for it to resolve before the next.
 
    It prints `10`: four timed prompts, then six passages.
 
-**Practice (about one minute).** Start the server with a real speech-to-text key in `.env`
-and open http://127.0.0.1:8000/ in Chrome:
+**Progress seed.** Five sessions with varied numbers, one per day over the last five days.
+Each lasts one minute, so the `um` count is also the fillers-per-minute value, and `pauses`
+is the pause count:
 
-```bash
-.venv/bin/uvicorn backend.app:app --reload
+```js
+for (const [daysAgo, wpm, um, pauses] of [[5,128,4,1],[4,141,3,2],[3,137,2,2],[2,152,1,0],[1,158,1,1]]) {
+  await app.store.save({createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString(), passageId:'free-talk', passageTitle:'Your day', durationSeconds:60, metrics:{words_per_minute:wpm, duration:60, word_count:wpm, fillers:{um}, pauses:Array.from({length:pauses}, (_, k) => [10 + 10 * k, 2]), repeats:[], pace_windows:[]}, transcript:[]})
+}
 ```
 
-`.env` is read when the server starts, so restart uvicorn after changing it. Every error
-block below is built by `app.ui.renderState` and takes the record zone right under the card:
-the timer, the record button and its "Record" label are hidden, and keyboard focus lands on
-the block's red title (press Tab once to reach its button). On a short screen (320 x 568) the
-block takes the card's place too, so the whole block, both actions included, sits above the
-nav with no page scroll; the selected chip still names the option.
+**Live region log.** Prints every announcement while you work:
+
+```js
+new MutationObserver(() => console.log('live:', document.getElementById('live').textContent)).observe(document.getElementById('live'), {childList: true, characterData: true, subtree: true})
+```
+
+### Hands-on checks (human)
+
+A night session cannot run these: each needs a real browser, a microphone or a person at the
+keyboard.
+
+- Retry upload re-sends the same take: trigger "Upload failed, network", start uvicorn again
+  and tap "Retry upload". Results opens with the words you said before the failure, and
+  nothing asked for the microphone again.
+- Microphone denied: tap Record and close the permission prompt with its X instead of
+  Allow. The Microphone blocked block shows; "Try again" returns to idle with the record
+  button back, and the next Record tap shows the prompt again. With Microphone set to Block
+  the prompt cannot come back: set it to Ask and the next tap prompts.
+- No sideways scroll: at 320px wide (DevTools device toolbar), in light and in dark (the
+  theme toggle on Practice), every row of the table above leaves
+  `document.documentElement.scrollWidth === 320` true in the console.
+- Live region: with the live region log running, a take logs "Recording started", "0:30" and
+  "1:00" for a take past a minute, "Recording stopped, N seconds" and "Results ready". New
+  topic logs the new topic, a theme tap "Theme: Dark", "Theme: Light" or "Theme: Auto", a
+  delete "Session deleted". An error block logs nothing: its alert role speaks it.
+- Reduced motion: DevTools > Rendering > "Emulate CSS media feature prefers-reduced-motion:
+  reduce". The red dot beside the clock stops pulsing while recording and the uploading
+  spinner stops turning.
+- Keyboard: press Tab from the top of each screen. Focus moves top to bottom, the nav comes
+  last, and every focused control shows a blue ring.
+- Console: no errors on any screen, including `#/results/nope` and an empty History.
+
+## Screen walkthroughs
+
+**Onboarding (about one minute).** Empty the store and reload.
+
+1. The Onboarding screen shows under its "Speech Coach" heading, with no nav: the line
+   "Record a practice speech. Get your pace, pauses and filler words in seconds.", three
+   items, each after an icon (a microphone, a magnifying glass, a chart), the muted line
+   "Audio is deleted right after analysis. Transcripts stay on this device." and a full-width
+   "Start practicing" button. The tab reads "Speech Coach" and nothing has focus.
+
+2. Tap "Start practicing": Practice shows with the nav. Reload: Practice opens directly, and
+   the onboarding flag snippet prints `true`.
+
+**Practice (about one minute).** Start the server as under Manual checks.
 
 1. Talk and Read: Practice opens on the Talk tab with "Your day 1:00" selected. The chips
    read "Your day 1:00", "Impromptu 2:00", "Congress speech 3:00" and "PF constructive 4:00",
@@ -113,47 +182,28 @@ nav with no page scroll; the selected chip still names the option.
 3. Time limit: record "Your day" past 1:00. At the limit the bar stays full and turns rust,
    the clock keeps counting ("1:05 / 1:00") and the take goes on until you tap Stop.
 
-4. Microphone blocked: click the lock icon in the address bar, set Microphone to Block,
-   reload and tap Record. The red block reads "Microphone is blocked. Allow it in your
-   browser settings, then try again." with a "Try again" button that returns to idle. Set
-   Microphone back to Ask, reload, and the next Record tap prompts again.
+4. Record a new take: trigger "Upload failed, network" and tap "Record a new take" instead of
+   Retry upload. Practice returns to idle with the record button back, the clock at 0:00 and
+   the bar empty, and nothing is uploaded. Coming back from Results also starts at 0:00 with
+   an empty bar.
 
-5. Too short: tap Record, then Stop before 5 seconds. The block reads "That was under
-   5 seconds. Try again." with "Record again", and the Network tab shows no request to
-   `/api/analyze`.
-
-6. Network: tap Record, stop uvicorn (Ctrl-C) while recording, then tap Stop. The block
-   reads "Could not reach the server. Your recording is still here." with "Retry upload" and,
-   under it, a blue "Record a new take". Start uvicorn again and tap Retry upload: the same
-   take uploads and Results opens. Repeat the failure and tap "Record a new take" instead:
-   Practice returns to idle with the record button back, the clock at 0:00 and the bar empty,
-   and nothing is uploaded. Coming back from Results also starts at 0:00 with an empty bar.
-
-7. Provider (502): set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds
-   and tap Stop. The block reads "Analysis failed on our side. Your recording is still here."
-   with "Retry upload" and "Record a new take". Restore `STT_PROVIDER` and restart uvicorn
-   afterwards.
-
-8. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole "Your day"
+5. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole "Your day"
    topic, the record button, "Record", the hint and "See a sample result" above the nav with
    no page scroll. At 320 x 568 the card still shows the whole topic, two lines above its fade:
    the hint and the sample button hide, the record button shrinks and the gaps under the card
    tighten, so the button and its label sit above the nav with no page scroll. Tap Record: the
-   nav hides and the card grows into its room. In landscape (667 x 375) the card keeps those
-   two lines, the sample button stays, and the page scrolls. At 200% zoom (187 x 333) the card
-   keeps its two lines, the hint and the sample button hide as on a small phone, and the page
-   scrolls.
+   nav hides and the card grows into its room. An error block from the table takes the card's
+   place too, so the whole block, both actions included, sits above the nav with no page
+   scroll; the selected chip still names the option. In landscape (667 x 375) the card keeps
+   those two lines, the sample button stays, and the page scrolls. At 200% zoom (187 x 333)
+   the card keeps its two lines, the hint and the sample button hide as on a small phone, and
+   the page scrolls.
 
-9. Theme toggle: the icon right of "Speech Coach" is a half-filled circle for Auto, and a
+6. Theme toggle: the icon right of "Speech Coach" is a half-filled circle for Auto, and a
    screen reader names it "Theme: Auto. Switch to dark." Tap it: the page turns dark whatever
    the device setting, the icon becomes a moon and the live region says "Theme: Dark". Tap
    again for Light (a sun, "Theme: Light"), and again for Auto (the device setting decides).
    Reload: the choice is kept. The header stays one line, as tall as the "Practice" heading.
-
-Screen-reader users hear "Recording started", the clock every 30 seconds, "Recording
-stopped, N seconds", "Results ready", the new topic after each New topic tap and, after each
-theme tap, "Theme: Dark", "Theme: Light" or "Theme: Auto" through the live region. Errors are
-not announced on top of their alert role.
 
 **Results (about two minutes).** Needs one saved session, so run the Practice happy path
 first; the hash is then `#/results/<id>`. Without a microphone, Practice in idle shows "See a
@@ -174,14 +224,13 @@ sample result", which opens a real sample take on this screen.
    is highlighted.
 
 2. Compare with the last take: record a second take (the Practice happy path again), or run
-   the Progress seed loop below and open the newest row in History. Every card ends with a
-   small grey line, a triangle or a dash and words such as "12 faster", "1.2 fewer" or "No
-   change", and "Arrows compare with your last take." sits under the cards. The very first
-   session in the store shows neither. A take saved without words (the store check above, or
-   the seed) has no clean-stretch line. The sample is never compared: tap "See a sample
-   result" after your takes, even twice, and its Results shows no grey lines, no note and no
-   "Fillers are down" headline. The next take you record compares with your take before the
-   sample.
+   the Progress seed snippet and open the newest row in History. Every card ends with a small
+   grey line, a triangle or a dash and words such as "12 faster", "1.2 fewer" or "No change",
+   and "Arrows compare with your last take." sits under the cards. The very first session in
+   the store shows neither. A take saved without words (the store round trip, or the seed)
+   has no clean-stretch line. The sample is never compared: tap "See a sample result" after
+   your takes, even twice, and its Results shows no grey lines, no note and no "Fillers are
+   down" headline. The next take you record compares with your take before the sample.
 
 3. "History" and "Record again" sit in one bar stuck above the nav while the page scrolls under
    it. Tap "Record again": Practice opens in idle. Use the browser's back button to return,
@@ -213,7 +262,7 @@ sample result", which opens a real sample take on this screen.
    transcript, the Mid-sentence pauses card and the timeline always show the same pauses.
    Record 10 seconds, say "um" five times and stop talking for 3 seconds mid-sentence: five
    amber "um" tokens and one "x.x s pause" pill. A session saved with an empty transcript
-   (the store check above) shows no Transcript section at all.
+   (the store round trip) shows no Transcript section at all.
 
 6. Tips: a "Tips" heading with one or two cards, chosen in this order. Tips that point at
    moments name them as m:ss, such as "0:42". Record 10 to 15 seconds doing one thing at a
@@ -239,13 +288,7 @@ sample result", which opens a real sample take on this screen.
 
    Talking fast and full of "um" shows two cards, pace first; a third problem is dropped.
 
-7. Session not found: open http://127.0.0.1:8000/#/results/nope. The empty state built by
-   `app.ui.renderState` shows a magnifying glass, "Session not found" / "It may have been
-   deleted." and a "History" button that goes to `#/history`. The block sits centered
-   between the heading and the nav, its button as wide as the block. The same block appears
-   for `#/results` with no id, and for a session id that was deleted.
-
-8. Narrow the window to 320px (DevTools device toolbar): two cards per row with each number
+7. Narrow the window to 320px (DevTools device toolbar): two cards per row with each number
    and its unit on one line, the date in the meta line never split, the timeline and its
    legend inside the column, the transcript wrapping with the pause pills staying on their
    line, no horizontal scroll, no console errors. At 1024px the cards are still two per row
@@ -254,16 +297,16 @@ sample result", which opens a real sample take on this screen.
    and purple marks and the green band stay readable on both backgrounds.
 
 **History (about one minute).** Needs two saved sessions: run the Practice happy path twice,
-or save two with the store check above. Then open http://127.0.0.1:8000/#/history.
+or save two with the store round trip. Then open http://127.0.0.1:8000/#/history.
 
 1. Under the "History" heading, one row per session, newest first: the passage title over
    the date, then the stats as `152 wpm · 3.1 /min` (the same numbers as that session's
    first two Results cards) and a status word with its icon. A green check reads "On
    target"; a rust warning triangle reads "Too slow", "Too fast" or "Fillers over 3", and
    two misses read "Too slow · Fillers over 3". Pace is judged against that passage's
-   target range, ends included; fillers miss above 3 a minute. The store check's session
-   (150 wpm, one "um" in 12 seconds, so 5 a minute) reads "Fillers over 3". A muted trash
-   icon sits at the right of each row. The History nav item is highlighted.
+   target range, ends included; fillers miss above 3 a minute. The store round trip's
+   session (150 wpm, one "um" in 12 seconds, so 5 a minute) reads "Fillers over 3". A muted
+   trash icon sits at the right of each row. The History nav item is highlighted.
 
 2. Tap a row: the hash becomes `#/results/<id>` and Results shows that session, opened at
    the top of the page even when the list was scrolled, and the tab reads "Results · Speech
@@ -293,14 +336,7 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
    top. Each focused control scrolls fully into view, its whole blue ring clear of the nav
    and of the top edge.
 
-6. Empty state: delete the remaining sessions through the UI, or run
-   `indexedDB.deleteDatabase('speech-coach')` in the console and reload. The empty state
-   built by `app.ui.renderState` shows a microphone icon, "No sessions yet" / "Your first
-   recording will show up here." and a "Record" button that opens Practice. The block sits
-   centered between the heading and the nav, its button as wide as the block, as on Progress
-   with one session.
-
-7. Narrow the window to 320px: the stats and the status sit under the title and date,
+6. Narrow the window to 320px: the stats and the status sit under the title and date,
    left-aligned, with the trash icon on the right. Open a prompt: "Delete? Yes / No" drops
    below the status, at the right, and nothing overlaps. No horizontal scroll, no console
    errors, even at 200% browser zoom, where the prompt wraps inside the row. From 480px the
@@ -308,18 +344,8 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
    Switch the OS theme (or DevTools "Emulate CSS prefers-color-scheme: dark"): the green
    and rust status words stay readable.
 
-**Progress (about one minute).** Needs two saved sessions; a real trend needs more. Seed five
-with varied numbers, one per day over the last five days: open DevTools on the app and paste
-this loop into the console (each session lasts one minute, so the `um` count is also the
-fillers-per-minute value, and `pauses` is the pause count):
-
-```js
-for (const [daysAgo, wpm, um, pauses] of [[5,128,4,1],[4,141,3,2],[3,137,2,2],[2,152,1,0],[1,158,1,1]]) {
-  await app.store.save({createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString(), passageId:'free-talk', passageTitle:'Your day', durationSeconds:60, metrics:{words_per_minute:wpm, duration:60, word_count:wpm, fillers:{um}, pauses:Array.from({length:pauses}, (_, k) => [10 + 10 * k, 2]), repeats:[], pace_windows:[]}, transcript:[]})
-}
-```
-
-Then open http://127.0.0.1:8000/#/progress.
+**Progress (about one minute).** Needs two saved sessions; a real trend needs more. Run the
+Progress seed snippet, then open http://127.0.0.1:8000/#/progress.
 
 1. Under the "Progress" heading: a segmented control of four options, "Pace" (selected),
    "Fillers", "Pauses" and "Clean", all on one row at 320px; then the heading "Words per
@@ -345,10 +371,10 @@ Then open http://127.0.0.1:8000/#/progress.
    one row per session (number, date, value) with the caption "Words per minute by session".
    A screen reader reads the summary cells as text and then the table.
 
-4. Run the seed loop a second time (ten sessions, two a day): every session still gets a dot,
-   and the x axis shows five dates spread from the first take to the last. A second take on a
-   day that already has a label gets none. Then tap "See a sample result" on Practice and come
-   back: History lists the sample, but the chart gains no dot and the cells do not change.
+4. Run the seed snippet a second time (ten sessions, two a day): every session still gets a
+   dot, and the x axis shows five dates spread from the first take to the last. A second take
+   on a day that already has a label gets none. Then tap "See a sample result" on Practice and
+   come back: History lists the sample, but the chart gains no dot and the cells do not change.
 
 5. Narrow the window to 320px: the four options fit on one row, "Latest" and "Best" sit side
    by side with "From your average" across the row under them, every value bold at the heading
@@ -359,13 +385,3 @@ Then open http://127.0.0.1:8000/#/progress.
    still nothing scrolls sideways. Switch the theme with the toggle on Practice, or the OS
    setting: gridlines, labels, the band, the ring and all four line colors stay visible in both
    themes.
-
-6. Empty state: delete sessions in History until one is left (or run
-   `indexedDB.deleteDatabase('speech-coach')`, reload and save one session with the store
-   check above), then open `#/progress`. The block built by `app.ui.renderState` sits centered
-   between the heading and the nav: a chart icon, "Need two sessions" / "Record one more to see
-   a trend." and a "Record" button as wide as the words above it, which opens Practice. Open
-   History: the Progress block does not show there. Tap "See a sample result" on Practice and
-   come back to Progress: the sample is not your take, so the same block shows. Delete your
-   take in History (the sample may stay): the block now reads "Record two sessions to see a
-   trend."
