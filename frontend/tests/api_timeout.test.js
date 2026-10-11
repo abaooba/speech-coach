@@ -1,4 +1,4 @@
-// Tests for the upload deadline in frontend/api.js: a request still open after two minutes is
+// Tests for the upload deadline in frontend/api.js: a request still open after three minutes is
 // aborted and rejects as kind "network", like a server that cannot be reached. api.js runs in a
 // vm context with a fake clock, Node's AbortController and a fetch that never answers on its own
 // but, like a real fetch, rejects when its signal aborts.
@@ -12,7 +12,7 @@ const vm = require("node:vm");
 
 const API_SOURCE = fs.readFileSync(path.join(__dirname, "..", "api.js"), "utf8");
 
-const DEADLINE_MS = 120000;
+const DEADLINE_MS = 180000;
 const MESSAGES = {
   network: "Could not reach the server. Your recording is still here.",
   too_short: "That was under 5 seconds. Try again.",
@@ -117,7 +117,7 @@ function track(api) {
   return tracked;
 }
 
-test("an upload open past two minutes rejects as kind 'network'", FAIL_FAST, async () => {
+test("an upload open past three minutes rejects as kind 'network'", FAIL_FAST, async () => {
   const clock = fakeClock();
   const { api, calls } = loadApi((url, init) => untilAborted(init.signal), withClock(clock));
   const upload = track(api);

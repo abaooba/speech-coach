@@ -10,10 +10,11 @@
   const FILENAME_STEM = "recording.";
   const DEFAULT_EXTENSION = "webm";
 
-  // A request still open after two minutes is aborted and fails as "network", so a stalled
-  // upload never leaves the speaker on "Analyzing your speech". Two minutes is also how long
-  // the backend waits on each call to the speech-to-text provider.
-  const ANALYZE_TIMEOUT_MS = 120000;
+  // A request still open after three minutes is aborted and fails as "network", so a stalled
+  // upload never leaves the speaker on "Analyzing your speech". The backend gives each call to
+  // the speech-to-text provider two minutes, so its own "provider" error arrives first, and a
+  // four-minute take after a cold server start still has room.
+  const ANALYZE_TIMEOUT_MS = 180000;
 
   // The only copies of these sentences in the codebase (DESIGN.md section 8).
   const messages = Object.freeze({
