@@ -126,10 +126,24 @@ test("the body is a column whose parts keep their size; the card takes the rest 
   assert.equal(valueFor(".passage-card", "max-height"), undefined, "no 40vh cap any more");
 });
 
-test("short screens lower the card floor, shrink the record button and hide the hint text", () => {
-  assert.equal(valueFor("#screen-practice .passage-card", "min-height", SHORT_SCREENS), "88px");
+// The card's floor on short screens holds its title, its target and two lines of text above the
+// --s-5 fade: 16 + 27.4 + 27.6 + 2 x 25.6 + 24 + 2 is about 148px for a one-line title.
+test("short screens give the card a two-line floor and tighten the record zone for it", () => {
+  assert.equal(valueFor("#screen-practice .passage-card", "min-height", SHORT_SCREENS), "148px");
   assert.equal(valueFor("#screen-practice .btn-record", "width", SHORT_SCREENS), "72px");
   assert.equal(valueFor("#screen-practice .btn-record", "height", SHORT_SCREENS), "72px");
+  assert.equal(
+    valueFor("#screen-practice .btn-record", "margin-top", SHORT_SCREENS),
+    "var(--s-2)",
+  );
+  assert.equal(
+    valueFor("#screen-practice .practice__timer", "margin-top", SHORT_SCREENS),
+    "var(--s-2)",
+  );
+  assert.equal(
+    valueFor("#screen-practice .practice__limit-bar", "margin-top", SHORT_SCREENS),
+    "var(--s-1)",
+  );
   const hintText = "#screen-practice .practice__hint-text";
   assert.equal(valueFor(hintText, "display", SHORT_SCREENS), "none");
   const hidesSample = RULES.some(
@@ -137,19 +151,39 @@ test("short screens lower the card floor, shrink the record button and hide the 
       rule.at === SHORT_SCREENS &&
       rule.selectors.some((selector) => /practice__(sample|hint)$/.test(selector)),
   );
-  assert.ok(!hidesSample, "the sample button stays on short screens");
+  assert.ok(!hidesSample, "landscape and 200% zoom keep the sample button; their page scrolls");
 });
 
-test("the sample button keeps its room, invisible, while recording", () => {
+const SMALL_PHONES = "@media (max-height: 600px) and (max-width: 479px)";
+
+test("small phones drop the hint and its sample button, so the two-line card fits", () => {
+  assert.equal(valueFor("#screen-practice .practice__hint", "display", SMALL_PHONES), "none");
+});
+
+test("the sample button shows in idle only; recording gives its room to the card", () => {
   const selector = practiceIn("recording", ".practice__sample");
-  assert.equal(valueFor(selector, "visibility"), "hidden");
-  assert.equal(valueFor(selector, "display"), undefined);
-  const hidesWhileRecording = RULES.some(
-    (rule) =>
-      rule.selectors.some((one) => one.endsWith(".practice__sample") && one.includes(":not(")) &&
-      rule.declarations.display === "none",
-  );
-  assert.ok(!hidesWhileRecording, "no catch-all rule collapses the sample outside idle");
+  assert.equal(valueFor(selector, "display"), "none");
+  assert.equal(valueFor(selector, "visibility"), undefined, "no invisible placeholder");
+});
+
+test("while a take records or uploads, the column reaches into the hidden nav's room", () => {
+  for (const state of ["recording", "uploading"]) {
+    const main = `body:has(#screen-practice.screen--active[data-state="${state}"]) main`;
+    assert.equal(
+      valueFor(main, "padding-bottom"),
+      "calc(var(--s-5) + env(safe-area-inset-bottom))",
+      `${state}: main keeps only its --s-5 end padding`,
+    );
+    const section = `#screen-practice.screen--active[data-state="${state}"]`;
+    const minHeight = valueFor(section, "min-height");
+    assert.ok(minHeight.startsWith("calc(100dvh"), `${state} min-height is ${minHeight}`);
+    assert.ok(!minHeight.includes("--nav-h"), `${state}: the nav's room is the card's`);
+    for (const part of ["var(--s-4)", "var(--s-5)", "env(safe-area-inset-bottom)"]) {
+      assert.ok(minHeight.includes(`- ${part}`), `${state} min-height subtracts ${part}`);
+    }
+  }
+  const idleMain = 'body:has(#screen-practice.screen--active[data-state="idle"]) main';
+  assert.equal(valueFor(idleMain, "padding-bottom"), undefined, "idle keeps room for the nav");
 });
 
 test("inside Practice the state block takes the record zone with --s-4 padding", () => {

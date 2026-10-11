@@ -73,11 +73,12 @@ the block's red title (press Tab once to reach its button).
 
 2. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
    speak for about 10 seconds (the timer counts with the red dot pulsing to its left while the
-   clock stays centered, the bar under it fills toward the limit, the nav disappears, and the
-   hint reads "Tap Stop when you finish. It uploads right away."), then tap Stop. While
-   recording, the tabs, the chips and New topic are disabled; the selected tab and chip stay
-   readable. "Analyzing your speech" shows with a spinner under the held timer; the record
-   button and its label are both hidden. The hash becomes `#/results/<id>`, and in the console:
+   clock stays centered, the bar under it fills toward the limit, the nav and "See a sample
+   result" disappear and the card grows into their room, and the hint reads "Tap Stop when you
+   finish. It uploads right away."), then tap Stop. While recording, the tabs, the chips and
+   New topic are disabled; the selected tab and chip stay readable. "Analyzing your speech"
+   shows with a spinner under the held timer; the record button and its label are both hidden.
+   The hash becomes `#/results/<id>`, and in the console:
 
    ```js
    await app.store.list()
@@ -112,8 +113,11 @@ the block's red title (press Tab once to reach its button).
 
 8. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole "Your day"
    topic, the record button, "Record", the hint and "See a sample result" above the nav with
-   no page scroll. At 320 x 568 the card drops to its 88px floor (its text scrolls inside), the
-   hint words hide and the record button shrinks, so it and its label still sit above the nav.
+   no page scroll. At 320 x 568 the card still shows the whole topic, two lines above its fade:
+   the hint and the sample button hide, the record button shrinks and the gaps under the card
+   tighten, so the button and its label sit above the nav with no page scroll. Tap Record: the
+   nav hides and the card grows into its room. In landscape (667 x 375) or at 200% zoom the
+   card keeps those two lines, the sample button stays, and the page scrolls.
 
 9. Theme toggle: the icon right of "Speech Coach" is a half-filled circle for Auto, and a
    screen reader names it "Theme: Auto. Switch to dark." Tap it: the page turns dark whatever

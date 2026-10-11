@@ -424,6 +424,20 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   min-height: calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
 }
 
+/* While a take records or uploads the nav is hidden, so the column reaches into its room: main
+   keeps only its --s-5 end padding and the section grows to match. The card takes the space and
+   shows more of the topic or passage while the speaker talks or reads. */
+body:has(#screen-practice.screen--active[data-state="recording"]) main,
+body:has(#screen-practice.screen--active[data-state="uploading"]) main {
+  padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom));
+}
+
+#screen-practice.screen--active[data-state="recording"],
+#screen-practice.screen--active[data-state="uploading"] {
+  min-height: calc(100vh - var(--s-4) - var(--s-5) - env(safe-area-inset-bottom));
+  min-height: calc(100dvh - var(--s-4) - var(--s-5) - env(safe-area-inset-bottom));
+}
+
 #screen-practice .screen__body {
   flex: 1 1 auto;
   display: flex;
@@ -822,19 +836,37 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   margin-top: 0;
 }
 
-/* Short phones (320 x 568): a lower card floor, a smaller record button and no hint words,
-   so the record button and its label still sit above the nav. */
+/* Short screens (320 x 568, landscape phones, 200% zoom): the card's floor keeps its title, its
+   target and two full lines of text above the fade, and the record zone tightens to make room:
+   a 72px record button, --s-2 and --s-1 gaps, no hint words. */
 @media (max-height: 600px) {
   #screen-practice .passage-card {
-    min-height: 88px;
+    min-height: 148px;
+  }
+
+  #screen-practice .practice__timer {
+    margin-top: var(--s-2);
+  }
+
+  #screen-practice .practice__limit-bar {
+    margin-top: var(--s-1);
   }
 
   #screen-practice .btn-record {
     width: 72px;
     height: 72px;
+    margin-top: var(--s-2);
   }
 
   #screen-practice .practice__hint-text {
+    display: none;
+  }
+}
+
+/* Small phones also drop the sample button, so at 320 x 568 that card and the whole record zone
+   fit above the nav. Landscape and zoom keep it: their page scrolls anyway. */
+@media (max-height: 600px) and (max-width: 479px) {
+  #screen-practice .practice__hint {
     display: none;
   }
 }
@@ -1145,8 +1177,8 @@ body:has(#screen-practice[data-state="uploading"]) .nav {
   font-weight: 500;
 }
 
-/* The sample is for idle only. While recording it keeps its room, invisible and out of the tab
-   order, so the record button never moves; uploading and error hide the whole hint. */
+/* The sample is for idle only. Recording gives its room to the card, with the hidden nav's;
+   uploading and error hide the whole hint. */
 #screen-practice[data-state="recording"] .practice__sample {
-  visibility: hidden;
+  display: none;
 }
