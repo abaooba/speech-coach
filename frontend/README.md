@@ -6,6 +6,27 @@ from the repository root.
 
 ## Manual checks
 
+**Onboarding (about one minute).** A first launch opens this screen whatever the hash. Open
+DevTools on the app, run `indexedDB.deleteDatabase('speech-coach')` in the console and reload.
+
+1. The Onboarding screen shows under its "Speech Coach" heading, with no nav: the line
+   "Record a practice speech. Get your pace, pauses and filler words in seconds.", three
+   items, each after an icon (a microphone, a magnifying glass, a chart), the muted line
+   "Audio is deleted right after analysis. Transcripts stay on this device." and a full-width
+   "Start practicing" button. The tab reads "Speech Coach" and nothing has focus.
+
+2. Tap "Start practicing": Practice shows with the nav. Reload: Practice opens directly, and
+
+   ```js
+   await app.store.getFlag('onboarded')
+   ```
+
+   prints `true`.
+
+3. To see it again, run `await app.store.setFlag('onboarded', false)` and reload. Deleting
+   the database, as the History and Progress empty-state checks below do, brings it back too:
+   tap "Start practicing", then open the hash the check names.
+
 **Store and passages (about one minute).** Open the app in a browser, open DevTools and run
 each line in the console, waiting for it to resolve before the next.
 
