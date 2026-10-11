@@ -1567,6 +1567,26 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   stroke-linejoin: round;
 }
 
+/* The text scales with the chart, so on wider columns it is set in fewer viewBox units: about
+   13px on screen at 480px and up instead of growing to 23px at the 608px column, where it would
+   outsize the 18px title. Smaller labels only add room, so the label spacing still holds, and
+   the Best label's halo thins to match. */
+@media (min-width: 480px) {
+  .chart text {
+    font-size: 9px;
+  }
+
+  .chart .chart__best-label {
+    stroke-width: 2px;
+  }
+}
+
+@media (min-width: 600px) {
+  .chart text {
+    font-size: 7px;
+  }
+}
+
 /* The fillers legend under the chart: a swatch of the band, then its words. */
 .chart__legend {
   display: flex;

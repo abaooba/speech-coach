@@ -158,6 +158,20 @@ test("under 300px only the change from the average may wrap, between its words",
   assert.equal(declared(VALUE, ZOOMED)["white-space"], undefined, "Latest and Best still fit");
 });
 
+test("on wider columns the chart sets its text in fewer viewBox units", () => {
+  // The 320-unit viewBox scales with the column: at 1.4x from 480px and 1.9x at the 608px
+  // column, so 9 and 7 units keep the labels near 13px on screen instead of 23px.
+  assert.equal(declared(".chart text")["font-size"], "var(--fs-micro)");
+  assert.equal(declared(".chart text", "@media (min-width: 480px)")["font-size"], "9px");
+  assert.equal(declared(".chart text", WIDE)["font-size"], "7px");
+  const halo = ".chart .chart__best-label";
+  assert.equal(declared(halo)["stroke-width"], "3px");
+  assert.equal(declared(halo, "@media (min-width: 480px)")["stroke-width"], "2px");
+  // Equal specificity: the wide rules only win when they come after the base ones.
+  const text = sectionText();
+  assert.ok(text.indexOf("@media (min-width: 480px)") > text.indexOf(halo + " {"));
+});
+
 test("section 10 spaces only with the --s scale", () => {
   const spacing = /^(margin|padding|gap|row-gap|column-gap)(-(top|right|bottom|left))?$/;
   const step = /^(0|auto|var\(--s-[1-7]\))$/;
