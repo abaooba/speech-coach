@@ -1,7 +1,7 @@
-/* api.js: app.api, the one place the frontend talks to the backend.
-   analyze(blob, contentType) posts a recording to POST /api/analyze and resolves with the
-   backend's {transcript, metrics}; failures reject with an Error whose .kind is
-   "network" | "too_short" | "provider" | "unknown" and whose .message is a fixed sentence. */
+/* api.js: app.api, the one place the frontend talks to the backend. analyze(blob, contentType)
+   posts a recording to POST /api/analyze and resolves with the backend's {transcript, metrics};
+   a failure rejects with an Error whose .kind is "network" | "too_short" | "provider" | "unknown"
+   and .message a fixed sentence. It touches no DOM and no store, and never keeps the audio. */
 (function () {
   "use strict";
 

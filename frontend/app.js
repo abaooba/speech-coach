@@ -1,7 +1,7 @@
-/* app.js: creates the single `app` global and owns the hash router.
-   Screens register as app.screens[name] = { mount(root), show(params), hide() };
-   on DOMContentLoaded each registered screen is mounted once, then the hash is routed,
-   to Onboarding instead on a first launch (no "onboarded" flag in app.store). */
+/* app.js: creates window.app, the only global, and owns the hash router (app.router.go, current).
+   Screens register as app.screens[name] = { mount(root), show(params), hide() }; on
+   DOMContentLoaded each is mounted once, then the hash is routed (to Onboarding on a first launch,
+   no "onboarded" flag in app.store). It never builds what goes inside a screen's section. */
 (function () {
   "use strict";
 

@@ -1,7 +1,7 @@
 /* screens/onboarding.js: app.screens.onboarding, the first-launch screen (DESIGN.md sections 1
-   and 8). It says what is measured and that audio is deleted after analysis; its one button
-   saves the "onboarded" flag and opens Practice. app.js sends a first launch here at boot.
-   COPY holds every string, so the tests check the copy rules without a DOM. */
+   and 8): what is measured, that audio is deleted after analysis, and one button that saves the
+   "onboarded" flag and opens Practice. COPY holds every string, so tests check it without a DOM.
+   It never asks for the microphone, and app.js, not this file, decides when it shows. */
 (function () {
   "use strict";
 

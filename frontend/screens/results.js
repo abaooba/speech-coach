@@ -1,8 +1,7 @@
-/* screens/results.js: app.screens.results, the Results screen after a take (DESIGN.md sections
-   1, 6 and 8). Pure helpers do the thinking without the DOM or app.ui: summarize, headlineFor,
-   compareWithPrevious, timelineSegments, buildTranscriptPlan and isSample. show({id}) loads the
-   take and the speaker's take before it from app.store and draws the meta line, headline,
-   cards, speech timeline, transcript, tips and actions. */
+/* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
+   show({id}) reads the take and the speaker's take before it from app.store, never writing, and
+   draws the meta line, headline, cards, timeline, transcript, tips and actions node by node,
+   never from markup. summarize, headlineFor and the other pure helpers touch no DOM or app.ui. */
 (function () {
   "use strict";
 
