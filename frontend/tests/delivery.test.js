@@ -210,7 +210,7 @@ test("a pause after a sentence-ending word is not a break and does not cut the s
   const report = delivery.analyze(words, { pauses: [[words[1].end, 2.1]], repeats: [] });
   assert.deepEqual(
     plain(report.pauses),
-    [{ at: words[1].end, length: 2.1, midSentence: false }],
+    [{ at: words[1].end, length: 2.1, midSentence: false, long: false }],
   );
   assert.equal(report.midSentencePauseCount, 0);
   assert.equal(report.cleanStretch.seconds, 4.3, "the whole take, first start to last end");

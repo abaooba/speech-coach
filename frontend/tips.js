@@ -15,6 +15,7 @@
        fillers     fillers per minute > 3      Zoom and tl;dv put 0.6 to 3 a minute in range
        habit       top habit 3 times or more   the Ah-Counter names each speaker's crutch word
        break-long  mid-sentence pause > 3 s    a pause at a period lands; mid-sentence it stalls
+       freeze      5 s+ pause after a period   a freeze reads as a lost place, even at a period
        repeats     3 restarts or more          each restart costs the judge's trust in the line
        clean       nothing above fired */
 
@@ -58,6 +59,13 @@
       text: () =>
         "A pause in the middle of a sentence ran past 3 seconds. " +
         "Glance at your next point first.",
+    },
+    {
+      id: "freeze",
+      fires: (facts) => facts.longestFreeze !== null,
+      text: (facts) =>
+        "You froze for " + facts.longestFreeze.length.toFixed(1) + " seconds at " +
+        clockText(facts.longestFreeze.at) + ". Know how your next point opens.",
     },
     {
       id: "repeats",
@@ -118,8 +126,23 @@
       fillerTimes: fillers.map((event) => numberOr0(event && event.start)),
       topHabit: validHabit ? { text: habit.text, count: Number(habit.count) } : null,
       longestBreak: roundToTenth(numberOr0(report.longestMidSentencePause)),
+      longestFreeze: longestFreeze(report.pauses),
       repeatCount: numberOr0(report.repeatCount),
     };
+  }
+
+  // The longest long pause (5 s+, the report's `long` flag) that falls between sentences, as
+  // {at, length}, or null. A long mid-sentence pause is left to break-long, so one freeze never
+  // gets two tips.
+  function longestFreeze(pauses) {
+    let longest = null;
+    (Array.isArray(pauses) ? pauses : []).forEach((pause) => {
+      const freeze = pause && pause.long === true && pause.midSentence === false;
+      if (freeze && (longest === null || numberOr0(pause.length) > longest.length)) {
+        longest = { at: numberOr0(pause.at), length: numberOr0(pause.length) };
+      }
+    });
+    return longest;
   }
 
   // The same m:ss text as app.ui.formatClock, kept here so tips.js loads on its own.

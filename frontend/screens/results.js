@@ -66,6 +66,7 @@
     slowDown: (band) => "Next take, slow toward " + band + " wpm.",
     speedUp: (band) => "Next take, lift your pace toward " + band + " wpm.",
     movePauses: "Next take, save pauses for the ends of sentences.",
+    shortenFreezes: "Next take, keep every pause under 5 seconds.",
     stretchClean: (seconds) => "Next take, stretch your clean run past " + seconds + ".",
     holdDelivery: "Next take, hold this delivery on a longer topic.",
   });
@@ -101,8 +102,9 @@
   const DELTA_NOTE = "Arrows compare with your last take.";
 
   // The speech timeline's strip, in viewBox units: 320 wide and 40 tall, stretched to the
-  // column. The track sits inside the box; filler ticks run 4 units past it at both ends, so
-  // they read as taller than the track. Every color is a token string, so both themes apply.
+  // column. The track sits inside the box; filler ticks and long-pause blocks run 4 units past
+  // it at both ends, so they read as taller than the track. Every color is a token string, so
+  // both themes apply.
   const TIMELINE_TITLE = "Speech timeline";
   const SVG_NS = "http://www.w3.org/2000/svg";
   const STRIP = Object.freeze({
@@ -123,19 +125,24 @@
     clean: "var(--ok-bg)",
     cleanEdge: "var(--ok)",
     pause: "var(--pause)",
+    longPause: "var(--pause-long)",
     filler: "var(--filler)",
   });
   // Coordinates keep two decimals: a hundredth of a unit is far below a pixel.
   const COORD_SCALE = 100;
+  // The long-pause key joins the legend only when the strip draws a long pause.
   const LEGEND_KEYS = [
     ["filler", "Filler"],
     ["pause", "Mid-sentence pause"],
+    ["long-pause", "Long pause (5 s+)"],
     ["clean", "Clean stretch"],
   ];
+  const LONG_PAUSE_KEY = "long-pause";
   // The hidden list of moments, read in time order: "Filler “um” at 0:02".
   const MOMENT = Object.freeze({
     filler: (word, at) => "Filler “" + word + "” at " + at,
     pause: (at, seconds) => "Mid-sentence pause at " + at + ", " + seconds + " seconds",
+    longPause: (at, seconds) => "Long pause at " + at + ", " + seconds + " seconds",
     clean: (from, to, seconds) => "Clean stretch from " + from + " to " + to + ", " + seconds,
   });
 
@@ -167,6 +174,8 @@
   const PAUSE_TEXT_SUFFIX = " s pause";
   const PAUSE_LABEL_PREFIX = "pause, ";
   const PAUSE_LABEL_SUFFIX = " seconds";
+  const LONG_PAUSE_TEXT_SUFFIX = " s long pause";
+  const LONG_PAUSE_LABEL_PREFIX = "long pause, ";
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -190,8 +199,9 @@
     return {
       wpm,
       fillersPerMinute: report.fillersPerMinute,
-      pauseCount: report.midSentencePauseCount,
-      longestPause: report.longestMidSentencePause,
+      pauseCount: report.pauseCount,
+      longestPause: report.longestPause,
+      longPauseCount: report.longPauseCount,
       cleanStretchSeconds: report.cleanStretch ? report.cleanStretch.seconds : 0,
       topHabit: report.topHabit,
       target,
@@ -287,6 +297,9 @@
     if (summary.wpm < lo) {
       return HEADLINE.speedUp(band);
     }
+    if (summary.longPauseCount > 0) {
+      return HEADLINE.shortenFreezes;
+    }
     if (summary.pauseCount > 0) {
       return HEADLINE.movePauses;
     }
@@ -361,9 +374,9 @@
   }
 
   // Where the take's moments fall on the speech timeline: positions from 0 (the first word) to
-  // 1 (the last), each with its recording-time clock (`time`), for every filler, the
-  // mid-sentence pauses the card counts and the clean stretch when there is one. Null for a
-  // take without words or without speaking time. Pure.
+  // 1 (the last), each with its recording-time clock (`time`), for every filler, the pauses the
+  // card counts (mid-sentence, or 5 s+ anywhere, flagged `long`) and the clean stretch when
+  // there is one. Null for a take without words or without speaking time. Pure.
   function timelineSegments(report) {
     const start = report ? report.speechStart : null;
     const seconds = report ? report.speakingSeconds : 0;
@@ -378,12 +391,13 @@
       kind: filler.kind,
     }));
     const pauses = listOf(report.pauses)
-      .filter((pause) => pause.midSentence)
+      .filter(app.delivery.isCountedPause)
       .map((pause) => ({
         from: position(pause.at),
         to: position(pause.at + pause.length),
         time: pause.at,
         seconds: pause.length,
+        long: pause.long,
       }));
     const clean = report.cleanStretch;
     const cleanStretch =
@@ -424,9 +438,9 @@
 
   // The transcript as a list of items to draw, in reading order: {type: "word", text, filler}
   // for every backend word and {type: "pause", length} for every [at, length] in `pauses`
-  // (Results passes only the mid-sentence pauses the card counts). A pause goes right after
-  // the last word whose end is at or before `at`; when no word has ended by then it goes before
-  // the first word. Pure: fresh objects, and neither input is changed.
+  // (Results passes only the pauses the card counts: mid-sentence, or 5 s+ anywhere). A pause
+  // goes right after the last word whose end is at or before `at`; when no word has ended by
+  // then it goes before the first word. Pure: fresh objects, and neither input is changed.
   function buildTranscriptPlan(words, pauses) {
     const wordList = Array.isArray(words) ? words : [];
     const pauseList = Array.isArray(pauses) ? pauses : [];
@@ -572,11 +586,11 @@
     body.appendChild(buildActions());
   }
 
-  // The pauses the Mid-sentence pauses card counts, as [at, length] pairs for the transcript,
-  // so the transcript, the card and the timeline always show the same pauses.
+  // The pauses the pauses card counts (mid-sentence, or 5 s+ anywhere), as [at, length] pairs
+  // for the transcript, so the transcript, the card and the timeline always show the same pauses.
   function countedPauses(report) {
     return listOf(report.pauses)
-      .filter((pause) => pause.midSentence)
+      .filter(app.delivery.isCountedPause)
       .map((pause) => [pause.at, pause.length]);
   }
 
@@ -631,8 +645,17 @@
   }
 
   // "2.1 s pause", always one decimal, matching the "x.x s pause" the README asks you to see.
+  // A pause of 5 s or more reads "6.0 s long pause" and carries its own outlined style.
   function pauseMarker(length) {
-    const seconds = numberOr0(length).toFixed(1);
+    const value = numberOr0(length);
+    const seconds = value.toFixed(1);
+    if (value >= app.delivery.LONG_PAUSE_SECONDS) {
+      return app.ui.el("span", {
+        class: "tok--pause tok--pause-long num",
+        "aria-label": LONG_PAUSE_LABEL_PREFIX + seconds + PAUSE_LABEL_SUFFIX,
+        text: seconds + LONG_PAUSE_TEXT_SUFFIX,
+      });
+    }
     return app.ui.el("span", {
       class: "tok--pause num",
       "aria-label": PAUSE_LABEL_PREFIX + seconds + PAUSE_LABEL_SUFFIX,
@@ -754,13 +777,13 @@
       sectionTitle(TIMELINE_TITLE),
       timelineStrip(segments),
       timelineAxis(segments),
-      timelineLegend(),
+      timelineLegend(segments),
       timelineMoments(segments),
     ]);
   }
 
-  // Bottom layer first: the track, the clean-stretch band and its base line, the pause blocks,
-  // then the filler ticks on top.
+  // Bottom layer first: the track, the clean-stretch band and its base line, the pause blocks
+  // (long ones taller than the track), then the filler ticks on top.
   function timelineStrip(segments) {
     const strip = svgEl("svg", {
       class: "timeline__strip",
@@ -809,10 +832,15 @@
     ];
   }
 
-  // A pause block is as wide as the pause, and never thinner than a filler tick.
+  // A pause block is as wide as the pause, and never thinner than a filler tick. A long pause
+  // stands as tall as a filler tick, past the track, in its own color.
   function stripPause(pause) {
     const x = pause.from * STRIP.width;
     const width = Math.max(STRIP.minBlockWidth, (pause.to - pause.from) * STRIP.width);
+    if (pause.long) {
+      const box = [x, STRIP.tickY, width, STRIP.tickHeight];
+      return stripRect("timeline__long-pause", box, STRIP_COLORS.longPause);
+    }
     const box = [x, STRIP.trackY, width, STRIP.trackHeight];
     return stripRect("timeline__pause", box, STRIP_COLORS.pause);
   }
@@ -837,15 +865,21 @@
   }
 
   // "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
-  // stretch", in the recording-time clock the tips use.
+  // stretch", in the recording-time clock the tips use. A take with long pauses adds "1 long
+  // pause" after the mid-sentence count, which then leaves the long ones out.
   function timelineLabel(segments) {
     const from = app.ui.formatClock(segments.start);
     const to = app.ui.formatClock(segments.start + segments.seconds);
+    const longCount = segments.pauses.filter((pause) => pause.long).length;
+    const shortCount = segments.pauses.length - longCount;
     const parts = [
       countText(segments.fillers.length, "filler", "fillers"),
-      countText(segments.pauses.length, "mid-sentence pause", "mid-sentence pauses"),
-      cleanStretchText(segments.cleanStretch),
+      countText(shortCount, "mid-sentence pause", "mid-sentence pauses"),
     ];
+    if (longCount > 0) {
+      parts.push(countText(longCount, "long pause", "long pauses"));
+    }
+    parts.push(cleanStretchText(segments.cleanStretch));
     return TIMELINE_TITLE + " from " + from + " to " + to + ": " + parts.join(", ");
   }
 
@@ -883,11 +917,13 @@
     );
   }
 
-  function timelineLegend() {
+  function timelineLegend(segments) {
+    const hasLongPause = segments.pauses.some((pause) => pause.long);
+    const keys = LEGEND_KEYS.filter(([kind]) => kind !== LONG_PAUSE_KEY || hasLongPause);
     return app.ui.el(
       "p",
       { class: "timeline__legend" },
-      LEGEND_KEYS.map(([kind, text]) =>
+      keys.map(([kind, text]) =>
         app.ui.el("span", { class: "timeline__key" }, [
           app.ui.el("span", {
             class: "timeline__swatch timeline__swatch--" + kind,
@@ -909,7 +945,10 @@
       })),
       ...segments.pauses.map((pause) => ({
         time: pause.time,
-        text: MOMENT.pause(clock(pause.time), pause.seconds.toFixed(1)),
+        text: (pause.long ? MOMENT.longPause : MOMENT.pause)(
+          clock(pause.time),
+          pause.seconds.toFixed(1),
+        ),
       })),
     ];
     const clean = segments.cleanStretch;

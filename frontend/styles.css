@@ -22,6 +22,7 @@
   --filler-bg: #FEF3C7;
   --pause: #6D28D9;
   --pause-bg: #EDE9FE;
+  --pause-long: #BE185D;
   --ok: #15803D;
   --ok-bg: #DCFCE7;
   --warn: #9A3412;
@@ -74,6 +75,7 @@
     --filler-bg: #3B2A05;
     --pause: #B49CFF;
     --pause-bg: #2A1F4D;
+    --pause-long: #F472B6;
     --ok: #4ADE80;
     --ok-bg: #163B26;
     --warn: #FF8A4C;
@@ -100,6 +102,7 @@
   --filler-bg: #3B2A05;
   --pause: #B49CFF;
   --pause-bg: #2A1F4D;
+  --pause-long: #F472B6;
   --ok: #4ADE80;
   --ok-bg: #163B26;
   --warn: #FF8A4C;
@@ -1237,7 +1240,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   gap: var(--s-1);
 }
 
-/* Each swatch echoes its mark: a thin tick, a block, and the band with its base line. */
+/* Each swatch echoes its mark: a thin tick, a block (the long-pause one in its own color), and
+   the band with its base line. */
 .timeline__swatch {
   flex: none;
   display: inline-block;
@@ -1252,6 +1256,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 .timeline__swatch--pause {
   width: 12px;
   background: var(--pause);
+}
+
+.timeline__swatch--long-pause {
+  width: 12px;
+  background: var(--pause-long);
 }
 
 .timeline__swatch--clean {
@@ -1305,6 +1314,13 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-size: var(--fs-micro);
   font-weight: 500;
   vertical-align: middle;
+}
+
+/* A pause of 5 s or more: the same pill, outlined and in the long-pause color. */
+.tok--pause-long {
+  border: 1px solid var(--pause-long);
+  color: var(--pause-long);
+  font-weight: 600;
 }
 
 .tip-card {

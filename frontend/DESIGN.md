@@ -92,6 +92,7 @@ Declare on `:root`. Dark values apply under `@media (prefers-color-scheme: dark)
 | `--filler-bg` | `#FEF3C7` | `#3B2A05` | filler token background |
 | `--pause` | `#6D28D9` | `#B49CFF` | pause marker text, timeline pause blocks, chart pauses |
 | `--pause-bg` | `#EDE9FE` | `#2A1F4D` | pause marker background |
+| `--pause-long` | `#BE185D` | `#F472B6` | long pause (5 s+): timeline block and legend swatch, transcript marker text and outline |
 | `--ok` | `#15803D` | `#4ADE80` | in-target hints and status, clean-stretch edge, chart clean stretch |
 | `--ok-bg` | `#DCFCE7` | `#163B26` | clean-stretch band, the Progress target band |
 | `--warn` | `#9A3412` | `#FF8A4C` | out-of-target hints and status, always with the warning icon; the time-limit fill past the limit |

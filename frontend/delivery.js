@@ -37,6 +37,9 @@
   const SET_OFF_PAUSE_SECONDS = 0.25;
   // Debaters pause briefly after a connective "so"; only a longer hang counts as a stall.
   const SO_HANG_SECONDS = 0.5;
+  // A silence this long is a freeze, not a breath: it counts wherever it falls, even after a
+  // full stop, where a shorter pause lets the point land.
+  const LONG_PAUSE_SECONDS = 5;
 
   const CLAUSE_END = /[,;:.?!]["')\]]*$/;
   const SENTENCE_END = /[.?!]["')\]]*$/;
@@ -190,8 +193,9 @@
       at,
       length,
       midSentence: isMidSentence(list, at),
+      long: isLongPause(length),
     }));
-    const breaks = classified.filter((pause) => pause.midSentence);
+    const breaks = classified.filter(isCountedPause);
     return {
       kinds,
       fillers,
@@ -204,15 +208,15 @@
       wordsPerMinute: perMinute(list.length - hesitationCount, speakingSeconds),
       fillersPerMinute: perMinute(fillers.length, speakingSeconds),
       pauses: classified,
-      midSentencePauseCount: breaks.length,
-      longestMidSentencePause: longest(breaks.map((pause) => pause.length)),
+      ...pauseTallies(classified),
       cleanStretch: longestCleanStretch(list, fillers, breaks, repeats),
       repeatCount: repeats.length,
     };
   }
 
   // The same report shape from the backend tallies alone, for a session saved without words.
-  // Without words no pause can be placed in a sentence, so every pause counts as mid-sentence.
+  // Without words no pause can be placed in a sentence, so every pause counts as mid-sentence;
+  // the long ones are still flagged.
   function reportWithoutWords(metrics, pauses, repeats) {
     const tallies = metrics.fillers && typeof metrics.fillers === "object" ? metrics.fillers : {};
     const fillerCount = Object.values(tallies).reduce((sum, count) => sum + numberOr0(count), 0);
@@ -221,6 +225,12 @@
       habitCounts[habit] = numberOr0(tallies[habit]);
     });
     const speakingSeconds = numberOr0(metrics.duration);
+    const classified = pauses.map(([at, length]) => ({
+      at,
+      length,
+      midSentence: true,
+      long: isLongPause(length),
+    }));
     return {
       kinds: [],
       fillers: [],
@@ -232,11 +242,33 @@
       speakingSeconds,
       wordsPerMinute: numberOr0(metrics.words_per_minute),
       fillersPerMinute: perMinute(fillerCount, speakingSeconds),
-      pauses: pauses.map(([at, length]) => ({ at, length, midSentence: true })),
-      midSentencePauseCount: pauses.length,
-      longestMidSentencePause: longest(pauses.map(([, length]) => length)),
+      pauses: classified,
+      ...pauseTallies(classified),
       cleanStretch: null,
       repeatCount: repeats.length,
+    };
+  }
+
+  function isLongPause(length) {
+    return length >= LONG_PAUSE_SECONDS;
+  }
+
+  // True for a pause the report counts: every mid-sentence pause, and a long one anywhere.
+  function isCountedPause(pause) {
+    return pause.midSentence || pause.long;
+  }
+
+  // The pause numbers the cards, headline and tips read: `pauseCount` and `longestPause` cover
+  // every counted pause, a long mid-sentence pause once; the other two split them by kind.
+  function pauseTallies(classified) {
+    const counted = classified.filter(isCountedPause);
+    const midSentence = classified.filter((pause) => pause.midSentence);
+    return {
+      pauseCount: counted.length,
+      longestPause: longest(counted.map((pause) => pause.length)),
+      midSentencePauseCount: midSentence.length,
+      longestMidSentencePause: longest(midSentence.map((pause) => pause.length)),
+      longPauseCount: classified.filter((pause) => pause.long).length,
     };
   }
 
@@ -298,9 +330,9 @@
     return !SENTENCE_END.test(list[before].text);
   }
 
-  // The longest stretch of speech with no filler, no mid-sentence pause and no restart, as
-  // {start, end, seconds}. Every filler and break cuts the take; a restart cuts from the first
-  // copy of the phrase to the moment the speaker starts it over.
+  // The longest stretch of speech with no filler, no counted pause (mid-sentence, or 5 s+
+  // anywhere) and no restart, as {start, end, seconds}. Every filler and break cuts the take;
+  // a restart cuts from the first copy of the phrase to the moment the speaker starts it over.
   function longestCleanStretch(list, fillers, breaks, repeats) {
     const cuts = [
       ...fillers.map((event) => [event.start, event.end]),
@@ -399,5 +431,14 @@
     return Math.round(value * 1000) / 1000;
   }
 
-  app.delivery = { analyze, classify, isHesitation, HESITATION, HABIT, HABIT_WORDS };
+  app.delivery = {
+    analyze,
+    classify,
+    isHesitation,
+    isCountedPause,
+    HESITATION,
+    HABIT,
+    HABIT_WORDS,
+    LONG_PAUSE_SECONDS,
+  };
 })();
