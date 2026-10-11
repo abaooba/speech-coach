@@ -283,7 +283,10 @@ test("scale honors the opts it is given and leaves the defaults alone", () => {
 });
 
 test("show() with fewer than two sessions renders Need two sessions with a Record action", async () => {
-  for (const sessions of [[], [THIRD]]) {
+  for (const [sessions, words] of [
+    [[], "Record two sessions to see a trend."],
+    [[THIRD], "Record one more to see a trend."],
+  ]) {
     const { progress, body, calls } = mountProgress(sessions);
     await progress.show();
     assert.equal(calls.lists, 1);
@@ -294,7 +297,7 @@ test("show() with fewer than two sessions renders Need two sessions with a Recor
     const [icon, title, text, action] = block.children;
     assert.equal(icon.tagName, "svg");
     assert.equal(title.textContent, "Need two sessions");
-    assert.equal(text.textContent, "Record one more to see a trend.");
+    assert.equal(text.textContent, words);
     assert.equal(action.className, "state__action btn btn--secondary");
     assert.equal(fullText(action), "Record");
     action.click();

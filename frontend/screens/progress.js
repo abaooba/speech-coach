@@ -157,11 +157,13 @@
   const ANCHOR_MIDDLE = "middle";
   const ANCHOR_END = "end";
 
-  // Fixed copy (DESIGN.md section 8): the under-two state, the summary row, the band legend,
-  // the chart's aria-label and the table.
+  // Fixed copy (DESIGN.md section 8): the under-two state, whose words count what is missing
+  // (two takes with none yet, one more after the first), the summary row, the band legend, the
+  // chart's aria-label and the table.
   const MIN_SESSIONS = 2;
   const EMPTY_TITLE = "Need two sessions";
-  const EMPTY_BODY = "Record one more to see a trend.";
+  const EMPTY_BODY_NONE = "Record two sessions to see a trend.";
+  const EMPTY_BODY_ONE = "Record one more to see a trend.";
   const EMPTY_ICON = "chart";
   const RECORD_LABEL = "Record";
   const LATEST_LABEL = "Latest";
@@ -376,7 +378,7 @@
       return;
     }
     if (takes.length < MIN_SESSIONS) {
-      renderEmpty();
+      renderEmpty(takes.length);
     } else {
       renderChart(takes);
     }
@@ -396,12 +398,13 @@
   // Nothing to release: show() rebuilds the body from the store every time.
   function hide() {}
 
-  function renderEmpty() {
+  // `count` is how many takes there are, 0 or 1.
+  function renderEmpty(count) {
     app.ui.renderState(body, {
       kind: "empty",
       icon: EMPTY_ICON,
       title: EMPTY_TITLE,
-      body: EMPTY_BODY,
+      body: count === 0 ? EMPTY_BODY_NONE : EMPTY_BODY_ONE,
       actionLabel: RECORD_LABEL,
       onAction: () => app.router.go("practice"),
     });

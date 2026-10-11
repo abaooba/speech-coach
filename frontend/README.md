@@ -335,4 +335,6 @@ Then open http://127.0.0.1:8000/#/progress.
    between the heading and the nav: a chart icon, "Need two sessions" / "Record one more to see
    a trend." and a "Record" button as wide as the words above it, which opens Practice. Open
    History: the Progress block does not show there. Tap "See a sample result" on Practice and
-   come back to Progress: the sample is not your take, so the same block shows.
+   come back to Progress: the sample is not your take, so the same block shows. Delete your
+   take in History (the sample may stay): the block now reads "Record two sessions to see a
+   trend."

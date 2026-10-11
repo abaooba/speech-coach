@@ -117,6 +117,13 @@ test("one take and a sample still need a second take", async () => {
   assert.equal(text.textContent, "Record one more to see a trend.");
 });
 
+test("a sample alone counts as no take at all", async () => {
+  const { body } = await showProgress([SAMPLE]);
+  const [, title, text] = body.children[0].children;
+  assert.equal(title.textContent, "Need two sessions");
+  assert.equal(text.textContent, "Record two sessions to see a trend.");
+});
+
 test("the chart, the summary and the table show the speaker's takes only", async () => {
   const { app, body } = await showProgress(NEWEST_FIRST);
   const svg = chartOf(body);
