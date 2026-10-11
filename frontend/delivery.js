@@ -8,9 +8,10 @@
   const HESITATION = "hesitation";
   const HABIT = "habit";
 
-  // um, umm, uhm, uh, uhh, er, erm, ah, ahh, hm, hmm and longer stretches of the same letters.
-  // Agreement sounds (mhm, uh-huh, mm-hmm) and "huh" never match: they are not hesitations.
-  const HESITATION_PATTERN = /^(?:u+h*m+|u+h+|e+r+m*|a+h+|h+m+)$/;
+  // um, umm, uhm, uh, uhh, er, erm, ah, ahh, hm, hmm and longer stretches of the same letters,
+  // plus the agreement sounds a speaker fills a gap with: mhm, mhmm, mm-hmm, mm-hm, uh-huh.
+  // A lone "huh" never matches.
+  const HESITATION_PATTERN = /^(?:u+h*m+|u+h+|e+r+m*|a+h+|h+m+|m+-?h+m+|u+h+-h+u+h+)$/;
 
   // The verbal habits the app counts, in the order a tie for "most used" is broken.
   const HABIT_WORDS = ["like", "so", "you know", "actually", "basically"];
@@ -224,7 +225,7 @@
       kinds: [],
       fillers: [],
       fillerCount,
-      hesitationCount: ["um", "uh", "hmm"].reduce((sum, key) => sum + numberOr0(tallies[key]), 0),
+      hesitationCount: ["um", "uh", "hmm", "mhm"].reduce((sum, key) => sum + numberOr0(tallies[key]), 0),
       habitCounts,
       topHabit: topHabit(habitCounts),
       speechStart: null,
