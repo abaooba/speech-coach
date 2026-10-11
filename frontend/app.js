@@ -163,7 +163,9 @@
   }
 
   function boot() {
-    // The saved Auto / Dark / Light choice applies before any screen mounts.
+    // The saved Auto / Dark / Light choice applies before any screen mounts. The inline script
+    // in index.html's <head> already set data-theme for the first paint; this also points the
+    // theme-color metas at the theme.
     const ui = app.ui;
     if (ui && typeof ui.applyTheme === "function" && typeof ui.getTheme === "function") {
       ui.applyTheme(ui.getTheme());

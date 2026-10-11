@@ -8,6 +8,21 @@
   <title>Speech Coach</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    // A saved Dark or Light theme applies before the first paint, so the page never shows the
+    // device scheme first; app.js applies it again at boot to point the theme-color metas.
+    (function () {
+      "use strict";
+      try {
+        const theme = localStorage.getItem("speech-coach-theme");
+        if (theme === "dark" || theme === "light") {
+          document.documentElement.dataset.theme = theme;
+        }
+      } catch {
+        // Blocked storage leaves the device setting in charge, as Auto does.
+      }
+    })();
+  </script>
 </head>
 <body>
   <main>
