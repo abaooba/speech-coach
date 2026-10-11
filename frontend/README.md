@@ -160,9 +160,12 @@ sample result", which opens a real sample take on this screen.
    it. Tap "Record again": Practice opens in idle. Use the browser's back button to return,
    then tap "History": the hash becomes `#/history`. With a keyboard, press Tab from the top
    of the page: the "How we count" link scrolls up above the bar with its whole focus ring in
-   view, and the next Tab moves to "History" without moving the page. At 200% zoom on a phone
-   (DevTools at 187px wide) the bar wraps: "History" on one line, "Record again" under it,
-   both inside the screen.
+   view, and the next Tab moves to "History" without moving the page. In landscape
+   (568 x 320) or at 200% zoom on a phone (DevTools at 187 x 333 or 160 x 284) the bar is not
+   stuck: the transcript and tips read through the whole window above the nav, and the bar
+   sits at the end of the page. At 187px it wraps: "History" on one line, "Record again"
+   under it, both inside the screen. Tabbing through the page there keeps every focused
+   control, the bar's two included, with its whole ring clear of the nav.
 
 4. Speech timeline: under the cards, a "Speech timeline" heading and a strip from the first
    word to the last: amber ticks for fillers, purple blocks for mid-sentence pauses and a pale

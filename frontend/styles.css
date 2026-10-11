@@ -1351,12 +1351,20 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   scroll-margin-bottom: calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom));
 }
 
-/* Under 320px, reached only by zooming a phone, the bar wraps onto two rows: the room grows by
-   one more button row and the --s-3 gap between the rows. */
-@media (max-width: 319px) {
-  #screen-results :is(a, button):not(.results__actions *) {
-    scroll-margin-bottom: calc(var(--nav-h) + 2 * var(--s-7) + var(--s-6) + var(--s-3)
-      + env(safe-area-inset-bottom));
+/* Landscape phones and 200% zoom leave too little height for a stuck bar: with the nav it
+   covered two thirds of a 160 x 284 window. There the bar stays in the page at its end, where
+   main's bottom padding keeps it clear of the nav (under 320px it still wraps onto two rows).
+   A focused link or button, the bar's own included, then only has to clear the nav, as on
+   History. */
+@media (max-height: 480px), (max-width: 319px) {
+  #screen-results .results__actions {
+    position: static;
+    margin-bottom: 0;
+  }
+
+  #screen-results :is(a, button):not(.results__actions *),
+  #screen-results .results__actions button {
+    scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
   }
 }
 

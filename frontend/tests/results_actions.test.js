@@ -2,7 +2,8 @@
 // of the screen, stuck above the nav, one row with a ghost "History" and the screen's only
 // primary button, "Record again", whose width caps at 320px on wide screens. At 200% zoom on a
 // phone the row wraps rather than push History off the left edge, and a focused link or button
-// above the bar scrolls clear of the bar, the nav and its own focus ring.
+// above the bar scrolls clear of the bar, the nav and its own focus ring. On a short or zoomed
+// window (review a11y-4) the bar sits at the end of the page instead of covering it.
 "use strict";
 
 const test = require("node:test");
@@ -214,16 +215,32 @@ test("a focused link or button above the bar scrolls clear of the bar, nav and r
     "calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom))",
     "the nav, one 48px button row, then the bar's padding and border and the 5px ring",
   );
-  assert.equal(
-    declarationsAt(ABOVE_THE_BAR, "@media (max-width: 319px)")["scroll-margin-bottom"],
-    "calc(var(--nav-h) + 2 * var(--s-7) + var(--s-6) + var(--s-3) + " +
-      "env(safe-area-inset-bottom))",
-    "zoomed under 320px the bar wraps: one more button row and the gap between the rows",
-  );
 });
 
-test("the bar's own buttons ask for no scroll room, so tabbing into the bar never scrolls", () => {
-  for (const { selector, declarations } of ALL_RULES) {
+// Landscape phones (568 x 320) and 200% zoom on a phone (160 to 187px wide) leave too little
+// height for a bar stuck over the page: with the nav it covered up to two thirds of it.
+const SHORT_OR_ZOOMED = "@media (max-height: 480px), (max-width: 319px)";
+const STATIC_BAR_ROOM = ABOVE_THE_BAR + ", #screen-results .results__actions button";
+
+test("on a short or zoomed window the bar sits at the end of the page instead", () => {
+  const bar = declarationsAt("#screen-results .results__actions", SHORT_OR_ZOOMED);
+  assert.equal(bar.position, "static", "it scrolls away with the page, so it covers nothing");
+  assert.equal(bar["margin-bottom"], "0", "it no longer reaches into main's padding to the nav");
+  assert.equal(rule(".results__actions").position, "sticky", "everywhere else it stays stuck");
+});
+
+test("there every focused link or button, the bar's own too, scrolls clear of the nav", () => {
+  assert.equal(
+    declarationsAt(STATIC_BAR_ROOM, SHORT_OR_ZOOMED)["scroll-margin-bottom"],
+    "calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom))",
+    "with no bar over the page, focus clears only the nav, ring and all, as on History",
+  );
+  const last = ALL_RULES.filter((entry) => entry.selector.startsWith(ABOVE_THE_BAR)).pop();
+  assert.equal(last.at, SHORT_OR_ZOOMED, "it follows the stuck bar's room, so it wins there");
+});
+
+test("the stuck bar's own buttons ask for no scroll room, so tabbing into it never scrolls", () => {
+  for (const { at, selector, declarations } of ALL_RULES) {
     if (!/screen-results|results__/.test(selector)) {
       continue;
     }
@@ -232,7 +249,8 @@ test("the bar's own buttons ask for no scroll room, so tabbing into the bar neve
       !names.some((name) => name.startsWith("scroll-padding")),
       `${selector}: padding the page's scroll area would also cover the bar's own buttons`,
     );
-    if (selector !== ABOVE_THE_BAR) {
+    const inPage = at === SHORT_OR_ZOOMED && selector === STATIC_BAR_ROOM;
+    if (selector !== ABOVE_THE_BAR && !inPage) {
       assert.ok(!names.some((name) => name.startsWith("scroll-margin")), selector);
     }
   }
