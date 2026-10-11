@@ -161,12 +161,22 @@ test("each value line is the number, one space and the unit, with /min for fille
   );
 });
 
-test("the grid is 2 x 2 at every width: no media query changes its columns", () => {
+test("the grid is 2 x 2 from 240px up; only 200% zoom on a phone stacks the cards", () => {
   assert.equal(ruleFor(".metric-grid")["grid-template-columns"], "1fr 1fr");
+  const zoomed = "@media (max-width: 239px)";
   const overrides = RULES.filter(
     (rule) => rule.selector === ".metric-grid" && rule.at !== null,
   ).filter((rule) => "grid-template-columns" in rule.declarations);
-  assert.deepEqual(overrides, [], "the 600px four-up rule is gone");
+  assert.deepEqual(
+    overrides.map((rule) => [rule.at, rule.declarations["grid-template-columns"]]),
+    [[zoomed, "minmax(0, 1fr)"]],
+    "the 600px four-up rule is gone; a 160 to 187px window stacks the cards",
+  );
+  const stacked = RULES.find(
+    (rule) => rule.selector === ".metric-card:nth-child(n + 2)" && rule.at === zoomed,
+  );
+  assert.ok(stacked, "stacked cards keep the --s-3 the second grid row gets");
+  assert.equal(stacked.declarations["margin-top"], "var(--s-3)");
 });
 
 test("a value never wraps apart from its unit, and labels wrap instead of truncating", () => {

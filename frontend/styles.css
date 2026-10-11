@@ -1121,6 +1121,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* 200% zoom on a phone leaves a 160 to 187px window, too narrow for two cards side by side:
+   the four cards stack, --s-3 apart. */
+@media (max-width: 239px) {
+  .metric-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .metric-card:nth-child(n + 2) {
+    margin-top: var(--s-3);
+  }
+}
+
 /* Section titles for the timeline, the transcript and the tips; the section gap sits above
    each one. */
 .results__heading {
