@@ -202,6 +202,11 @@
       app.router.go(ONBOARDING_SCREEN);
     }
     route();
+    // sw.js keeps the app files for offline opens. Without service workers, or when the browser
+    // refuses the registration, the app runs exactly as before.
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
   }
 
   document.addEventListener("DOMContentLoaded", boot);
