@@ -15,6 +15,8 @@
 
   // Name of the screen whose show() ran last, so route() can call its hide().
   let shownScreenName = null;
+  // The id that screen was shown with (a session id on Results), or null.
+  let shownId = null;
 
   app.router.go = function go(name, params) {
     const idPart = params && params.id ? "/" + params.id : "";
@@ -81,15 +83,28 @@
     });
   }
 
+  // A new screen, or another session on Results, opens at the top: the browser would keep the
+  // last screen's scroll. The test fakes have no scrollTo.
+  function scrollToTop() {
+    if (typeof window.scrollTo === "function") {
+      window.scrollTo(0, 0);
+    }
+  }
+
   function route() {
     const { name, params } = app.router.current();
+    const id = params.id === undefined ? null : params.id;
     hidePreviousScreen();
     activateSection(name);
+    if (name !== shownScreenName || id !== shownId) {
+      scrollToTop();
+    }
     const screen = app.screens[name];
     if (screen && typeof screen.show === "function") {
       screen.show(params);
     }
     shownScreenName = name;
+    shownId = id;
     updateNav(name);
     document.title = PAGE_TITLE;
   }
