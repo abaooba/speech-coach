@@ -154,6 +154,18 @@ test("short screens give the card a two-line floor and tighten the record zone f
   assert.ok(!hidesSample, "landscape and 200% zoom keep the sample button; their page scrolls");
 });
 
+test("on short screens an error block takes the card's place, so every error fits", () => {
+  const card = practiceIn("error", ".passage-card");
+  assert.equal(valueFor(card, "display", SHORT_SCREENS), "none");
+  assert.equal(valueFor(card, "display"), undefined, "taller screens keep the card above it");
+  const compacted = RULES.filter(
+    (rule) =>
+      rule.at === SHORT_SCREENS &&
+      rule.selectors.some((selector) => selector.includes(".practice__state")),
+  );
+  assert.deepEqual(compacted, [], "the block keeps its icon, --s-4 padding and rhythm");
+});
+
 const SMALL_PHONES = "@media (max-height: 600px) and (max-width: 479px)";
 
 test("small phones drop the hint and its sample button, so the two-line card fits", () => {

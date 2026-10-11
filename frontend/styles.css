@@ -861,6 +861,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   #screen-practice .practice__hint-text {
     display: none;
   }
+
+  /* An error block takes the card's place: the selected chip still names the option, and the
+     whole block, icon and both actions included, fits above the nav at 320 x 568. */
+  #screen-practice[data-state="error"] .passage-card {
+    display: none;
+  }
 }
 
 /* Small phones also drop the sample button, so at 320 x 568 that card and the whole record zone

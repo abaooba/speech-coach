@@ -61,7 +61,9 @@ and open http://127.0.0.1:8000/ in Chrome:
 `.env` is read when the server starts, so restart uvicorn after changing it. Every error
 block below is built by `app.ui.renderState` and takes the record zone right under the card:
 the timer, the record button and its "Record" label are hidden, and keyboard focus lands on
-the block's red title (press Tab once to reach its button).
+the block's red title (press Tab once to reach its button). On a short screen (320 x 568) the
+block takes the card's place too, so the whole block, both actions included, sits above the
+nav with no page scroll; the selected chip still names the option.
 
 1. Talk and Read: Practice opens on the Talk tab with "Your day 1:00" selected. The chips
    read "Your day 1:00", "Impromptu 2:00", "Congress speech 3:00" and "PF constructive 4:00",
