@@ -592,13 +592,16 @@
     }
   }
 
-  // The title of the block in the record zone, or null while the zone is empty.
+  // The title of the block in the record zone, or null while the zone is empty. Some test fakes
+  // have no querySelector.
   function stateTitle() {
     const block = nodes.stateBlock.firstChild;
-    return block ? block.querySelector(".state__title") : null;
+    return block && typeof block.querySelector === "function"
+      ? block.querySelector(".state__title")
+      : null;
   }
 
-  // True when keyboard focus is on `node` or inside it. The test fakes have no activeElement,
+  // True when keyboard focus is on `node` or inside it. Some test fakes have no activeElement,
   // and some have no contains().
   function holdsFocus(node) {
     const active = typeof document === "undefined" ? null : document.activeElement;

@@ -70,16 +70,25 @@ class RevampElement extends FakeElement {
   }
 }
 
+// The same element without querySelector. Below its section the screen guards that call, as it
+// guards focus() and contains(), so a stand-in DOM that lacks it still runs every state.
+class UnsearchableElement extends RevampElement {
+  get querySelector() {
+    return undefined;
+  }
+}
+
 // The fake document also carries an <html> stand-in, where app.ui.applyTheme sets data-theme,
-// and an activeElement: the element focused last, or null before the first focus() call.
-function revampDocument(focusLog) {
+// and an activeElement: the element focused last, or null before the first focus() call. Every
+// element it builds is a RevampElement unless the caller passes another class.
+function revampDocument(focusLog, Element = RevampElement) {
   return {
     documentElement: { dataset: {} },
     get activeElement() {
       return focusLog.length > 0 ? focusLog[focusLog.length - 1] : null;
     },
-    createElement: (tagName) => new RevampElement(tagName, null, focusLog),
-    createElementNS: (namespaceURI, tagName) => new RevampElement(tagName, namespaceURI, focusLog),
+    createElement: (tagName) => new Element(tagName, null, focusLog),
+    createElementNS: (namespaceURI, tagName) => new Element(tagName, namespaceURI, focusLog),
     createTextNode: (text) => new FakeTextNode(text),
     getElementById: () => null,
   };
@@ -214,7 +223,7 @@ function setup(options = {}) {
   };
   const context = {
     app,
-    document: revampDocument(focused),
+    document: revampDocument(focused, options.elementClass),
     navigator: {
       mediaDevices: {
         getUserMedia() {
@@ -561,6 +570,20 @@ test("an upload leaves focus alone when it sat outside the record zone", async (
   await flush();
   assert.equal(t.root.dataset.state, "uploading", "the track ended on its own");
   assert.equal(lastFocused(t), text);
+});
+
+test("the loading and error blocks still show where elements have no querySelector", async () => {
+  // With no title to find, neither block's title takes tabindex or focus; nothing throws.
+  const t = setup({ elementClass: UnsearchableElement });
+  t.recordButton.focus();
+  await recordTake(t, 8000);
+  assert.equal(t.root.dataset.state, "uploading");
+  assert.equal(stateBlock(t).getAttribute("role"), "status");
+  t.rejectUpload(apiError("network"));
+  await flush();
+  assert.equal(t.root.dataset.state, "error");
+  assert.equal(stateBlock(t).getAttribute("role"), "alert");
+  assert.equal(lastFocused(t), t.recordButton, "focus stays where it was");
 });
 
 test("the hint text sits in its own span, followed by the sample button", () => {
