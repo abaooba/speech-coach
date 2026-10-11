@@ -240,6 +240,17 @@ test("the focus follows the cards: fillers, then pace, then pauses", () => {
   });
 });
 
+test("at the band's ends the focus holds, as the strength and the Pace card do", () => {
+  // 130 and 150 are inside the 130 to 150 band, and 150.4 shows as 150 on the card.
+  for (const wpm of [130, 150, 150.4]) {
+    assert.equal(
+      headline(tallies({ wpm })).focus,
+      "Next take, hold this delivery on a longer topic.",
+      String(wpm),
+    );
+  }
+});
+
 test("a clean stretch under 15 seconds has room to grow; 15 or more holds", () => {
   assert.deepEqual(headline(spoken(40, [20])), {
     strength: "Your pace is inside the 100 to 130 target.",

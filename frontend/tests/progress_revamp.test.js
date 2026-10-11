@@ -612,6 +612,18 @@ test("the fillers chart shades the target band from 0 to 3 under the gridlines",
   assert.ok(target.getAttribute("stroke-dasharray"), "the target line is dashed");
 });
 
+test("every metric paints its gridlines under the axes", async () => {
+  // Later nodes paint on top: an axis drawn before a gridline would sit under its --grid color.
+  for (const [index, label] of OPTION_LABELS.entries()) {
+    const { body } = await showMetric(SEED, index);
+    const strokes = chartOf(body).children.map((node) => node.getAttribute("stroke"));
+    const lastGrid = strokes.lastIndexOf("var(--grid)");
+    const firstAxis = strokes.indexOf("var(--border)");
+    assert.ok(lastGrid !== -1 && firstAxis !== -1, `${label}: gridlines and axes`);
+    assert.ok(lastGrid < firstAxis, `${label}: a gridline at ${lastGrid}, an axis at ${firstAxis}`);
+  }
+});
+
 test("the seed's fillers axis reads 0 to 25 in fives, as in the approved design", async () => {
   // The step comes from the data's own top, 21.4, not from a ten above it (0 to 30 in tens).
   const { body } = await showMetric(SEED, 1);
