@@ -23,12 +23,16 @@ FILLER_KEYS = ("um", "uh", "hmm", "like", "you know", "so", "basically", "actual
 # Hesitation sounds that may sit between the two copies of a repeated phrase.
 REPEAT_SKIP_WORDS = ("um", "uh", "hmm")
 MAX_REPEAT_PHRASE_WORDS = 4
+# A restart is a phrase of at least two words said again after the speaker gave up on a few
+# words: 'the few decisions a day, uh, the few decisions a student'. At most this many
+# abandoned words may sit between the copies; um/uh/hmm there are skipped and do not count.
+RESTART_MAX_ABANDONED_WORDS = 2
 
 _EDGE_PUNCTUATION = re.compile(r"^\W+|\W+$")
 
 
 class Repeat(TypedDict):
-    """A phrase said twice in a row: the phrase as first spoken and when it began."""
+    """A phrase said twice in a row or restarted: the phrase as first spoken and when it began."""
 
     text: str
     at: float
@@ -107,24 +111,40 @@ def count_fillers(words: Sequence[Word]) -> dict[str, int]:
 
 
 def find_repeats(words: Sequence[Word]) -> list[Repeat]:
-    """Phrases of up to four words said twice in a row, such as 'and I, uh, and I'.
+    """Phrases of up to four words said twice in a row, such as 'and I, uh, and I', or restarted.
 
     Only um/uh/hmm are skipped between the copies; 'like' and 'so' stay, so 'I, like, I'
-    is not a repeat. `at` is the start of the first copy in clip seconds. A word
-    stuttered three times yields two repeats, one per extra copy.
+    is not a repeat. A restart is a phrase of two or more words said again after up to
+    RESTART_MAX_ABANDONED_WORDS abandoned words; a two-word restart also needs um/uh/hmm
+    between the copies, so parallel phrasing like 'I play tennis, I play piano' is not one.
+    `at` is the start of the first copy in clip seconds. A word stuttered three times
+    yields two repeats, one per extra copy. Matches never overlap: the search goes on from
+    the second copy.
     """
-    spoken = [w for w in words if normalize(w.text) not in ("", *REPEAT_SKIP_WORDS)]
+    spoken: list[Word] = []
+    hesitation_before: list[bool] = []
+    hesitated = False
+    for word in words:
+        token = normalize(word.text)
+        if token in REPEAT_SKIP_WORDS:
+            hesitated = True
+        elif token:
+            spoken.append(word)
+            hesitation_before.append(hesitated)
+            hesitated = False
     tokens = [normalize(w.text) for w in spoken]
     repeats: list[Repeat] = []
     index = 0
     while index < len(tokens):
-        length = _repeated_phrase_length(tokens, index)
+        length, abandoned = _repeated_phrase_length(tokens, index), 0
+        if length == 0:
+            length, abandoned = _restarted_phrase(tokens, hesitation_before, index)
         if length == 0:
             index += 1
             continue
         phrase = spoken[index : index + length]
         repeats.append(Repeat(text=" ".join(clean(w.text) for w in phrase), at=phrase[0].start))
-        index += length
+        index += length + abandoned
     return repeats
 
 
@@ -138,6 +158,27 @@ def _repeated_phrase_length(tokens: list[str], index: int) -> int:
         if first == second:
             return length
     return 0
+
+
+def _restarted_phrase(
+    tokens: list[str], hesitation_before: list[bool], index: int
+) -> tuple[int, int]:
+    """(phrase length, abandoned words) of the longest restart at `index`, else (0, 0).
+
+    `hesitation_before[i]` says whether um/uh/hmm came just before spoken word i. Among
+    equally long phrases the one with the fewest abandoned words wins.
+    """
+    for length in range(MAX_REPEAT_PHRASE_WORDS, 1, -1):
+        first = tokens[index : index + length]
+        for abandoned in range(1, RESTART_MAX_ABANDONED_WORDS + 1):
+            second_start = index + length + abandoned
+            second = tokens[second_start : second_start + length]
+            if first != second:
+                continue
+            hesitated = any(hesitation_before[index + length : second_start + 1])
+            if length > 2 or hesitated:
+                return length, abandoned
+    return 0, 0
 
 
 def pace_windows(
