@@ -429,9 +429,11 @@ h2 {
   outline-offset: -3px;
 }
 
+/* While Practice records or uploads, the nav steps aside. Only the active Practice counts: an
+   upload that goes on after the speaker leaves for another screen keeps that screen's nav. */
 body:has(#screen-onboarding.screen--active) .nav,
-body:has(#screen-practice[data-state="recording"]) .nav,
-body:has(#screen-practice[data-state="uploading"]) .nav {
+body:has(#screen-practice.screen--active[data-state="recording"]) .nav,
+body:has(#screen-practice.screen--active[data-state="uploading"]) .nav {
   display: none;
 }
 
@@ -475,9 +477,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* Header: the h1 takes the row and pushes the wordmark to the right. */
+/* The header row wraps rather than widen the page: at 200% zoom on a phone the wordmark and the
+   toggle drop under the h1. */
 .screen__header {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s-1);
   margin-bottom: var(--s-3);

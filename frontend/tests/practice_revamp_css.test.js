@@ -408,3 +408,22 @@ test("See a sample result is small, like New topic, with a 44px target", () => {
   assert.equal(valueFor(".practice__sample", "font-size"), "var(--fs-small)");
   assert.equal(valueFor(".practice__sample", "font-weight"), "500");
 });
+
+test("the nav hides only while the active Practice records or uploads", () => {
+  // An upload that goes on after the speaker taps away must not take another screen's nav.
+  const hiding = RULES.filter((rule) => rule.declarations.display === "none")
+    .flatMap((rule) => rule.selectors)
+    .filter((selector) => selector.endsWith(" .nav"));
+  assert.deepEqual(hiding, [
+    "body:has(#screen-onboarding.screen--active) .nav",
+    'body:has(#screen-practice.screen--active[data-state="recording"]) .nav',
+    'body:has(#screen-practice.screen--active[data-state="uploading"]) .nav',
+  ]);
+});
+
+test("the header row wraps rather than widen the page at 200% zoom", () => {
+  // At 160px the h1, the no-wrap wordmark and the toggle need about 250px: they wrap instead.
+  assert.equal(valueFor(".screen__header", "display"), "flex");
+  assert.equal(valueFor(".screen__header", "flex-wrap"), "wrap");
+  assert.equal(valueFor(".wordmark", "white-space"), "nowrap");
+});
