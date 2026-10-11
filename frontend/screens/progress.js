@@ -1,12 +1,14 @@
 /* screens/progress.js: app.screens.progress, the Progress screen (DESIGN.md sections 1 and 6).
-   Three pure helpers do the maths without the DOM: series(sessions, key) pulls one metric out of
-   the stored sessions oldest first through app.screens.results.summarize, scale(values, key)
-   turns those numbers into SVG points on a y axis with round ticks, and summaryFor(values, key,
-   targets) finds the latest take, the personal best and the change from the average. show()
-   draws a segmented control, the metric's full name, a summary row and a hand-rolled SVG line
-   chart (a target band for fillers, a ring on the best take, short dates under the points) with
-   a screen-reader table; tapping an option redraws everything under the control, and the choice
-   survives leaving the screen. */
+   Only the speaker's own takes count: the sample a visitor opens from Practice is left out
+   everywhere (app.screens.results.isSample). Three pure helpers do the maths without the DOM:
+   series(sessions, key) pulls one metric out of those takes oldest first through
+   app.screens.results.summarize, scale(values, key) turns those numbers into SVG points on a y
+   axis with round ticks, and summaryFor(values, key, targets) finds the latest take, the
+   personal best and the change from the average. show() draws a segmented control, the
+   metric's full name, a summary row and a hand-rolled SVG line chart (a target band for
+   fillers, a ring on the best take, short dates under the points) with a screen-reader table;
+   tapping an option redraws everything under the control, and the choice survives leaving the
+   screen. */
 (function () {
   "use strict";
 
@@ -193,9 +195,21 @@
     body = root.querySelector(".screen__body");
   }
 
-  // One number per session, oldest first, so the line reads left to right in time.
+  // One number per take, oldest first, so the line reads left to right in time.
   function series(sessions, key) {
-    return valuesOf(summariesOf(sessions), key);
+    return valuesOf(summariesOf(ownTakes(sessions)), key);
+  }
+
+  // The sessions that are the speaker's own takes, in the order given. History lists the sample
+  // too, but it never adds a point, wins Best, moves the average or counts toward the two
+  // sessions a trend needs. A results module without isSample counts every session.
+  function ownTakes(sessions) {
+    const list = Array.isArray(sessions) ? sessions : [];
+    const results = app.screens.results;
+    if (!results || typeof results.isSample !== "function") {
+      return list;
+    }
+    return list.filter((session) => !results.isSample(session));
   }
 
   // Each session's summary, oldest first: the store lists newest first, hence the reverse.
@@ -357,14 +371,14 @@
 
   async function show() {
     const ticket = ++showCount;
-    const sessions = await loadSessions();
+    const takes = ownTakes(await loadSessions());
     if (ticket !== showCount) {
       return;
     }
-    if (sessions.length < MIN_SESSIONS) {
+    if (takes.length < MIN_SESSIONS) {
       renderEmpty();
     } else {
-      renderChart(sessions);
+      renderChart(takes);
     }
   }
 

@@ -1,13 +1,17 @@
 /* screens/results.js: app.screens.results, the Results screen after a take (DESIGN.md sections
    1, 6 and 8). Pure helpers do the thinking without the DOM or app.ui: summarize, headlineFor,
-   compareWithPrevious, timelineSegments and buildTranscriptPlan. show({id}) loads the take and
-   the one before it from app.store and draws the meta line, headline, cards, speech timeline,
-   transcript, tips and actions. */
+   compareWithPrevious, timelineSegments, buildTranscriptPlan and isSample. show({id}) loads the
+   take and the speaker's take before it from app.store and draws the meta line, headline,
+   cards, speech timeline, transcript, tips and actions. */
 (function () {
   "use strict";
 
   // Used when the session's passage is no longer in app.passages.
   const DEFAULT_TARGET_WPM = [140, 160];
+
+  // Practice's "See a sample result" saves the bundled take (sample-session.json) under a title
+  // that starts with this, so History lists it like any session.
+  const SAMPLE_TITLE_PREFIX = "Sample: ";
 
   // Card labels and units (DESIGN.md sections 5 and 6), in display order. Labels stay short so
   // two cards fit side by side at 320px; the units are small text after the number.
@@ -306,6 +310,13 @@
     return summary.wpm >= lo && summary.wpm <= hi;
   }
 
+  // True for the bundled sample: History lists it, but it is not one of the speaker's takes, so
+  // no comparison on this screen and nothing on Progress ever uses it. Pure.
+  function isSample(session) {
+    const title = session ? session.passageTitle : undefined;
+    return typeof title === "string" && title.startsWith(SAMPLE_TITLE_PREFIX);
+  }
+
   // True when the take was scored from its words: the report labels one kind per word.
   function hasWords(summary) {
     const kinds = summary && summary.report ? summary.report.kinds : null;
@@ -478,11 +489,12 @@
     }
   }
 
-  // The take saved just before this one, or null. app.store.list() is newest first, so that is
-  // the first listed session created earlier. A store without list(), or one that cannot be
-  // read, means the cards show no comparison, never an error.
+  // The speaker's take saved just before this one, or null. app.store.list() is newest first, so
+  // that is the first listed session created earlier that is not a sample. A sample has no last
+  // take: it is compared with nothing. A store without list(), or one that cannot be read, means
+  // the cards show no comparison, never an error.
   async function loadPreviousSession(session) {
-    if (!app.store || typeof app.store.list !== "function") {
+    if (isSample(session) || !app.store || typeof app.store.list !== "function") {
       return null;
     }
     try {
@@ -498,7 +510,7 @@
       return null;
     }
     const earlier = sessions.find(
-      (other) => Boolean(other) && other.createdAt < session.createdAt,
+      (other) => Boolean(other) && !isSample(other) && other.createdAt < session.createdAt,
     );
     return earlier || null;
   }
@@ -944,5 +956,6 @@
     headlineFor,
     compareWithPrevious,
     timelineSegments,
+    isSample,
   };
 })();

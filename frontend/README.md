@@ -150,11 +150,15 @@ sample result", which opens a real sample take on this screen.
    pauses card has no hint. The clean stretch card shows seconds and has no hint. No nav item
    is highlighted.
 
-2. Compare with the last take: tap "See a sample result" twice. The second time every card
-   ends with a small grey line, a triangle or a dash and words such as "12 faster", "1.2
-   fewer" or "No change", and "Arrows compare with your last take." sits under the cards.
-   The very first session in the store shows neither. A take saved without words (the store
-   check above) has no clean-stretch line.
+2. Compare with the last take: record a second take (the Practice happy path again), or run
+   the Progress seed loop below and open the newest row in History. Every card ends with a
+   small grey line, a triangle or a dash and words such as "12 faster", "1.2 fewer" or "No
+   change", and "Arrows compare with your last take." sits under the cards. The very first
+   session in the store shows neither. A take saved without words (the store check above, or
+   the seed) has no clean-stretch line. The sample is never compared: tap "See a sample
+   result" after your takes, even twice, and its Results shows no grey lines, no note and no
+   "Fillers are down" headline. The next take you record compares with your take before the
+   sample.
 
 3. "History" and "Record again" sit in one bar stuck above the nav while the page scrolls under
    it. Tap "Record again": Practice opens in idle. Use the browser's back button to return,
@@ -312,7 +316,8 @@ Then open http://127.0.0.1:8000/#/progress.
 
 4. Run the seed loop a second time (ten sessions, two a day): every session still gets a dot,
    and the x axis shows five dates spread from the first take to the last. A second take on a
-   day that already has a label gets none.
+   day that already has a label gets none. Then tap "See a sample result" on Practice and come
+   back: History lists the sample, but the chart gains no dot and the cells do not change.
 
 5. Narrow the window to 320px: the four options fit on one row, "Latest" and "Best" sit side
    by side with "From your average" across the row under them, every value bold at the heading
@@ -329,4 +334,5 @@ Then open http://127.0.0.1:8000/#/progress.
    check above), then open `#/progress`. The block built by `app.ui.renderState` sits centered
    between the heading and the nav: a chart icon, "Need two sessions" / "Record one more to see
    a trend." and a "Record" button as wide as the words above it, which opens Practice. Open
-   History: the Progress block does not show there.
+   History: the Progress block does not show there. Tap "See a sample result" on Practice and
+   come back to Progress: the sample is not your take, so the same block shows.
