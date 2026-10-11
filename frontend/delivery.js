@@ -193,7 +193,7 @@
       at,
       length,
       midSentence: isMidSentence(list, at),
-      long: isLongPause(length),
+      long: isLongPause(length) && isInsideSpeech(list, at),
     }));
     const breaks = classified.filter(isCountedPause);
     return {
@@ -249,8 +249,9 @@
     };
   }
 
+  // Judged on the length the screen shows, to a tenth, so a pause that reads "5.0 s" is long.
   function isLongPause(length) {
-    return length >= LONG_PAUSE_SECONDS;
+    return roundToTenth(length) >= LONG_PAUSE_SECONDS;
   }
 
   // True for a pause the report counts: every mid-sentence pause, and a long one anywhere.
@@ -315,19 +316,28 @@
     return best;
   }
 
-  // A pause is mid-sentence unless the word right before it ends a sentence. "Right before"
-  // is the last word ending by `at`, the rule Results uses to place the pause marker.
+  // A pause is mid-sentence unless the word right before it ends a sentence.
   function isMidSentence(list, at) {
+    return isInsideSpeech(list, at) && !SENTENCE_END.test(list[wordBefore(list, at)].text);
+  }
+
+  // True when a word has ended by `at` and another follows it. Silence before the first word
+  // or after the last is not a pause (backend/metrics.py), though pauses.js can report one.
+  function isInsideSpeech(list, at) {
+    const before = wordBefore(list, at);
+    return before !== -1 && before !== list.length - 1;
+  }
+
+  // The index of the last word ending by `at`, or -1: the rule Results uses to place the pause
+  // marker.
+  function wordBefore(list, at) {
     let before = -1;
     list.forEach((word, index) => {
       if (word.end <= at + MILLISECOND) {
         before = index;
       }
     });
-    if (before === -1 || before === list.length - 1) {
-      return false;
-    }
-    return !SENTENCE_END.test(list[before].text);
+    return before;
   }
 
   // The longest stretch of speech with no filler, no counted pause (mid-sentence, or 5 s+
@@ -436,6 +446,7 @@
     classify,
     isHesitation,
     isCountedPause,
+    isLongPause,
     HESITATION,
     HABIT,
     HABIT_WORDS,

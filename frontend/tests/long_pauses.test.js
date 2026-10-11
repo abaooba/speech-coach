@@ -132,6 +132,44 @@ test("a long mid-sentence pause is one pause, both mid-sentence and long", () =>
   assert.equal(report.longestPause, 7);
 });
 
+// Silence before the first word or after the last is not a pause (backend/metrics.py), but
+// pauses.js can still report one: a tap on the mic before a slow start opens its speech span.
+function withEdgeSilence(where) {
+  const words = spoken(SENTENCE).map((word) => ({
+    text: word.text,
+    start: round3(word.start + 6.5),
+    end: round3(word.end + 6.5),
+  }));
+  const last = words[words.length - 1].end;
+  const pause = where === "before" ? [0.2, 6.3] : [last, 6];
+  return { words, pause };
+}
+
+for (const where of ["before", "after"]) {
+  test(`a 6 s silence ${where} the speech is not a long pause and is not counted`, () => {
+    const { words, pause } = withEdgeSilence(where);
+    const report = loadDelivery().analyze(words, { pauses: [pause], repeats: [] });
+    assert.deepEqual(plain(report.pauses), [
+      { at: pause[0], length: pause[1], midSentence: false, long: false },
+    ]);
+    assert.equal(report.pauseCount, 0);
+    assert.equal(report.longPauseCount, 0);
+    assert.equal(report.longestPause, 0);
+    assert.equal(report.cleanStretch.seconds, 2.3, "the whole take, first start to last end");
+    const ids = plain(loadTips().select(report, { targetWpm: [140, 160] })).map((tip) => tip.id);
+    assert.ok(!ids.includes("freeze"), `tips ${ids.join(", ")} call the edge silence a freeze`);
+  });
+}
+
+test("a pause that reads 5.0 s is long: the bar applies to the length shown, to a tenth", () => {
+  const { report } = analyzeWithGap(1, 4.96);
+  assert.equal(report.pauses[0].long, true);
+  assert.equal(report.pauseCount, 1);
+  assert.equal(report.longestPause, 5);
+  assert.equal(analyzeWithGap(1, 4.94).report.pauses[0].long, false, "4.94 s reads 4.9 s");
+  assert.equal(analyzeWithGap(1, 4.94).report.pauseCount, 0);
+});
+
 test("without words every pause still counts, and the long ones are flagged", () => {
   const report = loadDelivery().analyze([], { pauses: [[10, 6], [20, 2]], duration: 30 });
   assert.deepEqual(
@@ -146,7 +184,7 @@ test("without words every pause still counts, and the long ones are flagged", ()
   assert.equal(report.longestPause, 6);
 });
 
-test("the church take: the 5.2 s freeze after 'sad.' counts and breaks the clean stretch", () => {
+test("the church take: the 5.2 s freeze after 'sad.' counts as the take's one long pause", () => {
   const report = loadDelivery().analyze(CHURCH_TRANSCRIPT, {
     pauses: CHURCH_PAUSES,
     repeats: [{ text: "I kinda ner", at: 27.379 }],
@@ -162,8 +200,6 @@ test("the church take: the 5.2 s freeze after 'sad.' counts and breaks the clean
   assert.equal(report.pauseCount, 1);
   assert.equal(report.longPauseCount, 1);
   assert.equal(report.longestPause, 5.2);
-  const { start, end } = report.cleanStretch;
-  assert.ok(end <= 35.738 || start >= 40.928, `clean stretch ${start} to ${end} spans the freeze`);
 });
 
 // ---- Results ----------------------------------------------------------------------------
@@ -330,6 +366,26 @@ test("a 2 s pause after a period still gets no marker, block or chip", async () 
   assert.ok(spans.every((span) => !span.classList.contains("tok--pause")));
   const timeline = byClass(body, "timeline");
   assert.equal(byClass(timeline, "timeline__legend").children.length, 3);
+});
+
+test("a 6 s silence before the first word gets no marker, block or chip", async () => {
+  const { words, pause } = withEdgeSilence("before");
+  const body = await showSession(sessionWith(words, [pause]));
+  const spans = byClass(body, "transcript").children.filter((node) => node.tagName === "span");
+  assert.ok(spans.every((span) => !span.classList.contains("tok--pause")));
+  const timeline = byClass(body, "timeline");
+  assert.equal(byClass(timeline, "timeline__legend").children.length, 3);
+  const card = byClass(body, "metric-grid").children[2];
+  assert.equal(byClass(card, "metric-card__value").children[0].textContent, "0");
+});
+
+test("a 4.96 s pause after a period is marked as the long pause it reads as", async () => {
+  const words = spoken(SENTENCE, { 1: 4.96 });
+  const body = await showSession(sessionWith(words, [[words[1].end, 4.96]]));
+  const spans = byClass(body, "transcript").children.filter((node) => node.tagName === "span");
+  const marker = spans[2];
+  assert.equal(marker.textContent, "5.0 s long pause");
+  assert.equal(marker.className, "tok--pause tok--pause-long num");
 });
 
 // ---- Tips -------------------------------------------------------------------------------

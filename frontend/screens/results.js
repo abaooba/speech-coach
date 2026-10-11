@@ -649,7 +649,7 @@
   function pauseMarker(length) {
     const value = numberOr0(length);
     const seconds = value.toFixed(1);
-    if (value >= app.delivery.LONG_PAUSE_SECONDS) {
+    if (app.delivery.isLongPause(value)) {
       return app.ui.el("span", {
         class: "tok--pause tok--pause-long num",
         "aria-label": LONG_PAUSE_LABEL_PREFIX + seconds + PAUSE_LABEL_SUFFIX,
