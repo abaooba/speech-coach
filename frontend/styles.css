@@ -555,6 +555,20 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   mask-image: linear-gradient(to right, black calc(100% - var(--s-6)), transparent);
 }
 
+/* With a mouse the row wraps instead: a wheel cannot scroll it sideways, and at 1024px the fade
+   hid half of Read's passages. It stays inside the column, with no fade and no end padding;
+   touch screens keep the swipe row above. */
+@media (hover: hover) and (pointer: fine) {
+  #screen-practice .chip-row {
+    flex-wrap: wrap;
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 /* The Talk / Read switch heads the body. */
 #screen-practice .segmented {
   margin-bottom: var(--s-3);

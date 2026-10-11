@@ -454,3 +454,18 @@ test("a focused control stops --s-2 short of the window's top and of the nav", (
     "calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom))",
   );
 });
+
+const MOUSE = "@media (hover: hover) and (pointer: fine)";
+
+test("with a mouse the chip row wraps: no bleed, no fade, nothing to scroll sideways", () => {
+  // A wheel cannot scroll the row, and at 1024px the fade hid half of Read's passages. Touch
+  // screens keep the swipe row the rules at the top level pin.
+  const row = "#screen-practice .chip-row";
+  assert.equal(valueFor(row, "flex-wrap", MOUSE), "wrap");
+  assert.equal(valueFor(row, "overflow", MOUSE), "visible");
+  assert.equal(valueFor(row, "margin-inline", MOUSE), "0");
+  assert.equal(valueFor(row, "padding-inline", MOUSE), "0");
+  assert.equal(valueFor(row, "mask-image", MOUSE), "none");
+  assert.equal(valueFor(row, "-webkit-mask-image", MOUSE), "none");
+  assert.equal(valueFor(row, "flex-wrap"), undefined, "touch screens keep one swipe row");
+});
