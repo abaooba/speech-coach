@@ -847,6 +847,8 @@
       if (error.kind === "too_short") {
         // The backend answered 400: the same blob would fail again and cost a provider call on
         // every tap, so the take goes, as after "Record a new take", and Retry is never offered.
+        // Its clock goes back to 0:00 too: the take ran at least 5 seconds, and idle showing
+        // that after Record again would contradict the block's "under 5 seconds".
         pendingTake = null;
         resetClock();
         showTooShort();
