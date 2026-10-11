@@ -34,6 +34,8 @@ CUTOFF_MARKS = ("—", "–", "-")
 # After a cut-off the speaker must start again within this many words (um/uh/hmm not counted)
 # for it to be a restart: 'I kinda ner— I'm kinda nervous'.
 CUTOFF_LOOKAHEAD_WORDS = 4
+# A cut-off fragment shorter than this ('a—') is not matched to a word it begins ('and').
+CUTOFF_MIN_FRAGMENT_LETTERS = 2
 
 _EDGE_PUNCTUATION = re.compile(r"^\W+|\W+$")
 _SENTENCE_END = re.compile(r"[.?!][\"')\]]*$")
@@ -207,10 +209,11 @@ def _cut_off_phrase(spoken: list[Word], tokens: list[str], index: int) -> tuple[
     """(phrase length, words before the restart) of a cut-off restart at `index`, else (0, 0).
 
     The phrase runs from `index` to the first word ending in a cut-off mark, within one
-    sentence and at most MAX_REPEAT_PHRASE_WORDS long. It is a restart when one of the next
-    CUTOFF_LOOKAHEAD_WORDS words begins the phrase again with the same word or stem
-    (I/I'm, decision/decisions), or, for a phrase that is only the fragment, begins with the
-    fragment ('pro—' then 'protect'). The words before the restart are abandoned.
+    sentence and at most MAX_REPEAT_PHRASE_WORDS long. It is a restart when the speaker says
+    its opening words again soon after the cut (see _cut_off_match). When a later start
+    before the cut lines up at least as well ('So I think I kinda ner— I'm kinda'), that
+    later start is the real one, so this index is not. The words before the restart are
+    abandoned.
     """
     for cut in range(index, min(index + MAX_REPEAT_PHRASE_WORDS, len(spoken))):
         if spoken[cut].text.endswith(CUTOFF_MARKS):
@@ -219,15 +222,50 @@ def _cut_off_phrase(spoken: list[Word], tokens: list[str], index: int) -> tuple[
             return 0, 0
     else:
         return 0, 0
-    length = cut - index + 1
+    matched, restart = _cut_off_match(spoken, tokens, index, cut)
+    needed = 1 if index == cut else 2
+    if matched < needed:
+        return 0, 0
+    if any(
+        _cut_off_match(spoken, tokens, later, cut)[0] >= matched
+        for later in range(index + 1, cut + 1)
+    ):
+        return 0, 0
+    return cut - index + 1, restart - cut - 1
+
+
+def _cut_off_match(spoken: list[Word], tokens: list[str], start: int, cut: int) -> tuple[int, int]:
+    """(words matched, restart index) for the phrase tokens[start : cut + 1] said again.
+
+    The restart is one of the CUTOFF_LOOKAHEAD_WORDS words after the cut that has the same
+    stem as the phrase's first word (I/I'm, decision/decisions), or, for a phrase that is only
+    the fragment, begins with it ('pro—' then 'protect'). From there the phrase's words are
+    matched in order, one inserted word allowed before each ('I'm going to— I am going'),
+    until one is missing. The restart matching the most words wins, the earliest on a tie.
+    """
+    phrase = tokens[start : cut + 1]
+    best = (0, 0)
     for restart in range(cut + 1, min(cut + 1 + CUTOFF_LOOKAHEAD_WORDS, len(spoken))):
-        same_start = _stem(tokens[restart]) == _stem(tokens[index])
-        finishes_fragment = index == cut and tokens[restart].startswith(tokens[cut])
-        if same_start or finishes_fragment:
-            return length, restart - cut - 1
+        if _says_again(phrase[0], tokens[restart], is_fragment=start == cut):
+            matched, at = 1, restart + 1
+            for position, token in enumerate(phrase[1:], start=start + 1):
+                following = tokens[at : at + 2]
+                hits = [_says_again(token, said, is_fragment=position == cut) for said in following]
+                if not any(hits):
+                    break
+                matched, at = matched + 1, at + hits.index(True) + 1
+            if matched > best[0]:
+                best = (matched, restart)
         if _SENTENCE_END.search(spoken[restart].text):
-            return 0, 0
-    return 0, 0
+            break
+    return best
+
+
+def _says_again(token: str, said: str, is_fragment: bool) -> bool:
+    """Whether `said` repeats `token`: the same stem, or the cut-off fragment finished."""
+    if _stem(said) == _stem(token):
+        return True
+    return is_fragment and len(token) >= CUTOFF_MIN_FRAGMENT_LETTERS and said.startswith(token)
 
 
 def _stem(token: str) -> str:

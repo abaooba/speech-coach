@@ -99,7 +99,7 @@ def test_the_restart_may_begin_with_the_same_stem_as_the_cut_phrase() -> None:
     assert metrics.find_repeats(words_from("I’m going to— I am going home")) == [
         {"text": "I’m going to", "at": 0.0}
     ]
-    assert metrics.find_repeats(words_from("decisions about— decision making matters")) == [
+    assert metrics.find_repeats(words_from("decisions about— decision about schools")) == [
         {"text": "decisions about", "at": 0.0}
     ]
 
@@ -149,3 +149,77 @@ def test_an_eight_word_clause_restarted_after_a_hesitation_is_one_repeat() -> No
 
     assert metrics.find_repeats(words) == [{"text": clause, "at": 0.0}]
 
+
+# --- a restart must say the phrase's opening words again --------------------------
+
+
+def test_a_dash_aside_sharing_only_one_word_with_what_follows_is_not_a_restart() -> None:
+    assert metrics.find_repeats(words_from("I think the policy— and I mean this— works")) == []
+    assert (
+        metrics.find_repeats(words_from("the cost of the plan— and the benefits outweigh it")) == []
+    )
+
+
+def test_a_suspended_hyphen_before_a_repeated_article_is_not_a_restart() -> None:
+    assert metrics.find_repeats(words_from("in the short- and the long-term")) == []
+    assert metrics.find_repeats(words_from("for the pro- and the anti-war side")) == []
+
+
+def test_a_one_letter_fragment_does_not_finish_into_any_word() -> None:
+    assert metrics.find_repeats(words_from("it was a— and then we left")) == []
+    assert metrics.find_repeats(words_from("I— in the end")) == []
+
+
+def test_the_restart_may_put_one_word_between_the_repeated_words() -> None:
+    assert metrics.find_repeats(words_from("students decide— the student decides")) == [
+        {"text": "students decide", "at": 0.0}
+    ]
+
+
+# --- the restart starts where the speaker actually began again --------------------
+
+
+def test_the_restarted_phrase_starts_at_the_closest_matching_word() -> None:
+    words = words_from("So I think I kinda ner— I'm kinda nervous")
+
+    assert metrics.find_repeats(words) == [{"text": "I kinda ner", "at": words[3].start}]
+
+
+def test_a_common_word_earlier_in_the_sentence_does_not_stretch_the_restart() -> None:
+    words = words_from("to be honest we need to sto— to stop this")
+    assert metrics.find_repeats(words) == [{"text": "to sto", "at": words[5].start}]
+
+    words = words_from("a dog and a ca— a cat")
+    assert metrics.find_repeats(words) == [{"text": "a ca", "at": words[3].start}]
+
+    words = words_from("the cat the cat sat on the ma— the mat")
+    assert metrics.find_repeats(words) == [
+        {"text": "the cat", "at": 0.0},
+        {"text": "the ma", "at": words[6].start},
+    ]
+
+
+def test_an_earlier_start_wins_when_more_of_its_words_are_said_again() -> None:
+    words = words_from("I'm sure I ner— I am sure I'm nervous")
+
+    assert metrics.find_repeats(words) == [{"text": "I'm sure I ner", "at": 0.0}]
+
+
+def test_a_later_start_wins_when_it_lines_up_better() -> None:
+    words = words_from("I kinda think I kinda ner— I'm kinda nervous")
+
+    assert metrics.find_repeats(words) == [{"text": "I kinda ner", "at": words[3].start}]
+
+
+def test_one_shared_word_is_not_enough_to_restart_a_longer_phrase() -> None:
+    assert metrics.find_repeats(words_from("decisions about— decision making matters")) == []
+
+
+def test_stutters_before_a_cut_off_still_count_one_repeat_per_extra_copy() -> None:
+    words = words_from("I said I I I— I think")
+
+    assert metrics.find_repeats(words) == [
+        {"text": "I", "at": words[2].start},
+        {"text": "I", "at": words[3].start},
+        {"text": "I", "at": words[4].start},
+    ]
