@@ -305,13 +305,18 @@ test("every headline sentence is short, calm and fully filled in", () => {
   }
 });
 
-// The DOM half: show() against the fake document.
-async function showHeadline(session) {
+// The DOM half: show() against the fake document. With `earlier` sessions the store can list,
+// so the headline can compare with the last of them.
+async function showHeadline(session, earlier) {
+  const store = { get: () => Promise.resolve(session) };
+  if (earlier) {
+    store.list = () => Promise.resolve([session, ...earlier]);
+  }
   const context = {
     app: {
       screens: {},
       passages: PASSAGES.map((entry) => ({ ...entry })),
-      store: { get: () => Promise.resolve(session) },
+      store,
       router: { go() {} },
     },
     document: fakeDocument(),
@@ -359,6 +364,33 @@ test("each headline line ends with its icon: a check, then an arrow", async () =
     assert.equal(icon.getAttribute("data-icon"), name);
     assert.equal(icon.getAttribute("aria-hidden"), "true");
   }
+});
+
+// The text of each drawn headline line, strength first.
+async function drawnHeadline(session, earlier) {
+  const body = await showHeadline(session, earlier);
+  return byClass(body, "headline").children.map((line) => line.textContent);
+}
+
+test("the take's band never splits across lines; other numbers wrap as usual", async () => {
+  // As in the Pace hint, the spaces around the band's "to" do not break once drawn, so a
+  // narrow screen breaks "slow toward / 130 to 150 wpm", never "130 to / 150". headlineFor
+  // itself keeps plain spaces.
+  assert.deepEqual(await drawnHeadline(tallies({ wpm: 140, pauses: 2 })), [
+    "Your pace is inside the 130 to 150 target.",
+    "Next take, save pauses for the ends of sentences.",
+  ]);
+  const previous = { ...tallies({ wpm: 165, fillers: 4 }), id: "p" };
+  previous.createdAt = "2026-10-08T10:00:00.000Z";
+  assert.deepEqual(await drawnHeadline(tallies({ wpm: 165, fillers: 1 }), [previous]), [
+    "Fillers are down from 4 to 1 a minute.",
+    "Next take, slow toward 130 to 150 wpm.",
+  ]);
+  assert.equal(
+    (await drawnHeadline(tallies({ wpm: 120, fillers: 3 })))[1],
+    "Next take, lift your pace toward 130 to 150 wpm.",
+  );
+  assert.equal(headline(tallies({ wpm: 165 })).focus, "Next take, slow toward 130 to 150 wpm.");
 });
 
 // Every declaration styles.css gives this selector, later rules winning as in the cascade.

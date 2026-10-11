@@ -42,9 +42,11 @@
   const HINT_ICONS = { [TONE_OK]: "check", [TONE_WARN]: "alert" };
   const HINT_ICON_SIZE = 16;
 
-  // A pace band in a hint ("130 to 160") is drawn with non-breaking spaces around its "to".
+  // A pace band ("130 to 160") is drawn with non-breaking spaces around its "to", in the Pace
+  // hint and in the headline, so it never splits across lines.
+  const UNBROKEN_JOINER = "\u00a0to\u00a0";
   const BAND_SPACES = /(\d+) to (\d+)/;
-  const BAND_UNBROKEN = "$1\u00a0to\u00a0$2";
+  const BAND_UNBROKEN = "$1" + UNBROKEN_JOINER + "$2";
 
   // The headline's thresholds beyond the cards' own: a fillers drop counts from half a filler a
   // minute, and a clean stretch under 15 seconds has room to grow (DebateDrills gives beginners
@@ -247,7 +249,7 @@
   // and the first match wins; the thresholds are the cards', so the headline never contradicts
   // a card: the band ends count as inside and fillers over 3 a minute are high.
   function headlineFor(summary, previousSummary) {
-    const band = summary.target[0] + TARGET_JOINER + summary.target[1];
+    const band = bandText(summary.target, TARGET_JOINER);
     return {
       strength: strengthFor(summary, previousSummary, band),
       focus: focusFor(summary, band),
@@ -308,6 +310,11 @@
   function paceIsInside(summary) {
     const [lo, hi] = summary.target;
     return summary.wpm >= lo && summary.wpm <= hi;
+  }
+
+  // "130 to 150" for a [lo, hi] target, with `joiner` (" to ", or its unbroken form) between.
+  function bandText(target, joiner) {
+    return target[0] + joiner + target[1];
   }
 
   // True for the bundled sample: History lists it, but it is not one of the speaker's takes, so
@@ -545,7 +552,7 @@
 
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
-    body.appendChild(buildHeadline(headlineFor(summary, previousSummary)));
+    body.appendChild(buildHeadline(headlineFor(summary, previousSummary), summary.target));
     body.appendChild(buildMetricGrid(summary, deltas));
     if (deltas) {
       body.appendChild(app.ui.el("p", { class: "metric-grid__note", text: DELTA_NOTE }));
@@ -654,11 +661,16 @@
   }
 
   // The strength over the focus. Each icon follows its words in the DOM, so each line's text
-  // is exactly its sentence, and CSS draws it first (order: -1).
-  function buildHeadline(headline) {
+  // is exactly its sentence, and CSS draws it first (order: -1). Wherever a sentence names the
+  // take's own band it keeps that band on one line, as the Pace hint does; any other "4 to 1"
+  // wraps as usual.
+  function buildHeadline(headline, target) {
+    const band = bandText(target, TARGET_JOINER);
+    const unbroken = bandText(target, UNBROKEN_JOINER);
+    const draw = (sentence) => sentence.split(band).join(unbroken);
     return app.ui.el("section", { class: "headline" }, [
-      headlineLine("headline__strength", headline.strength, STRENGTH_ICON),
-      headlineLine("headline__focus", headline.focus, FOCUS_ICON),
+      headlineLine("headline__strength", draw(headline.strength), STRENGTH_ICON),
+      headlineLine("headline__focus", draw(headline.focus), FOCUS_ICON),
     ]);
   }
 
