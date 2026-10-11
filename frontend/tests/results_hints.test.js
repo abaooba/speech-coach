@@ -178,7 +178,7 @@ test("warning hints keep their words and class and end with the alert icon", asy
 test("in-target hints keep their words and class and end with the check icon", async () => {
   const hints = hintsOf((await showResults({ s1: session() }, "s1")).body);
   assert.deepEqual(hintShape(hints[0]), [
-    "Target 130 to 150",
+    "Target 130\u00a0to\u00a0150",
     "metric-card__hint metric-card__hint--ok",
     "check",
   ]);
@@ -200,6 +200,23 @@ test("a hint icon is its only child: a decorative svg in the SVG namespace", asy
     assert.equal(icon.namespaceURI, SVG_NS);
     assert.equal(icon.getAttribute("aria-hidden"), "true");
   });
+});
+
+test("a pace band's numbers stay on one line; other hints keep plain spaces", async () => {
+  // "Target 130 to 150" may wrap after "Target", never inside the band.
+  const hints = hintsOf((await showResults({ s1: session() }, "s1")).body);
+  assert.equal(hints[0].textContent, "Target 130\u00a0to\u00a0150");
+  assert.equal(hints[1].textContent, "Target under 3");
+  const slow = hintsOf((await showResults({ s1: session({ words_per_minute: 200 }) }, "s1")).body);
+  assert.equal(slow[0].textContent, "Slow down");
+});
+
+test("a hint that wraps keeps its icon on the first line", () => {
+  // The icon's box is one line tall (the hint's 1.4 line height), so the 16px drawing centers
+  // on the first line, as the headline's icons do.
+  assert.equal(ruleFor(".metric-card__hint")["align-items"], "flex-start");
+  assert.equal(ruleFor(".metric-card__hint")["line-height"], "1.4");
+  assert.equal(ruleFor(".metric-card__hint svg").height, "1.4em");
 });
 
 test("the hint is a 600-weight flex row whose icon is drawn before the words", () => {

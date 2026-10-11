@@ -262,7 +262,7 @@ test("an in-range pace gets the ok hint built from the passage target", async ()
   const { results, body } = mountResults({ s1: session });
   await results.show({ id: "s1" });
   const hint = byClass(cardsOf(body)[0], "metric-card__hint");
-  assert.equal(hint.textContent, "Target 130 to 150");
+  assert.equal(hint.textContent, "Target 130\u00a0to\u00a0150");
   assert.ok(hint.classList.contains("metric-card__hint--ok"));
   assert.ok(!hint.classList.contains("metric-card__hint--warn"));
 });

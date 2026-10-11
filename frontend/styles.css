@@ -1033,10 +1033,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* A hint is words plus an icon in the hint's color; the icon follows the words in the DOM and
-   is drawn first. Two-line hints balance their lines rather than strand the last word. */
+   is drawn first. Two-line hints balance their lines rather than strand the last word. The
+   icon's box is one line tall, so the 16px drawing centers on the first line, as in the
+   headline. */
 .metric-card__hint {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--s-1);
   font-size: var(--fs-small);
   line-height: 1.4;
@@ -1047,6 +1049,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 .metric-card__hint svg {
   flex: none;
   order: -1;
+  height: 1.4em;
 }
 
 .metric-card__hint--ok {

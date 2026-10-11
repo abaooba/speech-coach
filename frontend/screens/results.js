@@ -38,6 +38,10 @@
   const HINT_ICONS = { [TONE_OK]: "check", [TONE_WARN]: "alert" };
   const HINT_ICON_SIZE = 16;
 
+  // A pace band in a hint ("130 to 160") is drawn with non-breaking spaces around its "to".
+  const BAND_SPACES = /(\d+) to (\d+)/;
+  const BAND_UNBROKEN = "$1\u00a0to\u00a0$2";
+
   // The headline's thresholds beyond the cards' own: a fillers drop counts from half a filler a
   // minute, and a clean stretch under 15 seconds has room to grow (DebateDrills gives beginners
   // 15 clean seconds; see how.html).
@@ -695,11 +699,13 @@
   }
 
   // The hint's words, then its icon. The icon comes after the words in the DOM, so the line's
-  // text is exactly the words, and CSS draws it first (order: -1).
+  // text is exactly the words, and CSS draws it first (order: -1). A pace band ("130 to 160")
+  // never splits across lines: the spaces around its "to" do not break.
   function hintLine(hint) {
+    const text = hint.text.replace(BAND_SPACES, BAND_UNBROKEN);
     return app.ui.el(
       "div",
-      { class: "metric-card__hint metric-card__hint--" + hint.tone, text: hint.text },
+      { class: "metric-card__hint metric-card__hint--" + hint.tone, text },
       [app.ui.icon(HINT_ICONS[hint.tone], HINT_ICON_SIZE)],
     );
   }
