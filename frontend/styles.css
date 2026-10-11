@@ -488,6 +488,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   flex: none;
 }
 
+/* Keyboard focus scrolls a control only until it touches the window's edge: at the bottom the
+   fixed nav covers it, at the top the edge cuts off its ring. At 200% zoom Practice scrolls, so
+   every button and focusable node here (the passage text, a state block's title) stops --s-2
+   short of both, room for the whole focus ring, as History's rows do. */
+#screen-practice :is(button, [tabindex]) {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
 /* Header: the h1 takes the row and pushes the wordmark to the right. */
 /* The header row wraps rather than widen the page: at 200% zoom on a phone the wordmark and the
    toggle drop under the h1. */

@@ -34,6 +34,23 @@ function closingBrace(text, open) {
   throw new Error("styles.css has an unbalanced brace");
 }
 
+// Splits a selector list on its top-level commas only, so ":is(button, [tabindex])" stays whole.
+function selectorList(prelude) {
+  const selectors = [];
+  let depth = 0;
+  let current = "";
+  for (const char of prelude) {
+    depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+    if (char === "," && depth === 0) {
+      selectors.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  return [...selectors, current].map(squash);
+}
+
 function declarationsOf(body) {
   const declarations = {};
   body.split(";").forEach((part) => {
@@ -60,8 +77,7 @@ function parseRules(text, at = null, rules = []) {
     if (prelude.startsWith("@")) {
       parseRules(body, prelude, rules);
     } else {
-      const selectors = prelude.split(",").map(squash);
-      rules.push({ at, selectors, declarations: declarationsOf(body) });
+      rules.push({ at, selectors: selectorList(prelude), declarations: declarationsOf(body) });
     }
     cursor = close + 1;
   }
@@ -426,4 +442,15 @@ test("the header row wraps rather than widen the page at 200% zoom", () => {
   assert.equal(valueFor(".screen__header", "display"), "flex");
   assert.equal(valueFor(".screen__header", "flex-wrap"), "wrap");
   assert.equal(valueFor(".wordmark", "white-space"), "nowrap");
+});
+
+test("a focused control stops --s-2 short of the window's top and of the nav", () => {
+  // At 200% zoom the page scrolls, and Tab would leave New topic and Record under the fixed nav.
+  // Every button and focusable node in Practice takes History's row margins (DESIGN.md 9).
+  const controls = "#screen-practice :is(button, [tabindex])";
+  assert.equal(valueFor(controls, "scroll-margin-top"), "var(--s-2)");
+  assert.equal(
+    valueFor(controls, "scroll-margin-bottom"),
+    "calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom))",
+  );
 });
