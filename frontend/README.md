@@ -12,7 +12,7 @@ each line in the console, waiting for it to resolve before the next.
 1. Save one session:
 
    ```js
-   await app.store.save({passageId:'free-talk', passageTitle:'Free talk', durationSeconds:12, metrics:{words_per_minute:150, duration:12, word_count:30, fillers:{um:1}, pauses:[], repeats:[], pace_windows:[]}, transcript:[]})
+   await app.store.save({passageId:'free-talk', passageTitle:'Your day', durationSeconds:12, metrics:{words_per_minute:150, duration:12, word_count:30, fillers:{um:1}, pauses:[], repeats:[], pace_windows:[]}, transcript:[]})
    ```
 
    It resolves with a new id string.
@@ -49,7 +49,7 @@ each line in the console, waiting for it to resolve before the next.
    app.passages.length
    ```
 
-   It prints `4`.
+   It prints `10`: four timed prompts, then six passages.
 
 **Practice (about one minute).** Start the server with a real speech-to-text key in `.env`
 and open http://127.0.0.1:8000/ in Chrome:
@@ -144,7 +144,7 @@ sample result", which opens a real sample take on this screen.
    words. The Pace hint reads "Target lo to hi" in green with a check when the pace is inside
    the passage's range, or "Slow down" / "Speed up" in rust with a warning triangle outside
    it; the numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to
-   150, the rebuttal 150 to 170, Free talk 140 to 160). The Fillers card shows "/min" and its
+   150, the rebuttal 150 to 170, Your day 140 to 160). The Fillers card shows "/min" and its
    hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in rust above. The
    pauses card has no hint. The clean stretch card shows seconds and has no hint. No nav item
    is highlighted.
@@ -189,9 +189,9 @@ sample result", which opens a real sample take on this screen.
    time:
 
    - "You are above target pace." Read the passage faster than its top target plus 15 wpm
-     (over 175 wpm on Free talk).
+     (over 175 wpm on Your day).
    - "You are under target pace." Read slower than the bottom target minus 15 wpm (under
-     125 wpm on Free talk).
+     125 wpm on Your day).
    - "Replace um with a silent beat." Say "um" five times in 10 seconds (more than 6 per
      minute).
    - "One pause ran past 3 seconds." Stop mid-sentence for 4 seconds, then keep talking;
@@ -204,8 +204,9 @@ sample result", which opens a real sample take on this screen.
 
 7. Session not found: open http://127.0.0.1:8000/#/results/nope. The empty state built by
    `app.ui.renderState` shows a magnifying glass, "Session not found" / "It may have been
-   deleted." and a "History" button that goes to `#/history`. The same block appears for
-   `#/results` with no id, and for a session id that was deleted.
+   deleted." and a "History" button that goes to `#/history`. The block sits centered
+   between the heading and the nav, its button as wide as the block. The same block appears
+   for `#/results` with no id, and for a session id that was deleted.
 
 8. Narrow the window to 320px (DevTools device toolbar): two cards per row with each number
    and its unit on one line, the date in the meta line never split, the timeline and its
@@ -256,7 +257,9 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
 6. Empty state: delete the remaining sessions through the UI, or run
    `indexedDB.deleteDatabase('speech-coach')` in the console and reload. The empty state
    built by `app.ui.renderState` shows a microphone icon, "No sessions yet" / "Your first
-   recording will show up here." and a "Record" button that opens Practice.
+   recording will show up here." and a "Record" button that opens Practice. The block sits
+   centered between the heading and the nav, its button as wide as the block, as on Progress
+   with one session.
 
 7. Narrow the window to 320px: the stats and the status sit under the title and date,
    left-aligned, with the trash icon on the right. Open a prompt: "Delete? Yes / No" drops
@@ -273,7 +276,7 @@ fillers-per-minute value, and `pauses` is the pause count):
 
 ```js
 for (const [daysAgo, wpm, um, pauses] of [[5,128,4,1],[4,141,3,2],[3,137,2,2],[2,152,1,0],[1,158,1,1]]) {
-  await app.store.save({createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString(), passageId:'free-talk', passageTitle:'Free talk', durationSeconds:60, metrics:{words_per_minute:wpm, duration:60, word_count:wpm, fillers:{um}, pauses:Array.from({length:pauses}, (_, k) => [10 + 10 * k, 2]), repeats:[], pace_windows:[]}, transcript:[]})
+  await app.store.save({createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString(), passageId:'free-talk', passageTitle:'Your day', durationSeconds:60, metrics:{words_per_minute:wpm, duration:60, word_count:wpm, fillers:{um}, pauses:Array.from({length:pauses}, (_, k) => [10 + 10 * k, 2]), repeats:[], pace_windows:[]}, transcript:[]})
 }
 ```
 
