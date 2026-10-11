@@ -98,8 +98,9 @@
   // toggle still cycles when localStorage is blocked and app.ui.getTheme() can only say "auto".
   let themeChoice = "auto";
 
-  // Nodes built by mount() and repainted by render(); only tickTimer() writes the timer. The
-  // theme toggle is the one node index.html builds: mount() finds it in the header.
+  // Nodes built by mount(). render() repaints them; startTimer(), tickTimer() and resetClock()
+  // write the clock. The theme toggle is the one node index.html builds: mount() finds it in
+  // the header.
   const nodes = {
     themeToggle: null,
     modeOptions: [],
