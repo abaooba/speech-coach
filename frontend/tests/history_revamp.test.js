@@ -258,6 +258,29 @@ test("Yes deletes, says 'Session deleted' and focuses the row now in that place"
   assert.equal(live.textContent, DELETED);
 });
 
+test("a second tap on Yes, or No after it, does nothing while the delete runs", async () => {
+  // A double tap must not remove twice or say "Session deleted" twice.
+  const { app, history, body, calls } = mountHistory([NEWEST, MIDDLE, OLDEST]);
+  const announced = [];
+  const announce = app.ui.announce;
+  app.ui.announce = (message) => {
+    announced.push(message);
+    announce(message);
+  };
+  await history.show();
+  const row = rowsOf(body)[0];
+  controlOf(row).click();
+  const { yes, no } = answersOf(row);
+  yes.click();
+  yes.click();
+  no.click();
+  await settle();
+
+  assert.deepEqual(calls.removes, ["s3"]);
+  assert.deepEqual(announced, [DELETED]);
+  assert.deepEqual(rowsOf(body).map(titleOf), ["Gettysburg Address, opening", "Give me liberty"]);
+});
+
 test("deleting the bottom row focuses the row now at the bottom", async () => {
   const { history, body, live, focusLog } = mountHistory([NEWEST, MIDDLE, OLDEST]);
   await history.show();
@@ -344,6 +367,12 @@ test("every focus move is skipped when elements have no focus()", async () => {
   await settle();
   assert.deepEqual(rowsOf(body).map(titleOf), ["Gettysburg Address, opening"]);
   assert.equal(live.textContent, DELETED);
+});
+
+test("the session list states its list role, which Safari drops when unstyled", async () => {
+  const { history, body } = mountHistory([NEWEST, MIDDLE]);
+  await history.show();
+  assert.equal(byClass(body, "session-list").getAttribute("role"), "list");
 });
 
 test("the empty state shows the mic icon", async () => {

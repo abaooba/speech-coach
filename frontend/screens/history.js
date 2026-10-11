@@ -157,7 +157,9 @@
     openButtons = built.map((entry) => entry.open);
     emptyAction = null;
     app.ui.clear(body);
-    body.appendChild(app.ui.el("ul", { class: "session-list" }, built.map((entry) => entry.row)));
+    // The list role survives list-style: none in Safari, so VoiceOver still counts the rows.
+    const rows = built.map((entry) => entry.row);
+    body.appendChild(app.ui.el("ul", { class: "session-list", role: "list" }, rows));
   }
 
   // One row and its open button. The row holds the open button, then the delete control. The
@@ -191,8 +193,21 @@
       if (closeOpenConfirm !== null) {
         closeOpenConfirm();
       }
-      const yes = buildAnswer(YES_LABEL, "btn btn--danger", () => removeSession(session, index));
-      const no = buildAnswer(NO_LABEL, "btn btn--ghost", () => restoreDeleteButton(true));
+      // One answer per prompt: a double tap on Yes, or No right after it, does nothing more
+      // while the delete runs.
+      let answered = false;
+      const once = (action) => () => {
+        if (!answered) {
+          answered = true;
+          action();
+        }
+      };
+      const yes = buildAnswer(
+        YES_LABEL,
+        "btn btn--danger",
+        once(() => removeSession(session, index)),
+      );
+      const no = buildAnswer(NO_LABEL, "btn btn--ghost", once(() => restoreDeleteButton(true)));
       replaceControl(buildConfirm(date, yes, no));
       closeOpenConfirm = () => restoreDeleteButton(false);
       focusIfPossible(no);
