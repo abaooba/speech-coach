@@ -1,7 +1,7 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
    mount() builds the Talk / Read switch, chips, card, timer, record button, hint and state block
-   once; render(state, detail) repaints them. Record asks for the microphone, MediaRecorder
-   collects the take, and Stop uploads it through app.api and saves it with app.store. */
+   once; render(state, detail) repaints them. Stop uploads the take through app.api and saves it
+   with app.store. It never asks for the microphone before a Record tap, and never stores audio. */
 (function () {
   "use strict";
 

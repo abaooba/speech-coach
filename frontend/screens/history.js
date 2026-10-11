@@ -1,7 +1,7 @@
-/* screens/history.js: app.screens.history (DESIGN.md sections 1, 6 and 9). Each stored session
-   is a row: formatStats(session) ("152 wpm · 3.1 /min", from app.screens.results.summarize) and
-   the pure statusFor(summary) ("On target", "Too slow · Fillers over 3"). A tap reopens Results;
-   the trash button asks "Delete? Yes / No" in place, one row at a time, and focus follows. */
+/* screens/history.js: app.screens.history (DESIGN.md sections 1, 6 and 9), one row per session:
+   formatStats(session) ("152 wpm · 3.1 /min") and the pure statusFor(summary) ("On target").
+   A tap reopens Results; the trash button asks "Delete? Yes / No" in place, one row at a time.
+   It deletes nothing before Yes and computes no metric itself (app.screens.results.summarize). */
 (function () {
   "use strict";
 

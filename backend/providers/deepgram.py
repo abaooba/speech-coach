@@ -10,11 +10,14 @@ LISTEN_PARAMS = {"model": "nova-3", "filler_words": "true", "punctuate": "true"}
 
 
 class DeepgramProvider:
+    """Transcriber backed by Deepgram. Pass a client in tests to avoid the network."""
+
     def __init__(self, api_key: str, client: httpx.Client | None = None) -> None:
         self._client = client or httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS)
         self._api_key = api_key
 
     def transcribe(self, audio_bytes: bytes, content_type: str) -> list[Word]:
+        """Post the clip in one request and return its words; raise ProviderError on non-2xx."""
         response = self._client.post(
             LISTEN_URL,
             params=LISTEN_PARAMS,

@@ -16,6 +16,8 @@ REQUEST_TIMEOUT_SECONDS = 120.0
 
 
 class AssemblyAIProvider:
+    """Transcriber backed by AssemblyAI. Tests pass a client and sleep to skip network and waits."""
+
     def __init__(
         self,
         api_key: str,
@@ -29,6 +31,10 @@ class AssemblyAIProvider:
         self._sleep = sleep
 
     def transcribe(self, audio_bytes: bytes, content_type: str) -> list[Word]:
+        """Upload, start the job, wait for it, return its words; content_type is unused here.
+
+        Raises ProviderError when any request fails or the job ends in status "error".
+        """
         audio_url = self._upload(audio_bytes)
         transcript_id = self._create_transcript(audio_url)
         completed = self._wait_for_completion(transcript_id)

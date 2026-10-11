@@ -1720,6 +1720,42 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* Onboarding screen: a lead line, three measured things with their icons, the privacy line and
+   one full-width button. Its content starts --s-3 under the h1, as on every screen. */
+.onboarding__lead {
+  margin: 0;
+}
+
+.onboarding__list {
+  list-style: none;
+  padding: 0;
+  margin: var(--s-6) 0;
+}
+
+/* The 24px icon sits on the first line of the words (body line height is 24px). */
+.onboarding__list li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  margin-bottom: var(--s-4);
+}
+
+.onboarding__list li > svg {
+  flex: none;
+}
+
+.onboarding__privacy {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+#screen-onboarding .btn {
+  margin-top: var(--s-6);
+}
+
 /* 11. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spinner,

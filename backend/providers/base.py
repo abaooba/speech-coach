@@ -24,6 +24,8 @@ class ProviderError(Exception):
 
 
 class Transcriber(Protocol):
+    """Anything with a transcribe method; the API depends on this, never on one service."""
+
     def transcribe(self, audio_bytes: bytes, content_type: str) -> list[Word]:
         """Send one audio clip and return its words in time order."""
         ...

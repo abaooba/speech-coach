@@ -57,6 +57,7 @@ async def add_cache_headers(request: Request, call_next: RequestResponseEndpoint
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
+    """Liveness check: Render's health check (render.yaml) polls this and expects a 200."""
     return {"status": "ok"}
 
 

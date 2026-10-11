@@ -1,8 +1,7 @@
 /* delivery.js: app.delivery, the rules the coach applies to the words of a stored take.
-   classify(words) labels every word a hesitation sound, a verbal habit or neither; analyze(words,
-   metrics) turns those labels plus the backend's pauses and repeats into the delivery report the
-   Results cards, tips and Progress chart read. Pure: no DOM, no store, no I/O. Every saved session
-   is re-scored with the same rules, so History and Progress never mix two definitions. */
+   classify(words) labels each word a hesitation sound, a verbal habit or neither (isHesitation
+   tests one word); analyze(words, metrics) re-scores any saved take into the report Results, tips
+   and Progress read, so they never mix two definitions. Pure: no DOM, no store, no I/O. */
 (function () {
   "use strict";
 

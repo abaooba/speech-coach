@@ -1,14 +1,7 @@
 /* screens/progress.js: app.screens.progress, the Progress screen (DESIGN.md sections 1 and 6).
-   Only the speaker's own takes count: the sample a visitor opens from Practice is left out
-   everywhere (app.screens.results.isSample). Three pure helpers do the maths without the DOM:
-   series(sessions, key) pulls one metric out of those takes oldest first through
-   app.screens.results.summarize, scale(values, key) turns those numbers into SVG points on a y
-   axis with round ticks, and summaryFor(values, key, targets) finds the latest take, the
-   personal best and the change from the average. show() draws a segmented control, the
-   metric's full name, a summary row and a hand-rolled SVG line chart (a target band for
-   fillers, a ring on the best take, short dates under the points) with a screen-reader table;
-   tapping an option redraws everything under the control, and the choice survives leaving the
-   screen. */
+   show() charts one metric over the speaker's own takes; the pure helpers series, scale and
+   summaryFor do the maths without the DOM. The sample a visitor opens from Practice never counts
+   (app.screens.results.isSample), and the SVG chart is drawn by hand: no chart library. */
 (function () {
   "use strict";
 
@@ -371,6 +364,9 @@
     return String(Math.round(value * COORD_SCALE) / COORD_SCALE);
   }
 
+  // Draws a segmented control, the metric's full name, a summary row and a hand-rolled SVG line
+  // chart (a target band for fillers, a ring on the best take, short dates under the points)
+  // with a screen-reader table. Tapping an option redraws everything under the control.
   async function show() {
     const ticket = ++showCount;
     const takes = ownTakes(await loadSessions());

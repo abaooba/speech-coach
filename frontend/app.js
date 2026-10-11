@@ -1,6 +1,7 @@
-/* app.js: creates the single `app` global and owns the hash router.
-   Screens register as app.screens[name] = { mount(root), show(params), hide() };
-   on DOMContentLoaded each registered screen is mounted once, then the hash is routed. */
+/* app.js: creates window.app, the only global, and owns the hash router (app.router.go, current).
+   Screens register as app.screens[name] = { mount(root), show(params), hide() }; on
+   DOMContentLoaded each is mounted once, then the hash is routed (to Onboarding on a first launch,
+   no "onboarded" flag in app.store). It never builds what goes inside a screen's section. */
 (function () {
   "use strict";
 
@@ -11,6 +12,9 @@
   const NAV_SELECTOR = ".nav";
   const PAGE_TITLE = "Speech Coach";
   const TITLE_SEPARATOR = " · ";
+  const ONBOARDING_SCREEN = "onboarding";
+  const ONBOARDING_HASH = "#/onboarding";
+  const ONBOARDED_FLAG = "onboarded";
 
   const app = { screens: {}, router: {} };
   window.app = app;
@@ -20,6 +24,9 @@
   let shownScreenName = null;
   // The id that screen was shown with (a session id on Results), or null.
   let shownId = null;
+  // The location.hash route() last handled. A first launch's boot sets the hash to Onboarding
+  // and routes at once; the hashchange that queues finds this hash and changes nothing.
+  let routedHash = null;
 
   app.router.go = function go(name, params) {
     const idPart = params && params.id ? "/" + params.id : "";
@@ -139,6 +146,10 @@
   }
 
   function route() {
+    if (window.location.hash === routedHash) {
+      return;
+    }
+    routedHash = window.location.hash;
     const { name, params } = app.router.current();
     const id = params.id === undefined ? null : params.id;
     // Nothing has been shown yet: the page has just opened, so focus stays where it is.
@@ -163,7 +174,7 @@
     }
   }
 
-  function boot() {
+  async function boot() {
     // The saved Auto / Dark / Light choice applies before any screen mounts. The inline script
     // in index.html's <head> already set data-theme for the first paint; this also points the
     // theme-color metas at the theme.
@@ -178,7 +189,24 @@
         screen.mount(root);
       }
     });
+    // A first launch opens Onboarding, whatever the hash. Without a store there is no flag to
+    // read, so nothing waits and nothing is gated.
+    let onboarded = true;
+    try {
+      onboarded = app.store ? await app.store.getFlag(ONBOARDED_FLAG) : true;
+    } catch {
+      // IndexedDB is missing or blocked: open the app ungated rather than leave a blank page.
+      onboarded = true;
+    }
+    if (!onboarded && window.location.hash !== ONBOARDING_HASH) {
+      app.router.go(ONBOARDING_SCREEN);
+    }
     route();
+    // sw.js keeps the app files for offline opens. Without service workers, or when the browser
+    // refuses the registration, the app runs exactly as before.
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
   }
 
   document.addEventListener("DOMContentLoaded", boot);
