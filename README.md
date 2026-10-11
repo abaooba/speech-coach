@@ -121,6 +121,27 @@ Things to know before testing or demoing on the deploy:
   request ends. Nothing is written to the Render disk by the app, and the
   free tier's filesystem is wiped on every restart anyway.
 
+### Install on a phone
+
+Speech Coach is a PWA, so it can sit on the home screen and open full
+screen like an app, with its own icon.
+
+- **iPhone (Safari):** open the Render URL in Safari, tap **Share**, then
+  **Add to Home Screen**, then **Add**.
+- **Android (Chrome):** open the Render URL; Chrome shows an **Install**
+  prompt (or choose **Install app** from the ⋮ menu).
+
+The caching rule: the service worker (`frontend/sw.js`) caches the app's
+own files, never its data. On install it stores the app shell (the page,
+the stylesheet, the scripts, the manifest and the icons), so the app still
+opens with no signal. Requests under `/api/` are never intercepted and never
+cached: every analysis goes to the server, and the service worker stores no
+recording, transcript or result. Pages and shell files are fetched from the
+network first, so the service worker never holds back a new deploy while
+online. Any other static file (such as `sample-session.json`) is kept after
+its first load, so when one of those changes, or the `SHELL` list does, bump
+`CACHE_NAME` in `sw.js` and phones drop the old copies.
+
 ## Repo layout
 
 ```
