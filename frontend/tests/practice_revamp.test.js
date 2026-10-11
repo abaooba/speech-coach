@@ -368,6 +368,37 @@ test("Retry upload still re-sends the same take after a failure", async () => {
   assert.equal(t.calls.analyze[1].blob, t.calls.analyze[0].blob);
 });
 
+// The backend answers 400 when it hears under 5 seconds of speech. Re-sending the same blob can
+// never pass and costs a provider call each time, so the take goes and the block is the one a
+// Stop under 5 seconds shows.
+test("a backend too short drops the take and shows Too short with Record again only", async () => {
+  const t = setup();
+  await recordTake(t, 8000);
+  t.rejectUpload(apiError("too_short"));
+  await flush();
+  const block = stateBlock(t);
+  assert.equal(block.children.length, 4, "icon, title, body and one action: no Retry upload");
+  const [, title, body, action] = block.children;
+  assert.equal(title.textContent, "Too short");
+  assert.equal(body.textContent, MESSAGES.too_short);
+  assert.equal(labelOf(action), "Record again");
+  assert.equal(t.focused[t.focused.length - 1], title);
+
+  const short = setup();
+  await recordTake(short, 2000);
+  assert.deepEqual(
+    stateBlock(short).children.map((child) => [child.className, child.textContent]),
+    block.children.map((child) => [child.className, child.textContent]),
+    "the same block as a Stop under 5 seconds",
+  );
+
+  action.click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.deepEqual(t.stateEl.children, []);
+  assert.equal(t.timer.textContent, "0:00", "the dropped take's time goes with it");
+  assert.equal(t.calls.analyze.length, 1, "the take is never sent again");
+});
+
 test("mic denied, too short and the sample error keep a single action", async () => {
   const denied = setup();
   denied.recordButton.click();

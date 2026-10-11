@@ -137,8 +137,9 @@
   let pendingTake = null;
 
   // The seconds on the clock: the live take's, held through uploading. A take that is let go
-  // (saved, dropped, or left behind by leaving the screen) goes back to 0:00 through
-  // resetClock(). After a too-short take the clock keeps its time until the next take starts.
+  // (saved, dropped, turned down by the backend as too short, or left behind by leaving the
+  // screen) goes back to 0:00 through resetClock(). After a Stop under 5 seconds the clock
+  // keeps its time until the next take starts.
   let shownSeconds = 0;
 
   // What the card and the chip row last showed, so render() scrolls the text back to the top
@@ -744,12 +745,7 @@
     app.ui.announce(stoppedAnnouncement(Math.floor(durationSeconds)));
 
     if (durationSeconds < MIN_TAKE_SECONDS) {
-      render("error", {
-        title: TOO_SHORT_TITLE,
-        body: app.api.messages.too_short,
-        actionLabel: TOO_SHORT_ACTION,
-        onAction: () => backToIdle(nodes.recordButton),
-      });
+      showTooShort();
       return;
     }
 
@@ -763,6 +759,17 @@
       passageTitle: passage ? passage.title : "",
     };
     upload();
+  }
+
+  // The Too short block, after a Stop under 5 seconds or when the backend heard under 5 seconds
+  // of speech. Either way nothing is left to re-send, so its one action goes back to idle.
+  function showTooShort() {
+    render("error", {
+      title: TOO_SHORT_TITLE,
+      body: app.api.messages.too_short,
+      actionLabel: TOO_SHORT_ACTION,
+      onAction: () => backToIdle(nodes.recordButton),
+    });
   }
 
   // "Recording stopped, 12 seconds", or "1 second" for a one-second take.
@@ -831,6 +838,14 @@
       render("idle");
       app.router.go("results", { id });
     } catch (error) {
+      if (error.kind === "too_short") {
+        // The backend answered 400: the same blob would fail again and cost a provider call on
+        // every tap, so the take goes, as after "Record a new take", and Retry is never offered.
+        pendingTake = null;
+        resetClock();
+        showTooShort();
+        return;
+      }
       render("error", {
         title: UPLOAD_FAILED_TITLE,
         body: error.message,
