@@ -450,7 +450,8 @@
     render("idle");
   }
 
-  // The selected prompt's next topic, back to the first after the last.
+  // The selected prompt's next topic, back to the first after the last. Focus stays on New
+  // topic while the card changes beside it, so the live region reads the new topic out.
   function showNextTopic() {
     const entry = selectedPassage();
     if (state !== "idle" || !hasTopics(entry)) {
@@ -458,6 +459,7 @@
     }
     topicIndexById[entry.id] = (topicIndexOf(entry) + 1) % entry.topics.length;
     render("idle");
+    app.ui.announce(cardTextOf(entry));
   }
 
   // Applies one state to the screen. It is the only code that changes this screen's DOM, apart

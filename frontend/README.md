@@ -128,8 +128,9 @@ nav with no page scroll; the selected chip still names the option.
    Reload: the choice is kept. The header stays one line, as tall as the "Practice" heading.
 
 Screen-reader users hear "Recording started", the clock every 30 seconds, "Recording
-stopped, N seconds", "Results ready" and, after each theme tap, "Theme: Dark", "Theme: Light"
-or "Theme: Auto" through the live region. Errors are not announced on top of their alert role.
+stopped, N seconds", "Results ready", the new topic after each New topic tap and, after each
+theme tap, "Theme: Dark", "Theme: Light" or "Theme: Auto" through the live region. Errors are
+not announced on top of their alert role.
 
 **Results (about two minutes).** Needs one saved session, so run the Practice happy path
 first; the hash is then `#/results/<id>`. Without a microphone, Practice in idle shows "See a

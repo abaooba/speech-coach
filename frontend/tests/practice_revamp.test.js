@@ -801,6 +801,16 @@ test("a new topic scrolls the text back to the top", () => {
   assert.equal(parts.cardText.scrollTop, 0);
 });
 
+test("New topic reads the new topic out, since focus stays on the button", () => {
+  const t = setup({ passages: MODES });
+  const parts = modeParts(t);
+  parts.newTopic.click();
+  assert.deepEqual(t.calls.announce, ["Second topic."]);
+  parts.newTopic.click();
+  parts.newTopic.click();
+  assert.deepEqual(t.calls.announce, ["Second topic.", "Third topic.", "First topic."]);
+});
+
 test("New topic shows only for a prompt with topics, and only in idle", () => {
   const t = setup({ passages: MODES });
   const parts = modeParts(t);
