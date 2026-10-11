@@ -27,8 +27,12 @@ MAX_REPEAT_PHRASE_WORDS = 4
 # words: 'the few decisions a day, uh, the few decisions a student'. At most this many
 # abandoned words may sit between the copies; um/uh/hmm there are skipped and do not count.
 RESTART_MAX_ABANDONED_WORDS = 2
+# A dash at the end of a word marks where the speaker cut themselves off ('day—'); AssemblyAI
+# writes it into the word text. A hyphen inside a word ('well-known') is not a cut-off.
+CUTOFF_MARKS = ("—", "–", "-")
 
 _EDGE_PUNCTUATION = re.compile(r"^\W+|\W+$")
+_SENTENCE_END = re.compile(r"[.?!][\"')\]]*$")
 
 
 class Repeat(TypedDict):
@@ -115,11 +119,13 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
 
     Only um/uh/hmm are skipped between the copies; 'like' and 'so' stay, so 'I, like, I'
     is not a repeat. A restart is a phrase of two or more words said again after up to
-    RESTART_MAX_ABANDONED_WORDS abandoned words; a two-word restart also needs um/uh/hmm
-    between the copies, so parallel phrasing like 'I play tennis, I play piano' is not one.
+    RESTART_MAX_ABANDONED_WORDS abandoned words, when something shows the speaker gave up:
+    um/uh/hmm between the copies or a cut-off mark on an abandoned word ('day—'). Without
+    that sign, parallel phrasing ('we need to protect, we need to defend') is deliberate,
+    not a restart; nor is a new sentence that opens like the last one.
     `at` is the start of the first copy in clip seconds. A word stuttered three times
     yields two repeats, one per extra copy. Matches never overlap: the search goes on from
-    the second copy.
+    the second copy, so a stutter among the abandoned words is part of the restart.
     """
     spoken: list[Word] = []
     hesitation_before: list[bool] = []
@@ -138,7 +144,7 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
     while index < len(tokens):
         length, abandoned = _repeated_phrase_length(tokens, index), 0
         if length == 0:
-            length, abandoned = _restarted_phrase(tokens, hesitation_before, index)
+            length, abandoned = _restarted_phrase(spoken, tokens, hesitation_before, index)
         if length == 0:
             index += 1
             continue
@@ -161,12 +167,13 @@ def _repeated_phrase_length(tokens: list[str], index: int) -> int:
 
 
 def _restarted_phrase(
-    tokens: list[str], hesitation_before: list[bool], index: int
+    spoken: list[Word], tokens: list[str], hesitation_before: list[bool], index: int
 ) -> tuple[int, int]:
     """(phrase length, abandoned words) of the longest restart at `index`, else (0, 0).
 
-    `hesitation_before[i]` says whether um/uh/hmm came just before spoken word i. Among
-    equally long phrases the one with the fewest abandoned words wins.
+    `tokens[i]` is the normalized text of `spoken[i]`, and `hesitation_before[i]` says
+    whether um/uh/hmm came just before it. Among equally long phrases the one with the
+    fewest abandoned words wins.
     """
     for length in range(MAX_REPEAT_PHRASE_WORDS, 1, -1):
         first = tokens[index : index + length]
@@ -175,8 +182,13 @@ def _restarted_phrase(
             second = tokens[second_start : second_start + length]
             if first != second:
                 continue
+            # The last word of the first copy, then the abandoned words.
+            between = spoken[index + length - 1 : second_start]
+            if any(_SENTENCE_END.search(word.text) for word in between):
+                continue
             hesitated = any(hesitation_before[index + length : second_start + 1])
-            if length > 2 or hesitated:
+            cut_off = any(word.text.endswith(CUTOFF_MARKS) for word in between[1:])
+            if hesitated or cut_off:
                 return length, abandoned
     return 0, 0
 
