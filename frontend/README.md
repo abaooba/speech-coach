@@ -118,8 +118,10 @@ nav with no page scroll; the selected chip still names the option.
    no page scroll. At 320 x 568 the card still shows the whole topic, two lines above its fade:
    the hint and the sample button hide, the record button shrinks and the gaps under the card
    tighten, so the button and its label sit above the nav with no page scroll. Tap Record: the
-   nav hides and the card grows into its room. In landscape (667 x 375) or at 200% zoom the
-   card keeps those two lines, the sample button stays, and the page scrolls.
+   nav hides and the card grows into its room. In landscape (667 x 375) the card keeps those
+   two lines, the sample button stays, and the page scrolls. At 200% zoom (187 x 333) the card
+   keeps its two lines, the hint and the sample button hide as on a small phone, and the page
+   scrolls.
 
 9. Theme toggle: the icon right of "Speech Coach" is a half-filled circle for Auto, and a
    screen reader names it "Theme: Auto. Switch to dark." Tap it: the page turns dark whatever
@@ -200,10 +202,15 @@ sample result", which opens a real sample take on this screen.
      (over 175 wpm on Your day).
    - "You are under target pace." Read slower than the bottom target minus 15 wpm (under
      125 wpm on Your day).
-   - "Replace um with a silent beat." Say "um" five times in 10 seconds (more than 6 per
-     minute).
-   - "One pause ran past 3 seconds." Stop mid-sentence for 4 seconds, then keep talking;
-     silence before the first word or after the last one is not a pause.
+   - "Fillers at 0:02, 0:05 and 0:09. Next take, close your mouth and pause instead." Say
+     "um" three or more times in 15 seconds (more than 3 a minute); the tip names when the first
+     three came, then "and N more". A take saved without words reads "Replace um with a silent
+     beat." instead.
+   - "You said “like” 3 times. Drop it and let the sentence land." Use one verbal habit
+     ("like", "basically") three times.
+   - "A pause in the middle of a sentence ran past 3 seconds." Stop mid-sentence for 4
+     seconds, then keep talking; silence before the first word, after the last one or at a
+     period is not counted.
    - "You restarted phrases three times." Say a word twice in a row ("the the") on three
      separate occasions.
    - "Clean run. No filler, habit or long pause stood out." None of the above. It gives no
@@ -237,8 +244,10 @@ or save two with the store check above. Then open http://127.0.0.1:8000/#/histor
    (150 wpm, one "um" in 12 seconds, so 5 a minute) reads "Fillers over 3". A muted trash
    icon sits at the right of each row. The History nav item is highlighted.
 
-2. Tap a row: the hash becomes `#/results/<id>` and Results shows that session. Use the
-   browser's back button to return.
+2. Tap a row: the hash becomes `#/results/<id>` and Results shows that session, opened at
+   the top of the page even when the list was scrolled, and the tab reads "Results · Speech
+   Coach". With a keyboard, Enter on a row puts focus on the "Results" heading, so the next
+   Tab goes into Results rather than to the nav. Use the browser's back button to return.
 
 3. Tap the trash icon: it becomes "Delete?" with "Yes" and "No". Tap "No": the trash icon
    comes back and the row stays. Tap the trash icon on one row, then on another: the first
