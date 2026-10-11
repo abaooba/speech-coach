@@ -465,11 +465,14 @@ test("a focused control stops --s-2 short of the window's top and of the nav", (
   );
 });
 
-const MOUSE = "@media (hover: hover) and (pointer: fine)";
+// A mouse, a full-width column (640px wide) and a window at least 750px tall: Read's six chips
+// take three lines there, 104px more than one, and every state still fits above the nav.
+const MOUSE =
+  "@media (hover: hover) and (pointer: fine) and (min-width: 640px) and (min-height: 750px)";
 
 test("with a mouse the chip row wraps: no bleed, no fade, nothing to scroll sideways", () => {
   // A wheel cannot scroll the row, and at 1024px the fade hid half of Read's passages. Touch
-  // screens keep the swipe row the rules at the top level pin.
+  // screens and smaller mouse windows keep the swipe row the rules at the top level pin.
   const row = "#screen-practice .chip-row";
   assert.equal(valueFor(row, "flex-wrap", MOUSE), "wrap");
   assert.equal(valueFor(row, "overflow", MOUSE), "visible");
@@ -478,4 +481,18 @@ test("with a mouse the chip row wraps: no bleed, no fade, nothing to scroll side
   assert.equal(valueFor(row, "mask-image", MOUSE), "none");
   assert.equal(valueFor(row, "-webkit-mask-image", MOUSE), "none");
   assert.equal(valueFor(row, "flex-wrap"), undefined, "touch screens keep one swipe row");
+});
+
+test("a short or narrow mouse window keeps the swipe row, so Practice fits one screen", () => {
+  // Wrapped for any mouse, Read's chips put the sample button 45px under the nav in a 1366 x 657
+  // laptop window (three lines) and Record itself under it in a 375 x 667 one (six lines). Only
+  // the query above wraps the row.
+  const wrapping = RULES.filter(
+    (rule) =>
+      rule.selectors.includes("#screen-practice .chip-row") && "flex-wrap" in rule.declarations,
+  );
+  assert.deepEqual(
+    wrapping.map((rule) => rule.at),
+    [MOUSE],
+  );
 });

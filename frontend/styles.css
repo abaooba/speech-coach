@@ -556,9 +556,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* With a mouse the row wraps instead: a wheel cannot scroll it sideways, and at 1024px the fade
-   hid half of Read's passages. It stays inside the column, with no fade and no end padding;
-   touch screens keep the swipe row above. */
-@media (hover: hover) and (pointer: fine) {
+   hid half of Read's passages. It stays inside the column, with no fade and no end padding.
+   Read's six chips take three lines of the full-width column (from 640px), 104px more than one,
+   and every state fits above the nav with them only from 750px tall: the Upload failed block,
+   the tallest, over the card at its 120px floor. Touch screens and smaller mouse windows keep
+   the swipe row above, which Tab, Shift+wheel and a trackpad still scroll. */
+@media (hover: hover) and (pointer: fine) and (min-width: 640px) and (min-height: 750px) {
   #screen-practice .chip-row {
     flex-wrap: wrap;
     overflow: visible;
