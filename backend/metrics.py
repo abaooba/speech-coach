@@ -22,7 +22,8 @@ FILLER_KEYS = ("um", "uh", "hmm", "like", "you know", "so", "basically", "actual
 
 # Hesitation sounds that may sit between the two copies of a repeated phrase.
 REPEAT_SKIP_WORDS = ("um", "uh", "hmm")
-MAX_REPEAT_PHRASE_WORDS = 4
+# Long enough that reading a whole clause again counts as one repeat.
+MAX_REPEAT_PHRASE_WORDS = 8
 # A restart is a phrase of at least two words said again after the speaker gave up on a few
 # words: 'the few decisions a day, uh, the few decisions a student'. At most this many
 # abandoned words may sit between the copies; um/uh/hmm there are skipped and do not count.
@@ -30,9 +31,13 @@ RESTART_MAX_ABANDONED_WORDS = 2
 # A dash at the end of a word marks where the speaker cut themselves off ('day—'); AssemblyAI
 # writes it into the word text. A hyphen inside a word ('well-known') is not a cut-off.
 CUTOFF_MARKS = ("—", "–", "-")
+# After a cut-off the speaker must start again within this many words (um/uh/hmm not counted)
+# for it to be a restart: 'I kinda ner— I'm kinda nervous'.
+CUTOFF_LOOKAHEAD_WORDS = 4
 
 _EDGE_PUNCTUATION = re.compile(r"^\W+|\W+$")
 _SENTENCE_END = re.compile(r"[.?!][\"')\]]*$")
+_CONTRACTION = re.compile(r"(?:n['’]t|['’](?:m|s|re|ve|ll|d))$")
 
 
 class Repeat(TypedDict):
@@ -115,7 +120,7 @@ def count_fillers(words: Sequence[Word]) -> dict[str, int]:
 
 
 def find_repeats(words: Sequence[Word]) -> list[Repeat]:
-    """Phrases of up to four words said twice in a row, such as 'and I, uh, and I', or restarted.
+    """Phrases of up to eight words said twice in a row, such as 'and I, uh, and I', or restarted.
 
     Only um/uh/hmm are skipped between the copies; 'like' and 'so' stay, so 'I, like, I'
     is not a repeat. A restart is a phrase of two or more words said again after up to
@@ -123,6 +128,9 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
     um/uh/hmm between the copies or a cut-off mark on an abandoned word ('day—'). Without
     that sign, parallel phrasing ('we need to protect, we need to defend') is deliberate,
     not a restart; nor is a new sentence that opens like the last one.
+    A cut-off restart is a phrase ending in a cut-off word ('I kinda ner—') that the speaker
+    starts again within CUTOFF_LOOKAHEAD_WORDS words ('I'm kinda nervous'); its text is the
+    abandoned phrase up to the fragment.
     `at` is the start of the first copy in clip seconds. A word stuttered three times
     yields two repeats, one per extra copy. Matches never overlap: the search goes on from
     the second copy, so a stutter among the abandoned words is part of the restart.
@@ -145,6 +153,8 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
         length, abandoned = _repeated_phrase_length(tokens, index), 0
         if length == 0:
             length, abandoned = _restarted_phrase(spoken, tokens, hesitation_before, index)
+        if length == 0:
+            length, abandoned = _cut_off_phrase(spoken, tokens, index)
         if length == 0:
             index += 1
             continue
@@ -191,6 +201,41 @@ def _restarted_phrase(
             if hesitated or cut_off:
                 return length, abandoned
     return 0, 0
+
+
+def _cut_off_phrase(spoken: list[Word], tokens: list[str], index: int) -> tuple[int, int]:
+    """(phrase length, words before the restart) of a cut-off restart at `index`, else (0, 0).
+
+    The phrase runs from `index` to the first word ending in a cut-off mark, within one
+    sentence and at most MAX_REPEAT_PHRASE_WORDS long. It is a restart when one of the next
+    CUTOFF_LOOKAHEAD_WORDS words begins the phrase again with the same word or stem
+    (I/I'm, decision/decisions), or, for a phrase that is only the fragment, begins with the
+    fragment ('pro—' then 'protect'). The words before the restart are abandoned.
+    """
+    for cut in range(index, min(index + MAX_REPEAT_PHRASE_WORDS, len(spoken))):
+        if spoken[cut].text.endswith(CUTOFF_MARKS):
+            break
+        if _SENTENCE_END.search(spoken[cut].text):
+            return 0, 0
+    else:
+        return 0, 0
+    length = cut - index + 1
+    for restart in range(cut + 1, min(cut + 1 + CUTOFF_LOOKAHEAD_WORDS, len(spoken))):
+        same_start = _stem(tokens[restart]) == _stem(tokens[index])
+        finishes_fragment = index == cut and tokens[restart].startswith(tokens[cut])
+        if same_start or finishes_fragment:
+            return length, restart - cut - 1
+        if _SENTENCE_END.search(spoken[restart].text):
+            return 0, 0
+    return 0, 0
+
+
+def _stem(token: str) -> str:
+    """A normalized token without its contraction or plural ending: "I'm" -> 'i'."""
+    token = _CONTRACTION.sub("", token)
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
 
 
 def pace_windows(
