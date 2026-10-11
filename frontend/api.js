@@ -10,6 +10,11 @@
   const FILENAME_STEM = "recording.";
   const DEFAULT_EXTENSION = "webm";
 
+  // A request still open after two minutes is aborted and fails as "network", so a stalled
+  // upload never leaves the speaker on "Analyzing your speech". Two minutes is also how long
+  // the backend waits on each call to the speech-to-text provider.
+  const ANALYZE_TIMEOUT_MS = 120000;
+
   // The only copies of these sentences in the codebase (DESIGN.md section 8).
   const messages = Object.freeze({
     network: "Could not reach the server. Your recording is still here.",
@@ -23,9 +28,20 @@
     const form = new FormData();
     form.append(AUDIO_FIELD, blob, FILENAME_STEM + extensionFor(contentType));
 
+    const deadline = startDeadline();
+    try {
+      return await post(form, deadline.signal);
+    } finally {
+      deadline.clear();
+    }
+  }
+
+  // One POST and its JSON reply. The deadline's abort, while sending or while reading the reply,
+  // fails as "network", as a server that cannot be reached does.
+  async function post(form, signal) {
     let response;
     try {
-      response = await fetch(ANALYZE_URL, { method: "POST", body: form });
+      response = await fetch(ANALYZE_URL, { method: "POST", body: form, signal });
     } catch {
       throw apiError("network");
     }
@@ -37,8 +53,23 @@
     try {
       return await response.json();
     } catch {
-      throw apiError("unknown");
+      throw apiError(signal && signal.aborted ? "network" : "unknown");
     }
+  }
+
+  // Aborts the request ANALYZE_TIMEOUT_MS after it starts. Without AbortController or the timers
+  // (an old browser, the test sandbox) the request has no deadline and no signal.
+  function startDeadline() {
+    const canAbort =
+      typeof AbortController === "function" &&
+      typeof setTimeout === "function" &&
+      typeof clearTimeout === "function";
+    if (!canAbort) {
+      return { signal: undefined, clear: () => {} };
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ANALYZE_TIMEOUT_MS);
+    return { signal: controller.signal, clear: () => clearTimeout(timer) };
   }
 
   // MediaRecorder reports types such as "audio/webm;codecs=opus", "audio/mp4" or "audio/ogg".
