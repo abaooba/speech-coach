@@ -4,6 +4,66 @@ Plain HTML, CSS and JavaScript served by the FastAPI backend. The design spec is
 `DESIGN.md`; automated checks live in `tests/` and run with `node --test frontend/tests`
 from the repository root.
 
+## Module responsibilities
+
+Each script `index.html` loads is an IIFE that assigns exactly one `app.<name>`. Every script
+opens with a short comment saying what it owns and what it must not do: two to four lines, five
+in the human-owned `pauses.js`. `DESIGN.md` section 2 holds the full contracts; this table is
+the map.
+
+| File | Export | Owns and promises |
+|---|---|---|
+| `app.js` | `app.router` | Creates `window.app` (with an empty `app.screens`) and owns the hash router. `go(name, params)` sets the hash to `#/<name>` or `#/<name>/<id>`; `current()` returns `{name, params}` for the hash, and Practice for an unknown one. At boot it applies the saved theme, mounts every registered screen once, then routes, to Onboarding on a first launch. |
+| `ui.js` | `app.ui` | The DOM helpers every screen builds from. `el(tag, attrs, children)` builds nodes, never markup; `renderState(root, {kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary})` is the only builder of the empty, error and loading blocks; `clear(root)` empties a node; `announce(text)` writes the live region; `formatClock(seconds)` gives "1:05" and `formatDate(iso)` "Oct 9, 10:21 PM". Also `formatDay`, `icon` and the theme helpers `getTheme`, `applyTheme`, `setTheme`, `nextTheme`. |
+| `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`. A session holds metrics and transcript, never audio. |
+| `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`. A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
+| `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). No DOM. |
+| `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
+| `tips.js` | `app.tips` | `select(report, options)` returns at most two `{id, text}` tips in priority order. Pure. |
+| `pauses.js` | `app.pauses` | Human-owned (T08); agents never edit it. `start(stream)` samples the microphone's loudness while a take records, `stop()` hands the samples back, and `reconcile(metrics, samples)` folds the quiet stretches into the backend's pauses. |
+| `screens/practice.js` | `app.screens.practice` | `mount`, `show`, `hide`, plus `render(state, detail)` (the one function that repaints the screen), the `state` string (`idle`, `recording`, `uploading` or `error`), `STATES`, `viewFor` and `selectedPassage`. Records a take, uploads it through `app.api` and saves it through `app.store`. |
+| `screens/results.js` | `app.screens.results` | `mount`, `show({id})`, `hide`, plus the pure helpers `summarize`, `buildTranscriptPlan`, `headlineFor`, `compareWithPrevious`, `timelineSegments` and `isSample`, which touch no DOM. |
+| `screens/history.js` | `app.screens.history` | `mount`, `show`, `hide`, plus `formatStats(session)` and the pure `statusFor(summary)`. |
+| `screens/progress.js` | `app.screens.progress` | `mount`, `show`, `hide`, plus the pure `series`, `scale` and `summaryFor`. |
+| `screens/onboarding.js` | `app.screens.onboarding` | `mount`, `show`, `hide`, plus `COPY`, every string on the screen. |
+| `sw.js` | none | The service worker, which runs in its own scope with no `app`. It caches the app shell (`SHELL`) so the app opens offline, and never touches `/api/`. |
+| `how.html` | none | The static "How we measure" page, with no script, linked from the Results transcript legend. |
+
+**Screens.** Every screen registers `app.screens[name] = { mount(root), show(params), hide() }`.
+`app.js` calls `mount(root)` once at boot with the screen's `<section id="screen-<name>"
+class="screen">`, then `show(params)` each time a route lands on it (`params.id` is the session
+id on Results) and `hide()` when a route leaves it. The `screen__body` rule: each section holds
+exactly one `div.screen__body` (`backend/tests/test_frontend_shell.py` checks it), and the screen
+draws its content, state blocks included, inside it, so the `h1` above it (and Practice's header)
+stays put. A screen touches nothing outside its own section; shared data goes through `app.store`
+and route params.
+
+**Script load order.** `index.html` loads classic `<script>` tags (no modules, no build step, no
+CDN) in this order, fixed by `backend/tests/test_frontend_shell.py`: `app.js`, `ui.js`,
+`store.js`, `api.js`, `passages.js`, `delivery.js`, `tips.js`, `pauses.js`, then
+`screens/practice.js`, `screens/results.js`, `screens/history.js`, `screens/progress.js` and
+`screens/onboarding.js`. `app.js` comes first because it creates `window.app`. Every
+`<script src>` is also listed in `SHELL` in `sw.js` (`backend/tests/test_pwa_files.py`).
+
+**Two rules every script keeps.**
+
+- `window.app` is the only global. Each file adds its one `app.<name>` and nothing else to
+  `window`.
+- Transcript text, like any text from the speaker or the backend, never goes through `innerHTML`.
+  Nodes are built with `app.ui.el`, where text becomes a text node, and SVG with
+  `createElementNS`. `backend/tests/test_frontend_shell.py` fails if `innerHTML` or `outerHTML`
+  appears in any frontend script except the human-owned `pauses.js`.
+
+**Tests.** From the repository root:
+
+```bash
+node --test frontend/tests
+```
+
+Plain `node:test`, no dependencies: each test loads the scripts into a `node:vm` sandbox with a
+small fake DOM. `pytest` runs the same suite through `backend/tests/test_frontend_node.py` when
+`node` is installed.
+
 ## Manual checks
 
 Start the server with a real speech-to-text key in `.env` and open http://127.0.0.1:8000/
