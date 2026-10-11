@@ -8,7 +8,9 @@
   const DEFAULT_SCREEN = "practice";
   const ACTIVE_SCREEN_CLASS = "screen--active";
   const ACTIVE_NAV_CLASS = "nav__item--active";
+  const NAV_SELECTOR = ".nav";
   const PAGE_TITLE = "Speech Coach";
+  const TITLE_SEPARATOR = " · ";
 
   const app = { screens: {}, router: {} };
   window.app = app;
@@ -91,9 +93,55 @@
     }
   }
 
+  // The section's h1, or null when it has none or the test fake cannot query.
+  function headingOf(section) {
+    if (!section || typeof section.querySelector !== "function") {
+      return null;
+    }
+    return section.querySelector("h1");
+  }
+
+  // "Results · Speech Coach": the tab names the screen by its h1. Onboarding's h1 is the app's
+  // own name, so it keeps the plain title, as does a section without an h1.
+  function titleFor(heading) {
+    const text = heading ? String(heading.textContent || "").trim() : "";
+    return text && text !== PAGE_TITLE ? text + TITLE_SEPARATOR + PAGE_TITLE : PAGE_TITLE;
+  }
+
+  // Whether keyboard focus sits in `container`; false when a fake has no contains().
+  function holdsFocus(container) {
+    const active = document.activeElement;
+    if (!container || !active || typeof container.contains !== "function") {
+      return false;
+    }
+    return container.contains(active);
+  }
+
+  function navElement() {
+    return typeof document.querySelector === "function"
+      ? document.querySelector(NAV_SELECTOR)
+      : null;
+  }
+
+  // After an in-app screen change keyboard focus starts on the new screen's h1, so the next Tab
+  // walks that screen from the top instead of jumping to the nav. Focus already inside the
+  // screen, or on the nav link just activated, stays put. preventScroll leaves the scroll to
+  // route(), which already put a new screen at the top. The test fakes may lack focus().
+  function focusHeading(section, heading) {
+    if (!heading || holdsFocus(section) || holdsFocus(navElement())) {
+      return;
+    }
+    heading.setAttribute("tabindex", "-1");
+    if (typeof heading.focus === "function") {
+      heading.focus({ preventScroll: true });
+    }
+  }
+
   function route() {
     const { name, params } = app.router.current();
     const id = params.id === undefined ? null : params.id;
+    // Nothing has been shown yet: the page has just opened, so focus stays where it is.
+    const isBoot = shownScreenName === null;
     hidePreviousScreen();
     activateSection(name);
     if (name !== shownScreenName || id !== shownId) {
@@ -106,7 +154,12 @@
     shownScreenName = name;
     shownId = id;
     updateNav(name);
-    document.title = PAGE_TITLE;
+    const section = sectionFor(name);
+    const heading = headingOf(section);
+    document.title = titleFor(heading);
+    if (!isBoot) {
+      focusHeading(section, heading);
+    }
   }
 
   function boot() {
