@@ -3,8 +3,24 @@
 A practice tool for debaters and speech students. Record a short practice
 speech on your phone or laptop, get back words per minute, long pauses,
 filler words and repeated words, and watch those numbers improve over days.
-
 Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
+
+## Screenshots
+
+- Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
+  the take.
+  ![Practice screen](docs/screenshots/practice.png)
+- Results: a two-sentence headline, four metric cards, a speech timeline, the transcript with
+  fillers highlighted and one or two tips.
+  ![Results screen](docs/screenshots/results.png)
+- History: every session, newest first, with its pace, fillers per minute and a status word.
+  ![History screen](docs/screenshots/history.png)
+- Progress: one metric charted across your takes, with your latest, your best and your change
+  from the average.
+  ![Progress screen](docs/screenshots/progress.png)
+- Onboarding, shown on first launch: what is measured and that audio is deleted after
+  analysis.
+  ![Onboarding screen](docs/screenshots/onboarding.png)
 
 ## How it works
 
@@ -18,7 +34,7 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 4. The browser saves the session in IndexedDB on the device and draws a
    progress chart. No accounts, nothing stored on the server.
 
-## API
+### API
 
 `POST /api/analyze` takes a multipart form with one field, `audio`, holding
 the recording. It returns `{"transcript": [...], "metrics": {...}}` where
@@ -32,29 +48,25 @@ each transcript entry is `{"text", "start", "end"}` in seconds and
 | 422 | The `audio` field is missing | FastAPI validation error |
 | 502 | The speech-to-text provider is misconfigured, unreachable or failed | `{"detail": message}` |
 
-## Privacy
-
-- The backend keeps each recording in memory only for the duration of its
-  request. It never saves audio under its own name, and it never logs it.
-- The web framework (Starlette) parses uploads into a spooled temporary
-  file: recordings up to 1 MB stay in memory, larger ones are spooled to
-  the operating system's temp directory while the request runs, and the
-  file is deleted when the request ends. A long recording may therefore
-  touch disk for a few seconds.
-- The audio is forwarded once to the speech-to-text provider you configure
-  (Deepgram or AssemblyAI) and is subject to that provider's retention
-  policy.
-- Transcripts and metrics are returned to the browser and stored only in
-  IndexedDB on the device.
-
-## Stack
+### Stack
 
 - Backend: Python 3.13, FastAPI, httpx, pytest
 - Frontend: plain HTML, CSS and JavaScript (PWA), no framework
 - Speech-to-text: Deepgram (primary) or AssemblyAI (fallback)
 - Hosting: Render free tier (backend + static files)
 
-## Run locally
+### Repo layout
+
+```
+backend/        FastAPI app, provider clients, metrics
+backend/tests/  pytest suite (network blocked)
+frontend/       static PWA files served by the backend
+docs/           design spec and planning notes
+```
+
+## Setup
+
+You need Python 3.13. From the root of a fresh clone:
 
 ```bash
 python3 -m venv .venv
@@ -66,10 +78,21 @@ uvicorn backend.app:app --reload
 
 Open http://127.0.0.1:8000 in a browser.
 
+## Tests
+
+Every command below runs from the repository root with the virtual
+environment from Setup active.
+
 Run the tests:
 
 ```bash
 pytest
+```
+
+Lint the Python code:
+
+```bash
+ruff check .
 ```
 
 Frontend tests (plain `node:test`, no dependencies; pytest also runs them when
@@ -115,11 +138,11 @@ Things to know before testing or demoing on the deploy:
   (`/`, `/index.html`, `/sw.js`, `/manifest.json`) so a new deploy shows up
   on the next open, `public, max-age=3600` for the other static files, and
   `no-store` for everything under `/api`.
-- **Privacy on the deploy** is the same as described above: each recording is
-  held in memory for the duration of its request only, plus Starlette's
-  transient spool file for uploads over 1 MB, which is deleted when the
-  request ends. Nothing is written to the Render disk by the app, and the
-  free tier's filesystem is wiped on every restart anyway.
+- **Privacy on the deploy** is the same as described under Privacy below:
+  each recording is held in memory for the duration of its request only,
+  plus Starlette's transient spool file for uploads over 1 MB, which is
+  deleted when the request ends. Nothing is written to the Render disk by
+  the app, and the free tier's filesystem is wiped on every restart anyway.
 
 ### Install on a phone
 
@@ -142,18 +165,24 @@ online. Any other static file (such as `sample-session.json`) is kept after
 its first load, so when one of those changes, or the `SHELL` list does, bump
 `CACHE_NAME` in `sw.js` and phones drop the old copies.
 
-## Repo layout
+## Privacy
 
-```
-backend/        FastAPI app, provider clients, metrics
-backend/tests/  pytest suite (network blocked)
-frontend/       static PWA files served by the backend
-docs/           design spec and planning notes
-```
+- The backend keeps each recording in memory only for the duration of its
+  request. It never saves audio under its own name, and it never logs it.
+- The web framework (Starlette) parses uploads into a spooled temporary
+  file: recordings up to 1 MB stay in memory, larger ones are spooled to
+  the operating system's temp directory while the request runs, and the
+  file is deleted when the request ends. A long recording may therefore
+  touch disk for a few seconds.
+- The audio is forwarded once to the speech-to-text provider you configure
+  (Deepgram or AssemblyAI) and is subject to that provider's retention
+  policy.
+- Transcripts and metrics are returned to the browser and stored only in
+  IndexedDB on the device.
 
 ## AI disclosure
 
 Speech-to-text is provided by a third-party API. All metric calculations,
 pause detection, the user interface and the backend are hand-written.
 AI coding assistants were used during development; see
-`docs/ai-disclosure.md` for details.
+[`docs/ai-disclosure.md`](docs/ai-disclosure.md) for details.
