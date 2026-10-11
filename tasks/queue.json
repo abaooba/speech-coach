@@ -269,36 +269,42 @@
    "title": "App icons: stdlib PNG encoder, icon.svg, two PNGs",
    "brief": "Scope: create scripts/make_icons.py, frontend/icons/icon.svg, frontend/icons/icon-192.png, frontend/icons/icon-512.png and backend/tests/test_pwa_icons.py. Touch nothing else (no manifest, no service worker, no index.html change; those are T10a-2). scripts/make_icons.py: Python 3.13 stdlib only (zlib, struct), no Pillow, no new dependencies: writes frontend/icons/icon.svg (a rounded square in #2457F5 with a white microphone capsule and a white base line, viewBox 0 0 512 512; raw hex is allowed in this asset) and rasterizes the same shape itself into RGBA PNGs at 192 and 512 px (fill the rounded square, draw the mic capsule as a filled rounded rectangle and the stand as a rectangle, all by pixel math, no anti-aliasing needed) with a correct PNG writer (signature, IHDR, IDAT with zlib level 9 and filter byte 0 per row, IEND, CRC32 on every chunk). The script is deterministic: running it twice yields byte-identical files. Run it once and commit the three outputs. backend/tests/test_pwa_icons.py: each PNG begins with the 8-byte PNG signature, its IHDR width and height equal the size in its file name, bit depth 8, color type 6; icon.svg contains viewBox=\"0 0 512 512\"; running scripts/make_icons.py into a temp directory (give the script an optional output-directory argument) produces files byte-equal to the committed ones. Commit when pytest and ruff pass.",
    "acceptance": "Script: `.venv/bin/pytest -q backend/tests/test_pwa_icons.py` passes (signature, IHDR sizes, determinism) and `python3 scripts/make_icons.py && git diff --quiet frontend/icons` exits 0. Manual (30 s): open frontend/icons/icon-512.png in Preview: a blue rounded square with a white mic.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [],
-   "notes": []
+   "notes": [
+    "2026-10-11: run 2026-10-11-0030: 1 commits, 35 turns, $1.23, rc=0 done"
+   ]
   },
   {
    "id": "T10b",
    "title": "Onboarding screen and first-launch gate",
    "brief": "Scope: create frontend/screens/onboarding.js, add <script src=\"screens/onboarding.js\"> as the last script in frontend/index.html, add .onboarding CSS to frontend/styles.css, change the boot sequence in frontend/app.js, create frontend/tests/onboarding.test.js. No separate frontend design spec file exists; this brief is authoritative. Already exists: app.js boot (mounts registered screens on DOMContentLoaded then routes by hash; CSS hides the nav while #screen-onboarding is active), #screen-onboarding with h1 'Speech Coach' and an empty div.screen__body, app.ui.el, app.store.getFlag/setFlag returning Promises, app.router.go. Do not touch any other screen or styles beyond the onboarding block; there is no service worker yet (T10a-2 runs after this). index.html keeps only the h1 and the empty div.screen__body; mount(root) builds everything else with app.ui.el into root.querySelector('.screen__body'). onboarding.js registers app.screens.onboarding = { mount, show, hide, COPY } with no DOM access at load time; COPY is an exported object {lead, items:[3 strings], privacy, button}. mount builds: p.onboarding__lead 'Record a practice speech. Get your pace, pauses and filler words in seconds.'; ul.onboarding__list of three li each with a 24px inline SVG (aria-hidden) and text: 'Words per minute against a target range', 'Pauses over 1.5 seconds and filler words like um', 'A chart of every session on this phone'; p.onboarding__privacy (--fs-small muted) 'Audio is deleted right after analysis. Transcripts stay on this device.'; one button.btn.btn--primary.btn--block 'Start practicing' which awaits app.store.setFlag('onboarded', true) then app.router.go('practice'). CSS: .onboarding__list list-style none, padding 0, margin var(--s-6) 0, each li display flex, gap var(--s-3), align-items flex-start, margin-bottom var(--s-4); the button margin-top var(--s-6). app.js boot change: make boot async; after mounting screens, `const onboarded = app.store ? await app.store.getFlag('onboarded') : true;` then if not onboarded and location.hash is not '#/onboarding', app.router.go('onboarding') before the first route(); the hashchange listener stays synchronous. Copy must be second person or imperative, present tense, under 15 words per sentence, no exclamation marks. onboarding.test.js loads onboarding.js via vm with {app:{screens:{}, ui:{}, store:{}, router:{}}} and asserts COPY.privacy mentions 'deleted' and 'device', every sentence in every COPY string is under 15 words, and no string contains '!'. Add an 'Onboarding' entry to frontend/README.md 'Manual checks': to see it again run `await app.store.setFlag('onboarded', false)` and reload. Commit when pytest and ruff pass.",
    "acceptance": "Script: `node --test frontend/tests` passes including onboarding.test.js (copy rules) and `.venv/bin/pytest -q backend/tests/test_frontend_shell.py backend/tests/test_frontend_node.py` passes. Manual (1 min): run `indexedDB.deleteDatabase('speech-coach')` then reload: the Onboarding screen shows under its h1 with no nav; tap 'Start practicing': Practice shows with the nav; reload again: Practice opens directly; `await app.store.getFlag('onboarded')` is true.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T07"
    ],
-   "notes": []
+   "notes": [
+    "2026-10-11: run 2026-10-11-0030: 3 commits, 84 turns, $3.72, rc=0 done"
+   ]
   },
   {
    "id": "T10a-2",
    "title": "PWA: manifest, app-shell service worker, registration, install docs",
    "brief": "Scope: create frontend/manifest.json, frontend/sw.js and backend/tests/test_pwa_files.py; edit the frontend/index.html head and add one registration line to frontend/app.js; add 'Install on a phone' to README.md. Already exists: the full shell (index.html with all screens including screens/onboarding.js, styles.css, app.js, ui.js, store.js, api.js, passages.js, tips.js, screens/*.js, possibly human-owned pauses.js), icons from T10a-1, backend cache headers that send no-cache for /, /index.html, /sw.js, /manifest.json and max-age for other static files. Do not touch any screen module, store, styles or pauses.js. manifest.json: name 'Speech Coach', short_name 'Speech Coach', start_url '/', scope '/', display 'standalone', background_color '#FFFFFF', theme_color '#2457F5', icons for both PNGs (purpose 'any') plus the svg. index.html head: replace <link rel=\"icon\" href=\"data:,\"> with <link rel=\"icon\" href=\"icons/icon.svg\">, add <link rel=\"manifest\" href=\"manifest.json\">, <link rel=\"apple-touch-icon\" href=\"icons/icon-192.png\">, <meta name=\"apple-mobile-web-app-capable\" content=\"yes\">, <meta name=\"apple-mobile-web-app-title\" content=\"Speech Coach\">. sw.js: a plain classic service worker (not a module) with CACHE_NAME 'speech-coach-shell-v1' and a SHELL array listing, by filename, exactly: index.html, styles.css, manifest.json, every <script src> present in index.html at the time of writing (app.js, ui.js, store.js, api.js, passages.js, tips.js, screens/practice.js, screens/results.js, screens/history.js, screens/progress.js, screens/onboarding.js, and pauses.js only if frontend/pauses.js exists on disk), icons/icon-192.png, icons/icon-512.png, icons/icon.svg; install pre-caches SHELL and calls skipWaiting; activate deletes other caches and claims clients; fetch: requests whose URL path starts with /api/ are never intercepted (return without respondWith); navigation requests use network-first and fall back to the cached index.html; shell files use network-first with cache fallback; everything else cache-first (so a later pauses.js is cached on first load even if not in SHELL); never cache non-GET or non-ok responses. app.js: as the last line of the boot function, `if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});` (the only app.js change). backend/tests/test_pwa_files.py: manifest.json parses with start_url '/', display 'standalone', and two PNG icons that exist on disk; index.html links the manifest; sw.js contains 'skipWaiting' and 'clients.claim'; the literal '/api/' never appears between 'caches.put(' or 'addAll(' and its closing parenthesis; every path in SHELL (parsed from the array literal) exists under frontend/; every <script src> in index.html except pauses.js appears in SHELL (cross-check so the list cannot drift); SHELL contains index.html and the three icons. README.md 'Install on a phone' under the Deploy section: open the Render URL in Safari, Share, Add to Home Screen; Android Chrome shows an Install prompt; the caching rule (shell only, never API). Commit when pytest and ruff pass.",
    "acceptance": "Script: `.venv/bin/pytest -q backend/tests/test_pwa_files.py backend/tests/test_static_headers.py backend/tests/test_frontend_shell.py` passes (manifest fields, SHELL paths exist and cover every script tag, no API caching, sw.js served no-cache). Manual (1 min): open http://127.0.0.1:8000/, DevTools Application tab shows the manifest with two icons and an activated service worker; Network tab shows /api/analyze is never served from ServiceWorker; stop uvicorn and reload: the shell still opens.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T09",
     "T10b",
     "T10a-1"
    ],
-   "notes": []
+   "notes": [
+    "2026-10-11: run 2026-10-11-0030: 3 commits, 68 turns, $2.54, rc=0 done"
+   ]
   },
   {
    "id": "T12",
@@ -319,7 +325,7 @@
    "title": "State audit: fixed copy test, renderState-only states, README state table",
    "brief": "Scope: a grep-based audit across frontend/screens/*.js, frontend/api.js, frontend/styles.css and frontend/README.md with no new features, plus backend/tests/test_frontend_copy.py. No separate frontend design spec file exists; the copy below is authoritative. Already exists: all five screens, app.ui.renderState as the only builder of .state blocks, app.api.messages, frontend/README.md with a 'Manual checks' section grown by earlier tasks. Human-owned frontend/pauses.js may exist; never edit it. The eight fixed body sentences, each of which must appear as a string literal exactly once across frontend/api.js and frontend/screens/*.js combined: (1) 'Could not reach the server. Your recording is still here.' (api.js messages.network); (2) 'That was under 5 seconds. Try again.' (api.js messages.too_short; practice.js references app.api.messages.too_short); (3) 'Analysis failed on our side. Your recording is still here.' (api.js messages.provider, used for both 502 and unknown); (4) 'Microphone is blocked. Allow it in your browser settings, then tap Record.' (practice.js); (5) 'Usually 5 to 15 seconds.' (practice.js); (6) 'It may have been deleted.' (results.js); (7) 'Your first recording will show up here.' (history.js); (8) 'Record one more to see a trend.' (progress.js). Titles that go with them: 'Upload failed', 'Too short', 'Microphone blocked', 'Analyzing your speech', 'Session not found', 'No sessions yet', 'Need two sessions'. Checklist, fix only what fails: (a) every state above is built by app.ui.renderState with the right kind (.state--empty; .state--error with role=alert; .state--loading with role=status and .spinner), the exact copy and one action button with the exact label ('Retry upload', 'Record again', 'Try again', 'History', 'Record', 'Record'); grep for hand-built state markup outside ui.js and route it through renderState; (b) every sentence and title matches the list verbatim; (c) each state renders into div.screen__body so the h1 survives. Rewrite frontend/README.md 'Manual checks' into one table with columns Screen, State, How to trigger, Expected copy, covering the eight states plus Practice uploading; keep the earlier DevTools snippets under the table; add a 'Hands-on checks (human)' list below it with the browser-only checks a night session cannot run: Retry upload after restarting uvicorn re-sends the same blob; mic denied returns to idle on 'Try again' and re-prompts on the next Record tap; at 320px light and dark document.documentElement.scrollWidth === 320 on every state; #live receives 'Recording started', the 30 s ticks, 'Recording stopped, N seconds' and 'Results ready'; prefers-reduced-motion stops .rec-dot and .spinner; tab order top to bottom with the nav last and visible focus rings; no console errors on any screen including #/results/nope and an empty history. backend/tests/test_frontend_copy.py (new): lists the eight sentences explicitly; asserts each occurs exactly once as a substring across the concatenation of frontend/api.js and frontend/screens/*.js; asserts the substrings 'state--' and 'class=\"state' appear in no file under frontend/**/*.js or frontend/index.html other than frontend/ui.js, excluding frontend/tests/ and frontend/pauses.js (styles.css and README.md are out of scope by construction). Commit when pytest and ruff pass. KNOWN NIT (seen 10/10 on a 375px viewport): the Results metric card unit 'per min' wraps onto a second line; shorten the unit to '/min' or keep unit and value on one line.",
    "acceptance": "Script: `.venv/bin/pytest -q backend/tests/test_frontend_copy.py backend/tests/test_frontend_shell.py backend/tests/test_frontend_node.py` passes (eight sentences once each, .state markup only in ui.js). Manual (1 min): follow frontend/README.md's state table for three rows (mic blocked, network down with Retry upload succeeding after the server returns, empty history) at 320px in dark mode; each shows the designed block under the screen h1 with the exact copy and no horizontal scroll or console error.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T10a-2",
@@ -328,31 +334,37 @@
     "T17",
     "T18"
    ],
-   "notes": []
+   "notes": [
+    "2026-10-11: run 2026-10-11-0030: 2 commits, 63 turns, $2.59, rc=0 done"
+   ]
   },
   {
    "id": "T13a",
    "title": "Repo polish for judges: backend docstrings",
    "brief": "Scope: documentation only in backend/, zero behavior change. First record START = `git rev-parse HEAD` and put it in the report's Summary; every acceptance diff is against START, not HEAD~1, because commits should stay small. Add a one-line or short docstring to every public module, class and function in backend/ that lacks one (app.py, metrics.py, providers/__init__.py, providers/base.py, providers/assemblyai.py, providers/deepgram.py); do not edit any file under backend/tests/. Run `.venv/bin/ruff check --select D100,D101,D102,D103 backend --exclude backend/tests` and fix every finding without changing ruff config files (do not edit pyproject.toml or add ruff.toml; the check is ad hoc). Verify no behavior change: `git diff START --stat` touches only backend/*.py outside tests, and `.venv/bin/pytest -q` reports the same pass count as at START (write both counts in the report). Commit when pytest and ruff pass.",
    "acceptance": "Script: `.venv/bin/ruff check --select D100,D101,D102,D103 backend --exclude backend/tests` reports zero findings; `.venv/bin/pytest -q` passes with the same count as at START; `git diff START --stat` lists only .py files outside backend/tests; `git diff START -- '*.py' | grep -E '^[+-]' | grep -vE '^(\\+\\+\\+|---)' | grep -vE '^[+-]\\s*(\"\"\"|#|$)'` is reviewed by eye and contains only docstring text lines (paste it in the report's key hunks).",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T11"
    ],
-   "notes": []
+   "notes": [
+    "2026-10-11: run 2026-10-11-0030: 4 commits, 38 turns, $0.7, rc=0 done"
+   ]
   },
   {
    "id": "T13b",
    "title": "Repo polish for judges: frontend module headers and both READMEs",
    "brief": "Scope: documentation only, zero behavior change. Record START = `git rev-parse HEAD` in the report's Summary; diffs are against START. Ensure every frontend module (app.js, ui.js, store.js, api.js, passages.js, tips.js, screens/*.js, sw.js) opens with a 2-4 line comment naming what it owns and what it must not do; never edit frontend/pauses.js (human-owned) even if its header is missing, and say so in the report. Write frontend/README.md's top section 'Module responsibilities': one table row per module with its single app.<name> export and its contracts (router go/current; store save/list/get/remove/getFlag/setFlag; api analyze, messages and the four error kinds; ui el/renderState/clear/announce/formatClock/formatDate; screens mount/show/hide and the screen__body rule; pauses.js start/stop/reconcile if present), the script load order, the rule that window.app is the only global and that transcript text never goes through innerHTML, and how to run `node --test frontend/tests`; keep the existing 'Manual checks' table and 'Hands-on checks (human)' list below it unchanged. Reorder README.md into these sections, keeping every existing section and sentence (only reorder and fill gaps): title and one-paragraph pitch; Screenshots (a bullet list of five placeholders practice.png, results.png, history.png, progress.png, onboarding.png under docs/screenshots/, each with a one-sentence caption); How it works; Setup (fresh clone: python3 -m venv .venv, pip install -r requirements.txt -r requirements-dev.txt, cp .env.example .env, uvicorn backend.app:app --reload, open http://127.0.0.1:8000); Tests (pytest, ruff, and the existing 'Frontend tests' node --test line); Deploy (the Render section from T09 with 'Install on a phone' from T10a-2 kept under it); Privacy (audio in memory only, the transient spool file note from T03, IndexedDB on device); AI disclosure (link to the existing docs/ai-disclosure.md). Verify: `git diff START --stat` touches only .js and .md files; `.venv/bin/pytest -q` and `node --test frontend/tests` keep the same pass counts as at START (write both in the report). Commit when pytest and ruff pass. In the module table also list delivery.js (app.delivery: analyze, classify, isHesitation) and how.html (static page, no script).",
    "acceptance": "Script: `.venv/bin/pytest -q` and `node --test frontend/tests` pass with the same counts as at START; `git diff START --stat` lists only .js and .md files and no frontend/pauses.js; `git diff START -- '*.js' | grep -E '^[+-]' | grep -vE '^(\\+\\+\\+|---)' | grep -vE '^[+-]\\s*(//|/\\*|\\*|$)'` is reviewed by eye and prints no code lines (paste it in the report). Manual (1 min): from a fresh clone in a temp dir, follow README Setup top to bottom; the server starts and / loads; README section order matches the brief and still contains the Render, Install on a phone and Frontend tests text.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T13a"
    ],
-   "notes": []
+   "notes": [
+    "2026-10-11: run 2026-10-11-0030: 3 commits, 101 turns, $3.87, rc=0 done"
+   ]
   },
   {
    "id": "T21",
@@ -479,6 +491,28 @@
     "session 2026-10-10: ed92ed4 Practice: theme toggle beside the wordmark",
     "session 2026-10-10: 1fdb75b Shared UI: a saved Dark or Light theme paints from the first frame"
    ]
+  },
+  {
+   "id": "T28",
+   "title": "Restart detection: repeated phrase with abandoned words between copies",
+   "brief": "In backend/metrics.py, extend find_repeats so a restart counts as a repeat: a phrase of 2 to MAX_REPEAT_PHRASE_WORDS words that is said again after up to 2 abandoned words (plus any um/uh/hmm, which are already skipped). Real example recorded on 2026-10-11 that the current code misses: 'one of the few decisions a day, uh, the few decisions a student makes every day' where the phrase 'the few decisions a' is restarted after the abandoned word 'day'. Keep the existing immediate-repeat behaviour (single words included). Prefer the longest matching phrase, never overlap matches, and keep Repeat(text, at) with at = start of the first copy. Add a RESTART_MAX_ABANDONED_WORDS = 2 constant with a comment. Guard against false positives: single-word phrases may not have abandoned words between copies (otherwise 'the day the' would match). Add tests in a NEW file backend/tests/test_metrics_restarts.py: the sentence above (as a Word list with made-up but increasing times) yields exactly one repeat with text 'the few decisions a'; 'the day the end' yields none; 'I went I went to' still yields 'I went'; a restart with three abandoned words yields none. Do not edit existing tests; all must keep passing.",
+   "acceptance": "Script: `.venv/bin/pytest -q backend/tests/test_metrics_restarts.py` passes with at least 6 tests and the full suite passes with the same count plus the new tests; ruff clean.",
+   "status": "todo",
+   "owner": "agent",
+   "depends_on": [],
+   "notes": []
+  },
+  {
+   "id": "T29",
+   "title": "Show restarts in the transcript and speech timeline",
+   "brief": "Restarts (metrics.repeats) are currently invisible unless three or more trigger a tip. Make each one visible: in frontend/screens/results.js (or wherever the transcript tokens are built; read frontend/delivery.js first) add a `.tok--restart` class to the words of the SECOND copy of each repeat, styled in frontend/styles.css with a dotted underline in --pause color and aria-label 'restart' (follow DESIGN.md token and class conventions; add the token/class to DESIGN.md section 6 only as a new line, do not restructure). Add a 'Restart' entry to the transcript legend sentence and a thin --pause tick on the speech timeline at each repeat's `at`, with a legend chip. Match repeats to transcript words by time: the second copy starts at the first word whose start >= repeat.at and whose normalized text begins the phrase. Update the Results screen's existing tests by ADDING a new test file frontend/tests/restarts.test.js (do not edit existing test files) that renders a transcript with one repeat and asserts the class, the aria-label and the timeline tick. Keep tips.js thresholds unchanged.",
+   "acceptance": "Script: `node --test frontend/tests` passes including restarts.test.js; `.venv/bin/pytest -q` passes. Manual: the 2026-10-11 'few decisions' take shows a dotted underline under the second 'the few decisions a' and a tick on the timeline.",
+   "status": "todo",
+   "owner": "agent",
+   "depends_on": [
+    "T28"
+   ],
+   "notes": []
   }
  ]
 }
