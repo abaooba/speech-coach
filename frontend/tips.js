@@ -66,7 +66,9 @@
     },
   ];
 
-  const CLEAN_TIP = { id: "clean", text: "Clean run. Push the pace a little next time." };
+  // The clean tip names what went right and gives no direction: the headline's focus above it
+  // already says what to work on next, so the screen gives one piece of advice.
+  const CLEAN_TIP = { id: "clean", text: "Clean run. No filler, habit or long pause stood out." };
 
   function select(report, options) {
     const facts = readFacts(report || {}, options || {});

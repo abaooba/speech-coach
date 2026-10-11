@@ -18,6 +18,7 @@ const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
 const UI_SOURCE = read("ui.js");
 const DELIVERY_SOURCE = read("delivery.js");
 const RESULTS_SOURCE = read(path.join("screens", "results.js"));
+const TIPS_SOURCE = read("tips.js");
 const CSS = read("styles.css");
 
 const CLIP_WORDS = JSON.parse(
@@ -263,6 +264,32 @@ test("a clean stretch under 15 seconds has room to grow; 15 or more holds", () =
     "Next take, hold this delivery on a longer topic.",
     "without words there is no clean stretch to beat",
   );
+});
+
+test("a clean take's tip gives no advice the headline's focus could contradict", () => {
+  // The pace tips wait until 15 wpm past the band, while the focus starts at its ends: a take
+  // just outside the band gets a pace focus and the clean tip together (review code-5).
+  const context = { app: bareApp() };
+  vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
+  vm.runInNewContext(TIPS_SOURCE, context, { filename: "tips.js" });
+  vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
+  const { results } = context.app.screens;
+  const cases = [
+    [120, "Next take, lift your pace toward 130 to 150 wpm."],
+    [140, "Next take, hold this delivery on a longer topic."],
+    [160, "Next take, slow toward 130 to 150 wpm."],
+  ];
+  for (const [wpm, focus] of cases) {
+    const summary = results.summarize(tallies({ wpm }));
+    assert.equal(results.headlineFor(summary, null).focus, focus);
+    const tips = context.app.tips.select(summary.report, { targetWpm: summary.target });
+    assert.deepEqual(
+      Array.from(tips, (tip) => tip.id),
+      ["clean"],
+      String(wpm),
+    );
+    assert.doesNotMatch(tips[0].text, /\bnext\b|pace|faster|slower|speed|push/i, String(wpm));
+  }
 });
 
 test("one second reads as a second, not seconds", () => {

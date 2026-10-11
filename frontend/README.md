@@ -206,7 +206,8 @@ sample result", which opens a real sample take on this screen.
      silence before the first word or after the last one is not a pause.
    - "You restarted phrases three times." Say a word twice in a row ("the the") on three
      separate occasions.
-   - "Clean run." None of the above.
+   - "Clean run. No filler, habit or long pause stood out." None of the above. It gives no
+     direction, so it never argues with the headline's "Next take" line.
 
    Talking fast and full of "um" shows two cards, pace first; a third problem is dropped.
 

@@ -342,7 +342,7 @@ test("no words means no Transcript section, even with pauses; a clean take still
   const tipCards = body.children.filter((node) => node.className === "tip-card");
   assert.deepEqual(
     tipCards.map((card) => card.textContent),
-    ["Clean run. Push the pace a little next time."],
+    ["Clean run. No filler, habit or long pause stood out."],
   );
 });
 

@@ -20,7 +20,7 @@ const NEUTRAL = {
   longestMidSentencePause: 0,
   repeatCount: 0,
 };
-const CLEAN_TIP = { id: "clean", text: "Clean run. Push the pace a little next time." };
+const CLEAN_TIP = { id: "clean", text: "Clean run. No filler, habit or long pause stood out." };
 const MAX_SENTENCE_WORDS = 15;
 
 function load() {
