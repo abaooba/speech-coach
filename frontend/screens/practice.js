@@ -62,7 +62,7 @@
   // and upload sentences live in app.api.messages so each exists exactly once.
   const MIC_BLOCKED_TITLE = "Microphone blocked";
   const MIC_BLOCKED_BODY =
-    "Microphone is blocked. Allow it in your browser settings, then tap Record.";
+    "Microphone is blocked. Allow it in your browser settings, then try again.";
   const MIC_BLOCKED_ACTION = "Try again";
   const TOO_SHORT_TITLE = "Too short";
   const TOO_SHORT_ACTION = "Record again";

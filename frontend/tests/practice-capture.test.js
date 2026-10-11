@@ -32,7 +32,7 @@ const MESSAGES = Object.freeze({
 });
 
 const MIC_BLOCKED_BODY =
-  "Microphone is blocked. Allow it in your browser settings, then tap Record.";
+  "Microphone is blocked. Allow it in your browser settings, then try again.";
 
 const MIME_CANDIDATES = [
   "audio/webm;codecs=opus",

@@ -94,7 +94,7 @@ nav with no page scroll; the selected chip still names the option.
 
 4. Microphone blocked: click the lock icon in the address bar, set Microphone to Block,
    reload and tap Record. The red block reads "Microphone is blocked. Allow it in your
-   browser settings, then tap Record." with a "Try again" button that returns to idle. Set
+   browser settings, then try again." with a "Try again" button that returns to idle. Set
    Microphone back to Ask, reload, and the next Record tap prompts again.
 
 5. Too short: tap Record, then Stop before 5 seconds. The block reads "That was under
