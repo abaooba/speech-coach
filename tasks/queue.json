@@ -116,12 +116,14 @@
    "title": "Browser-side pause detection with Web Audio",
    "brief": "HUMAN-OWNED. Ares writes this by hand: sample RMS energy during recording with an AnalyserNode, detect silences over 1.5 s with an adaptive threshold, and reconcile with transcript gaps. HUMAN-OWNED. Ares writes frontend/pauses.js by hand after T04d-2 is merged to main and before T11 runs: sample RMS energy during recording with an AnalyserNode, detect silences over 1.5 s with an adaptive threshold, and reconcile them with transcript gaps. Fixed integration so no agent task needs editing: pauses.js is one IIFE assigning app.pauses = { start(stream), stop() -> samples, reconcile(metrics, samples) -> metrics } with the same shape in and out (pauses stay a list of [at, length] in absolute clip seconds, at = end of the word before the gap, so T05b's markers still land); practice.js already calls start after getUserMedia, stop on stop/hide, and reconcile before app.store.save. Ares adds <script src=\"pauses.js\"> after tips.js and before screens/practice.js (the shell test accepts exactly that slot and excludes pauses.js from its innerHTML, window. and node --check assertions), and if frontend/sw.js exists appends 'pauses.js' to its SHELL list and bumps CACHE_NAME. Agents never edit, stub or mention-as-missing this file.",
    "acceptance": "Written by hand by Ares; `.venv/bin/pytest -q` and `node --test frontend/tests` still pass with pauses.js present; a 10 s take with one 3 s silence reports that pause on Results.",
-   "status": "todo",
+   "status": "done",
    "owner": "human",
    "depends_on": [
     "T04d-2"
    ],
-   "notes": []
+   "notes": [
+    "2026-10-10: pauses.js written and tested on the ui-revamp branch, merged 10/10"
+   ]
   },
   {
    "id": "T14",
