@@ -668,13 +668,23 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The text scrolls inside the card and fades out over its last --s-5, with as much end padding
-   so the last line scrolls clear of the fade (keyword colors in the mask, as for the chips). */
+   so the last line scrolls clear of the fade. It also fades in over its first --s-2, so a
+   scrolled line fades under the target line instead of being cut at the text's edge: the
+   target's --s-2 bottom margin moves into the text's top padding, which keeps the first line
+   where it was and clear of that fade (keyword colors in the mask, as for the chips). */
+#screen-practice .passage-card__target {
+  margin-bottom: 0;
+}
+
 #screen-practice .passage-card__text {
   min-height: 0;
+  padding-top: var(--s-2);
   padding-bottom: var(--s-5);
   overflow-y: auto;
-  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - var(--s-5)), transparent);
-  mask-image: linear-gradient(to bottom, black calc(100% - var(--s-5)), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black var(--s-2),
+    black calc(100% - var(--s-5)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, black var(--s-2),
+    black calc(100% - var(--s-5)), transparent);
 }
 
 /* The mask would fade the text's own focus ring, so while the text has keyboard focus the card

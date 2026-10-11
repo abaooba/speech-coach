@@ -143,7 +143,8 @@ test("the body is a column whose parts keep their size; the card takes the rest 
 });
 
 // The card's floor on short screens holds its title, its target and two lines of text above the
-// --s-5 fade: 16 + 27.4 + 27.6 + 2 x 25.6 + 24 + 2 is about 148px for a one-line title.
+// --s-5 fade: 16 + 27.4 + 19.6 + 8 (the text's top padding) + 2 x 25.6 + 24 + 2 is about 148px
+// for a one-line title.
 test("short screens give the card a two-line floor and tighten the record zone for it", () => {
   assert.equal(valueFor("#screen-practice .passage-card", "min-height", SHORT_SCREENS), "148px");
   assert.equal(valueFor("#screen-practice .btn-record", "width", SHORT_SCREENS), "72px");
@@ -225,12 +226,21 @@ function assertKeywordMask(selector, direction, length) {
   assert.equal(valueFor(selector, "-webkit-mask-image"), expected, `${selector} webkit mask`);
 }
 
-test("the passage text scrolls inside the card and fades over its last --s-5 (M1)", () => {
+test("the passage text scrolls inside the card and fades at both ends (M1)", () => {
   const text = "#screen-practice .passage-card__text";
   assert.equal(valueFor(text, "overflow-y"), "auto");
   assert.equal(valueFor(text, "min-height"), "0");
   assert.equal(valueFor(text, "padding-bottom"), "var(--s-5)", "the last line scrolls clear");
-  assertKeywordMask(text, "bottom", "var(--s-5)");
+  // A scrolled line fades out under the target line instead of being cut at the text's edge.
+  // The target's --s-2 bottom margin moved into the text's top padding, so the first line stays
+  // where it was, below the fade.
+  assert.equal(valueFor("#screen-practice .passage-card__target", "margin-bottom"), "0");
+  assert.equal(valueFor(text, "padding-top"), "var(--s-2)", "the first line sits below the fade");
+  const mask =
+    "linear-gradient(to bottom, transparent, black var(--s-2), " +
+    "black calc(100% - var(--s-5)), transparent)";
+  assert.equal(valueFor(text, "mask-image"), mask);
+  assert.equal(valueFor(text, "-webkit-mask-image"), mask);
   assert.equal(valueFor(".passage-card", "display"), "grid");
   assert.equal(valueFor(".passage-card", "grid-template-rows"), "auto auto minmax(0, 1fr)");
   assert.equal(valueFor(".passage-card", "overflow-y"), undefined, "only the text scrolls");
