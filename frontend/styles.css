@@ -348,6 +348,30 @@ h2 {
   color: var(--record-text);
 }
 
+/* A screen that shows nothing but a state block (an empty History, Need two sessions, Session
+   not found) centers it between the heading and the nav: the active screen is a column at least
+   as tall as the window inside main's padding, its body takes the height under the heading, and
+   the block's auto margins center it. The action spans the block, --s-6 under the words. Only
+   the active screen matches, so a hidden one keeps .screen[hidden]'s display: none. Practice's
+   block sits inside .practice__state, so it never matches. */
+.screen--active:has(> .screen__body > .state) {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
+  min-height: calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
+}
+
+.screen--active:has(> .screen__body > .state) > .screen__body {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen__body > .state > .state__action {
+  align-self: stretch;
+  margin-top: calc(var(--s-6) - var(--s-3));
+}
+
 .spinner {
   width: 24px;
   height: 24px;
@@ -1580,28 +1604,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 #screen-progress table.sr-only caption {
   white-space: normal;
-}
-
-/* "Need two sessions" sits centered between the heading and the nav, as in the approved design:
-   while it shows, the active screen is a flex column at least as tall as the window inside
-   main's padding, its body takes the height under the heading, and the block's auto margins
-   center it. Only the active screen matches, so the hidden one keeps display: none. The Record
-   button spans the block, 32px under the words. */
-#screen-progress.screen--active:has(.state) {
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
-}
-
-#screen-progress.screen--active:has(.state) .screen__body {
-  flex: 1 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-#screen-progress .state__action {
-  align-self: stretch;
-  margin-top: calc(var(--s-6) - var(--s-3));
 }
 
 /* 200% zoom on a phone leaves 160 to 187px: the four options form two rows of two, the summary

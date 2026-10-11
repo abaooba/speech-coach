@@ -2,10 +2,10 @@
 // section 6, "Chart"): every summary value keeps the section-title size, bold, on one line, and
 // the cells make room for it through the grid instead (Latest and Best side by side on a phone,
 // the change from the average across the row under them, three in a row from 600px). At 200%
-// zoom (section 9) the options and cells reflow and the hidden table stays narrow. "Need two
-// sessions" sits centered above the nav with a full-width button, as in the approved draft.
-// Spacing comes from the --s scale only. The node suite has no layout engine, so these pin the
-// rules; the screenshot loop checks how they render.
+// zoom (section 9) the options and cells reflow and the hidden table stays narrow. Spacing
+// comes from the --s scale only. "Need two sessions" is centered by section 5's shared rule,
+// pinned in state_layout.test.js. The node suite has no layout engine, so these pin the rules;
+// the screenshot loop checks how they render.
 "use strict";
 
 const test = require("node:test");
@@ -156,33 +156,6 @@ test("under 300px only the change from the average may wrap, between its words",
   // At 160px a full-width cell holds 110px of text; "12.5 s shorter" and its triangle need 138.
   assert.equal(declared(CHANGE, ZOOMED)["white-space"], "normal");
   assert.equal(declared(VALUE, ZOOMED)["white-space"], undefined, "Latest and Best still fit");
-});
-
-// Only the active screen matches, so the hidden one keeps .screen[hidden]'s display: none.
-const EMPTY_SCREEN = "#screen-progress.screen--active:has(.state)";
-
-test("Need two sessions sits centered in the free height above the nav", () => {
-  // As in the approved draft: the active screen fills the window inside main's padding, its
-  // body takes the height under the heading, and .state's auto margins center the block.
-  const screen = declared(EMPTY_SCREEN);
-  assert.equal(screen.display, "flex");
-  assert.equal(screen["flex-direction"], "column");
-  assert.equal(
-    screen["min-height"],
-    "calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom))",
-    "main's top and bottom padding come off the window height",
-  );
-  const body = declared(EMPTY_SCREEN + " .screen__body");
-  assert.equal(body.display, "flex");
-  assert.equal(body["flex-direction"], "column");
-  assert.equal(body.flex, "1 0 auto");
-});
-
-test("its Record button spans the block, 32px under the words", () => {
-  const action = declared("#screen-progress .state__action");
-  assert.equal(action["align-self"], "stretch");
-  // .state already puts --s-3 between its children, so the button's margin adds the rest.
-  assert.equal(action["margin-top"], "calc(var(--s-6) - var(--s-3))");
 });
 
 test("section 10 spaces only with the --s scale", () => {
