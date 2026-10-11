@@ -9,7 +9,7 @@ from backend import metrics
 from backend.providers.base import Word
 
 FIXTURES = Path(__file__).parent / "fixtures"
-FILLER_KEYS = ["um", "uh", "hmm", "like", "you know", "so", "basically", "actually"]
+FILLER_KEYS = ["um", "uh", "hmm", "mhm", "like", "you know", "so", "basically", "actually"]
 
 
 def load_clip() -> list[Word]:
@@ -100,6 +100,7 @@ def test_count_fillers_on_clip_matches_the_hand_count() -> None:
         "um": 6,
         "uh": 3,
         "hmm": 0,
+        "mhm": 0,
         "like": 1,
         "you know": 0,
         "so": 2,

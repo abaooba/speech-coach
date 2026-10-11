@@ -16,9 +16,12 @@ from backend.providers.base import Word
 DEFAULT_MIN_PAUSE_SECONDS = 1.5
 DEFAULT_PACE_WINDOW_SECONDS = 10.0
 
-FILLER_WORDS = ("um", "uh", "hmm", "like", "so", "basically", "actually")
+FILLER_WORDS = ("um", "uh", "hmm", "mhm", "like", "so", "basically", "actually")
 FILLER_PHRASE = ("you", "know")
-FILLER_KEYS = ("um", "uh", "hmm", "like", "you know", "so", "basically", "actually")
+FILLER_KEYS = ("um", "uh", "hmm", "mhm", "like", "you know", "so", "basically", "actually")
+# Agreement sounds the speaker makes to fill a gap, in any spelling ('mhmm', 'mm-hmm', 'mm-hm',
+# 'uh-huh'), all count under the 'mhm' key.
+_AGREEMENT_SOUND = re.compile(r"^(?:m+-?h+m+|u+h+-h+u+h+)$")
 
 # Hesitation sounds that may sit between the two copies of a repeated phrase.
 REPEAT_SKIP_WORDS = ("um", "uh", "hmm")
@@ -105,6 +108,7 @@ def find_pauses(
 def count_fillers(words: Sequence[Word]) -> dict[str, int]:
     """How often each filler was said. Always returns every key in FILLER_KEYS.
 
+    Every spelling of the agreement sound ('Mhm.', 'mm-hmm', 'uh-huh') counts as 'mhm'.
     The two-word phrase 'you know' counts once and its halves count as nothing else.
     """
     counts = dict.fromkeys(FILLER_KEYS, 0)
@@ -115,8 +119,9 @@ def count_fillers(words: Sequence[Word]) -> dict[str, int]:
             counts["you know"] += 1
             index += 2
             continue
-        if tokens[index] in FILLER_WORDS:
-            counts[tokens[index]] += 1
+        token = "mhm" if _AGREEMENT_SOUND.match(tokens[index]) else tokens[index]
+        if token in FILLER_WORDS:
+            counts[token] += 1
         index += 1
     return counts
 
@@ -314,7 +319,7 @@ def analyze(words: Sequence[Word]) -> dict[str, object]:
     """Every metric for one recording, in the shape the API returns and the frontend stores.
 
     Keys: words_per_minute, duration (seconds from the first word), word_count,
-    pauses ([at, length] pairs), fillers (all eight keys), repeats ({text, at}) and
+    pauses ([at, length] pairs), fillers (every key in FILLER_KEYS), repeats ({text, at}) and
     pace_windows ({start, end, wpm}). JSON-serializable as is.
     """
     return {
