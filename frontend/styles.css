@@ -135,6 +135,12 @@ h1 {
   font-weight: 700;
 }
 
+/* Every screen's content starts --s-3 under its title, as Practice's switch does under its
+   header, so the same control never shifts between tabs. */
+.screen > h1 {
+  margin-bottom: var(--s-3);
+}
+
 h2 {
   margin: 0 0 var(--s-3);
   font-size: var(--fs-h2);
@@ -365,6 +371,12 @@ h2 {
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
+}
+
+/* As wide as the column allows (.state caps it at 320px), so every action spans one width
+   rather than the block's longest sentence. */
+.screen__body > .state {
+  width: 100%;
 }
 
 .screen__body > .state > .state__action {
@@ -917,6 +929,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-bottom: var(--s-1);
 }
 
+/* Session not found has no meta line: its title keeps the gap every screen has. */
+#screen-results:has(> .screen__body > .state) h1 {
+  margin-bottom: var(--s-3);
+}
+
 .results__meta {
   margin: 0;
   font-size: var(--fs-small);
@@ -1308,11 +1325,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* 9. History screen: session list and rows */
-/* The list, or the empty state, sits a section gap under the heading. */
-#screen-history .screen__body {
-  margin-top: var(--s-6);
-}
-
 .session-list {
   list-style: none;
   margin: 0;

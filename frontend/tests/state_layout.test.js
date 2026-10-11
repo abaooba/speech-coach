@@ -3,7 +3,8 @@
 // the nav, with an action as wide as the block (DESIGN.md section 6, "State block"). The rules
 // reach the block through `.screen__body > .state`, so Practice's block, which sits inside
 // .practice__state, never matches. Every screen hands app.ui.renderState its .screen__body, so
-// the block is that body's child; the screenshot loop checks how the rules render.
+// the block is that body's child. Sections 3 and 8 give every screen title the same gap, so the
+// three blocks land at one height; the screenshot loop checks how the rules render.
 "use strict";
 
 const test = require("node:test");
@@ -84,6 +85,13 @@ test("the action spans the block, --s-6 under the words", () => {
   assert.deepEqual(action["margin-top"], ["calc(var(--s-6) - var(--s-3))"]);
 });
 
+test("the block is as wide as the column allows, so every action has one width", () => {
+  // Without a width the auto margins shrink the block to its longest sentence, and each
+  // screen's full-width action came out a different width.
+  assert.deepEqual(declared(".screen__body > .state").width, ["100%"]);
+  assert.deepEqual(declared(".state")["max-width"], ["320px"]);
+});
+
 test("only the active screen matches, and only a block that is the body's own child", () => {
   // .screen[hidden] keeps every other screen at display: none; Practice's error block sits
   // inside .practice__state and keeps the record zone's layout.
@@ -97,4 +105,36 @@ test("no screen section keeps a copy of the centering rule", () => {
   const sections = CSS.slice(CSS.indexOf(SECTION_END, CSS.indexOf(SECTION_START)));
   assert.doesNotMatch(sections, /screen--active:has\(\.state\)/);
   assert.doesNotMatch(sections, /#screen-progress \.state__action/);
+});
+
+// Sections 3 and 8: every screen title has the same gap under it, so an empty History, Need two
+// sessions and Session not found center in the same free height.
+function rulesIn(start, end) {
+  const from = CSS.indexOf(start);
+  const to = CSS.indexOf(end, from);
+  assert.ok(from !== -1 && to > from, `styles.css should keep ${start} before ${end}`);
+  return rulesOf(CSS.slice(from, to));
+}
+
+test("every screen's content starts --s-3 under its title", () => {
+  const base = rulesIn("/* 3. ", "/* 4. ");
+  const title = base.find((rule) => rule.selectors.includes(".screen > h1"));
+  assert.ok(title, "section 3 should set the gap under a screen title");
+  assert.deepEqual(title.declarations["margin-bottom"], ["var(--s-3)"]);
+  const history = rulesIn("/* 9. ", "/* 10. ");
+  assert.ok(
+    !history.some((rule) => rule.selectors.includes("#screen-history .screen__body")),
+    "History's list starts at the shared gap, with no margin of its own",
+  );
+});
+
+test("Results' title keeps its subtitle gap, except over a state block", () => {
+  const results = rulesIn("/* 8. ", "/* 9. ");
+  const meta = results.find((rule) => rule.selectors.includes("#screen-results h1"));
+  assert.deepEqual(meta.declarations["margin-bottom"], ["var(--s-1)"]);
+  const empty = results.find((rule) =>
+    rule.selectors.includes("#screen-results:has(> .screen__body > .state) h1"),
+  );
+  assert.ok(empty, "Session not found sits under the same gap as the other empty states");
+  assert.deepEqual(empty.declarations["margin-bottom"], ["var(--s-3)"]);
 });
