@@ -614,8 +614,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The mask would fade the text's own focus ring, so while the text has keyboard focus the card
-   draws the ring instead, outside its border where nothing fades or clips it. Both rules need
-   :has; a browser without it keeps the inset ring inside the text's box. */
+   draws the ring instead, outside its border where nothing fades or clips it. Those two rules
+   need :has; a browser without it keeps this first one, an inset ring inside the text's box. */
 #screen-practice .passage-card__text:focus-visible {
   outline-offset: calc(-1 * var(--s-1));
 }
