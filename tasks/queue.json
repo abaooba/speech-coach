@@ -351,6 +351,132 @@
     "T13a"
    ],
    "notes": []
+  },
+  {
+   "id": "T21",
+   "title": "Results headline: one strength, one focus",
+   "brief": "UI revamp (frontend/DESIGN.md sections 2, 6 and 8). app.screens.results.headlineFor(summary, previousSummary) -> {strength, focus} is pure: the first matching strength and focus from the fixed sentence lists, using the cards' own thresholds (band ends inside, fillers over 3 a minute high) so the headline never contradicts a card. Results draws section.headline under the meta line: a green check before the strength, a blue arrow before the focus, the take's band kept on one line.",
+   "acceptance": "Script: `node --test frontend/tests` passes including results_headline.test.js; `.venv/bin/pytest -q` and `.venv/bin/ruff check .` pass. Manual (1 min): open a take on Results: two sentences under the meta line, a check before the strength and an arrow before the focus, and neither contradicts the Pace or Fillers card.",
+   "status": "done",
+   "owner": "agent",
+   "depends_on": [
+    "T15"
+   ],
+   "notes": [
+    "session 2026-10-10: 38d0f7c Results headline: one strength, one focus",
+    "session 2026-10-10: 6389cc0 Results: review fixes, a fillers drop leads with or without words",
+    "session 2026-10-10: 9898d27 Results: the headline keeps the take's band on one line",
+    "session 2026-10-10: 81ae6d4 Progress and Results: tests for gridlines under the axes and the focus at the band's ends"
+   ]
+  },
+  {
+   "id": "T22",
+   "title": "Results: a vs-last-take line on every card",
+   "brief": "UI revamp (DESIGN.md sections 2, 6 and 8). app.screens.results.compareWithPrevious(summary, previousSummary) -> null | four {direction, text} or null, pure, rounded to each card's precision. Each card ends with a muted micro line, a triangle or dash plus words (\"12 faster\", \"1.2 fewer\", \"2.1 s longer\", \"No change\") and a hidden ending that reads it as a sentence; the note \"Arrows compare with your last take.\" sits under the grid. The previous take is the newest earlier session that is not the bundled sample; a sample is compared with nothing.",
+   "acceptance": "Script: `node --test frontend/tests` passes including results_compare.test.js. Manual (1 min): record two takes; the second take's Results shows a triangle or dash and words on each card and the note under the grid; a first take and the sample show none.",
+   "status": "done",
+   "owner": "agent",
+   "depends_on": [
+    "T15"
+   ],
+   "notes": [
+    "session 2026-10-10: 8af91b3 Results: vs last take lines on every card",
+    "session 2026-10-10: 5edbe02 Results and Progress: the sample is never the speaker's take"
+   ]
+  },
+  {
+   "id": "T23",
+   "title": "Results: speech timeline",
+   "brief": "UI revamp (DESIGN.md sections 2 and 6). app.delivery's report gains speechStart; app.screens.results.timelineSegments(report) -> null | {start, seconds, fillers, pauses, cleanStretch} is pure. Results draws section.timeline between the cards and the transcript for a take with words: an inline SVG strip (role=img with a full aria-label) with filler ticks, mid-sentence pause blocks and the clean-stretch band, an axis in recording time, a legend, and a hidden list of every moment.",
+   "acceptance": "Script: `node --test frontend/tests` passes including results_timeline.test.js and delivery_speech_start.test.js. Manual (1 min): on a take with words the strip shows amber ticks, purple blocks and a green band whose times match the tips and the transcript; a screen reader reads the label and the list.",
+   "status": "done",
+   "owner": "agent",
+   "depends_on": [
+    "T15"
+   ],
+   "notes": [
+    "session 2026-10-10: a0f00e9 Results: speech timeline",
+    "session 2026-10-10: 2cc8593 Tests: speechStart's test moves to its own file; delivery.test.js is as it was"
+   ]
+  },
+  {
+   "id": "T24",
+   "title": "Progress: summary row, target band and personal best",
+   "brief": "UI revamp (DESIGN.md sections 2, 6 and 8; audit M7, M8, M9). A segmented control (Pace, Fillers, Pauses, Clean), the metric's full name as the heading, a summary row (Latest, Best, From your average) from the pure summaryFor(values, key, targets), round y ticks, short dates on the x axis, a 0 to 3 target band with a dashed line and a legend for fillers, and a ring plus a \"Best\" label on the best take. Samples are left out; with fewer than two takes \"Need two sessions\" asks for two or for one more.",
+   "acceptance": "Script: `node --test frontend/tests` passes including progress_revamp.test.js and progress_styles.test.js. Manual (2 min): seed five takes as frontend/README.md's Progress check does; the four options fit one row at 320px, the cells read Latest, Best and From your average, the fillers chart shades 0 to 3 with \"Target under 3\", and the best take wears a ring and a Best label.",
+   "status": "done",
+   "owner": "agent",
+   "depends_on": [
+    "T15"
+   ],
+   "notes": [
+    "session 2026-10-10: b2057b2 Progress summary, target band, personal best and short dates (M9)",
+    "session 2026-10-10: 42ed3de Progress: round ticks and a segmented control that fits 320 (M7, M8)",
+    "session 2026-10-10: 16cd7d9 Progress: review fixes, the band legend reads Target under 3",
+    "session 2026-10-10: e969e2c Progress: review fixes, the y axis pads the data's own top to a round step",
+    "session 2026-10-10: 69ae1cc Progress: review fixes, date labels keep clear of each other",
+    "session 2026-10-10: 3e73ba5 Progress: review fixes, every summary value stays at the heading size",
+    "session 2026-10-10: 86771cf Progress: review fixes, the screen survives 200% zoom",
+    "session 2026-10-10: cd5f765 Progress: review fixes, Need two sessions sits centered with a wide button",
+    "session 2026-10-10: 706eb8c Progress: chart labels stay near 13px on wide columns",
+    "session 2026-10-10: 494877b Progress: with no takes yet, Need two sessions asks for two"
+   ]
+  },
+  {
+   "id": "T25",
+   "title": "History: row layout, status words and the trash icon",
+   "brief": "UI revamp (DESIGN.md sections 2, 6, 8 and 9; audit M5, M6, M10). Each row is a grid of title and date over the stats (\"152 wpm \u00b7 3.1 /min\") and a status from the pure app.screens.history.statusFor(summary): \"On target\" with a check, or \"Too slow\", \"Too fast\", \"Fillers over 3\" joined by \" \u00b7 \" with an alert icon. Delete is a muted 44px trash icon named by date; its inline \"Delete? Yes / No\" moves focus to No, takes one answer, announces \"Session deleted\" and focuses the row now in that place.",
+   "acceptance": "Script: `node --test frontend/tests` passes including history_revamp.test.js and history_status.test.js. Manual (1 min): History shows each row's stats and status word; the trash icon opens Delete? Yes / No, No restores it, Yes removes the row and focus lands on the next row.",
+   "status": "done",
+   "owner": "agent",
+   "depends_on": [
+    "T15"
+   ],
+   "notes": [
+    "session 2026-10-10: 46b7194 History rows: grid layout, muted trash icon, /min, focus through the delete confirm (M5, M6, M10)",
+    "session 2026-10-10: 34178ce History status words: On target, Too slow, Too fast, Fillers over 3",
+    "session 2026-10-10: 6e837af History rows: the delete prompt wraps inside the row at 200% zoom",
+    "session 2026-10-10: b4184a2 History: review fixes, focus rings clear the fixed nav",
+    "session 2026-10-10: 019f4e1 History: one answer per delete prompt; the list keeps its role in Safari"
+   ]
+  },
+  {
+   "id": "T26",
+   "title": "Practice: Talk and Read tabs with timed topics",
+   "brief": "UI revamp (DESIGN.md sections 1, 2, 3, 6 and 7). Practice opens on a Talk / Read segmented control. Talk holds the timed prompts: \"Your day\" (1:00) and \"Impromptu\" (2:00) with eight topics each and a New topic button, Congress speech (3:00) and PF constructive (4:00); Read holds the six passages. A timed take shows \"/ 1:00\" beside the clock and a bar that fills to the limit and turns rust past it; reaching the limit never stops a take. The free-talk id stays, retitled \"Your day\".",
+   "acceptance": "Script: `node --test frontend/tests` passes including practice_revamp.test.js, practice_revamp_css.test.js and passages_topics.test.js. Manual (2 min): Practice opens on Talk with \"Your day 1:00\"; New topic swaps the topic; Read lists the passages; record past 1:00 and the bar turns rust while the take keeps going.",
+   "status": "done",
+   "owner": "agent",
+   "depends_on": [
+    "T17"
+   ],
+   "notes": [
+    "session 2026-10-10: 6cc641c Practice: Talk and Read tabs with timed topics and a time-limit bar",
+    "session 2026-10-10: f80050a Practice: review fixes",
+    "session 2026-10-10: 6d7d2f3 Practice: review fixes: every prompt's text has ten words again",
+    "session 2026-10-10: 8514270 Practice: review fixes: idle shows an empty bar and, after a take, 0:00",
+    "session 2026-10-10: 8b22a76 Practice: review fixes: New topic shares the title's row on a grid",
+    "session 2026-10-10: 41e3770 Practice: review fixes: focus rings clear of the text's mask and the chips' fade",
+    "session 2026-10-10: a0d5622 Practice: review fixes: the topic stays readable on short screens and during a take",
+    "session 2026-10-10: 8f10318 Practice: New topic reads the new topic out through the live region",
+    "session 2026-10-10: 561aeeb Practice: with a mouse the chip row wraps instead of hiding chips past the fade",
+    "session 2026-10-10: 40bc9da Practice: the chip row wraps only in a mouse window with room, so Practice still fits one screen"
+   ]
+  },
+  {
+   "id": "T27",
+   "title": "Theme toggle: Auto, Dark and Light",
+   "brief": "UI revamp (DESIGN.md sections 2, 4 and 6). app.ui gains getTheme, applyTheme, setTheme and nextTheme; the choice is kept in localStorage under speech-coach-theme (every access in try/catch) and applied at boot and, through one inline script in index.html's head, before the first paint. A toggle beside Practice's wordmark cycles Auto, Dark, Light with a contrast, moon or sun icon and the label \"Theme: Auto. Switch to dark.\"; Auto follows the device. how.html has no script, so it follows the device setting only.",
+   "acceptance": "Script: `node --test frontend/tests` passes including ui_theme.test.js, app_theme_boot.test.js and index_theme_script.test.js. Manual (1 min): on a light phone tap the toggle once: the app turns dark and the icon is a moon; again: light and a sun; again: Auto. Reload keeps the choice with no light flash.",
+   "status": "done",
+   "owner": "agent",
+   "depends_on": [],
+   "notes": [
+    "session 2026-10-10: 8581ed9 DESIGN.md: Auto, Dark and Light theme toggle beside the wordmark",
+    "session 2026-10-10: 1cfbfe1 Shared UI: theme override, rust warning token, icons, centered nav, segmented control (H6, L4, M4, M10)",
+    "session 2026-10-10: ed92ed4 Practice: theme toggle beside the wordmark",
+    "session 2026-10-10: 1fdb75b Shared UI: a saved Dark or Light theme paints from the first frame"
+   ]
   }
  ]
 }
