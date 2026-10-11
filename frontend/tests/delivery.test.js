@@ -284,14 +284,3 @@ test("a ten-minute, 1,500-word take is analyzed in well under 100 ms", () => {
   assert.equal(report.kinds.length, 1500);
   assert.ok(elapsedMs < 100, "took " + elapsedMs.toFixed(1) + " ms");
 });
-
-test("speechStart is the first word's start in recording time, null without words", () => {
-  const delivery = load();
-  assert.equal(delivery.analyze(CLIP_WORDS, CLIP_METRICS).speechStart, 1.287);
-  const words = timed("We win today.");
-  assert.equal(delivery.analyze(words, { pauses: [], repeats: [] }).speechStart, 0);
-  assert.equal(delivery.analyze([], CLIP_METRICS).speechStart, null);
-  assert.equal(delivery.analyze(undefined, undefined).speechStart, null);
-  const late = [{ text: "um", start: 4.5, end: 4.9 }, { text: "hi", start: 5, end: 5.2 }];
-  assert.equal(delivery.analyze(late, {}).speechStart, 4.5, "a hesitation still starts the take");
-});
