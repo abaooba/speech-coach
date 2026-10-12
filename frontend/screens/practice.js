@@ -1,6 +1,6 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
-   mount() builds the Talk / Read switch, chips, card, timer, record button, hint and state block
-   once, and Talk's script box after them; render(state, detail) repaints them. Stop uploads the
+   mount() builds the Talk / Read switch, chips, card, timer, record button, hint (with Talk's
+   script box) and state block once; render(state, detail) repaints them. Stop uploads the
    take with its script (a Read passage's text, or the one pasted on Talk) through app.api and
    saves it with app.store. It never asks for the microphone before a Record tap, and never
    stores audio. */
@@ -26,6 +26,8 @@
   // is checked against it as a Read passage is. The cap is the backend's MAX_SCRIPT_CHARACTERS.
   const SCRIPT_KIND = "prompt";
   const SCRIPT_SUMMARY = "Paste your script (optional)";
+  // Once the box holds a script the closed summary names it, so it is never sent unnoticed.
+  const ATTACHED_SUMMARY_PREFIX = "Your script (";
   const SCRIPT_LABEL = "Your script";
   const SCRIPT_NOTE = "Your take is checked against it for restarts, skips and misreads.";
   const SCRIPT_INPUT_ID = "practice-script";
@@ -132,6 +134,7 @@
     sampleButton: null,
     stateBlock: null,
     scriptBox: null,
+    scriptSummary: null,
     scriptInput: null,
   };
 
@@ -259,20 +262,24 @@
     nodes.recordLabel = app.ui.el("span", { class: "btn-record__label" });
     body.appendChild(nodes.recordLabel);
     // The words get their own span so short screens can hide them and keep the sample button.
+    // Talk's script box closes the row beside the sample button, so it costs the one-screen
+    // layout no row of its own (DESIGN.md section 3).
     nodes.hintText = app.ui.el("span", { class: "practice__hint-text", text: HINT_TEXT });
     body.appendChild(
-      app.ui.el("p", { class: "practice__hint" }, [nodes.hintText, buildSampleButton()]),
+      app.ui.el("div", { class: "practice__hint" }, [
+        nodes.hintText,
+        buildSampleButton(),
+        buildScriptBox(),
+      ]),
     );
     nodes.stateBlock = app.ui.el("div", { class: "practice__state" });
     body.appendChild(nodes.stateBlock);
-    // After the body, so the body's parts stay the one-screen list of DESIGN.md section 3.
-    root.appendChild(buildScriptBox());
 
     render("idle");
   }
 
-  // A closed <details> under the record zone: its summary opens a labeled textarea. The note
-  // under the label says what the script is for and describes the box to screen readers.
+  // A closed <details> in the hint row: its summary opens a labeled textarea. The note under
+  // the label says what the script is for and describes the box to screen readers.
   function buildScriptBox() {
     nodes.scriptInput = app.ui.el("textarea", {
       class: "practice__script-input",
@@ -280,9 +287,14 @@
       rows: "6",
       maxlength: String(SCRIPT_MAX_CHARACTERS),
       "aria-describedby": SCRIPT_NOTE_ID,
+      onInput: paintScriptSummary,
+    });
+    nodes.scriptSummary = app.ui.el("summary", {
+      class: "practice__script-summary",
+      text: SCRIPT_SUMMARY,
     });
     nodes.scriptBox = app.ui.el("details", { class: "practice__script" }, [
-      app.ui.el("summary", { class: "practice__script-summary", text: SCRIPT_SUMMARY }),
+      nodes.scriptSummary,
       app.ui.el("label", {
         class: "practice__script-label",
         for: SCRIPT_INPUT_ID,
@@ -596,6 +608,19 @@
   function paintScriptBox(view) {
     nodes.scriptBox.hidden = currentKind !== SCRIPT_KIND;
     nodes.scriptInput.readOnly = view.chipsDisabled;
+    paintScriptSummary();
+  }
+
+  // "Paste your script (optional)" while the box is empty, else "Your script (124 words)".
+  function paintScriptSummary() {
+    const count = wordCount(pastedScript());
+    const attached = ATTACHED_SUMMARY_PREFIX + count.toLocaleString("en-US") + " word";
+    nodes.scriptSummary.textContent =
+      count === 0 ? SCRIPT_SUMMARY : attached + (count === 1 ? ")" : "s)");
+  }
+
+  function wordCount(text) {
+    return text === "" ? 0 : text.split(/\s+/).length;
   }
 
   function paintRecordButton(view) {
@@ -816,12 +841,17 @@
   }
 
   // The text the take was read from, fixed at Stop so Retry re-sends the same: a Read
-  // passage's text, or on Talk the pasted script without its edge spaces ("" for none). Some
-  // test fakes give the textarea no value.
+  // passage's text, or on Talk the pasted script ("" for none). A script left in the closed
+  // box is still sent; its summary names it.
   function scriptFor(entry) {
     if (entry && entry.kind !== SCRIPT_KIND) {
       return entry.text;
     }
+    return pastedScript();
+  }
+
+  // The box's text without its edge spaces. Some test fakes give the textarea no value.
+  function pastedScript() {
     return String(nodes.scriptInput.value || "").trim();
   }
 

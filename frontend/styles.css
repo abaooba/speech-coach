@@ -858,9 +858,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The hint's words over the sample button, stacked at every width. */
+/* A centered row that wraps: the words fill the first line, then the sample button and, on
+   Talk, the script box's summary share the next one. */
 .practice__hint {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   margin: var(--s-1) 0 0;
   font-size: var(--fs-small);
@@ -870,12 +873,22 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
-/* Talk's script box follows the record zone, outside the body, so the body keeps the
-   one-screen layout above; the column grows and the page scrolls only while the box is open.
-   Its summary is a small accent row on a 44px target, like the sample button. */
+.practice__hint-text {
+  flex-basis: 100%;
+}
+
+/* Talk's script box sits in the hint row beside the sample button, so closed it costs the
+   one-screen layout nothing; open, it takes the row's full width, the column grows and the
+   page scrolls. Its summary is a small accent row on a 44px target, like the sample button. */
 #screen-practice .practice__script {
-  flex: none;
-  margin-top: var(--s-3);
+  flex: 1 1 0;
+  max-width: max-content;
+}
+
+#screen-practice .practice__script[open] {
+  flex-basis: 100%;
+  max-width: none;
+  text-align: start;
 }
 
 #screen-practice .practice__script[hidden] {
@@ -885,6 +898,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 .practice__script-summary {
   min-height: 44px;
   padding-block: var(--s-3);
+  text-align: center;
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
@@ -898,6 +912,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 600;
+  color: var(--text);
 }
 
 .practice__script-note {
@@ -1010,8 +1025,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
-/* Small phones also drop the sample button, so at 320 x 568 that card and the whole record zone
-   fit above the nav. Landscape and zoom keep it: their page scrolls anyway. */
+/* Small phones also drop the sample button and Talk's script box with it, so at 320 x 568 that
+   card and the whole record zone fit above the nav. Landscape and zoom keep them: their page
+   scrolls anyway. */
 @media (max-height: 600px) and (max-width: 479px) {
   #screen-practice .practice__hint {
     display: none;
@@ -1904,6 +1920,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 /* A quiet link-like ghost button under the hint: small text, as New topic, on a 44px target. */
 .practice__sample {
   min-height: 44px;
+  padding: 0 var(--s-2);
   font-size: var(--fs-small);
   font-weight: 500;
 }

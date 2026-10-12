@@ -1,6 +1,6 @@
 // Tests for sending the script with each take (T34). api.js adds an optional "script" field to
 // the upload; Practice sends a Read passage's text, or on Talk the script pasted into the
-// collapsible box under the record zone. Every browser API is a fake in a vm context.
+// collapsible box in the hint row. Every browser API is a fake in a vm context.
 "use strict";
 
 const test = require("node:test");
@@ -23,7 +23,14 @@ const MAX_SCRIPT_CHARACTERS = 20000;
 
 const PASSAGE_TEXT = "Four score and seven years ago our fathers brought forth on this continent.";
 const PASSAGES = [
-  { id: "talk", kind: "prompt", title: "Your day", text: "Talk about your day.", targetWpm: [1, 2] },
+  {
+    id: "talk",
+    kind: "prompt",
+    title: "Your day",
+    text: "Talk about your day.",
+    topics: ["Talk about your day.", "Talk about your week."],
+    targetWpm: [1, 2],
+  },
   { id: "read", kind: "passage", title: "Gettysburg", text: PASSAGE_TEXT, targetWpm: [1, 2] },
 ];
 
@@ -184,14 +191,23 @@ function setup() {
   root.appendChild(body);
   app.screens.practice.mount(root);
 
-  const scriptBox = byClass(root, "practice__script");
+  const hint = byClass(body, "practice__hint");
+  const scriptBox = byClass(hint, "practice__script");
+  const scriptInput = scriptBox && scriptBox.children.find((child) => child.tagName === "textarea");
   return {
     practice: app.screens.practice,
     root,
     body,
     calls,
     scriptBox,
-    scriptInput: scriptBox && scriptBox.children.find((child) => child.tagName === "textarea"),
+    scriptInput,
+    summary: scriptBox && scriptBox.children[0],
+    hint,
+    // What a speaker typing or pasting does: a new value, then the input event.
+    type(text) {
+      scriptInput.value = text;
+      (scriptInput.listeners.input || []).forEach((handler) => handler({ type: "input" }));
+    },
     tab: (label) => byClass(body, "segmented").children.find((b) => b.textContent === label),
     recordButton: byClass(body, "btn-record"),
     // Taps Record, lets 12 seconds pass and taps Stop, which uploads the take.
@@ -255,13 +271,53 @@ test("Retry upload sends the same script, even after the box was edited", async 
   assert.equal(t.calls.analyze[1].script, "The script as it was at Stop.");
 });
 
-test("the script box follows the record zone, outside the body's fixed list of parts", () => {
+test("the script box sits in the hint row after the sample button, adding no row", () => {
   const t = setup();
   assert.deepEqual(
-    t.root.children.map((child) => child.className),
-    ["screen__body", "practice__script"],
+    t.body.children.map((child) => child.className),
+    [
+      "segmented",
+      "chip-row",
+      "passage-card",
+      "practice__timer",
+      "btn-record",
+      "btn-record__label",
+      "practice__hint",
+      "practice__state",
+    ],
   );
-  assert.equal(byClass(t.body, "practice__script"), undefined);
+  assert.equal(t.hint.tagName, "div", "a <details> cannot sit inside a <p>");
+  assert.deepEqual(
+    t.hint.children.map((child) => child.className),
+    ["practice__hint-text", "btn btn--ghost practice__sample", "practice__script"],
+  );
+  assert.deepEqual(t.root.children.map((child) => child.className), ["screen__body"]);
+});
+
+test("once the box holds a script, its summary says so and counts the words", () => {
+  const t = setup();
+  t.type("  My case, word for word.\n");
+  assert.equal(t.summary.textContent, "Your script (5 words)");
+  t.type("Resolved.");
+  assert.equal(t.summary.textContent, "Your script (1 word)");
+  t.type(Array(3270).fill("word").join(" "));
+  assert.equal(t.summary.textContent, "Your script (3,270 words)");
+  t.type(" \n ");
+  assert.equal(t.summary.textContent, "Paste your script (optional)");
+});
+
+test("a script left in the closed box is named on its summary and still sent", async () => {
+  const t = setup();
+  t.scriptBox.open = true;
+  t.type("Our case rests on two points.");
+  t.scriptBox.open = false;
+  const card = byClass(t.body, "passage-card");
+  byClass(card, "passage-card__new").click();
+  assert.equal(byClass(card, "passage-card__text").textContent, "Talk about your week.");
+
+  assert.equal(t.summary.textContent, "Your script (6 words)");
+  await t.recordTake();
+  assert.equal(t.calls.analyze[0].script, "Our case rests on two points.");
 });
 
 test("the script box is a <details> whose summary reads 'Paste your script (optional)'", () => {
@@ -312,11 +368,27 @@ function rule(selector) {
   return match ? match[1] : null;
 }
 
-test("the script box keeps its size in Practice's column and sits --s-3 below the zone", () => {
+test("the hint is a centered wrapping row: its words on one line, then sample and summary", () => {
+  const hint = rule(".practice__hint");
+  assert.match(hint, /flex-wrap:\s*wrap/);
+  assert.match(hint, /justify-content:\s*center/);
+  assert.match(rule(".practice__hint-text"), /flex-basis:\s*100%/);
+  assert.doesNotMatch(STYLES, /#screen-practice \.practice__script\s*\{[^}]*margin-top/);
+});
+
+test("closed, the box sits beside the sample button and is never wider than its summary", () => {
   const box = rule("#screen-practice .practice__script");
-  assert.ok(box, "a rule for the box");
-  assert.match(box, /flex:\s*none/);
-  assert.match(box, /margin-top:\s*var\(--s-3\)/);
+  assert.match(box, /flex:\s*1 1 0/);
+  assert.match(box, /max-width:\s*max-content/);
+  assert.match(rule(".practice__sample"), /padding:\s*0 var\(--s-2\)/);
+});
+
+test("the open script box takes the hint's full width, its parts aligned to the start", () => {
+  const open = rule("#screen-practice .practice__script[open]");
+  assert.ok(open, "a rule for the open box");
+  assert.match(open, /flex-basis:\s*100%/);
+  assert.match(open, /max-width:\s*none/);
+  assert.match(open, /text-align:\s*start/);
 });
 
 test("the summary is a 44px target and the textarea uses body text, at least 16px", () => {
@@ -331,4 +403,6 @@ test("the summary is a 44px target and the textarea uses body text, at least 16p
 test("DESIGN.md lists the script box", () => {
   assert.match(DESIGN, /`details\.practice__script`/);
   assert.match(DESIGN, /Paste your script \(optional\)/);
+  assert.match(DESIGN, /Your script \(124 words\)/);
+  assert.doesNotMatch(DESIGN, /only cost to the one-screen layout/);
 });
