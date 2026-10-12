@@ -24,11 +24,19 @@ FILLER_KEYS = ("um", "uh", "hmm", "like", "you know", "so", "basically", "actual
 REPEAT_SKIP_WORDS = ("um", "uh", "hmm")
 MAX_REPEAT_PHRASE_WORDS = 4
 
+# A restart is a phrase said, then up to this many words abandoned, then the phrase said
+# again: 'the few decisions a day, uh, the few decisions a student'. The speaker must also
+# hesitate (um/uh/hmm) between the copies, so parallel phrasing such as 'I play tennis,
+# I play piano' is not a restart.
+RESTART_MAX_ABANDONED_WORDS = 2
+# Single words never restart, otherwise 'the day the' would count.
+RESTART_MIN_PHRASE_WORDS = 2
+
 _EDGE_PUNCTUATION = re.compile(r"^\W+|\W+$")
 
 
 class Repeat(TypedDict):
-    """A phrase said twice in a row: the phrase as first spoken and when it began."""
+    """A phrase said twice in a row or restarted: the phrase as first spoken and when it began."""
 
     text: str
     at: float
@@ -111,14 +119,18 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
 
     Only um/uh/hmm are skipped between the copies; 'like' and 'so' stay, so 'I, like, I'
     is not a repeat. `at` is the start of the first copy in clip seconds. A word
-    stuttered three times yields two repeats, one per extra copy.
+    stuttered three times yields two repeats, one per extra copy. Where nothing is said
+    twice in a row, a restart counts too (see RESTART_MAX_ABANDONED_WORDS). Matches never
+    overlap: the search resumes after the first copy of each one.
     """
-    spoken = [w for w in words if normalize(w.text) not in ("", *REPEAT_SKIP_WORDS)]
+    spoken, hesitated_before = _spoken_words(words)
     tokens = [normalize(w.text) for w in spoken]
     repeats: list[Repeat] = []
     index = 0
     while index < len(tokens):
-        length = _repeated_phrase_length(tokens, index)
+        length = _repeated_phrase_length(tokens, index) or _restarted_phrase_length(
+            tokens, hesitated_before, index
+        )
         if length == 0:
             index += 1
             continue
@@ -137,6 +149,39 @@ def _repeated_phrase_length(tokens: list[str], index: int) -> int:
             return 0
         if first == second:
             return length
+    return 0
+
+
+def _spoken_words(words: Sequence[Word]) -> tuple[list[Word], list[bool]]:
+    """The words other than um/uh/hmm, and for each one whether a hesitation came right before."""
+    spoken: list[Word] = []
+    hesitated_before: list[bool] = []
+    hesitated = False
+    for word in words:
+        token = normalize(word.text)
+        if token in REPEAT_SKIP_WORDS:
+            hesitated = True
+        elif token:
+            spoken.append(word)
+            hesitated_before.append(hesitated)
+            hesitated = False
+    return spoken, hesitated_before
+
+
+def _restarted_phrase_length(tokens: list[str], hesitated_before: list[bool], index: int) -> int:
+    """Length of the longest phrase at `index` that is restarted after abandoned words, else 0.
+
+    For each phrase length, longest first, the fewest abandoned words are tried first. The
+    hesitation may come anywhere between the end of the first copy and the second copy.
+    """
+    for length in range(MAX_REPEAT_PHRASE_WORDS, RESTART_MIN_PHRASE_WORDS - 1, -1):
+        first = tokens[index : index + length]
+        for abandoned in range(1, RESTART_MAX_ABANDONED_WORDS + 1):
+            restart = index + length + abandoned
+            second = tokens[restart : restart + length]
+            hesitated = any(hesitated_before[index + length : restart + 1])
+            if len(second) == length and first == second and hesitated:
+                return length
     return 0
 
 
