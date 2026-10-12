@@ -179,6 +179,15 @@
   const MISREAD_LABEL_SUFFIX = ", misread, script says ";
   // A skipped script word is drawn struck through and read as "skipped: lose".
   const SKIPPED_LABEL_PREFIX = "skipped: ";
+  // Up to this many script words skipped in one place are drawn one by one, so a skipped line
+  // ("Consider what we lose.") reads as the line it was. A longer run is usually script the take
+  // never reached (it stopped early or started partway in); word by word it would bury the
+  // transcript, so it is one marker: "50 words skipped:", then its first and last words.
+  const MAX_SKIPS_SHOWN_ONE_BY_ONE = 8;
+  // Words a skip run shows at each end, either side of SKIP_RUN_GAP.
+  const SKIP_RUN_EDGE_WORDS = 3;
+  const SKIP_RUN_GAP = "…";
+  const SKIP_RUN_COUNT_SUFFIX = " words skipped:";
   const LEGEND_TEXT = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
   // Added only when the transcript marks a restart. Restart words keep plain text with a
   // --pause underline, so they differ from the bold filler-colored habits by more than color.
@@ -470,8 +479,9 @@
   // the report's `misreads` and `skips` for a take read from a script: a word whose index is a
   // misread's `wordIndex` gets `misread`, the script word it stands for (two, space-joined, when
   // both halves of "short-endure" were misread), and each skip becomes {type: "skip", text} after
-  // the last word that ended by its `at`, ahead of any pause there. A skip is not a word. Pure:
-  // fresh objects, and no input is changed.
+  // the last word that ended by its `at`, ahead of any pause there; more than
+  // MAX_SKIPS_SHOWN_ONE_BY_ONE skips in one place become one {type: "skip", text, count} run. A
+  // skip is not a word. Pure: fresh objects, and no input is changed.
   function buildTranscriptPlan(words, pauses, restartWords, scriptSlips) {
     const wordList = Array.isArray(words) ? words : [];
     const pauseList = Array.isArray(pauses) ? pauses : [];
@@ -482,11 +492,12 @@
 
     // Slot 0 holds the skips and pauses that go before the first word; slot i + 1 those after
     // word i.
-    const slots = Array.from({ length: wordList.length + 1 }, () => []);
+    const skippedBySlot = Array.from({ length: wordList.length + 1 }, () => []);
     listOf(slips.skips).forEach((skip) => {
       const slot = lastWordEndedBy(wordList, numberOr0(skip.at) + MILLISECOND) + 1;
-      slots[slot].push({ type: SKIP_ITEM, text: String(skip.word) });
+      skippedBySlot[slot].push(String(skip.word));
     });
+    const slots = skippedBySlot.map(skipItems);
     pauseList.forEach((pause) => {
       const [at, length] = Array.isArray(pause) ? pause : [];
       const slot = lastWordEndedBy(wordList, numberOr0(at)) + 1;
@@ -511,6 +522,21 @@
       plan.push(...slots[index + 1]);
     });
     return plan;
+  }
+
+  // The plan items for the script words skipped in one place, in script order: one per word, or
+  // for more than MAX_SKIPS_SHOWN_ONE_BY_ONE a single run, {type: "skip", text, count}, whose
+  // text is its first and last SKIP_RUN_EDGE_WORDS words either side of SKIP_RUN_GAP.
+  function skipItems(skippedWords) {
+    if (skippedWords.length <= MAX_SKIPS_SHOWN_ONE_BY_ONE) {
+      return skippedWords.map((text) => ({ type: SKIP_ITEM, text }));
+    }
+    const text = [
+      ...skippedWords.slice(0, SKIP_RUN_EDGE_WORDS),
+      SKIP_RUN_GAP,
+      ...skippedWords.slice(-SKIP_RUN_EDGE_WORDS),
+    ].join(" ");
+    return [{ type: SKIP_ITEM, text, count: skippedWords.length }];
   }
 
   // Transcript index -> the script words misread there, in script order. A misread no
@@ -715,7 +741,7 @@
       return pauseMarker(item.length);
     }
     if (item.type === SKIP_ITEM) {
-      return skippedMarker(item.text);
+      return item.count ? skipRunMarker(item) : skippedMarker(item.text);
     }
     return wordToken(item);
   }
@@ -754,6 +780,17 @@
       "aria-label": SKIPPED_LABEL_PREFIX + text,
       text,
     });
+  }
+
+  // A run of skipped script words as one marker: "50 words skipped:" in --muted, then the run's
+  // first and last words struck through. The count is visible text, so a screen reader reads
+  // the same words as the eye, with no label to depend on.
+  function skipRunMarker(item) {
+    return app.ui.el("span", { class: "skip-run" }, [
+      app.ui.el("span", { class: "skip-run__count", text: item.count + SKIP_RUN_COUNT_SUFFIX }),
+      TOKEN_SEPARATOR,
+      app.ui.el("span", { class: "tok--skipped", text: item.text }),
+    ]);
   }
 
   // "2.1 s pause", always one decimal, matching the "x.x s pause" the README asks you to see.

@@ -1401,6 +1401,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-decoration-thickness: 2px;
 }
 
+/* The count in front of a long run of skipped script words ("50 words skipped:"): muted like
+   the struck-through words after it, but not struck, so the number stays easy to read. */
+.skip-run__count {
+  color: var(--muted);
+}
+
 /* One small muted line under the Transcript heading that explains the two highlight styles. */
 .transcript__legend {
   margin: var(--s-2) 0 0;
