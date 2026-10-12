@@ -9,6 +9,7 @@ against a 600-word script is 360,000 cells.
 From the alignment come three lists: restarts (the speaker went back to script words already
 passed), skipped script words and misread ones. Fillers in speech ('um', 'like', 'you know')
 are not part of the reading and are ignored, unless the script has that word right there.
+analyze_reading() puts the three lists into a take's metrics for the API.
 """
 
 import re
@@ -21,6 +22,7 @@ from backend.metrics import (
     MAX_REPEAT_PHRASE_WORDS,
     REPEAT_SKIP_WORDS,
     Repeat,
+    analyze,
     clean,
     filler_key,
     normalize,
@@ -98,12 +100,7 @@ def align(words: Sequence[Word], script: str) -> ScriptReport:
     when that phrase began. A script with no words reports nothing.
     """
     spoken = _spoken(words)
-    script_words = [
-        (index, part)
-        for index, raw in enumerate(script.split())
-        for part in _JOINING_DASH.split(raw)
-        if _token(part)
-    ]
+    script_words = _script_words(script)
     script_tokens = [_token(part) for _, part in script_words]
     if not script_tokens:
         return ScriptReport(restarts=[], skipped=[], misread=[])
@@ -134,6 +131,46 @@ def align(words: Sequence[Word], script: str) -> ScriptReport:
         ]
         restarts.append(Repeat(text=" ".join(phrase), at=spoken.words[first].start))
     return ScriptReport(restarts=restarts, skipped=skipped, misread=misread)
+
+
+def analyze_reading(words: Sequence[Word], script: str) -> dict[str, object]:
+    """Every metric for a take read from `script`, in the shape the API returns.
+
+    The free-talk metrics (backend/metrics.py analyze) plus a `script` block: restarts
+    ({text, at}), skipped ({word, index, at}) and misread ({word, index, at, said}). The
+    script's restarts replace the free-talk repeats, so a phrase said again is counted once,
+    and a word the script itself says twice ('that that') is no repeat. A script with no
+    words is no script: the free-talk metrics come back unchanged.
+    """
+    result = analyze(words)
+    if not _script_words(script):
+        return result
+    report = align(words, script)
+    result["repeats"] = report.restarts
+    result["script"] = {
+        "restarts": report.restarts,
+        "skipped": [_slip_json(slip) for slip in report.skipped],
+        "misread": [_slip_json(slip) for slip in report.misread],
+    }
+    return result
+
+
+def _slip_json(slip: ScriptSlip) -> dict[str, object]:
+    """A slip as JSON: a skipped word has no `said` field, a misread one names what was said."""
+    fields: dict[str, object] = {"word": slip.word, "index": slip.index, "at": slip.at}
+    if slip.said is not None:
+        fields["said"] = slip.said
+    return fields
+
+
+def _script_words(script: str) -> list[tuple[int, str]]:
+    """(index in script.split(), word) for each script word, dash-joined ones split in two."""
+    return [
+        (index, part)
+        for index, raw in enumerate(script.split())
+        for part in _JOINING_DASH.split(raw)
+        if _token(part)
+    ]
 
 
 def _token(text: str) -> str:
