@@ -49,9 +49,13 @@
   const MILLISECOND = 0.001;
 
   // How the backend reads a repeat (backend/metrics.py find_repeats, backend/script_align.py),
-  // so Results can find the words that say a phrase again. These sounds and bare punctuation
-  // ("—" said on its own) are never part of a phrase.
-  const REPEAT_SKIP_WORDS = ["um", "uh", "hmm"];
+  // so Results can find the words that say a phrase again. These sounds, the same set as
+  // backend REPEAT_SKIP_WORDS, and bare punctuation ("—" said on its own) are never part of a
+  // phrase. "mhm" stands for every spelling AGREEMENT_SOUND matches, as backend filler_key
+  // reads them: mhmm, mm-hmm, mm-hm, uh-huh.
+  const REPEAT_SKIP_WORDS = ["um", "uh", "hmm", "mhm"];
+  const AGREEMENT_SOUND = /^(?:m+-?h+m+|u+h+-h+u+h+)$/;
+  const AGREEMENT_KEY = "mhm";
   // After a free-talk first copy the second starts within this many words: a restart leaves at
   // most 2 abandoned words, a cut-off restart starts again within 4 (CUTOFF_LOOKAHEAD_WORDS).
   // A script restart has no such limit (see restartOf).
@@ -71,6 +75,11 @@
 
   function isHesitation(text) {
     return HESITATION_PATTERN.test(normalizeWord(text));
+  }
+
+  // Whether a normalized word is a sound repeats skip: um, uh, hmm, or mhm in any spelling.
+  function isRepeatSkip(token) {
+    return REPEAT_SKIP_WORDS.includes(AGREEMENT_SOUND.test(token) ? AGREEMENT_KEY : token);
   }
 
   function numberOr0(value) {
@@ -484,14 +493,14 @@
   }
 
   // The spoken words as the backend compares them for a repeat, as {index, token, start,
-  // cutOff}: um, uh, hmm and bare punctuation ("—" said on its own) left out, and two words
+  // cutOff}: um, uh, hmm, mhm and bare punctuation ("—" said on its own) left out, and two words
   // joined by a dash ("bullying—the") split into two pieces of the same word, as
   // backend/script_align.py reads them. `index` is the word's place in the transcript;
   // `cutOff` says the word ends in a cut-off dash ("ner—").
   function repeatPieces(list) {
     return list.flatMap((word, index) => {
       const token = normalizeWord(word.text);
-      if (token === "" || REPEAT_SKIP_WORDS.includes(token)) {
+      if (token === "" || isRepeatSkip(token)) {
         return [];
       }
       const parts = isHesitation(word.text) ? [token] : token.split(JOINING_DASH);

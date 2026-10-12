@@ -23,18 +23,20 @@ FILLER_KEYS = ("um", "uh", "hmm", "mhm", "like", "you know", "so", "basically", 
 # 'uh-huh'), all count under the 'mhm' key.
 _AGREEMENT_SOUND = re.compile(r"^(?:m+-?h+m+|u+h+-h+u+h+)$")
 
-# Hesitation sounds that may sit between the two copies of a repeated phrase.
-REPEAT_SKIP_WORDS = ("um", "uh", "hmm")
+# Hesitation sounds that may sit between the two copies of a repeated phrase, as FILLER_WORDS
+# keys: 'mhm' stands for every spelling of the agreement sound ('mm-hmm', 'uh-huh').
+# frontend/delivery.js REPEAT_SKIP_WORDS skips the same set.
+REPEAT_SKIP_WORDS = ("um", "uh", "hmm", "mhm")
 # Long enough that reading a whole clause again counts as one repeat.
 MAX_REPEAT_PHRASE_WORDS = 8
 # A restart is a phrase of at least two words said again after the speaker gave up on a few
 # words: 'the few decisions a day, uh, the few decisions a student'. At most this many
-# abandoned words may sit between the copies; um/uh/hmm there are skipped and do not count.
+# abandoned words may sit between the copies; um/uh/hmm/mhm there are skipped and do not count.
 RESTART_MAX_ABANDONED_WORDS = 2
 # A dash at the end of a word marks where the speaker cut themselves off ('day—'); AssemblyAI
 # writes it into the word text. A hyphen inside a word ('well-known') is not a cut-off.
 CUTOFF_MARKS = ("—", "–", "-")
-# After a cut-off the speaker must start again within this many words (um/uh/hmm not counted)
+# After a cut-off the speaker must start again within this many words (um/uh/hmm/mhm not counted)
 # for it to be a restart: 'I kinda ner— I'm kinda nervous'.
 CUTOFF_LOOKAHEAD_WORDS = 4
 # A cut-off fragment shorter than this ('a—') is not matched to a word it begins ('and').
@@ -74,6 +76,11 @@ def filler_key(token: str) -> str | None:
     """The FILLER_WORDS key a normalized token counts under ('mm-hmm' -> 'mhm'), else None."""
     key = "mhm" if _AGREEMENT_SOUND.match(token) else token
     return key if key in FILLER_WORDS else None
+
+
+def is_repeat_skip(token: str) -> bool:
+    """Whether a normalized token is a hesitation sound repeats skip: um, uh, hmm or any mhm."""
+    return filler_key(token) in REPEAT_SKIP_WORDS
 
 
 def duration_seconds(words: Sequence[Word]) -> float:
@@ -135,10 +142,10 @@ def count_fillers(words: Sequence[Word]) -> dict[str, int]:
 def find_repeats(words: Sequence[Word]) -> list[Repeat]:
     """Phrases of up to eight words said twice in a row, such as 'and I, uh, and I', or restarted.
 
-    Only um/uh/hmm are skipped between the copies; 'like' and 'so' stay, so 'I, like, I'
-    is not a repeat. A restart is a phrase of two or more words said again after up to
-    RESTART_MAX_ABANDONED_WORDS abandoned words, when something shows the speaker gave up:
-    um/uh/hmm between the copies or a cut-off mark on an abandoned word ('day—'). Without
+    Only um/uh/hmm/mhm (in any spelling) are skipped between the copies; 'like' and 'so' stay,
+    so 'I, like, I' is not a repeat. A restart is a phrase of two or more words said again after
+    up to RESTART_MAX_ABANDONED_WORDS abandoned words, when something shows the speaker gave up:
+    um/uh/hmm/mhm between the copies or a cut-off mark on an abandoned word ('day—'). Without
     that sign, parallel phrasing ('we need to protect, we need to defend') is deliberate,
     not a restart; nor is a new sentence that opens like the last one.
     A cut-off restart is a phrase ending in a cut-off word ('I kinda ner—') that the speaker
@@ -153,7 +160,7 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
     hesitated = False
     for word in words:
         token = normalize(word.text)
-        if token in REPEAT_SKIP_WORDS:
+        if is_repeat_skip(token):
             hesitated = True
         elif token:
             spoken.append(word)
@@ -195,7 +202,7 @@ def _restarted_phrase(
     """(phrase length, abandoned words) of the longest restart at `index`, else (0, 0).
 
     `tokens[i]` is the normalized text of `spoken[i]`, and `hesitation_before[i]` says
-    whether um/uh/hmm came just before it. Among equally long phrases the one with the
+    whether um/uh/hmm/mhm came just before it. Among equally long phrases the one with the
     fewest abandoned words wins.
     """
     for length in range(MAX_REPEAT_PHRASE_WORDS, 1, -1):
