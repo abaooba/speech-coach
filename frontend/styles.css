@@ -1286,6 +1286,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-underline-offset: var(--s-1);
 }
 
+/* A restart, the second copy of a phrase the speaker started over: a dotted underline in the
+   pause color, since it breaks the flow as a pause does. It follows the habit rule, so a habit
+   word inside a restart keeps its filler color and shows the restart's line; its label names
+   both. */
+.tok--restart {
+  text-decoration: underline dotted var(--pause);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
 /* One small muted line under the Transcript heading that explains the two highlight styles. */
 .transcript__legend {
   margin: var(--s-2) 0 0;

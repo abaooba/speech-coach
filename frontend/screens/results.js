@@ -161,6 +161,7 @@
   const TOKEN_SEPARATOR = " ";
   const FILLER_LABEL_SUFFIX = ", filler word";
   const HABIT_LABEL_SUFFIX = ", verbal habit";
+  const RESTART_LABEL_SUFFIX = ", restart";
   const LEGEND_TEXT = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
   const HOW_HREF = "how.html";
   const HOW_LINK_TEXT = "How we count";
@@ -426,11 +427,13 @@
   // for every backend word and {type: "pause", length} for every [at, length] in `pauses`
   // (Results passes only the mid-sentence pauses the card counts). A pause goes right after
   // the last word whose end is at or before `at`; when no word has ended by then it goes before
-  // the first word. Pure: fresh objects, and neither input is changed.
-  function buildTranscriptPlan(words, pauses) {
+  // the first word. Each word of a backend repeat's second copy (`repeats`, the metrics'
+  // [{text, at}]) also carries restart: true. Pure: fresh objects, and no input is changed.
+  function buildTranscriptPlan(words, pauses, repeats) {
     const wordList = Array.isArray(words) ? words : [];
     const pauseList = Array.isArray(pauses) ? pauses : [];
     const kinds = app.delivery.classify(wordList);
+    const restarts = restartWordIndexes(wordList, repeats);
 
     // Slot 0 holds the pauses that go before the first word; slot i + 1 those after word i.
     const slots = Array.from({ length: wordList.length + 1 }, () => []);
@@ -442,15 +445,85 @@
 
     const plan = [...slots[0]];
     wordList.forEach((word, index) => {
-      plan.push({
+      const item = {
         type: WORD_ITEM,
         text: textOf(word),
         filler: kinds[index] !== null,
         kind: kinds[index],
-      });
-      plan.push(...slots[index + 1]);
+      };
+      if (restarts.has(index)) {
+        item.restart = true;
+      }
+      plan.push(item, ...slots[index + 1]);
     });
     return plan;
+  }
+
+  // Indexes of the words in the second copy of each repeat, where the speaker started the
+  // phrase over. The backend's `at` is when the first copy began, so the first copy is the
+  // first place at or after `at` where the phrase begins and the second copy is the next place
+  // after it. A malformed repeat, or one whose copies are not both in the words, marks nothing.
+  function restartWordIndexes(wordList, repeats) {
+    const tokens = wordList.map((word) => normalizeWord(textOf(word)));
+    const marked = new Set();
+    listOf(repeats).forEach((repeat) => {
+      const phrase = phraseOf(repeat);
+      if (phrase.length === 0) {
+        return;
+      }
+      const firstStart = wordList.findIndex(
+        (word, index) =>
+          numberOr0(word && word.start) >= repeat.at && phraseAt(tokens, index, phrase) !== null,
+      );
+      if (firstStart === -1) {
+        return;
+      }
+      const firstCopy = phraseAt(tokens, firstStart, phrase);
+      const secondCopy = nextCopy(tokens, firstCopy[firstCopy.length - 1] + 1, phrase);
+      secondCopy.forEach((index) => marked.add(index));
+    });
+    return marked;
+  }
+
+  // A repeat's phrase as normalized words, or [] for anything that is not {text, at: number}.
+  function phraseOf(repeat) {
+    if (!repeat || typeof repeat.at !== "number" || !Number.isFinite(repeat.at)) {
+      return [];
+    }
+    return String(repeat.text || "")
+      .split(/\s+/)
+      .map(normalizeWord)
+      .filter(Boolean);
+  }
+
+  // The word indexes of the first copy of `phrase` that begins at `from` or later, or [] when
+  // the phrase is never said again.
+  function nextCopy(tokens, from, phrase) {
+    for (let index = from; index < tokens.length; index += 1) {
+      const copy = phraseAt(tokens, index, phrase);
+      if (copy !== null) {
+        return copy;
+      }
+    }
+    return [];
+  }
+
+  // The word indexes of `phrase` said from `index` on, or null. The phrase must begin exactly
+  // at `index`; between its words, hesitations and punctuation-only words are skipped, as the
+  // backend skips them, so "we, um, need to" holds "we need to" and the um is never marked.
+  function phraseAt(tokens, index, phrase) {
+    if (tokens[index] !== phrase[0]) {
+      return null;
+    }
+    const found = [index];
+    for (let next = index + 1; next < tokens.length && found.length < phrase.length; next += 1) {
+      if (tokens[next] === phrase[found.length]) {
+        found.push(next);
+      } else if (tokens[next] !== "" && !app.delivery.isHesitation(tokens[next])) {
+        return null;
+      }
+    }
+    return found.length === phrase.length ? found : null;
   }
 
   // Index of the last word whose end is at or before `at`, or -1 when none has ended yet.
@@ -545,7 +618,8 @@
     const summary = summarize(session);
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
-    const plan = buildTranscriptPlan(session.transcript, countedPauses(summary.report));
+    const repeats = session.metrics ? session.metrics.repeats : null;
+    const plan = buildTranscriptPlan(session.transcript, countedPauses(summary.report), repeats);
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const segments = hasTranscript ? timelineSegments(summary.report) : null;
     const tips = selectTips(summary.report, summary.target);
@@ -617,17 +691,24 @@
     return app.ui.el("p", { class: "transcript" }, nodes);
   }
 
-  // The label uses the bare word, so "Um," reads as "um, filler word" (DESIGN.md section 6).
+  // The label uses the bare word, so "Um," reads as "um, filler word" (DESIGN.md section 6). A
+  // word of a restart adds ", restart" after any filler label: "like, verbal habit, restart".
   function wordToken(item) {
-    if (!item.filler) {
+    if (!item.filler && !item.restart) {
       return app.ui.el("span", { class: "tok", text: item.text });
     }
-    const habit = item.kind === app.delivery.HABIT;
-    return app.ui.el("span", {
-      class: habit ? "tok tok--habit" : "tok tok--filler",
-      "aria-label": normalizeWord(item.text) + (habit ? HABIT_LABEL_SUFFIX : FILLER_LABEL_SUFFIX),
-      text: item.text,
-    });
+    const classes = ["tok"];
+    let label = normalizeWord(item.text);
+    if (item.filler) {
+      const habit = item.kind === app.delivery.HABIT;
+      classes.push(habit ? "tok--habit" : "tok--filler");
+      label += habit ? HABIT_LABEL_SUFFIX : FILLER_LABEL_SUFFIX;
+    }
+    if (item.restart) {
+      classes.push("tok--restart");
+      label += RESTART_LABEL_SUFFIX;
+    }
+    return app.ui.el("span", { class: classes.join(" "), "aria-label": label, text: item.text });
   }
 
   // "2.1 s pause", always one decimal, matching the "x.x s pause" the README asks you to see.
