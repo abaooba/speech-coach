@@ -85,7 +85,7 @@ test("the legend ends with one How we count link to how.html", async () => {
   assert.equal(
     legend.textContent,
     "Highlighted words are ums and uhs. Underlined words are verbal habits. " +
-      "Most used: “so”, 1 time.",
+      "Purple underlined words are restarts. Most used: “so”, 1 time.",
   );
 });
 

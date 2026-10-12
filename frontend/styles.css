@@ -1316,8 +1316,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   gap: var(--s-1);
 }
 
-/* Each swatch echoes its mark: a thin tick, a block (the long-pause one in its own color), and
-   the band with its base line. */
+/* Each swatch echoes its mark: a thin tick, a block (the long-pause one in its own color), a
+   hairline for a restart, and the band with its base line. */
 .timeline__swatch {
   flex: none;
   display: inline-block;
@@ -1337,6 +1337,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 .timeline__swatch--long-pause {
   width: 12px;
   background: var(--pause-long);
+}
+
+.timeline__swatch--restart {
+  width: 2px;
+  background: var(--pause);
 }
 
 .timeline__swatch--clean {
@@ -1367,6 +1372,14 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--filler);
   font-weight: 600;
   text-decoration: underline dotted var(--filler);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
+/* A word that says a phrase again: plain text with a dotted underline in the pause color, so it
+   differs from a bold filler-colored habit by weight and text color as well as underline color. */
+.tok--restart {
+  text-decoration: underline dotted var(--pause);
   text-decoration-thickness: 2px;
   text-underline-offset: var(--s-1);
 }

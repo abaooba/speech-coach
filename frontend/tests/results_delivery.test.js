@@ -108,7 +108,7 @@ test("the legend explains both styles and names the most-used habit", async () =
   assert.equal(
     byClass(body, "transcript__legend").textContent,
     "Highlighted words are ums and uhs. Underlined words are verbal habits. " +
-      "Most used: “so”, 1 time.",
+      "Purple underlined words are restarts. Most used: “so”, 1 time.",
   );
 });
 

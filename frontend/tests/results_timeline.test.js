@@ -262,7 +262,7 @@ test("the strip is a labelled image that stretches to the column", async () => {
   assert.equal(strip.getAttribute("preserveAspectRatio"), "none");
   assert.equal(
     strip.getAttribute("aria-label"),
-    "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, " +
+    "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, 1 restart, " +
       "a 4.9 second clean stretch",
   );
 });
@@ -276,6 +276,7 @@ test("the strip draws the track, the band and its edge, the pauses, the fillers"
       "rect.timeline__clean",
       "rect.timeline__clean-edge",
       ...Array(3).fill("rect.timeline__pause"),
+      "rect.timeline__restart",
       ...Array(11).fill("rect.timeline__filler"),
     ],
   );
@@ -355,6 +356,7 @@ test("the legend pairs a swatch with each mark's name", async () => {
   assert.deepEqual(legend.children.map(fullText), [
     "Filler",
     "Mid-sentence pause",
+    "Restart",
     "Clean stretch",
   ]);
   assert.deepEqual(
@@ -362,6 +364,7 @@ test("the legend pairs a swatch with each mark's name", async () => {
     [
       ["timeline__key", "timeline__swatch timeline__swatch--filler"],
       ["timeline__key", "timeline__swatch timeline__swatch--pause"],
+      ["timeline__key", "timeline__swatch timeline__swatch--restart"],
       ["timeline__key", "timeline__swatch timeline__swatch--clean"],
     ],
   );
@@ -383,6 +386,7 @@ test("the hidden list names every moment in time order", async () => {
     "li,Filler “um” at 0:10",
     "li,Mid-sentence pause at 0:14, 1.5 seconds",
     "li,Filler “um” at 0:16",
+    "li,Restart “and I” at 0:16",
     "li,Mid-sentence pause at 0:16, 2.5 seconds",
     "li,Filler “uh” at 0:19",
     "li,Filler “um” at 0:19",

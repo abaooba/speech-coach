@@ -48,6 +48,22 @@
   // Word ends and pause starts are millisecond values; allow for float error when comparing.
   const MILLISECOND = 0.001;
 
+  // How the backend reads a repeat (backend/metrics.py find_repeats, backend/script_align.py),
+  // so Results can find the words that say a phrase again. These sounds and bare punctuation
+  // ("—" said on its own) are never part of a phrase.
+  const REPEAT_SKIP_WORDS = ["um", "uh", "hmm"];
+  // After the first copy the second starts within this many words: a free-talk restart leaves
+  // at most 2 abandoned words, a cut-off restart starts again within 4 (CUTOFF_LOOKAHEAD_WORDS).
+  const SECOND_COPY_SEARCH_WORDS = 4;
+  // A dash ending a word marks where the speaker cut themselves off ("ner—", "day—").
+  const CUTOFF_MARK = /[—–-]$/;
+  // A fragment shorter than this ("a—") is not matched to a word it begins ("and").
+  const CUTOFF_MIN_FRAGMENT_LETTERS = 2;
+  // Two words joined by a dash with no space ("bullying—the"): the script alignment reads two.
+  const JOINING_DASH = /(?<=[\p{L}\p{N}_])(?:--|[-—–])(?=[\p{L}\p{N}_])/u;
+  // The backend's stem rule: "I'm" says "I" again, "decision" says "decisions".
+  const CONTRACTION = /(?:n['’]t|['’](?:m|s|re|ve|ll|d))$/;
+
   function normalizeWord(text) {
     return String(text || "").toLowerCase().replace(EDGE_PUNCTUATION, "");
   }
@@ -211,6 +227,7 @@
       ...pauseTallies(classified),
       cleanStretch: longestCleanStretch(list, fillers, breaks, repeats),
       repeatCount: repeats.length,
+      restarts: repeats.map((repeat) => restartOf(list, repeat)),
     };
   }
 
@@ -246,6 +263,7 @@
       ...pauseTallies(classified),
       cleanStretch: null,
       repeatCount: repeats.length,
+      restarts: repeats.map((repeat) => restartOf([], repeat)),
     };
   }
 
@@ -386,17 +404,96 @@
     });
   }
 
-  // The backend's repeats as {at, words}, skipping any entry without a numeric `at`.
+  // A backend repeat as Results draws it: {at, text, secondCopy}, where secondCopy lists the
+  // indexes of the words that say the phrase again (none when they cannot be found). Every kind
+  // of repeat has the same {text, at}: `at` starts the first copy and `text` is that copy, so
+  // the first copy is walked word by word from `at`; the second starts at the first of the next
+  // SECOND_COPY_SEARCH_WORDS words that begins the phrase (see saysAgain). From there as many
+  // words as the phrase has are marked; um, uh, hmm and bare punctuation are passed over.
+  function restartOf(list, repeat) {
+    const restart = { at: repeat.at, text: repeat.text, secondCopy: [] };
+    const phrase = repeat.text.split(" ").map(normalizeWord).filter(Boolean);
+    const first = list.findIndex((word) => word.start >= repeat.at - MILLISECOND);
+    if (phrase.length === 0 || first === -1) {
+      return restart;
+    }
+    const firstCopy = phraseCopyFrom(list, first, phrase);
+    if (firstCopy.length === 0) {
+      return restart;
+    }
+    const isFragment = phrase.length === 1 && CUTOFF_MARK.test(list[firstCopy[0]].text);
+    let index = firstCopy[firstCopy.length - 1] + 1;
+    let looked = 0;
+    for (; index < list.length && looked < SECOND_COPY_SEARCH_WORDS; index += 1) {
+      if (isRepeatSkip(list[index].text)) {
+        continue;
+      }
+      if (saysAgain(phrase[0], normalizeWord(list[index].text), isFragment)) {
+        restart.secondCopy = phraseCopyFrom(list, index, phrase);
+        break;
+      }
+      looked += 1;
+    }
+    return restart;
+  }
+
+  // The indexes of the words from `start` on that say `phrase` once more, by count.
+  function phraseCopyFrom(list, start, phrase) {
+    const copy = [];
+    for (let index = start, said = 0; said < phrase.length && index < list.length; index += 1) {
+      if (!isRepeatSkip(list[index].text)) {
+        copy.push(index);
+        said += phraseWordsIn(list[index].text, phrase[said] || "");
+      }
+    }
+    return copy;
+  }
+
+  // How many phrase words one spoken word holds: two for "bullying—the" when the phrase has
+  // "bullying" there, since the script alignment splits it; one otherwise.
+  function phraseWordsIn(text, expected) {
+    const token = normalizeWord(text);
+    if (token === expected) {
+      return 1;
+    }
+    return Math.max(1, token.split(JOINING_DASH).filter(Boolean).length);
+  }
+
+  function isRepeatSkip(text) {
+    const token = normalizeWord(text);
+    return token === "" || REPEAT_SKIP_WORDS.includes(token);
+  }
+
+  // Whether `said` says `token` again, as backend says_again: the same stem, or the cut-off
+  // fragment finished ("sa—" then "says").
+  function saysAgain(token, said, isFragment) {
+    if (stem(said) === stem(token)) {
+      return true;
+    }
+    return isFragment && token.length >= CUTOFF_MIN_FRAGMENT_LETTERS && said.startsWith(token);
+  }
+
+  // A normalized word without its contraction or plural ending: "I'm" -> "i".
+  function stem(token) {
+    const bare = token.replace(CONTRACTION, "");
+    return bare.length > 3 && bare.endsWith("s") && !bare.endsWith("ss") ? bare.slice(0, -1) : bare;
+  }
+
+  // The backend's repeats as {at, text, words}, skipping any entry without a numeric `at`.
   function validRepeats(repeats) {
     if (!Array.isArray(repeats)) {
       return [];
     }
     return repeats
       .filter((repeat) => repeat && isFiniteNumber(repeat.at))
-      .map((repeat) => ({
-        at: repeat.at,
-        words: Math.max(1, String(repeat.text || "").split(" ").filter(Boolean).length),
-      }));
+      .map((repeat) => {
+        const text = String(repeat.text || "");
+        return {
+          at: repeat.at,
+          text,
+          words: Math.max(1, text.split(" ").filter(Boolean).length),
+        };
+      });
   }
 
   // A copy of the word list where every entry has a string text and numeric times, so one

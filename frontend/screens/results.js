@@ -103,8 +103,9 @@
 
   // The speech timeline's strip, in viewBox units: 320 wide and 40 tall, stretched to the
   // column. The track sits inside the box; filler ticks and long-pause blocks run 4 units past
-  // it at both ends, so they read as taller than the track. Every color is a token string, so
-  // both themes apply.
+  // it at both ends, so they read as taller than the track. A restart is a 1-unit line the full
+  // height of the strip, so it shows past a filler tick at the same moment and never reads as a
+  // pause block. Every color is a token string, so both themes apply.
   const TIMELINE_TITLE = "Speech timeline";
   const SVG_NS = "http://www.w3.org/2000/svg";
   const STRIP = Object.freeze({
@@ -116,6 +117,7 @@
     tickY: 2,
     tickHeight: 36,
     tickWidth: 2,
+    restartWidth: 1,
     edgeHeight: 3,
     minBlockWidth: 2,
   });
@@ -127,22 +129,26 @@
     pause: "var(--pause)",
     longPause: "var(--pause-long)",
     filler: "var(--filler)",
+    restart: "var(--pause)",
   });
   // Coordinates keep two decimals: a hundredth of a unit is far below a pixel.
   const COORD_SCALE = 100;
-  // The long-pause key joins the legend only when the strip draws a long pause.
+  // The long-pause and restart keys join the legend only when the strip draws one.
   const LEGEND_KEYS = [
     ["filler", "Filler"],
     ["pause", "Mid-sentence pause"],
     ["long-pause", "Long pause (5 s+)"],
+    ["restart", "Restart"],
     ["clean", "Clean stretch"],
   ];
   const LONG_PAUSE_KEY = "long-pause";
+  const RESTART_KEY = "restart";
   // The hidden list of moments, read in time order: "Filler “um” at 0:02".
   const MOMENT = Object.freeze({
     filler: (word, at) => "Filler “" + word + "” at " + at,
     pause: (at, seconds) => "Mid-sentence pause at " + at + ", " + seconds + " seconds",
     longPause: (at, seconds) => "Long pause at " + at + ", " + seconds + " seconds",
+    restart: (phrase, at) => "Restart “" + phrase + "” at " + at,
     clean: (from, to, seconds) => "Clean stretch from " + from + " to " + to + ", " + seconds,
   });
 
@@ -168,7 +174,11 @@
   const TOKEN_SEPARATOR = " ";
   const FILLER_LABEL_SUFFIX = ", filler word";
   const HABIT_LABEL_SUFFIX = ", verbal habit";
+  const RESTART_LABEL_SUFFIX = ", restart";
   const LEGEND_TEXT = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
+  // Added only when the transcript marks a restart. Restart words keep plain text with a
+  // --pause underline, so they differ from the bold filler-colored habits by more than color.
+  const LEGEND_RESTART_TEXT = " Purple underlined words are restarts.";
   const HOW_HREF = "how.html";
   const HOW_LINK_TEXT = "How we count";
   const PAUSE_TEXT_SUFFIX = " s pause";
@@ -375,8 +385,9 @@
 
   // Where the take's moments fall on the speech timeline: positions from 0 (the first word) to
   // 1 (the last), each with its recording-time clock (`time`), for every filler, the pauses the
-  // card counts (mid-sentence, or 5 s+ anywhere, flagged `long`) and the clean stretch when
-  // there is one. Null for a take without words or without speaking time. Pure.
+  // card counts (mid-sentence, or 5 s+ anywhere, flagged `long`), every restart (at its `at`,
+  // where the abandoned first copy began) and the clean stretch when there is one. Null for a
+  // take without words or without speaking time. Pure.
   function timelineSegments(report) {
     const start = report ? report.speechStart : null;
     const seconds = report ? report.speakingSeconds : 0;
@@ -399,6 +410,11 @@
         seconds: pause.length,
         long: pause.long,
       }));
+    const restarts = listOf(report.restarts).map((restart) => ({
+      at: position(restart.at),
+      time: restart.at,
+      text: restart.text,
+    }));
     const clean = report.cleanStretch;
     const cleanStretch =
       clean && clean.seconds > 0
@@ -410,7 +426,7 @@
             seconds: clean.seconds,
           }
         : null;
-    return { start, seconds, fillers, pauses, cleanStretch };
+    return { start, seconds, fillers, pauses, restarts, cleanStretch };
   }
 
   function listOf(value) {
@@ -440,10 +456,13 @@
   // for every backend word and {type: "pause", length} for every [at, length] in `pauses`
   // (Results passes only the pauses the card counts: mid-sentence, or 5 s+ anywhere). A pause
   // goes right after the last word whose end is at or before `at`; when no word has ended by
-  // then it goes before the first word. Pure: fresh objects, and neither input is changed.
-  function buildTranscriptPlan(words, pauses) {
+  // then it goes before the first word. A word whose index is in `restartWords` (the second
+  // copies of the report's restarts) also gets `restart: true`. Pure: fresh objects, and no
+  // input is changed.
+  function buildTranscriptPlan(words, pauses, restartWords) {
     const wordList = Array.isArray(words) ? words : [];
     const pauseList = Array.isArray(pauses) ? pauses : [];
+    const restartIndexes = new Set(listOf(restartWords));
     const kinds = app.delivery.classify(wordList);
 
     // Slot 0 holds the pauses that go before the first word; slot i + 1 those after word i.
@@ -456,12 +475,16 @@
 
     const plan = [...slots[0]];
     wordList.forEach((word, index) => {
-      plan.push({
+      const item = {
         type: WORD_ITEM,
         text: textOf(word),
         filler: kinds[index] !== null,
         kind: kinds[index],
-      });
+      };
+      if (restartIndexes.has(index)) {
+        item.restart = true;
+      }
+      plan.push(item);
       plan.push(...slots[index + 1]);
     });
     return plan;
@@ -559,7 +582,11 @@
     const summary = summarize(session);
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
-    const plan = buildTranscriptPlan(session.transcript, countedPauses(summary.report));
+    const plan = buildTranscriptPlan(
+      session.transcript,
+      countedPauses(summary.report),
+      restartWords(summary.report),
+    );
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const segments = hasTranscript ? timelineSegments(summary.report) : null;
     const tips = selectTips(summary.report, summary.target);
@@ -576,7 +603,7 @@
     }
     if (hasTranscript) {
       body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
-      body.appendChild(buildLegend(summary.topHabit));
+      body.appendChild(buildLegend(summary.topHabit, showsRestart(plan)));
       body.appendChild(buildTranscript(plan));
     }
     if (tips.length > 0) {
@@ -594,6 +621,16 @@
       .map((pause) => [pause.at, pause.length]);
   }
 
+  // The indexes of every word that says a restarted phrase again, for the transcript.
+  function restartWords(report) {
+    return listOf(report.restarts).flatMap((restart) => listOf(restart.secondCopy));
+  }
+
+  // A filler keeps its own style, so only a plain word draws as a restart.
+  function showsRestart(plan) {
+    return plan.some((item) => item.restart && !item.filler);
+  }
+
   // tips.js loads before this file in index.html. Without it (a failed load, or a context that
   // stubs app without tips) the screen simply has no Tips section instead of an error.
   function selectTips(report, target) {
@@ -603,12 +640,16 @@
     return app.tips.select(report, { targetWpm: target });
   }
 
-  // What the two highlight styles mean, plus the most-used habit when there is one. The link
-  // follows the text after a plain space, which disappears when the link wraps to a new line,
-  // so a wrapped link starts flush with the text above it.
-  function buildLegend(topHabit) {
+  // What the two highlight styles mean, then the restart style when the transcript shows one,
+  // plus the most-used habit when there is one. The link follows the text after a plain space,
+  // which disappears when the link wraps to a new line, so a wrapped link starts flush with the
+  // text above it.
+  function buildLegend(topHabit, hasRestart) {
     const link = app.ui.el("a", { class: "transcript__how", href: HOW_HREF, text: HOW_LINK_TEXT });
     let text = LEGEND_TEXT;
+    if (hasRestart) {
+      text += LEGEND_RESTART_TEXT;
+    }
     if (topHabit) {
       const times = topHabit.count === 1 ? " time." : " times.";
       text += " Most used: “" + topHabit.text + "”, " + topHabit.count + times;
@@ -632,7 +673,15 @@
   }
 
   // The label uses the bare word, so "Um," reads as "um, filler word" (DESIGN.md section 6).
+  // A filler inside a restarted phrase keeps its filler style.
   function wordToken(item) {
+    if (!item.filler && item.restart) {
+      return app.ui.el("span", {
+        class: "tok tok--restart",
+        "aria-label": normalizeWord(item.text) + RESTART_LABEL_SUFFIX,
+        text: item.text,
+      });
+    }
     if (!item.filler) {
       return app.ui.el("span", { class: "tok", text: item.text });
     }
@@ -783,7 +832,7 @@
   }
 
   // Bottom layer first: the track, the clean-stretch band and its base line, the pause blocks
-  // (long ones taller than the track), then the filler ticks on top.
+  // (long ones taller than the track), the restart lines, then the filler ticks on top.
   function timelineStrip(segments) {
     const strip = svgEl("svg", {
       class: "timeline__strip",
@@ -796,6 +845,7 @@
       stripTrack(),
       ...stripCleanStretch(segments.cleanStretch),
       ...segments.pauses.map(stripPause),
+      ...segments.restarts.map(stripRestart),
       ...segments.fillers.map(stripFiller),
     ].forEach((mark) => strip.appendChild(mark));
     return strip;
@@ -847,10 +897,19 @@
 
   // A tick is centered on its filler's start and kept inside the strip at either end.
   function stripFiller(filler) {
-    const centered = filler.at * STRIP.width - STRIP.tickWidth / 2;
-    const x = Math.min(STRIP.width - STRIP.tickWidth, Math.max(0, centered));
-    const box = [x, STRIP.tickY, STRIP.tickWidth, STRIP.tickHeight];
+    const box = [tickX(filler.at, STRIP.tickWidth), STRIP.tickY, STRIP.tickWidth, STRIP.tickHeight];
     return stripRect("timeline__filler", box, STRIP_COLORS.filler);
+  }
+
+  // A restart line stands at the start of the abandoned first copy, the full strip tall.
+  function stripRestart(restart) {
+    const box = [tickX(restart.at, STRIP.restartWidth), 0, STRIP.restartWidth, STRIP.height];
+    return stripRect("timeline__restart", box, STRIP_COLORS.restart);
+  }
+
+  // The left edge of a mark `width` wide centered on `at`, kept inside the strip.
+  function tickX(at, width) {
+    return Math.min(STRIP.width - width, Math.max(0, at * STRIP.width - width / 2));
   }
 
   function stripRect(className, [x, y, width, height], fill) {
@@ -866,7 +925,8 @@
 
   // "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
   // stretch", in the recording-time clock the tips use. A take with long pauses adds "1 long
-  // pause" after the mid-sentence count, which then leaves the long ones out.
+  // pause" after the mid-sentence count, which then leaves the long ones out; a take with
+  // restarts then adds "1 restart".
   function timelineLabel(segments) {
     const from = app.ui.formatClock(segments.start);
     const to = app.ui.formatClock(segments.start + segments.seconds);
@@ -878,6 +938,9 @@
     ];
     if (longCount > 0) {
       parts.push(countText(longCount, "long pause", "long pauses"));
+    }
+    if (segments.restarts.length > 0) {
+      parts.push(countText(segments.restarts.length, "restart", "restarts"));
     }
     parts.push(cleanStretchText(segments.cleanStretch));
     return TIMELINE_TITLE + " from " + from + " to " + to + ": " + parts.join(", ");
@@ -918,8 +981,11 @@
   }
 
   function timelineLegend(segments) {
-    const hasLongPause = segments.pauses.some((pause) => pause.long);
-    const keys = LEGEND_KEYS.filter(([kind]) => kind !== LONG_PAUSE_KEY || hasLongPause);
+    const shown = {
+      [LONG_PAUSE_KEY]: segments.pauses.some((pause) => pause.long),
+      [RESTART_KEY]: segments.restarts.length > 0,
+    };
+    const keys = LEGEND_KEYS.filter(([kind]) => shown[kind] !== false);
     return app.ui.el(
       "p",
       { class: "timeline__legend" },
@@ -949,6 +1015,10 @@
           clock(pause.time),
           pause.seconds.toFixed(1),
         ),
+      })),
+      ...segments.restarts.map((restart) => ({
+        time: restart.time,
+        text: MOMENT.restart(restart.text, clock(restart.time)),
       })),
     ];
     const clean = segments.cleanStretch;
