@@ -5,6 +5,7 @@ import json
 import time
 from pathlib import Path
 
+from backend.metrics import find_repeats
 from backend.providers.assemblyai import to_word
 from backend.providers.base import Word
 from backend.script_align import ScriptReport, ScriptSlip, align
@@ -247,3 +248,217 @@ def test_a_three_minute_take_against_a_600_word_script_aligns_quickly() -> None:
 
     assert len(report.skipped) >= 10
     assert elapsed < 1.0
+
+
+# --- cut-offs, pasted scripts, stutters, doubled script words, script fillers ---
+
+# A clean script for the owner's real nervous take: its own transcript as the speaker meant
+# it, without the abandoned 'I kinda ner—' and without the hesitations.
+NERVOUS_SCRIPT = (
+    "The best part of my day was waking up and not feeling too tired to go to church. "
+    "Afterwards, I was also able to do some residual work on the app that I'm making for the "
+    "Congressional App Challenge. It felt very rewarding to be able to put it on my home "
+    "screen and actually be able to test it out for the first time. I'm kinda nervous though "
+    "for judging because, I put a lot of effort into this and if I didn't win, I would be "
+    "sad. I didn't eat breakfast today, but that's okay because I'm going to church, so I "
+    "needed to fast anyway. Church isn't gonna take too long, so I'll be back home in time. "
+    "To watch football, and that'll make me happy. I like watching football because of "
+    "fantasy football, and my team winning makes me happy."
+)
+
+# Copied from frontend/passages.js (GETTYSBURG_OPENING and LIBERTY_OR_DEATH): each has one
+# word written twice in a row.
+GETTYSBURG_LINE = "gave their lives that that nation might live."
+LIBERTY_LINE = "Gentlemen may cry, Peace, Peace, but there is no peace."
+
+
+def no_slips(report: ScriptReport) -> bool:
+    """Whether the report has no skipped and no misread script words."""
+    return report.skipped == [] and report.misread == []
+
+
+def test_a_cut_off_word_finished_right_after_is_one_restart() -> None:
+    words = words_from("the evidence sa— says otherwise")
+
+    report = align(words, "the evidence says otherwise")
+
+    assert report == ScriptReport(
+        restarts=[{"text": "sa", "at": words[2].start}], skipped=[], misread=[]
+    )
+    assert report.restarts == find_repeats(words)
+
+
+def test_a_cut_off_phrase_said_again_keeps_its_fragment_in_the_restart() -> None:
+    words = words_from("the evi— the evidence says otherwise")
+
+    report = align(words, "the evidence says otherwise")
+
+    assert report == ScriptReport(restarts=[{"text": "the evi", "at": 0.0}], skipped=[], misread=[])
+    assert report.restarts == find_repeats(words)
+
+
+def test_a_cut_off_restart_keeps_the_words_before_the_fragment() -> None:
+    words = words_from("honestly I kinda ner— I am kinda nervous about this")
+
+    report = align(words, "honestly I am kinda nervous about this")
+
+    assert report == ScriptReport(
+        restarts=[{"text": "I kinda ner", "at": words[1].start}], skipped=[], misread=[]
+    )
+
+
+def test_a_restart_keeps_its_misread_first_attempt() -> None:
+    words = words_from("one of the few decision — the few decisions a student")
+
+    report = align(words, "one of the few decisions a student")
+
+    assert report == ScriptReport(
+        restarts=[{"text": "the few decision", "at": words[2].start}], skipped=[], misread=[]
+    )
+
+
+def test_the_real_nervous_take_against_a_clean_script_reports_its_one_restart() -> None:
+    raw = json.loads((FIXTURES / "take_2026_10_11_nervous.json").read_text())
+    words = [to_word(word) for word in raw["words"]]
+
+    report = align(words, NERVOUS_SCRIPT)
+
+    assert report == ScriptReport(
+        restarts=[{"text": "I kinda ner", "at": 27.379}], skipped=[], misread=[]
+    )
+    assert report.restarts == find_repeats(words)
+
+
+def test_a_pasted_script_with_curly_apostrophes_reads_cleanly() -> None:
+    report = align(words_from("We don't lose it's value"), "We don’t lose it’s value")
+
+    assert report == ScriptReport(restarts=[], skipped=[], misread=[])
+
+
+def test_script_words_joined_by_a_dash_read_cleanly_as_two_spoken_words() -> None:
+    cases = [
+        (
+            "Uniforms do not stop bullying the evidence says otherwise",
+            "Uniforms do not stop bullying—the evidence says otherwise.",
+        ),
+        ("one of the few decisions a student makes", "one of the few decisions–a student makes"),
+        ("one of the few decisions a student makes", "one of the few decisions--a student makes"),
+        ("a well known fact", "a well-known fact"),
+        ("a well-known fact", "a well known fact"),
+        ("a well-known fact", "a well-known fact"),
+    ]
+    for spoken, script in cases:
+        assert align(words_from(spoken), script) == ScriptReport(
+            restarts=[], skipped=[], misread=[]
+        ), (spoken, script)
+
+
+def test_a_skipped_half_of_a_dash_joined_word_keeps_the_script_index_of_the_whole() -> None:
+    words = words_from("stop bullying evidence says")
+
+    report = align(words, "stop bullying—the evidence says")
+
+    assert report == ScriptReport(
+        restarts=[], skipped=[ScriptSlip(word="the", index=1, at=words[1].end)], misread=[]
+    )
+
+
+def test_a_hyphenated_hesitation_in_speech_is_still_a_filler() -> None:
+    report = align(words_from("a mm-hmm student uh-huh makes"), "a student makes")
+
+    assert report == ScriptReport(restarts=[], skipped=[], misread=[])
+
+
+def test_a_word_said_three_times_is_two_restarts_like_find_repeats() -> None:
+    for spoken in (
+        "one of the the the few decisions a student",
+        "one of the few few few decisions a student",
+        "one of the few decisions a a a student",
+    ):
+        words = words_from(spoken)
+
+        report = align(words, "one of the few decisions a student")
+
+        assert len(report.restarts) == 2, spoken
+        assert report.restarts == find_repeats(words), spoken
+        assert no_slips(report), spoken
+
+
+def test_going_back_over_a_doubled_script_word_is_one_restart() -> None:
+    words = words_from("gave their lives that that nation uh that nation might live.")
+
+    report = align(words, GETTYSBURG_LINE)
+
+    assert report == ScriptReport(
+        restarts=[{"text": "that nation", "at": words[4].start}], skipped=[], misread=[]
+    )
+
+
+def test_going_back_to_the_second_of_two_doubled_script_words_is_one_restart() -> None:
+    words = words_from("Gentlemen may cry, Peace, Peace, but there Peace, but there is no peace.")
+
+    report = align(words, LIBERTY_LINE)
+
+    assert report == ScriptReport(
+        restarts=[{"text": "Peace but there", "at": words[4].start}], skipped=[], misread=[]
+    )
+
+
+def test_going_back_further_over_a_doubled_script_word_is_one_restart() -> None:
+    for back in (1, 2, 3, 4):
+        script_words = GETTYSBURG_LINE.split()
+        stop = script_words.index("nation") + 2
+        spoken = script_words[:stop] + script_words[stop - back - 1 :]
+
+        report = align(words_from(" ".join(spoken)), GETTYSBURG_LINE)
+
+        assert len(report.restarts) == 1, spoken
+        assert no_slips(report), spoken
+
+
+def test_a_restart_keeps_script_words_that_are_also_fillers() -> None:
+    cases = [
+        (
+            "Is life so dear, or Is life so dear, or peace so sweet",
+            "Is life so dear, or peace so sweet",
+            "Is life so dear or",
+        ),
+        (
+            "so skilled stewards so skilled stewards sweep stale stalls",
+            "so skilled stewards sweep stale stalls",
+            "so skilled stewards",
+        ),
+        (
+            "The war is actually The war is actually begun.",
+            "The war is actually begun.",
+            "The war is actually",
+        ),
+    ]
+    for spoken, script, restarted in cases:
+        report = align(words_from(spoken), script)
+
+        assert report == ScriptReport(
+            restarts=[{"text": restarted, "at": 0.0}], skipped=[], misread=[]
+        ), spoken
+
+
+def test_a_script_word_said_twice_that_is_also_a_filler_is_a_restart() -> None:
+    words = words_from("any nation so so conceived")
+
+    report = align(words, "any nation so conceived")
+
+    assert report == ScriptReport(
+        restarts=[{"text": "so", "at": words[2].start}], skipped=[], misread=[]
+    )
+
+
+def test_an_added_word_matching_the_script_word_after_next_is_not_a_restart() -> None:
+    for spoken, script in (
+        ("forth on this a continent, a new nation", "forth on this continent, a new nation"),
+        ("past stone and stairs, and steady", "past stone stairs, and steady"),
+        ("a backpack, or a the phone. The real", "a backpack, or a phone. The real"),
+    ):
+        report = align(words_from(spoken), script)
+
+        assert report.restarts == [], spoken
+        assert no_slips(report), spoken

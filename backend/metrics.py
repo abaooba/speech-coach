@@ -257,11 +257,11 @@ def _cut_off_match(spoken: list[Word], tokens: list[str], start: int, cut: int) 
     phrase = tokens[start : cut + 1]
     best = (0, 0)
     for restart in range(cut + 1, min(cut + 1 + CUTOFF_LOOKAHEAD_WORDS, len(spoken))):
-        if _says_again(phrase[0], tokens[restart], is_fragment=start == cut):
+        if says_again(phrase[0], tokens[restart], is_fragment=start == cut):
             matched, at = 1, restart + 1
             for position, token in enumerate(phrase[1:], start=start + 1):
                 following = tokens[at : at + 2]
-                hits = [_says_again(token, said, is_fragment=position == cut) for said in following]
+                hits = [says_again(token, said, is_fragment=position == cut) for said in following]
                 if not any(hits):
                     break
                 matched, at = matched + 1, at + hits.index(True) + 1
@@ -272,7 +272,7 @@ def _cut_off_match(spoken: list[Word], tokens: list[str], start: int, cut: int) 
     return best
 
 
-def _says_again(token: str, said: str, is_fragment: bool) -> bool:
+def says_again(token: str, said: str, is_fragment: bool) -> bool:
     """Whether `said` repeats `token`: the same stem, or the cut-off fragment finished."""
     if _stem(said) == _stem(token):
         return True
