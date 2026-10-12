@@ -870,6 +870,66 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
+/* Talk's script box follows the record zone, outside the body, so the body keeps the
+   one-screen layout above; the column grows and the page scrolls only while the box is open.
+   Its summary is a small accent row on a 44px target, like the sample button. */
+#screen-practice .practice__script {
+  flex: none;
+  margin-top: var(--s-3);
+}
+
+#screen-practice .practice__script[hidden] {
+  display: none;
+}
+
+.practice__script-summary {
+  min-height: 44px;
+  padding-block: var(--s-3);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.practice__script-label {
+  display: block;
+  margin-top: var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.practice__script-note {
+  margin: var(--s-1) 0 var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Body size keeps iPhone Safari from zooming in when the box takes focus. */
+.practice__script-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 120px;
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+/* Focus scrolls the summary and the box clear of the nav, as the screen's buttons are. */
+#screen-practice :is(summary, textarea) {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
 /* Recording state: live clock color, pulsing dot, stop icon instead of the mic. */
 #screen-practice[data-state="recording"] .timer {
   color: var(--text);

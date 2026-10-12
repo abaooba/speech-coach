@@ -1,7 +1,9 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
    mount() builds the Talk / Read switch, chips, card, timer, record button, hint and state block
-   once; render(state, detail) repaints them. Stop uploads the take through app.api and saves it
-   with app.store. It never asks for the microphone before a Record tap, and never stores audio. */
+   once, and Talk's script box after them; render(state, detail) repaints them. Stop uploads the
+   take with its script (a Read passage's text, or the one pasted on Talk) through app.api and
+   saves it with app.store. It never asks for the microphone before a Record tap, and never
+   stores audio. */
 (function () {
   "use strict";
 
@@ -19,6 +21,16 @@
   const CARD_TITLE_ID = "practice-card-title";
   const LIMIT_PREFIX = "/ ";
   const LIMIT_OVER_CLASS = "practice__limit-bar--over";
+
+  // Talk's optional script box: a speaker giving a prepared speech pastes it here, and the take
+  // is checked against it as a Read passage is. The cap is the backend's MAX_SCRIPT_CHARACTERS.
+  const SCRIPT_KIND = "prompt";
+  const SCRIPT_SUMMARY = "Paste your script (optional)";
+  const SCRIPT_LABEL = "Your script";
+  const SCRIPT_NOTE = "Your take is checked against it for restarts, skips and misreads.";
+  const SCRIPT_INPUT_ID = "practice-script";
+  const SCRIPT_NOTE_ID = "practice-script-note";
+  const SCRIPT_MAX_CHARACTERS = 20000;
 
   // The theme toggle beside the wordmark shows the current choice; a tap moves to the next one
   // (app.ui.nextTheme: auto, dark, light) and the live region names it (DESIGN.md section 8).
@@ -119,6 +131,8 @@
     hintText: null,
     sampleButton: null,
     stateBlock: null,
+    scriptBox: null,
+    scriptInput: null,
   };
 
   // Everything a live take holds, from the Record tap until Stop or hide() lets it go.
@@ -251,8 +265,33 @@
     );
     nodes.stateBlock = app.ui.el("div", { class: "practice__state" });
     body.appendChild(nodes.stateBlock);
+    // After the body, so the body's parts stay the one-screen list of DESIGN.md section 3.
+    root.appendChild(buildScriptBox());
 
     render("idle");
+  }
+
+  // A closed <details> under the record zone: its summary opens a labeled textarea. The note
+  // under the label says what the script is for and describes the box to screen readers.
+  function buildScriptBox() {
+    nodes.scriptInput = app.ui.el("textarea", {
+      class: "practice__script-input",
+      id: SCRIPT_INPUT_ID,
+      rows: "6",
+      maxlength: String(SCRIPT_MAX_CHARACTERS),
+      "aria-describedby": SCRIPT_NOTE_ID,
+    });
+    nodes.scriptBox = app.ui.el("details", { class: "practice__script" }, [
+      app.ui.el("summary", { class: "practice__script-summary", text: SCRIPT_SUMMARY }),
+      app.ui.el("label", {
+        class: "practice__script-label",
+        for: SCRIPT_INPUT_ID,
+        text: SCRIPT_LABEL,
+      }),
+      app.ui.el("p", { class: "practice__script-note", id: SCRIPT_NOTE_ID, text: SCRIPT_NOTE }),
+      nodes.scriptInput,
+    ]);
+    return nodes.scriptBox;
   }
 
   function buildSampleButton() {
@@ -479,6 +518,7 @@
     paintPassageCard(view, passage);
     paintTimeLimit(passage);
     paintRecordButton(view);
+    paintScriptBox(view);
     nodes.hintText.textContent = view.hintText;
     paintStateBlock(view.dataState, detail || {});
   }
@@ -549,6 +589,13 @@
     const ratio = limit === null ? 0 : limitRatio(seconds, limit);
     nodes.limitFill.setAttribute("style", "transform: scaleX(" + ratio + ")");
     nodes.limitBar.classList.toggle(LIMIT_OVER_CLASS, limit !== null && seconds >= limit);
+  }
+
+  // The box shows on Talk only. Outside idle it is read-only rather than disabled, so the
+  // speaker can still scroll and read it while the take records.
+  function paintScriptBox(view) {
+    nodes.scriptBox.hidden = currentKind !== SCRIPT_KIND;
+    nodes.scriptInput.readOnly = view.chipsDisabled;
   }
 
   function paintRecordButton(view) {
@@ -763,8 +810,19 @@
       samples,
       passageId: passage ? passage.id : null,
       passageTitle: passage ? passage.title : "",
+      script: scriptFor(passage),
     };
     upload();
+  }
+
+  // The text the take was read from, fixed at Stop so Retry re-sends the same: a Read
+  // passage's text, or on Talk the pasted script without its edge spaces ("" for none). Some
+  // test fakes give the textarea no value.
+  function scriptFor(entry) {
+    if (entry && entry.kind !== SCRIPT_KIND) {
+      return entry.text;
+    }
+    return String(nodes.scriptInput.value || "").trim();
   }
 
   // The Too short block, after a Stop under 5 seconds or when the backend heard under 5 seconds
@@ -826,7 +884,7 @@
       focusIfPossible(stateTitle());
     }
     try {
-      const result = await app.api.analyze(take.blob, take.contentType);
+      const result = await app.api.analyze(take.blob, take.contentType, take.script);
       const metrics =
         app.pauses && take.samples
           ? app.pauses.reconcile(result.metrics, take.samples)

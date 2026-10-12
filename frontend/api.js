@@ -1,5 +1,6 @@
-/* api.js: app.api, the one place the frontend talks to the backend. analyze(blob, contentType)
-   posts a recording to POST /api/analyze and resolves with the backend's {transcript, metrics};
+/* api.js: app.api, the one place the frontend talks to the backend. analyze(blob, contentType,
+   script) posts a recording to POST /api/analyze, with the text it was read from when there is
+   one, and resolves with the backend's {transcript, metrics} (metrics.script for a script);
    a failure rejects with an Error whose .kind is "network" | "too_short" | "provider" | "unknown"
    and .message a fixed sentence. It touches no DOM and no store, and never keeps the audio. */
 (function () {
@@ -7,6 +8,8 @@
 
   const ANALYZE_URL = "/api/analyze";
   const AUDIO_FIELD = "audio";
+  // The backend lines the take up against this text; it turns down one over 20,000 characters.
+  const SCRIPT_FIELD = "script";
   const FILENAME_STEM = "recording.";
   const DEFAULT_EXTENSION = "webm";
 
@@ -25,9 +28,13 @@
 
   const KIND_BY_STATUS = { 400: "too_short", 502: "provider" };
 
-  async function analyze(blob, contentType) {
+  async function analyze(blob, contentType, script) {
     const form = new FormData();
     form.append(AUDIO_FIELD, blob, FILENAME_STEM + extensionFor(contentType));
+    // A take with no script, or one of only spaces, is free talk: the field is left out.
+    if (typeof script === "string" && script.trim() !== "") {
+      form.append(SCRIPT_FIELD, script);
+    }
 
     const deadline = startDeadline();
     try {
