@@ -52,8 +52,9 @@
   // so Results can find the words that say a phrase again. These sounds and bare punctuation
   // ("—" said on its own) are never part of a phrase.
   const REPEAT_SKIP_WORDS = ["um", "uh", "hmm"];
-  // After the first copy the second starts within this many words: a free-talk restart leaves
-  // at most 2 abandoned words, a cut-off restart starts again within 4 (CUTOFF_LOOKAHEAD_WORDS).
+  // After a free-talk first copy the second starts within this many words: a restart leaves at
+  // most 2 abandoned words, a cut-off restart starts again within 4 (CUTOFF_LOOKAHEAD_WORDS).
+  // A script restart has no such limit (see restartOf).
   const SECOND_COPY_SEARCH_WORDS = 4;
   // A dash ending a word marks where the speaker cut themselves off ("ner—", "day—").
   const CUTOFF_MARK = /[—–-]$/;
@@ -196,7 +197,7 @@
     const list = toWords(words);
     const given = metrics && typeof metrics === "object" ? metrics : {};
     const pauses = pausePairs(given.pauses);
-    const repeats = validRepeats(given.repeats);
+    const repeats = validRepeats(given.repeats, given.script);
     if (list.length === 0) {
       return reportWithoutWords(given, pauses, repeats);
     }
@@ -227,7 +228,7 @@
       ...pauseTallies(classified),
       cleanStretch: longestCleanStretch(list, fillers, breaks, repeats),
       repeatCount: repeats.length,
-      restarts: repeats.map((repeat) => restartOf(list, repeat)),
+      restarts: restartsOf(list, repeats),
     };
   }
 
@@ -263,7 +264,7 @@
       ...pauseTallies(classified),
       cleanStretch: null,
       repeatCount: repeats.length,
-      restarts: repeats.map((repeat) => restartOf([], repeat)),
+      restarts: restartsOf([], repeats),
     };
   }
 
@@ -407,61 +408,109 @@
   // A backend repeat as Results draws it: {at, text, secondCopy}, where secondCopy lists the
   // indexes of the words that say the phrase again (none when they cannot be found). Every kind
   // of repeat has the same {text, at}: `at` starts the first copy and `text` is that copy, so
-  // the first copy is walked word by word from `at`; the second starts at the first of the next
-  // SECOND_COPY_SEARCH_WORDS words that begins the phrase (see saysAgain). From there as many
-  // words as the phrase has are marked; um, uh, hmm and bare punctuation are passed over.
-  function restartOf(list, repeat) {
+  // the first copy is the phrase's words from `at` on. The second copy starts at the word after
+  // it that says the most of the phrase (see copyMatch), the earliest on a tie, as backend
+  // _cut_off_match picks it, so a false start on the same first word ("I, uh, I think") stays
+  // plain. A free-talk repeat looks SECOND_COPY_SEARCH_WORDS words ahead; a script restart
+  // (`fromScript`) can drop any number of words before it goes back, so it looks up to
+  // `searchUntil`, where the next repeat begins (Infinity: to the end of the take). A copy that
+  // says less than two words of a longer phrase is not one.
+  function restartOf(pieces, repeat, searchUntil) {
     const restart = { at: repeat.at, text: repeat.text, secondCopy: [] };
-    const phrase = repeat.text.split(" ").map(normalizeWord).filter(Boolean);
-    const first = list.findIndex((word) => word.start >= repeat.at - MILLISECOND);
-    if (phrase.length === 0 || first === -1) {
+    const phrase = phrasePiecesOf(repeat.text);
+    const first = pieces.findIndex((piece) => piece.start >= repeat.at - MILLISECOND);
+    const firstEnd = first + phrase.length - 1;
+    if (phrase.length === 0 || first === -1 || firstEnd >= pieces.length) {
       return restart;
     }
-    const firstCopy = phraseCopyFrom(list, first, phrase);
-    if (firstCopy.length === 0) {
-      return restart;
-    }
-    const isFragment = phrase.length === 1 && CUTOFF_MARK.test(list[firstCopy[0]].text);
-    let index = firstCopy[firstCopy.length - 1] + 1;
-    let looked = 0;
-    for (; index < list.length && looked < SECOND_COPY_SEARCH_WORDS; index += 1) {
-      if (isRepeatSkip(list[index].text)) {
-        continue;
-      }
-      if (saysAgain(phrase[0], normalizeWord(list[index].text), isFragment)) {
-        restart.secondCopy = phraseCopyFrom(list, index, phrase);
+    const isFragment = pieces[firstEnd].cutOff;
+    const lastCandidate = repeat.fromScript
+      ? pieces.length - 1
+      : Math.min(pieces.length - 1, firstEnd + SECOND_COPY_SEARCH_WORDS);
+    let best = { said: 0, slips: 0, from: -1, to: -1 };
+    for (let from = firstEnd + 1; from <= lastCandidate; from += 1) {
+      if (pieces[from].start > searchUntil + MILLISECOND) {
         break;
       }
-      looked += 1;
+      const match = copyMatch(pieces, from, phrase, isFragment);
+      const better =
+        match.said > best.said || (match.said === best.said && match.slips < best.slips);
+      if (match.said > 0 && better) {
+        best = { ...match, from };
+      }
+    }
+    if (best.said >= Math.min(2, phrase.length)) {
+      const indexes = pieces.slice(best.from, best.to + 1).map((piece) => piece.index);
+      restart.secondCopy = [...new Set(indexes)];
     }
     return restart;
   }
 
-  // The indexes of the words from `start` on that say `phrase` once more, by count.
-  function phraseCopyFrom(list, start, phrase) {
-    const copy = [];
-    for (let index = start, said = 0; said < phrase.length && index < list.length; index += 1) {
-      if (!isRepeatSkip(list[index].text)) {
-        copy.push(index);
-        said += phraseWordsIn(list[index].text, phrase[said] || "");
+  // How much of `phrase` the pieces from `from` on say again: {said, slips, to}. The first piece
+  // must say the phrase's first word. Each next phrase word is said by the next piece, or by
+  // the one after with one word inserted before it ("I'm going to— I am going"), or the next
+  // piece misreads it when the piece after says the phrase word after ("the few choices a").
+  // Inserted and misread words are slips; the walk stops at the first phrase word not said.
+  // `to` is the last piece of the copy. The last phrase word is a cut-off fragment when
+  // `isFragment`, so a word it begins finishes it ("ner—" then "nervous").
+  function copyMatch(pieces, from, phrase, isFragment) {
+    const says = (position, at) =>
+      at < pieces.length &&
+      saysAgain(phrase[position], pieces[at].token, isFragment && position === phrase.length - 1);
+    if (!says(0, from)) {
+      return { said: 0, slips: 0, to: from };
+    }
+    let said = 1;
+    let slips = 0;
+    let at = from + 1;
+    for (let position = 1; position < phrase.length; position += 1) {
+      if (says(position, at)) {
+        said += 1;
+        at += 1;
+      } else if (says(position, at + 1)) {
+        said += 1;
+        slips += 1;
+        at += 2;
+      } else if (position + 1 < phrase.length && says(position + 1, at + 1)) {
+        slips += 1;
+        at += 1;
+      } else {
+        break;
       }
     }
-    return copy;
+    return { said, slips, to: at - 1 };
   }
 
-  // How many phrase words one spoken word holds: two for "bullying—the" when the phrase has
-  // "bullying" there, since the script alignment splits it; one otherwise.
-  function phraseWordsIn(text, expected) {
-    const token = normalizeWord(text);
-    if (token === expected) {
-      return 1;
-    }
-    return Math.max(1, token.split(JOINING_DASH).filter(Boolean).length);
+  // The spoken words as the backend compares them for a repeat, as {index, token, start,
+  // cutOff}: um, uh, hmm and bare punctuation ("—" said on its own) left out, and two words
+  // joined by a dash ("bullying—the") split into two pieces of the same word, as
+  // backend/script_align.py reads them. `index` is the word's place in the transcript;
+  // `cutOff` says the word ends in a cut-off dash ("ner—").
+  function repeatPieces(list) {
+    return list.flatMap((word, index) => {
+      const token = normalizeWord(word.text);
+      if (token === "" || REPEAT_SKIP_WORDS.includes(token)) {
+        return [];
+      }
+      const parts = isHesitation(word.text) ? [token] : token.split(JOINING_DASH);
+      const cutOff = CUTOFF_MARK.test(word.text);
+      return parts
+        .filter(Boolean)
+        .map((part) => ({ index, token: straightApostrophes(part), start: word.start, cutOff }));
+    });
   }
 
-  function isRepeatSkip(text) {
-    const token = normalizeWord(text);
-    return token === "" || REPEAT_SKIP_WORDS.includes(token);
+  // A repeat's text as the same pieces: "bullying the fear", or "well-known fact" in two.
+  function phrasePiecesOf(text) {
+    return text
+      .split(" ")
+      .flatMap((word) => normalizeWord(word).split(JOINING_DASH))
+      .filter(Boolean)
+      .map(straightApostrophes);
+  }
+
+  function straightApostrophes(token) {
+    return token.replace(/[‘’]/g, "'");
   }
 
   // Whether `said` says `token` again, as backend says_again: the same stem, or the cut-off
@@ -479,11 +528,24 @@
     return bare.length > 3 && bare.endsWith("s") && !bare.endsWith("ss") ? bare.slice(0, -1) : bare;
   }
 
-  // The backend's repeats as {at, text, words}, skipping any entry without a numeric `at`.
-  function validRepeats(repeats) {
+  // Each repeat drawn on Results (see restartOf), in the backend's order. A script restart
+  // searches up to where the next repeat begins.
+  function restartsOf(list, repeats) {
+    const pieces = repeatPieces(list);
+    return repeats.map((repeat) => {
+      const later = repeats.filter((other) => other.at > repeat.at + MILLISECOND);
+      const searchUntil = Math.min(Infinity, ...later.map((other) => other.at));
+      return restartOf(pieces, repeat, searchUntil);
+    });
+  }
+
+  // The backend's repeats as {at, text, words, fromScript}, skipping any entry without a
+  // numeric `at`. `fromScript` marks a script restart: one metrics.script.restarts also lists.
+  function validRepeats(repeats, script) {
     if (!Array.isArray(repeats)) {
       return [];
     }
+    const scriptRestarts = script && Array.isArray(script.restarts) ? script.restarts : [];
     return repeats
       .filter((repeat) => repeat && isFiniteNumber(repeat.at))
       .map((repeat) => {
@@ -492,6 +554,9 @@
           at: repeat.at,
           text,
           words: Math.max(1, text.split(" ").filter(Boolean).length),
+          fromScript: scriptRestarts.some(
+            (restart) => restart && restart.at === repeat.at && restart.text === repeat.text,
+          ),
         };
       });
   }

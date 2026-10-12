@@ -1,9 +1,10 @@
 // Tests for showing restarts on Results (queue task T29). Every backend repeat ({text, at}: a
 // phrase said twice, a restart after abandoned words, a cut-off restart, or a script restart)
 // marks the words of its SECOND copy with .tok--restart, adds a Restart entry to the transcript
-// legend, and draws a thin --pause tick on the speech timeline at its `at`, with a legend chip
-// and a line in the hidden list of moments. Checked on made-up takes, on the owner's two real
-// 2026-10-11 takes and on the script restarts backend/tests/test_script_align.py pins.
+// legend, and draws a thin --pause tick on the speech timeline at its `at`, with a legend chip.
+// Checked on made-up takes, on the owner's two real 2026-10-11 takes and on the script restarts
+// backend/tests/test_script_align.py pins. The repeats in the made-up takes below are what
+// backend metrics.analyze (or script_align.analyze_reading, for a take with a script) returns.
 "use strict";
 
 const test = require("node:test");
@@ -65,6 +66,13 @@ function sessionWith(words, repeats) {
     metrics: { pauses: [], repeats, fillers: {}, pace_windows: [] },
     transcript: words,
   };
+}
+
+// A take read from a script: analyze_reading also lists its script restarts under metrics.script.
+function readingSessionWith(words, restarts) {
+  const session = sessionWith(words, restarts);
+  session.metrics.script = { restarts, skipped: [], misread: [] };
+  return session;
 }
 
 function loadApp(session) {
@@ -172,7 +180,7 @@ test("one repeat: a thin --pause tick on the timeline at the repeat's at", async
   assert.equal(tick.getAttribute("height"), "40");
 });
 
-test("the timeline legend gains a Restart chip and the moments name the restart", async () => {
+test("the timeline legend gains a Restart chip", async () => {
   const body = await showSession(sessionWith(ONE_REPEAT_WORDS, ONE_REPEAT));
   const timeline = byClass(body, "timeline");
   const legend = byClass(timeline, "timeline__legend");
@@ -186,9 +194,6 @@ test("the timeline legend gains a Restart chip and the moments name the restart"
   assert.equal(chip.className, "timeline__key");
   assert.equal(chip.children[0].className, "timeline__swatch timeline__swatch--restart");
   assert.equal(chip.children[0].getAttribute("aria-hidden"), "true");
-  const moments = byClass(timeline, "timeline__moments").children.map((item) => item.textContent);
-  assert.ok(moments.includes("Restart “We need” at 0:00"), moments.join(" | "));
-  assert.match(stripOf(body).getAttribute("aria-label"), /, 1 restart, /);
 });
 
 test("the transcript legend sentence adds a Restart entry when a restart is shown", async () => {
@@ -330,4 +335,127 @@ test("DESIGN.md lists the restart style and no longer says repeats are not style
   assert.match(design, /\*\*Restart\*\* `\.tok--restart`/);
   assert.match(design, /`\.timeline__swatch--restart`/);
   assert.doesNotMatch(design, /Repeats are not styled/);
+});
+
+// The second copy is the start that says the most of the phrase, as backend _cut_off_match
+// picks it, so a false start that opens with the same word stays plain.
+
+test("a false start on the phrase's first word is not part of the second copy", async () => {
+  const words = spoken("I think we, I, uh, I think we should act.");
+  const body = await showSession(sessionWith(words, [{ text: "I think we", at: 0 }]));
+  assert.deepEqual(restartWords(body), ["I", "think", "we"]);
+  assert.equal(wordSpans(body)[3].className, "tok", "the abandoned 'I,' stays plain");
+});
+
+test("a false start after a cut-off is passed over for the copy that says the phrase", async () => {
+  const words = spoken("I think the— I mean, I think the policy works.");
+  const body = await showSession(sessionWith(words, [{ text: "I think the", at: 0 }]));
+  assert.deepEqual(restartWords(body), ["I", "think", "the"]);
+  assert.deepEqual(
+    wordSpans(body)
+      .map((span, index) => [index, span.classList.contains("tok--restart")])
+      .filter(([, marked]) => marked)
+      .map(([index]) => index),
+    [5, 6, 7],
+  );
+});
+
+test("an abandoned single word before the restart stays plain", async () => {
+  const words = spoken("we must, we, um, we must act");
+  const body = await showSession(sessionWith(words, [{ text: "we must", at: 0 }]));
+  assert.deepEqual(restartWords(body), ["we", "must"]);
+  assert.equal(wordSpans(body)[2].className, "tok");
+});
+
+test("a restart whose phrase opens with a habit word marks the copy that says it all", async () => {
+  const words = spoken("So we, so, uh, so we act");
+  const body = await showSession(sessionWith(words, [{ text: "So we", at: 0 }]));
+  const spans = wordSpans(body);
+  assert.deepEqual(
+    spans.map((span) => span.classList.contains("tok--restart")),
+    [false, false, false, false, true, true, false],
+  );
+});
+
+test("a word inserted in a cut-off restart is marked and the phrase is marked to its end", async () => {
+  const words = spoken("I'm going to— I am going to win.");
+  const body = await showSession(sessionWith(words, [{ text: "I'm going to", at: 0 }]));
+  assert.deepEqual(restartWords(body), ["I", "am", "going", "to"]);
+});
+
+test("a cut-off restart with an inserted word still reaches the finished fragment", async () => {
+  const words = spoken("I'm sure I ner— I am sure I'm nervous");
+  const body = await showSession(sessionWith(words, [{ text: "I'm sure I ner", at: 0 }]));
+  assert.deepEqual(restartWords(body), ["I", "am", "sure", "I'm", "nervous"]);
+});
+
+test("a script restart after several off-script words still finds its second copy", async () => {
+  const words = spoken(
+    "the few decisions a day, like, you know, the few decisions a student makes every day",
+  );
+  const body = await showSession(
+    readingSessionWith(words, [{ text: "the few decisions a", at: 0 }]),
+  );
+  assert.deepEqual(restartWords(body), ["the", "few", "decisions", "a"]);
+  assert.equal(wordSpans(body)[8].classList.contains("tok--restart"), true);
+  assert.match(byClass(body, "transcript__legend").textContent, /restarts\./);
+});
+
+test("a script restart after an abandoned clause still finds its second copy", async () => {
+  const words = spoken(
+    "the few decisions a day that I make, the few decisions a student makes every day",
+  );
+  const body = await showSession(
+    readingSessionWith(words, [{ text: "the few decisions a", at: 0 }]),
+  );
+  assert.deepEqual(restartWords(body), ["the", "few", "decisions", "a"]);
+  assert.equal(wordSpans(body)[8].classList.contains("tok--restart"), true);
+});
+
+test("a free-talk repeat never reaches past the backend's restart window", async () => {
+  const words = spoken("the few decisions a day that I make, the few decisions a student");
+  const body = await showSession(sessionWith(words, [{ text: "the few decisions a", at: 0 }]));
+  assert.deepEqual(restartWords(body), []);
+});
+
+test("a script restart that starts on a dash-joined word marks that word", async () => {
+  const words = spoken("we stop bullying—the fear, uh, bullying—the fear of school ends");
+  const body = await showSession(
+    readingSessionWith(words, [{ text: "bullying the fear", at: words[2].start }]),
+  );
+  const spans = wordSpans(body);
+  assert.deepEqual(
+    spans.map((span) => span.classList.contains("tok--restart")),
+    [false, false, false, false, false, true, true, false, false, false],
+  );
+});
+
+test("a script restart with a misread word in its second copy marks the whole copy", async () => {
+  const words = spoken("the few decisions a student uh the few choices a student makes every day");
+  const body = await showSession(
+    readingSessionWith(words, [{ text: "the few decisions a student", at: 0 }]),
+  );
+  assert.deepEqual(restartWords(body), ["the", "few", "choices", "a", "student"]);
+});
+
+test("a restarted habit word keeps its habit style and also shows as a restart", async () => {
+  // backend find_repeats gives [{text: "so", at: 0}]; the second "so," hangs on "uh", a habit.
+  const words = spoken("so so, uh, we start");
+  const body = await showSession(sessionWith(words, [{ text: "so", at: 0 }]));
+  const second = wordSpans(body)[1];
+  assert.equal(second.className, "tok tok--habit tok--restart");
+  assert.equal(second.getAttribute("aria-label"), "so, verbal habit, restart");
+  assert.match(byClass(body, "transcript__legend").textContent, /restarts\./);
+});
+
+test("analyze names the second copy of a script restart beyond four words", () => {
+  const app = loadApp(null);
+  const words = spoken("the few decisions a day that I make, the few decisions a student");
+  const restarts = [{ text: "the few decisions a", at: 0 }];
+  const report = app.delivery.analyze(words, {
+    pauses: [],
+    repeats: restarts,
+    script: { restarts, skipped: [], misread: [] },
+  });
+  assert.deepEqual(plain(report.restarts[0].secondCopy), [8, 9, 10, 11]);
 });

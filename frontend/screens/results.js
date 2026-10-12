@@ -148,7 +148,6 @@
     filler: (word, at) => "Filler “" + word + "” at " + at,
     pause: (at, seconds) => "Mid-sentence pause at " + at + ", " + seconds + " seconds",
     longPause: (at, seconds) => "Long pause at " + at + ", " + seconds + " seconds",
-    restart: (phrase, at) => "Restart “" + phrase + "” at " + at,
     clean: (from, to, seconds) => "Clean stretch from " + from + " to " + to + ", " + seconds,
   });
 
@@ -626,9 +625,8 @@
     return listOf(report.restarts).flatMap((restart) => listOf(restart.secondCopy));
   }
 
-  // A filler keeps its own style, so only a plain word draws as a restart.
   function showsRestart(plan) {
-    return plan.some((item) => item.restart && !item.filler);
+    return plan.some((item) => item.restart);
   }
 
   // tips.js loads before this file in index.html. Without it (a failed load, or a context that
@@ -673,22 +671,26 @@
   }
 
   // The label uses the bare word, so "Um," reads as "um, filler word" (DESIGN.md section 6).
-  // A filler inside a restarted phrase keeps its filler style.
+  // A filler inside a restarted phrase keeps its filler style and adds the restart one, so the
+  // second "so" of "so so" reads "so, verbal habit, restart".
   function wordToken(item) {
-    if (!item.filler && item.restart) {
+    const restartClass = item.restart ? " tok--restart" : "";
+    const restartLabel = item.restart ? RESTART_LABEL_SUFFIX : "";
+    if (!item.filler && !item.restart) {
+      return app.ui.el("span", { class: "tok", text: item.text });
+    }
+    if (!item.filler) {
       return app.ui.el("span", {
-        class: "tok tok--restart",
-        "aria-label": normalizeWord(item.text) + RESTART_LABEL_SUFFIX,
+        class: "tok" + restartClass,
+        "aria-label": normalizeWord(item.text) + restartLabel,
         text: item.text,
       });
     }
-    if (!item.filler) {
-      return app.ui.el("span", { class: "tok", text: item.text });
-    }
     const habit = item.kind === app.delivery.HABIT;
+    const label = normalizeWord(item.text) + (habit ? HABIT_LABEL_SUFFIX : FILLER_LABEL_SUFFIX);
     return app.ui.el("span", {
-      class: habit ? "tok tok--habit" : "tok tok--filler",
-      "aria-label": normalizeWord(item.text) + (habit ? HABIT_LABEL_SUFFIX : FILLER_LABEL_SUFFIX),
+      class: (habit ? "tok tok--habit" : "tok tok--filler") + restartClass,
+      "aria-label": label + restartLabel,
       text: item.text,
     });
   }
@@ -925,8 +927,7 @@
 
   // "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
   // stretch", in the recording-time clock the tips use. A take with long pauses adds "1 long
-  // pause" after the mid-sentence count, which then leaves the long ones out; a take with
-  // restarts then adds "1 restart".
+  // pause" after the mid-sentence count, which then leaves the long ones out.
   function timelineLabel(segments) {
     const from = app.ui.formatClock(segments.start);
     const to = app.ui.formatClock(segments.start + segments.seconds);
@@ -938,9 +939,6 @@
     ];
     if (longCount > 0) {
       parts.push(countText(longCount, "long pause", "long pauses"));
-    }
-    if (segments.restarts.length > 0) {
-      parts.push(countText(segments.restarts.length, "restart", "restarts"));
     }
     parts.push(cleanStretchText(segments.cleanStretch));
     return TIMELINE_TITLE + " from " + from + " to " + to + ": " + parts.join(", ");
@@ -1015,10 +1013,6 @@
           clock(pause.time),
           pause.seconds.toFixed(1),
         ),
-      })),
-      ...segments.restarts.map((restart) => ({
-        time: restart.time,
-        text: MOMENT.restart(restart.text, clock(restart.time)),
       })),
     ];
     const clean = segments.cleanStretch;

@@ -262,7 +262,7 @@ test("the strip is a labelled image that stretches to the column", async () => {
   assert.equal(strip.getAttribute("preserveAspectRatio"), "none");
   assert.equal(
     strip.getAttribute("aria-label"),
-    "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, 1 restart, " +
+    "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, " +
       "a 4.9 second clean stretch",
   );
 });
@@ -386,7 +386,6 @@ test("the hidden list names every moment in time order", async () => {
     "li,Filler “um” at 0:10",
     "li,Mid-sentence pause at 0:14, 1.5 seconds",
     "li,Filler “um” at 0:16",
-    "li,Restart “and I” at 0:16",
     "li,Mid-sentence pause at 0:16, 2.5 seconds",
     "li,Filler “uh” at 0:19",
     "li,Filler “um” at 0:19",
