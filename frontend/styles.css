@@ -1384,6 +1384,23 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-underline-offset: var(--s-1);
 }
 
+/* A word said in place of a different script word: a wavy underline. It sets no color, so the
+   line takes the word's own (text, or a habit's filler color), and on a restart word it keeps
+   the restart's --pause and turns its dots wavy; this rule must stay after .tok--restart. */
+.tok--misread {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
+/* A script word the speaker skipped, never said: muted and struck through, no weight. */
+.tok--skipped {
+  color: var(--muted);
+  text-decoration: line-through var(--muted);
+  text-decoration-thickness: 2px;
+}
+
 /* One small muted line under the Transcript heading that explains the two highlight styles. */
 .transcript__legend {
   margin: var(--s-2) 0 0;

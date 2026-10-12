@@ -229,6 +229,7 @@
       cleanStretch: longestCleanStretch(list, fillers, breaks, repeats),
       repeatCount: repeats.length,
       restarts: restartsOf(list, repeats),
+      ...scriptSlipsOf(list, given.script),
     };
   }
 
@@ -265,6 +266,7 @@
       cleanStretch: null,
       repeatCount: repeats.length,
       restarts: restartsOf([], repeats),
+      ...scriptSlipsOf([], metrics.script),
     };
   }
 
@@ -536,6 +538,47 @@
       const later = repeats.filter((other) => other.at > repeat.at + MILLISECOND);
       const searchUntil = Math.min(Infinity, ...later.map((other) => other.at));
       return restartOf(pieces, repeat, searchUntil);
+    });
+  }
+
+  // The script words a take read from a script did not read as written (metrics.script, from
+  // backend/script_align.py): `misreads` as {at, word, said, wordIndex}, where `word` is the
+  // script word, `said` what was said in its place and `wordIndex` the transcript index of the
+  // word that said it (-1 when no word does); `skips` as {at, word}, where `at` is where the
+  // skipped word belonged: the end of the word said before it, or the start of the take. An
+  // entry without a numeric `at` and a text `word` (and, for a misread, `said`) is left out, and
+  // a take without a script block has neither.
+  function scriptSlipsOf(list, script) {
+    const block = script && typeof script === "object" ? script : {};
+    const misreads = (Array.isArray(block.misread) ? block.misread : [])
+      .filter((slip) => isSlip(slip) && typeof slip.said === "string")
+      .map((slip) => ({
+        at: slip.at,
+        word: slip.word,
+        said: slip.said,
+        wordIndex: wordSaying(list, slip.at, slip.said),
+      }));
+    const skips = (Array.isArray(block.skipped) ? block.skipped : [])
+      .filter(isSlip)
+      .map((slip) => ({ at: slip.at, word: slip.word }));
+    return { misreads, skips };
+  }
+
+  function isSlip(slip) {
+    return Boolean(slip) && isFiniteNumber(slip.at) && typeof slip.word === "string";
+  }
+
+  // The index of the word starting at `at` that says `said`: the whole word, or one of the two
+  // halves of a dash-joined word ("short-endure,"), which the alignment reads as two. -1 when
+  // no word does.
+  function wordSaying(list, at, said) {
+    const token = straightApostrophes(normalizeWord(said));
+    return list.findIndex((word) => {
+      if (Math.abs(word.start - at) >= MILLISECOND) {
+        return false;
+      }
+      const whole = straightApostrophes(normalizeWord(word.text));
+      return whole === token || whole.split(JOINING_DASH).includes(token);
     });
   }
 

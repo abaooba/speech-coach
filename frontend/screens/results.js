@@ -170,14 +170,22 @@
   // Transcript plan item types and the strings the tokens and pause markers are built from.
   const WORD_ITEM = "word";
   const PAUSE_ITEM = "pause";
+  const SKIP_ITEM = "skip";
   const TOKEN_SEPARATOR = " ";
   const FILLER_LABEL_SUFFIX = ", filler word";
   const HABIT_LABEL_SUFFIX = ", verbal habit";
   const RESTART_LABEL_SUFFIX = ", restart";
+  // "make, misread, script says makes": the label names the word the script has there.
+  const MISREAD_LABEL_SUFFIX = ", misread, script says ";
+  // A skipped script word is drawn struck through and read as "skipped: lose".
+  const SKIPPED_LABEL_PREFIX = "skipped: ";
   const LEGEND_TEXT = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
   // Added only when the transcript marks a restart. Restart words keep plain text with a
   // --pause underline, so they differ from the bold filler-colored habits by more than color.
   const LEGEND_RESTART_TEXT = " Purple underlined words are restarts.";
+  // Added only when the transcript of a take read from a script shows a misread or a skip.
+  const LEGEND_MISREAD_TEXT = " Wavy underlined words are misreads.";
+  const LEGEND_SKIP_TEXT = " Struck-through words were skipped.";
   const HOW_HREF = "how.html";
   const HOW_LINK_TEXT = "How we count";
   const PAUSE_TEXT_SUFFIX = " s pause";
@@ -185,6 +193,8 @@
   const PAUSE_LABEL_SUFFIX = " seconds";
   const LONG_PAUSE_TEXT_SUFFIX = " s long pause";
   const LONG_PAUSE_LABEL_PREFIX = "long pause, ";
+  // A skip's `at` is the end of the word said before it; allow for float error in that match.
+  const MILLISECOND = 0.001;
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -456,16 +466,27 @@
   // (Results passes only the pauses the card counts: mid-sentence, or 5 s+ anywhere). A pause
   // goes right after the last word whose end is at or before `at`; when no word has ended by
   // then it goes before the first word. A word whose index is in `restartWords` (the second
-  // copies of the report's restarts) also gets `restart: true`. Pure: fresh objects, and no
-  // input is changed.
-  function buildTranscriptPlan(words, pauses, restartWords) {
+  // copies of the report's restarts) also gets `restart: true`. `scriptSlips` (optional) holds
+  // the report's `misreads` and `skips` for a take read from a script: a word whose index is a
+  // misread's `wordIndex` gets `misread`, the script word it stands for (two, space-joined, when
+  // both halves of "short-endure" were misread), and each skip becomes {type: "skip", text} after
+  // the last word that ended by its `at`, ahead of any pause there. A skip is not a word. Pure:
+  // fresh objects, and no input is changed.
+  function buildTranscriptPlan(words, pauses, restartWords, scriptSlips) {
     const wordList = Array.isArray(words) ? words : [];
     const pauseList = Array.isArray(pauses) ? pauses : [];
     const restartIndexes = new Set(listOf(restartWords));
+    const slips = scriptSlips && typeof scriptSlips === "object" ? scriptSlips : {};
+    const misreadWords = misreadsByWord(slips.misreads);
     const kinds = app.delivery.classify(wordList);
 
-    // Slot 0 holds the pauses that go before the first word; slot i + 1 those after word i.
+    // Slot 0 holds the skips and pauses that go before the first word; slot i + 1 those after
+    // word i.
     const slots = Array.from({ length: wordList.length + 1 }, () => []);
+    listOf(slips.skips).forEach((skip) => {
+      const slot = lastWordEndedBy(wordList, numberOr0(skip.at) + MILLISECOND) + 1;
+      slots[slot].push({ type: SKIP_ITEM, text: String(skip.word) });
+    });
     pauseList.forEach((pause) => {
       const [at, length] = Array.isArray(pause) ? pause : [];
       const slot = lastWordEndedBy(wordList, numberOr0(at)) + 1;
@@ -483,10 +504,26 @@
       if (restartIndexes.has(index)) {
         item.restart = true;
       }
+      if (misreadWords.has(index)) {
+        item.misread = misreadWords.get(index).join(" ");
+      }
       plan.push(item);
       plan.push(...slots[index + 1]);
     });
     return plan;
+  }
+
+  // Transcript index -> the script words misread there, in script order. A misread no
+  // transcript word says (wordIndex -1) is left out.
+  function misreadsByWord(misreads) {
+    const byWord = new Map();
+    listOf(misreads).forEach((misread) => {
+      const index = misread ? misread.wordIndex : -1;
+      if (Number.isInteger(index) && index >= 0) {
+        byWord.set(index, [...(byWord.get(index) || []), String(misread.word)]);
+      }
+    });
+    return byWord;
   }
 
   // Index of the last word whose end is at or before `at`, or -1 when none has ended yet.
@@ -585,6 +622,7 @@
       session.transcript,
       countedPauses(summary.report),
       restartWords(summary.report),
+      { misreads: summary.report.misreads, skips: summary.report.skips },
     );
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const segments = hasTranscript ? timelineSegments(summary.report) : null;
@@ -602,7 +640,7 @@
     }
     if (hasTranscript) {
       body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
-      body.appendChild(buildLegend(summary.topHabit, showsRestart(plan)));
+      body.appendChild(buildLegend(summary.topHabit, plan));
       body.appendChild(buildTranscript(plan));
     }
     if (tips.length > 0) {
@@ -625,10 +663,6 @@
     return listOf(report.restarts).flatMap((restart) => listOf(restart.secondCopy));
   }
 
-  function showsRestart(plan) {
-    return plan.some((item) => item.restart);
-  }
-
   // tips.js loads before this file in index.html. Without it (a failed load, or a context that
   // stubs app without tips) the screen simply has no Tips section instead of an error.
   function selectTips(report, target) {
@@ -638,15 +672,21 @@
     return app.tips.select(report, { targetWpm: target });
   }
 
-  // What the two highlight styles mean, then the restart style when the transcript shows one,
-  // plus the most-used habit when there is one. The link follows the text after a plain space,
-  // which disappears when the link wraps to a new line, so a wrapped link starts flush with the
-  // text above it.
-  function buildLegend(topHabit, hasRestart) {
+  // What the two highlight styles mean, then the restart, misread and skip styles each when the
+  // transcript plan shows one, plus the most-used habit when there is one. The link follows the
+  // text after a plain space, which disappears when the link wraps to a new line, so a wrapped
+  // link starts flush with the text above it.
+  function buildLegend(topHabit, plan) {
     const link = app.ui.el("a", { class: "transcript__how", href: HOW_HREF, text: HOW_LINK_TEXT });
     let text = LEGEND_TEXT;
-    if (hasRestart) {
+    if (plan.some((item) => item.restart)) {
       text += LEGEND_RESTART_TEXT;
+    }
+    if (plan.some((item) => item.misread)) {
+      text += LEGEND_MISREAD_TEXT;
+    }
+    if (plan.some((item) => item.type === SKIP_ITEM)) {
+      text += LEGEND_SKIP_TEXT;
     }
     if (topHabit) {
       const times = topHabit.count === 1 ? " time." : " times.";
@@ -664,34 +704,55 @@
   function buildTranscript(plan) {
     const nodes = [];
     plan.forEach((item) => {
-      nodes.push(item.type === PAUSE_ITEM ? pauseMarker(item.length) : wordToken(item));
+      nodes.push(planNode(item));
       nodes.push(TOKEN_SEPARATOR);
     });
     return app.ui.el("p", { class: "transcript" }, nodes);
   }
 
+  function planNode(item) {
+    if (item.type === PAUSE_ITEM) {
+      return pauseMarker(item.length);
+    }
+    if (item.type === SKIP_ITEM) {
+      return skippedMarker(item.text);
+    }
+    return wordToken(item);
+  }
+
   // The label uses the bare word, so "Um," reads as "um, filler word" (DESIGN.md section 6).
-  // A filler inside a restarted phrase keeps its filler style and adds the restart one, so the
-  // second "so" of "so so" reads "so, verbal habit, restart".
+  // Each mark adds its class and its part of the label, in this order: filler or habit, restart,
+  // misread. So the second "so" of "so so" reads "so, verbal habit, restart", and a misread in a
+  // restarted phrase "needs, restart, misread, script says need". A plain word has no label.
   function wordToken(item) {
-    const restartClass = item.restart ? " tok--restart" : "";
-    const restartLabel = item.restart ? RESTART_LABEL_SUFFIX : "";
-    if (!item.filler && !item.restart) {
+    const classes = ["tok"];
+    let label = normalizeWord(item.text);
+    if (item.filler) {
+      const habit = item.kind === app.delivery.HABIT;
+      classes.push(habit ? "tok--habit" : "tok--filler");
+      label += habit ? HABIT_LABEL_SUFFIX : FILLER_LABEL_SUFFIX;
+    }
+    if (item.restart) {
+      classes.push("tok--restart");
+      label += RESTART_LABEL_SUFFIX;
+    }
+    if (item.misread) {
+      classes.push("tok--misread");
+      label += MISREAD_LABEL_SUFFIX + item.misread;
+    }
+    if (classes.length === 1) {
       return app.ui.el("span", { class: "tok", text: item.text });
     }
-    if (!item.filler) {
-      return app.ui.el("span", {
-        class: "tok" + restartClass,
-        "aria-label": normalizeWord(item.text) + restartLabel,
-        text: item.text,
-      });
-    }
-    const habit = item.kind === app.delivery.HABIT;
-    const label = normalizeWord(item.text) + (habit ? HABIT_LABEL_SUFFIX : FILLER_LABEL_SUFFIX);
+    return app.ui.el("span", { class: classes.join(" "), "aria-label": label, text: item.text });
+  }
+
+  // A script word the speaker skipped, struck through where it belonged. Not a .tok: it was
+  // never said, so nothing that counts words counts it.
+  function skippedMarker(text) {
     return app.ui.el("span", {
-      class: (habit ? "tok tok--habit" : "tok tok--filler") + restartClass,
-      "aria-label": label + restartLabel,
-      text: item.text,
+      class: "tok--skipped",
+      "aria-label": SKIPPED_LABEL_PREFIX + text,
+      text,
     });
   }
 
