@@ -308,8 +308,8 @@ sample result", which opens a real sample take on this screen.
    green band with a darker green base line for the longest clean stretch. Under it, the
    first word's time, the midpoint and the last word's time (the same clock as the tips), then
    a legend. A screen reader reads the strip as one image, "Speech timeline from 0:01 to 0:32:
-   11 fillers, 3 mid-sentence pauses, a 4.9 second clean stretch", and then a list of every
-   moment. A session saved with an empty transcript shows no timeline.
+   11 fillers, 3 mid-sentence pauses, 1 restart, a 4.9 second clean stretch", and then a list
+   of every moment, a restart included ("Restart “and I” at 0:16"). A session saved with an empty transcript shows no timeline.
 
 5. Transcript: under the timeline, a "Transcript" heading, a small legend and every word of the
    take. The legend reads "Highlighted words are ums and uhs. Underlined words are verbal

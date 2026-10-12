@@ -143,9 +143,11 @@
   ];
   const LONG_PAUSE_KEY = "long-pause";
   const RESTART_KEY = "restart";
-  // The hidden list of moments, read in time order: "Filler “um” at 0:02".
+  // The hidden list of moments, read in time order: "Filler “um” at 0:02". A restart is read
+  // where its abandoned first copy began, the moment its line marks on the strip.
   const MOMENT = Object.freeze({
     filler: (word, at) => "Filler “" + word + "” at " + at,
+    restart: (phrase, at) => "Restart “" + phrase + "” at " + at,
     pause: (at, seconds) => "Mid-sentence pause at " + at + ", " + seconds + " seconds",
     longPause: (at, seconds) => "Long pause at " + at + ", " + seconds + " seconds",
     clean: (from, to, seconds) => "Clean stretch from " + from + " to " + to + ", " + seconds,
@@ -1025,7 +1027,8 @@
 
   // "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
   // stretch", in the recording-time clock the tips use. A take with long pauses adds "1 long
-  // pause" after the mid-sentence count, which then leaves the long ones out.
+  // pause" after the mid-sentence count, which then leaves the long ones out, and a take with
+  // restarts adds "1 restart" after the pauses, the order of the legend.
   function timelineLabel(segments) {
     const from = app.ui.formatClock(segments.start);
     const to = app.ui.formatClock(segments.start + segments.seconds);
@@ -1037,6 +1040,9 @@
     ];
     if (longCount > 0) {
       parts.push(countText(longCount, "long pause", "long pauses"));
+    }
+    if (segments.restarts.length > 0) {
+      parts.push(countText(segments.restarts.length, "restart", "restarts"));
     }
     parts.push(cleanStretchText(segments.cleanStretch));
     return TIMELINE_TITLE + " from " + from + " to " + to + ": " + parts.join(", ");
@@ -1111,6 +1117,10 @@
           clock(pause.time),
           pause.seconds.toFixed(1),
         ),
+      })),
+      ...segments.restarts.map((restart) => ({
+        time: restart.time,
+        text: MOMENT.restart(restart.text, clock(restart.time)),
       })),
     ];
     const clean = segments.cleanStretch;
