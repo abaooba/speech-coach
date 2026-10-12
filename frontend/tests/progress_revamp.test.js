@@ -28,7 +28,7 @@ const OPTION_LABELS = ["Pace", "Fillers", "Pauses", "Clean"];
 const FULL_NAMES = [
   "Words per minute",
   "Fillers per minute",
-  "Mid-sentence pauses",
+  "Pauses",
   "Longest clean stretch",
 ];
 const OPTION_CLASS = "segmented__option";

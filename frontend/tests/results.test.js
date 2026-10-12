@@ -38,7 +38,7 @@ const METRICS = {
 
 const CREATED_AT = "2026-10-09T22:21:00.000Z";
 
-const EXPECTED_LABELS = ["Pace", "Fillers", "Mid-sentence pauses", "Clean stretch"];
+const EXPECTED_LABELS = ["Pace", "Fillers", "Pauses", "Clean stretch"];
 
 function sessionWith(metricOverrides, sessionOverrides) {
   return {

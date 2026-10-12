@@ -274,7 +274,7 @@ sample result", which opens a real sample take on this screen.
    two sentences: a green check before one strength and a blue arrow before one focus, such
    as "Your longest clean stretch is 4.9 seconds." and "Next take, cut fillers under 3 a
    minute." Then exactly four cards, two per row, in this order: "Pace", "Fillers",
-   "Mid-sentence pauses", "Clean stretch". Hesitation sounds (um, uh) are not counted as
+   "Pauses", "Clean stretch". Hesitation sounds (um, uh) are not counted as
    words. The Pace hint reads "Target lo to hi" in green with a check when the pace is inside
    the passage's range, or "Slow down" / "Speed up" in rust with a warning triangle outside
    it; the numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to
@@ -319,7 +319,7 @@ sample result", which opens a real sample take on this screen.
    dotted underline, and only where the context rules count them: "I like this plan" is not
    marked. Each mid-sentence pause of 1.5 s or more is a purple pill such as "2.1 s pause"
    right after the word before the gap. A pause after a period is not marked, so the
-   transcript, the Mid-sentence pauses card and the timeline always show the same pauses.
+   transcript, the Pauses card and the timeline always show the same pauses.
    Record 10 seconds, say "um" five times and stop talking for 3 seconds mid-sentence: five
    amber "um" tokens and one "x.x s pause" pill. A session saved with an empty transcript
    (the store round trip) shows no Transcript section at all.
@@ -421,7 +421,7 @@ Progress seed snippet, then open http://127.0.0.1:8000/#/progress.
    A green band shades 0 to 3 with a dashed line at 3, and under the chart a legend with a
    swatch of the band reads "Target under 3". The cells read 1.0 /min, 1.0 /min and "1.5
    fewer" with a down triangle; the ring sits on the last dot (ties go to the most recent take).
-   Tap "Pauses": purple, the heading "Mid-sentence pauses", dots at 1, 2, 2, 0, 1, the ring on
+   Tap "Pauses": purple, the heading "Pauses", dots at 1, 2, 2, 0, 1, the ring on
    the 0, and "No change" with a dash. Tap "Clean": green, "Longest clean stretch"; these
    sessions have no words, so every value is 0.0 s. Open History and come back: the option you
    chose is still selected. Only the fillers chart has the band and the legend.

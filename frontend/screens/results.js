@@ -19,7 +19,7 @@
   const WPM_UNIT = "wpm";
   const FILLERS_LABEL = "Fillers";
   const FILLERS_UNIT = "/min";
-  const PAUSES_LABEL = "Mid-sentence pauses";
+  const PAUSES_LABEL = "Pauses";
   const CLEAN_STRETCH_LABEL = "Clean stretch";
   const CLEAN_STRETCH_UNIT = "s";
 
