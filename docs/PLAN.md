@@ -147,6 +147,13 @@ Accounts only sync the same data to the server, so they can be cut last without 
 **T36 frontend/rank.js (app.rank), pure.** A good candidate for a human-owned task, because
 judges will ask how the score works. Every constant is named with a one-line reason.
 (Owner decision 2026-10-11: written by the owner with Claude pairing live.)
+Owner decisions 2026-10-12, which override the bullets below where they differ:
+- Misreads add to `weighted` (+1 each); a misread is an error.
+- A take's weight in `rating` is its minutes, capped at 3, then quartered under 30 s. The 3
+  imaginary 40-point takes weigh 1 minute each.
+- The two 2026-10-11 takes score 33.5 (church) and 48.0 (uniforms) and land in Novice
+  (rating about 39.8). That is accepted as "very harsh"; rank.test.js expects Novice, not
+  Contender/Varsity.
 - `takeScore(report)`: `weighted = fillers×1 + restarts×1.5 + midSentencePauses×1 + longPauses×3
   + misreads×1 + skips×0.5`, `perMin = weighted / minutes`,
   `score = 100 × exp(−0.15 × perMin) − pacePenalty`, clamped 0-100. The pace penalty is 1 point
