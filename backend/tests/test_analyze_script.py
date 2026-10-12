@@ -168,6 +168,81 @@ def test_analyze_reading_is_the_pure_function_behind_the_endpoint() -> None:
     }
 
 
+# --- a script that covers only part of the take ------------------------------
+
+# The first two sentences of what the owner said in the nervous take: a speaker who pastes
+# an opening and then talks on past it.
+NERVOUS_OPENING = (
+    "The best part of my day was waking up and not feeling too tired to go to church. "
+    "Afterwards, I was also able to do some residual work on the app that I'm making for the "
+    "Congressional App Challenge."
+)
+
+
+def load_nervous_take() -> list[Word]:
+    """The owner's real 2026-10-11 day take: 'I kinda ner— I'm kinda nervous' at 27.379 s."""
+    raw = json.loads((FIXTURES / "take_2026_10_11_nervous.json").read_text())
+    return [to_word(word) for word in raw["words"]]
+
+
+def test_speech_past_the_end_of_the_script_keeps_its_free_talk_repeats() -> None:
+    words = load_nervous_take()
+    assert metrics.find_repeats(words) == [{"text": "I kinda ner", "at": 27.379}]
+
+    result = analyze_reading(words, NERVOUS_OPENING)
+
+    assert result["repeats"] == [{"text": "I kinda ner", "at": 27.379}]
+    assert result["script"] == {"restarts": [], "skipped": [], "misread": []}
+
+
+def test_a_word_said_after_the_last_script_word_never_starts_a_restart() -> None:
+    # 'for the' after the script's end once jumped back to its 'for the Congressional'.
+    words = words_from("we read for the record and then we talk for the rest of it")
+
+    result = analyze_reading(words, "we read for the record")
+
+    assert result["script"] == {"restarts": [], "skipped": [], "misread": []}
+    assert result["repeats"] == metrics.find_repeats(words)
+
+
+def test_a_repeat_said_before_the_script_starts_is_kept() -> None:
+    words = words_from("my case my case is simple we read for the record")
+
+    result = analyze_reading(words, "we read for the record")
+
+    assert result["repeats"] == [{"text": "my case", "at": 0.0}]
+
+
+def test_a_restart_both_counts_find_is_listed_once() -> None:
+    words = words_from("we read we read for the record today")
+
+    result = analyze_reading(words, "we read for the record today")
+
+    assert result["repeats"] == [{"text": "we read", "at": 0.0}]
+    assert result["script"]["restarts"] == [{"text": "we read", "at": 0.0}]
+
+
+@pytest.mark.parametrize("words_of", [load_nervous_take, load_uniforms_take])
+def test_a_take_that_does_not_follow_the_script_is_free_talk(words_of) -> None:
+    # The nervous take against the uniforms passage reads 6 of its 109 words; the alignment
+    # would call nearly every other word a misread and lose the take's real repeat.
+    words = words_of()
+    unrelated = UNIFORMS_PASSAGE if words_of is load_nervous_take else NERVOUS_OPENING * 4
+
+    assert analyze_reading(words, unrelated) == metrics.analyze(words)
+
+
+def test_a_take_that_reads_only_the_start_of_a_long_script_still_follows_it() -> None:
+    words = load_uniforms_take()
+
+    result = analyze_reading(words, UNIFORMS_PASSAGE + " " + NERVOUS_OPENING * 3)
+
+    assert result["repeats"] == [{"text": "the few decisions a", "at": 33.41}]
+    assert result["script"]["misread"] == [
+        {"word": "makes", "index": 66, "at": 26.492, "said": "make"}
+    ]
+
+
 # --- without a script ---------------------------------------------------------
 
 

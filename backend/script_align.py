@@ -13,6 +13,7 @@ analyze_reading() puts the three lists into a take's metrics for the API.
 """
 
 import re
+from array import array
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -25,6 +26,7 @@ from backend.metrics import (
     analyze,
     clean,
     filler_key,
+    find_repeats,
     normalize,
     says_again,
 )
@@ -42,6 +44,10 @@ FILLER_COST = 0
 # How far back, in script words, an extra spoken word may jump to start a restart; the same
 # reach as a repeated phrase in free talk, so a whole clause read again counts.
 RESTART_MAX_GO_BACK_WORDS = MAX_REPEAT_PHRASE_WORDS
+# A take that reads under half of the words it could have read as written (the script's, or
+# the take's own when the script is longer) does not follow the script: a stale or wrong one
+# would turn nearly every word into a misread, so the take is scored as free talk.
+MIN_SCRIPT_FOLLOWED_SHARE = 0.5
 
 # Two words joined by a dash with no space ('bullying—the', 'well-known', 'a--b') are compared
 # as two words, in the script and in speech alike, since either may be written either way.
@@ -80,6 +86,25 @@ class ScriptReport:
 
 
 @dataclass(frozen=True, slots=True)
+class _ReadSpan:
+    """The part of a take that reads the script: from its first word read as written to its last.
+
+    `read_words` counts the spoken words read as written, `could_read` the most there could
+    be (the fewer of the script's words and the take's words that are not fillers). `start`
+    and `end` are in clip seconds.
+    """
+
+    read_words: int
+    could_read: int
+    start: float
+    end: float
+
+    @property
+    def follows_script(self) -> bool:
+        return self.read_words >= MIN_SCRIPT_FOLLOWED_SHARE * self.could_read
+
+
+@dataclass(frozen=True, slots=True)
 class _Spoken:
     """The spoken words as aligned: each word, its token, and what kind of word it is."""
 
@@ -97,14 +122,25 @@ def align(words: Sequence[Word], script: str) -> ScriptReport:
     position already passed, as in 'the few decisions a day — the few decisions a student':
     its text is the phrase as first spoken, up to its last word that read the script (a
     cut-off fragment such as 'evi—' reads the word it begins), without um/uh/hmm, and `at` is
-    when that phrase began. A script with no words reports nothing.
+    when that phrase began. Words said after the last script word read as written are off the
+    script and start no restart. A script with no words reports nothing.
     """
+    return _read(words, script)[0]
+
+
+def _read(words: Sequence[Word], script: str) -> tuple[ScriptReport, _ReadSpan | None]:
+    """align()'s report, and the span of the take that reads the script (None: no word does)."""
     spoken = _spoken(words)
     script_words = _script_words(script)
     script_tokens = [_token(part) for _, part in script_words]
     if not script_tokens:
-        return ScriptReport(restarts=[], skipped=[], misread=[])
+        return ScriptReport(restarts=[], skipped=[], misread=[]), None
     steps = _alignment(spoken.tokens, spoken.fillers, script_tokens)
+    read_as_written = [
+        said
+        for said, read in steps
+        if said is not None and read is not None and spoken.tokens[said] == script_tokens[read]
+    ]
 
     skipped: list[ScriptSlip] = []
     misread: list[ScriptSlip] = []
@@ -123,30 +159,51 @@ def align(words: Sequence[Word], script: str) -> ScriptReport:
             last_end = spoken.words[said].end
 
     restarts: list[Repeat] = []
-    for first, last in _restart_phrases(steps, spoken, script_tokens):
+    last_read = read_as_written[-1] if read_as_written else -1
+    for first, last in _restart_phrases(steps, spoken, script_tokens, last_read):
         phrase = [
             clean(spoken.words[i].text)
             for i in range(first, last + 1)
             if spoken.tokens[i] not in REPEAT_SKIP_WORDS
         ]
         restarts.append(Repeat(text=" ".join(phrase), at=spoken.words[first].start))
-    return ScriptReport(restarts=restarts, skipped=skipped, misread=misread)
+    report = ScriptReport(restarts=restarts, skipped=skipped, misread=misread)
+    if not read_as_written:
+        return report, None
+    span = _ReadSpan(
+        read_words=len(read_as_written),
+        could_read=min(len(script_tokens), spoken.fillers.count(False)),
+        start=spoken.words[read_as_written[0]].start,
+        end=spoken.words[last_read].end,
+    )
+    return report, span
 
 
 def analyze_reading(words: Sequence[Word], script: str) -> dict[str, object]:
     """Every metric for a take read from `script`, in the shape the API returns.
 
     The free-talk metrics (backend/metrics.py analyze) plus a `script` block: restarts
-    ({text, at}), skipped ({word, index, at}) and misread ({word, index, at, said}). The
-    script's restarts replace the free-talk repeats, so a phrase said again is counted once,
-    and a word the script itself says twice ('that that') is no repeat. A script with no
-    words is no script: the free-talk metrics come back unchanged.
+    ({text, at}), skipped ({word, index, at}) and misread ({word, index, at, said}). Where
+    the take reads the script, from its first word read as written to its last, the script's
+    restarts replace the free-talk repeats, so a phrase said again is counted once and a word
+    the script itself says twice ('that that') is no repeat. Before and after that span the
+    speaker talks freely (a pasted opening, then more), so the free-talk repeats said there
+    stay, unless a script restart begins at the same moment. A script with no words, or one
+    the take does not follow (MIN_SCRIPT_FOLLOWED_SHARE), is no script: the free-talk metrics
+    come back unchanged.
     """
     result = analyze(words)
-    if not _script_words(script):
+    report, span = _read(words, script)
+    if span is None or not span.follows_script:
         return result
-    report = align(words, script)
-    result["repeats"] = report.restarts
+    restart_starts = {restart["at"] for restart in report.restarts}
+    off_script = [
+        repeat
+        for repeat in find_repeats(words)
+        if (repeat["at"] < span.start or repeat["at"] >= span.end)
+        and repeat["at"] not in restart_starts
+    ]
+    result["repeats"] = sorted(report.restarts + off_script, key=lambda repeat: repeat["at"])
     result["script"] = {
         "restarts": report.restarts,
         "skipped": [_slip_json(slip) for slip in report.skipped],
@@ -212,14 +269,16 @@ def _alignment(spoken: list[str], fillers: list[bool], script: list[str]) -> lis
     that nation — that nation').
     """
     extra_costs = [FILLER_COST if filler else GAP_COST for filler in fillers]
-    costs = [[j * GAP_COST for j in range(len(script) + 1)]]
+    # Each finished row is stored as 4-byte ints: at the 20,000-character cap a script has up to
+    # 10,000 words, and rows of Python ints would take hundreds of megabytes for a long take.
+    costs = [array("i", [j * GAP_COST for j in range(len(script) + 1)])]
     for token, extra in zip(spoken, extra_costs, strict=True):
         previous = costs[-1]
         row = [previous[0] + extra]
         for j, script_token in enumerate(script, start=1):
             read = previous[j - 1] + (MATCH_COST if script_token == token else MISREAD_COST)
             row.append(min(read, previous[j] + extra, row[j - 1] + GAP_COST))
-        costs.append(row)
+        costs.append(array("i", row))
 
     steps: list[Step] = []
     i, j = len(spoken), len(script)
@@ -247,7 +306,7 @@ def _alignment(spoken: list[str], fillers: list[bool], script: list[str]) -> lis
 
 
 def _restart_phrases(
-    steps: list[Step], spoken: _Spoken, script: list[str]
+    steps: list[Step], spoken: _Spoken, script: list[str], last_read: int
 ) -> list[tuple[int, int]]:
     """(first, last) spoken index of each phrase the speaker abandoned to go back in the script.
 
@@ -259,7 +318,8 @@ def _restart_phrases(
     says that word and the next spoken word reads on from there. Otherwise ('day' in
     'a day —') it reads nothing. A restart is a word reading a position before the one the
     speaker had reached. Its phrase runs from where the speaker first read that position,
-    since the last restart, to the last word before the jump that read the script.
+    since the last restart, to the last word before the jump that read the script. A word
+    after `last_read`, the last spoken word read as written, is off the script: it reads nothing.
     """
     readings = [said for said, _ in steps if said is not None]
     reads = {said: read for said, read in steps if said is not None}
@@ -277,7 +337,9 @@ def _restart_phrases(
     reached, since = 0, 0
     for order, said in enumerate(readings):
         position = reads[said]
-        if position is None and spoken.fillers[said]:
+        if said > last_read:
+            position = None
+        elif position is None and spoken.fillers[said]:
             is_script_word = reached < len(script) and script[reached] == spoken.tokens[said]
             position = reached if is_script_word else None
         elif position is None:

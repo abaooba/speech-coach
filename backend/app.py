@@ -26,7 +26,8 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 MIN_RECORDING_SECONDS = 5.0
 DEFAULT_CONTENT_TYPE = "application/octet-stream"
 # Room for a long constructive (about 3,000 words). The alignment grows with script words
-# times spoken words; at this length against a 4-minute take it still takes under a second.
+# times spoken words; at this length against a 4-minute take it takes under a second and
+# about 10 MB, and it runs off the event loop as the transcription does.
 MAX_SCRIPT_CHARACTERS = 20_000
 
 EMPTY_UPLOAD_MESSAGE = "The upload was empty. Record again and resend."
@@ -99,7 +100,10 @@ async def analyze(
         raise HTTPException(status_code=502, detail=PROVIDER_FAILED_MESSAGE) from exc
     if speech_end_seconds(words) < MIN_RECORDING_SECONDS:
         raise HTTPException(status_code=400, detail=TOO_SHORT_MESSAGE)
-    take_metrics = analyze_reading(words, script) if script else metrics.analyze(words)
+    if script:
+        take_metrics = await run_in_threadpool(analyze_reading, words, script)
+    else:
+        take_metrics = metrics.analyze(words)
     return {"transcript": [asdict(word) for word in words], "metrics": take_metrics}
 
 
