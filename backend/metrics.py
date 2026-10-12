@@ -70,6 +70,12 @@ def normalize(text: str) -> str:
     return clean(text).lower()
 
 
+def filler_key(token: str) -> str | None:
+    """The FILLER_WORDS key a normalized token counts under ('mm-hmm' -> 'mhm'), else None."""
+    key = "mhm" if _AGREEMENT_SOUND.match(token) else token
+    return key if key in FILLER_WORDS else None
+
+
 def duration_seconds(words: Sequence[Word]) -> float:
     """Seconds from the start of the first word to the end of the last word."""
     if not words:
@@ -119,9 +125,9 @@ def count_fillers(words: Sequence[Word]) -> dict[str, int]:
             counts["you know"] += 1
             index += 2
             continue
-        token = "mhm" if _AGREEMENT_SOUND.match(tokens[index]) else tokens[index]
-        if token in FILLER_WORDS:
-            counts[token] += 1
+        key = filler_key(tokens[index])
+        if key is not None:
+            counts[key] += 1
         index += 1
     return counts
 
