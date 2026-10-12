@@ -222,6 +222,7 @@
       long: isLongPause(length) && isInsideSpeech(list, at),
     }));
     const breaks = classified.filter(isCountedPause);
+    const restarts = restartsOf(list, repeats);
     return {
       kinds,
       fillers,
@@ -235,9 +236,9 @@
       fillersPerMinute: perMinute(fillers.length, speakingSeconds),
       pauses: classified,
       ...pauseTallies(classified),
-      cleanStretch: longestCleanStretch(list, fillers, breaks, repeats),
+      cleanStretch: longestCleanStretch(list, fillers, breaks, repeats, restarts),
       repeatCount: repeats.length,
-      restarts: restartsOf(list, repeats),
+      restarts,
       ...scriptSlipsOf(list, given.script),
     };
   }
@@ -373,11 +374,12 @@
   // The longest stretch of speech with no filler, no counted pause (mid-sentence, or 5 s+
   // anywhere) and no restart, as {start, end, seconds}. Every filler and break cuts the take;
   // a restart cuts from the first copy of the phrase to the moment the speaker starts it over.
-  function longestCleanStretch(list, fillers, breaks, repeats) {
+  // `restarts` are the repeats as restartsOf reads them, in the same order.
+  function longestCleanStretch(list, fillers, breaks, repeats, restarts) {
     const cuts = [
       ...fillers.map((event) => [event.start, event.end]),
       ...breaks.map((pause) => [pause.at, pause.at + pause.length]),
-      ...repeatCuts(list, repeats),
+      ...repeatCuts(list, repeats, restarts),
     ].sort((a, b) => a[0] - b[0]);
     let best = { start: 0, end: 0, seconds: 0 };
     let from = list[0].start;
@@ -395,11 +397,17 @@
     return best;
   }
 
-  // [first copy start, restart] for each backend repeat {text, at}: the restart is the first
-  // word after as many words as the phrase has, skipping hesitations as the backend does.
-  // When no word starts at `at`, the cut shrinks to that instant.
-  function repeatCuts(list, repeats) {
-    return repeats.map((repeat) => {
+  // [first copy start, restart] for each backend repeat {text, at}. The restart is the first
+  // word of the second copy restartOf found, the one Results underlines, so the words the
+  // speaker abandoned between the copies ("day—") are cut too. When no second copy was found,
+  // it is the first word after as many words as the phrase has, skipping hesitations as the
+  // backend does; when no word starts at `at` either, the cut shrinks to that instant.
+  function repeatCuts(list, repeats, restarts) {
+    return repeats.map((repeat, order) => {
+      const secondCopy = restarts[order].secondCopy;
+      if (secondCopy.length > 0) {
+        return [repeat.at, list[secondCopy[0]].start];
+      }
       const first = list.findIndex((word) => Math.abs(word.start - repeat.at) < MILLISECOND);
       if (first === -1) {
         return [repeat.at, repeat.at];
