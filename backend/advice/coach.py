@@ -9,11 +9,12 @@ in checked_tips(). The drill and the citation of each tip are copied here from i
 entry, never taken from the model.
 
 When the model cannot be used (no API key, no reply within 8 s, an API error, a refusal, or a
-reply that breaks a rule), the first candidates are shown word for word instead, cited the
-same way. Either way the answer has one shape: {tips: [{entry_id, text, drill, citation}],
-source: "ai" | "library"}. The API key and the transcript are never logged.
+reply that is not a message or breaks a rule), the first candidates are shown word for word
+instead, cited the same way. Either way the answer has one shape: {tips: [{entry_id, text,
+drill, citation}], source: "ai" | "library"}. The API key and the transcript are never logged.
 """
 
+import asyncio
 import html
 import logging
 from collections.abc import Collection, Sequence
@@ -60,6 +61,10 @@ MIN_TIPS = 2
 MAX_TIPS = 3
 # Short enough to read between takes. Library advice runs to 70 words; a tip is a rewrite.
 MAX_TIP_WORDS = 60
+# Words are counted between spaces, which cannot measure a text written without them. 60 words
+# of 10 characters each, spaces included, is far more than the library's densest advice holds
+# (7.3 characters a word), so the limit stops only such a text.
+MAX_TIP_CHARACTERS = 600
 # Without the model the first candidates stand in, as many as the model may write.
 LIBRARY_TIP_COUNT = MAX_TIPS
 
@@ -276,6 +281,20 @@ class UnusableReply(Exception):
     """
 
 
+# Every way asking the model can fail, each answered with the library tips: the SDK's errors,
+# advise()'s deadline (TimeoutError), a reply that breaks a rule (UnusableReply), and an answer
+# that is not a well-formed message, which fails as it is read. Broken JSON raises ValueError, a
+# body that is not a message object AttributeError, and a message without content TypeError.
+MODEL_FAILURES = (
+    anthropic.AnthropicError,
+    TimeoutError,
+    UnusableReply,
+    ValueError,
+    TypeError,
+    AttributeError,
+)
+
+
 # --- writing the notes ---------------------------------------------------------------------------
 
 
@@ -283,8 +302,11 @@ class UnusableReply(Exception):
 def client_for_key(api_key: str) -> AsyncAnthropic:
     """The client that asks Claude for coach notes: one per key, kept for the process's life.
 
-    It gives up after TIMEOUT_SECONDS and never retries, so the speaker waits no longer than
-    that for the library tips. Given the key, the SDK reads no other credentials.
+    It never retries: a retry could not finish within TIMEOUT_SECONDS, and the library tips are
+    ready at once. Its own timeout, also TIMEOUT_SECONDS, limits each network step (connecting,
+    sending, each wait for more of the reply), so a reply that keeps arriving can outlast it;
+    advise() holds the whole call to that deadline. Given the key, the SDK reads no other
+    credentials.
     """
     return AsyncAnthropic(api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=MAX_RETRIES)
 
@@ -296,8 +318,9 @@ async def advise(
 
     The tips draw on candidates() for the take's weakest skills, leaving out what the speaker has
     been shown. With a client and at least MIN_TIPS candidates, the model writes them; without
-    one, or when its reply cannot be used, the first candidates are shown word for word. A
-    failure is logged by its kind only, never with the prompt or the reply.
+    one, when it has not answered within TIMEOUT_SECONDS, or when its reply cannot be used, the
+    first candidates are shown word for word. A failure is logged by its kind only, never with
+    the prompt or the reply.
     """
     weak_skills = weakest_skills(request.summary.report_summary())
     offered = candidates(
@@ -305,21 +328,24 @@ async def advise(
     )
     if client is None or len(offered) < MIN_TIPS:
         return library_advice(offered)
+    prompt = take_prompt(request.summary, weak_skills, offered)
     try:
-        reply = await client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_OUTPUT_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": take_prompt(request.summary, weak_skills, offered)}
-            ],
-            output_config={
-                "effort": EFFORT,
-                "format": {"type": "json_schema", "schema": TIPS_SCHEMA},
-            },
-        )
+        # The whole call, not each network step as the client's own timeout is.
+        async with asyncio.timeout(TIMEOUT_SECONDS):
+            reply = await client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_OUTPUT_TOKENS,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                output_config={
+                    "effort": EFFORT,
+                    "format": {"type": "json_schema", "schema": TIPS_SCHEMA},
+                },
+            )
         tips = tips_from_reply(reply, offered)
-    except (anthropic.AnthropicError, UnusableReply) as failure:
+    except MODEL_FAILURES as failure:
+        # Not only the SDK's errors: an HTML page, broken JSON or a message without content
+        # fails as it is read. The library tips are always ready.
         logger.warning("Coach notes fell back to the library tips: %s", fallback_reason(failure))
         return library_advice(offered)
     return Advice(tips=tips, source=AI_SOURCE)
@@ -418,9 +444,10 @@ def tips_from_reply(reply: Message, offered: Sequence[AdviceEntry]) -> list[Tip]
     """The tips of a finished reply, each cited from its library entry.
 
     Raises UnusableReply when the model declined (stop_reason "refusal"), when the reply was cut
-    off before it finished, or when its text breaks a rule of checked_tips(). The text is read
-    from the reply's text blocks only: Claude Haiku 5.5 thinks first by default, so a reply can
-    open with a thinking block.
+    off before it finished, or when its text breaks a rule of checked_tips(). An answer that is
+    not a well-formed message raises as it is read, and advise() falls back on that too. The
+    text is read from the reply's text blocks only: Claude Haiku 5.5 thinks first by default, so
+    a reply can open with a thinking block.
     """
     if reply.stop_reason == "refusal":
         category = reply.stop_details.category if reply.stop_details else None
@@ -436,8 +463,10 @@ def checked_tips(reply_text: str, candidate_ids: Collection[str]) -> list[Writte
     """The tips in the model's JSON reply, their texts trimmed, if the reply keeps every rule.
 
     The reply must match TIPS_SCHEMA exactly and hold MIN_TIPS to MAX_TIPS tips. Each tip must
-    draw on one of `candidate_ids`, no entry may be drawn on twice, and each text must run 1 to
-    MAX_TIP_WORDS words, counted between spaces. The first broken rule raises UnusableReply.
+    draw on one of `candidate_ids`, and no entry may be drawn on twice. Each text, trimmed, must
+    run 1 to MAX_TIP_WORDS words, counted between spaces, and MAX_TIP_CHARACTERS at most, which
+    also bounds a text written without spaces, and must hold a letter or a digit. The first
+    broken rule raises UnusableReply.
     """
     try:
         tips = WrittenTips.model_validate_json(reply_text).tips
@@ -456,6 +485,12 @@ def checked_tips(reply_text: str, candidate_ids: Collection[str]) -> list[Writte
         word_count = len(tip.text.split())
         if not 1 <= word_count <= MAX_TIP_WORDS:
             raise UnusableReply(f"a tip runs {word_count} words, not 1 to {MAX_TIP_WORDS}")
+        text = tip.text.strip()
+        if len(text) > MAX_TIP_CHARACTERS:
+            raise UnusableReply(f"a tip runs {len(text)} characters, over {MAX_TIP_CHARACTERS}")
+        # A zero-width space, an emoji or a row of dots is one "word", but not a tip.
+        if not any(character.isalnum() for character in text):
+            raise UnusableReply("a tip has no letter or digit")
     return [WrittenTip(entry_id=tip.entry_id, text=tip.text.strip()) for tip in tips]
 
 
@@ -463,10 +498,12 @@ def fallback_reason(failure: Exception) -> str:
     """Why the model's tips were not used, for the log: never the key, the prompt or the reply.
 
     The SDK's exception classes, most specific first: a timeout is a kind of connection error.
+    TimeoutError is advise()'s own deadline. Any other failure is named by its class alone: its
+    message may quote the reply.
     """
     if isinstance(failure, UnusableReply):
         return str(failure)
-    if isinstance(failure, anthropic.APITimeoutError):
+    if isinstance(failure, anthropic.APITimeoutError | TimeoutError):
         return f"no reply within {TIMEOUT_SECONDS:g} s"
     if isinstance(failure, anthropic.APIConnectionError):
         return "the API could not be reached"
@@ -475,4 +512,6 @@ def fallback_reason(failure: Exception) -> str:
             f"the API answered HTTP {failure.status_code} ({failure.type or 'no error type'}, "
             f"request id {failure.request_id or 'none'})"
         )
-    return f"the API call failed ({type(failure).__name__})"
+    if isinstance(failure, anthropic.AnthropicError):
+        return f"the API call failed ({type(failure).__name__})"
+    return f"an unexpected {type(failure).__name__}"
