@@ -314,13 +314,15 @@ sample result", which opens a real sample take on this screen.
    of every moment, a restart included ("Restart “and I” at 0:16"). A session saved with an empty transcript shows no timeline.
 
 5. Transcript: under the timeline, a "Transcript" heading, a small legend and every word of the
-   take. The legend reads "Highlighted words are ums and uhs. Underlined words are verbal
-   habits.", names the most-used habit (for example "Most used: “like”, 4 times.") and ends
-   with a "How we count" link to `how.html`. Ums and uhs ("um", "uh", "er", "ah", "hm") get an
-   amber highlight. Verbal habits ("like", "so", "you know", "actually", "basically") get a
-   dotted underline, and only where the context rules count them: "I like this plan" is not
-   marked. Each mid-sentence pause of 1.5 s or more is a purple pill such as "2.1 s pause"
-   right after the word before the gap. A pause after a period is not marked, so the
+   take. The legend reads "Highlighted words are hesitations: um, uh, mhm. Underlined words
+   are verbal habits.", names the most-used habit (for example "Most used: “like”, 4 times.")
+   and ends with a "How we count" link to `how.html`. Hesitations ("um", "uh", "er", "ah",
+   "hm", and "mhm", "uh-huh", "mm-hmm") get an amber highlight. Verbal habits ("like", "so",
+   "you know", "actually", "basically") get a dotted underline, and only where the context
+   rules count them: "I like this plan" is not marked. Each mid-sentence pause of 1.5 s or
+   more is a purple pill such as "2.1 s pause" right after the word before the gap. A pause
+   of 5 s or more is marked wherever it falls, even after a period, as an outlined pink pill
+   such as "6.0 s long pause". A shorter pause after a period is not marked, so the
    transcript, the Pauses card and the timeline always show the same pauses.
    Record 10 seconds, say "um" five times and stop talking for 3 seconds mid-sentence: five
    amber "um" tokens and one "x.x s pause" pill. A session saved with an empty transcript
@@ -341,8 +343,10 @@ sample result", which opens a real sample take on this screen.
    - "You said “like” 3 times. Drop it and let the sentence land." Use one verbal habit
      ("like", "basically") three times.
    - "A pause in the middle of a sentence ran past 3 seconds." Stop mid-sentence for 4
-     seconds, then keep talking; silence before the first word, after the last one or at a
-     period is not counted.
+     seconds, then keep talking; silence before the first word or after the last one is not
+     counted, and a pause at a period gets the next tip instead, once it reaches 5 seconds.
+   - "You froze for 6.0 seconds at 0:04. Know how your next point opens." End a sentence,
+     stay silent for 6 seconds, then keep talking.
    - "You restarted phrases three times." Say a word twice in a row ("the the") on three
      separate occasions.
    - "Clean run. No filler, habit or long pause stood out." None of the above. It gives no

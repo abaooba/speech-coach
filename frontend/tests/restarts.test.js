@@ -200,7 +200,7 @@ test("the transcript legend sentence adds a Restart entry when a restart is show
   const body = await showSession(sessionWith(ONE_REPEAT_WORDS, ONE_REPEAT));
   assert.equal(
     byClass(body, "transcript__legend").textContent,
-    "Highlighted words are ums and uhs. Underlined words are verbal habits. " +
+    "Highlighted words are hesitations: um, uh, mhm. Underlined words are verbal habits. " +
       "Purple underlined words are restarts.",
   );
 });

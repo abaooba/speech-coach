@@ -107,7 +107,7 @@ test("the legend explains both styles and names the most-used habit", async () =
   const { body } = await showSession(clipSession());
   assert.equal(
     byClass(body, "transcript__legend").textContent,
-    "Highlighted words are ums and uhs. Underlined words are verbal habits. " +
+    "Highlighted words are hesitations: um, uh, mhm. Underlined words are verbal habits. " +
       "Purple underlined words are restarts. Most used: “so”, 1 time.",
   );
 });
@@ -161,6 +161,6 @@ test("a fluent take gets the ok fillers hint and no habit in the legend", async 
   ]);
   assert.equal(
     byClass(body, "transcript__legend").textContent,
-    "Highlighted words are ums and uhs. Underlined words are verbal habits.",
+    "Highlighted words are hesitations: um, uh, mhm. Underlined words are verbal habits.",
   );
 });

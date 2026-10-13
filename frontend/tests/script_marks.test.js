@@ -26,7 +26,8 @@ const SOURCES = ["ui.js", "delivery.js", path.join("screens", "results.js")].map
 const CSS = read("styles.css");
 const PASSAGES = [{ id: "talk", targetWpm: [140, 160] }];
 
-const LEGEND_BASE = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
+const LEGEND_BASE =
+  "Highlighted words are hesitations: um, uh, mhm. Underlined words are verbal habits.";
 const LEGEND_RESTART = " Purple underlined words are restarts.";
 const LEGEND_MISREAD = " Wavy underlined words are misreads.";
 const LEGEND_SKIP = " Struck-through words were skipped.";

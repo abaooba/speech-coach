@@ -118,7 +118,7 @@ test("a malformed pause never becomes a marker", async () => {
 test("how.html says the transcript marks only the pauses the card counts", () => {
   const html = read("how.html");
   assert.ok(
-    html.includes("Your transcript marks only mid-sentence pauses, the ones the card counts."),
+    html.includes("Your transcript marks only the pauses the card counts, mid-sentence or long."),
   );
   assert.ok(!html.includes("marks every pause"));
 });

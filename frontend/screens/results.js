@@ -190,7 +190,9 @@
   const SKIP_RUN_EDGE_WORDS = 3;
   const SKIP_RUN_GAP = "…";
   const SKIP_RUN_COUNT_SUFFIX = " words skipped:";
-  const LEGEND_TEXT = "Highlighted words are ums and uhs. Underlined words are verbal habits.";
+  // The hesitations named are examples: er, ah, hm, uh-huh and mm-hmm are highlighted too.
+  const LEGEND_TEXT =
+    "Highlighted words are hesitations: um, uh, mhm. Underlined words are verbal habits.";
   // Added only when the transcript marks a restart. Restart words keep plain text with a
   // --pause underline, so they differ from the bold filler-colored habits by more than color.
   const LEGEND_RESTART_TEXT = " Purple underlined words are restarts.";

@@ -1,5 +1,9 @@
 # Speech Coach Next-Level Implementation Plan
 
+> **Changed since 2026-10-10.** docs/PLAN.md T31 made mhm, uh-huh and mm-hmm count as
+> hesitations, and T32 made a pause of 5 s or more count anywhere, even after a period. Where
+> this plan says otherwise, it records the earlier rules; frontend/how.html has the current ones.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. In this repo most work runs through `tasks/queue.json` and `automation/night.sh`, so every queue brief in Task 0 points at one task below.
 
 **Goal:** Make Speech Coach the delivery coach debaters can trust. It counts fillers by rules a judge can read, measures pace without counting "um" as a word, coaches with specific moments and one technique, and frames everything around debate formats.
