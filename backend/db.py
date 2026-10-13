@@ -15,9 +15,9 @@ import json
 import os
 from datetime import UTC, datetime
 from functools import cache
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 from sqlalchemy import (
     JSON,
     URL,
@@ -38,6 +38,7 @@ from sqlalchemy import (
     event,
     make_url,
 )
+from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.pool import ConnectionPoolEntry, StaticPool
 
@@ -250,6 +251,20 @@ def create_tables(engine: Engine) -> None:
     metadata.create_all(engine)
 
 
+def insert_for(dialect: Dialect, table: Table) -> postgresql.Insert | sqlite.Insert:
+    """An INSERT into `table` that can say what to do ON CONFLICT, for `dialect`'s database.
+
+    Postgres (production) and SQLite (the tests, or a file for local work) write ON CONFLICT
+    the same way, but SQLAlchemy's plain insert() cannot say it: each database has its own.
+    Accounts run on those two only, so any other database is refused by name.
+    """
+    if dialect.name == "postgresql":
+        return postgresql.insert(table)
+    if dialect.name == "sqlite":
+        return sqlite.insert(table)
+    raise ValueError(f"accounts need Postgres or SQLite, not {dialect.name}")
+
+
 @cache
 def configured_engine() -> Engine | None:
     """The engine for DATABASE_URL, built on the first call; None when it is unset or blank.
@@ -260,14 +275,25 @@ def configured_engine() -> Engine | None:
     return make_engine(url) if url else None
 
 
-def accounts_engine() -> Engine:
+def accounts_engine_or_none() -> Engine | None:
+    """The FastAPI dependency of a route that serves guests too: the engine, or None.
+
+    None while accounts are off. /api/advice uses it to look up a signed-in speaker without
+    turning guests away; accounts_engine builds on it. Tests turn accounts on for every route
+    at once by overriding this dependency with their own engine.
+    """
+    return configured_engine()
+
+
+def accounts_engine(
+    engine: Annotated[Engine | None, Depends(accounts_engine_or_none)],
+) -> Engine:
     """The FastAPI dependency of every account route: the engine, or a 503 when accounts are off.
 
     A route that declares `engine: Annotated[Engine, Depends(accounts_engine)]` does not run
     without DATABASE_URL; the browser gets 503 {"detail": "accounts are not configured"}.
     Tests hand a route their own engine by overriding this dependency.
     """
-    engine = configured_engine()
     if engine is None:
         raise HTTPException(status_code=503, detail=ACCOUNTS_NOT_CONFIGURED)
     return engine

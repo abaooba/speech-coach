@@ -5,6 +5,7 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -17,10 +18,11 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import RequestResponseEndpoint
 
-from backend import auth, db, metrics
+from backend import auth, db, metrics, sessions_api
 from backend.advice import coach, load_library
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
@@ -179,6 +181,9 @@ def advice_client() -> AsyncAnthropic | None:
 async def advice(
     advice_request: coach.AdviceRequest,
     client: Annotated[AsyncAnthropic | None, Depends(advice_client)],
+    speaker: Annotated[auth.SignedInAccount | None, Depends(auth.signed_in_account_or_guest)],
+    engine: Annotated[Engine | None, Depends(db.accounts_engine_or_none)],
+    now: Annotated[datetime, Depends(auth.current_time)],
 ) -> coach.Advice:
     """Coach notes for one take: 2-3 tips, each with its library entry's drill and citation.
 
@@ -186,14 +191,32 @@ async def advice(
     the advice already shown (coach.AdviceRequest). Claude Haiku writes the tips from library
     advice when a key is set and its reply keeps the rules; otherwise they are the library's
     own words. `source` says which ("ai" or "library"), and the shape is the same either way.
+
+    A guest's shown ids are the ones the request sends. A signed-in speaker's come from the
+    database instead, the least recently shown first, and the tips in the answer are recorded
+    there as shown now, so none of their devices offers them again while new ones are left
+    (backend/sessions_api.py). Guests are served whether accounts are on or off.
     """
-    return await coach.advise(advice_request, load_library(), client)
+    library = load_library()
+    # An account is only ever found while accounts are on, so with one there is an engine.
+    if speaker is None or engine is None:
+        return await coach.advise(advice_request, library, client)
+    shown_ids = await run_in_threadpool(sessions_api.shown_entry_ids, engine, speaker.user_id)
+    from_the_account = advice_request.model_copy(update={"shown_ids": shown_ids})
+    answer = await coach.advise(from_the_account, library, client)
+    tip_ids = [tip.entry_id for tip in answer.tips]
+    await run_in_threadpool(sessions_api.record_shown, engine, speaker.user_id, tip_ids, now)
+    return answer
 
 
 # Accounts (backend/auth.py): POST /api/auth/signup, /login and /logout, and GET and DELETE
 # /api/me. Every one answers 503 while DATABASE_URL is unset, though a body sent as JSON that does
 # not parse gets FastAPI's 422 first.
 app.include_router(auth.router)
+
+# A signed-in speaker's takes and progress (backend/sessions_api.py): /api/sessions,
+# /api/sessions/import and /api/progress, under the same rules as the account routes above.
+app.include_router(sessions_api.router)
 
 # Mounted last so /api routes take priority.
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

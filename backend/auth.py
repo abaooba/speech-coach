@@ -473,8 +473,29 @@ def signed_in_account(
     The cookie's token must match a session that has not expired. An expired session is
     refused like a made-up one.
     """
-    if not token:
+    account = account_signed_in_by(engine, token, now) if token else None
+    if account is None:
         raise HTTPException(status_code=401, detail=NOT_SIGNED_IN)
+    return account
+
+
+def signed_in_account_or_guest(
+    engine: Annotated[Engine | None, Depends(db.accounts_engine_or_none)],
+    now: Annotated[datetime, Depends(current_time)],
+    token: SessionCookie = None,
+) -> SignedInAccount | None:
+    """The FastAPI dependency of a route that serves guests too: the account, or None for a guest.
+
+    A guest is a browser with no session cookie, or one whose session is not live (made up,
+    expired or ended), or any browser while accounts are off. None is never a 401 or a 503.
+    """
+    if engine is None or not token:
+        return None
+    return account_signed_in_by(engine, token, now)
+
+
+def account_signed_in_by(engine: Engine, token: str, now: datetime) -> SignedInAccount | None:
+    """The account whose session `token` is, if that session is live at `now`; otherwise None."""
     sessions, users = db.auth_sessions, db.users
     lookup = (
         select(users.c.id, users.c.email)
@@ -485,7 +506,7 @@ def signed_in_account(
     with engine.connect() as connection:
         account = connection.execute(lookup).first()
     if account is None:
-        raise HTTPException(status_code=401, detail=NOT_SIGNED_IN)
+        return None
     return SignedInAccount(user_id=account.id, email=account.email)
 
 
