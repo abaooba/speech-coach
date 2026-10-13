@@ -29,19 +29,34 @@
   // Audio never reaches the database; a session carrying one of these is a programming error.
   const AUDIO_FIELDS = ["blob", "audio"];
 
+  // What every call says while an older version of the app, open in another tab, holds the
+  // database at the version before. store.js before version 2 never lets go of its connection,
+  // so the upgrade waits for that tab to close.
+  const UPGRADE_BLOCKED_MESSAGE =
+    "Close other Speech Coach tabs to finish updating, then try again.";
+
   // Shared by every call so the database is opened once; reset when that open fails.
   let openPromise = null;
 
+  // A blocked open fails its callers at once rather than leave them waiting: app.js boot waits
+  // for a flag before it shows any screen. The open itself goes on, and every call until it
+  // finishes gets the same failure, because an open made behind it would wait unheard. Once the
+  // older tab closes, the open upgrades the database and every later call uses its connection.
   function openDatabase() {
     if (openPromise === null) {
       openPromise = new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
         request.onupgradeneeded = (event) => upgrade(request.result, event.oldVersion);
-        request.onsuccess = () => resolve(closeForNewerVersions(request.result));
-        request.onerror = () => reject(errorOf(request, "Could not open the session database"));
-      });
-      openPromise.catch(() => {
-        openPromise = null;
+        request.onblocked = () => reject(new Error(UPGRADE_BLOCKED_MESSAGE));
+        request.onsuccess = () => {
+          const db = closeForNewerVersions(request.result);
+          openPromise = Promise.resolve(db);
+          resolve(db);
+        };
+        request.onerror = () => {
+          openPromise = null;
+          reject(errorOf(request, "Could not open the session database"));
+        };
       });
     }
     return openPromise;
