@@ -24,13 +24,19 @@ A wrong password and an email with no account get the same 401 "email or passwor
 after the same Argon2 check: an unknown email is checked against a stand-in hash. Five failed
 logins for one email from one IP address within 15 minutes turn that pair away with 429 until the
 oldest of them is 15 minutes old (FailedLoginLimiter, kept in this process's memory). A login
-that ends in a fault instead, such as a database that cannot be reached, is not counted.
+that ends in a fault instead, such as a database that cannot be reached, is not counted. The
+address is the one uvicorn reports (client_address). Behind Render's proxy that is the proxy's
+own until uvicorn is told to trust the proxy, and until then the count is per email for everyone:
+five wrong passwords from anyone hold that email's logins up for 15 minutes.
 
 Signing up with an email that already has an account is refused with 409 "an account with this
 email already exists: log in instead", and the account is left exactly as it was. That answer
 tells whoever asks that the email has an account. Sign-up could hide it only by writing to the
 address, and this app sends no email, so the answer says that much and nothing else about the
-account.
+account. Sign-up is not rate-limited, so anyone can ask it about as many emails as they like,
+and one visitor can open many accounts. A limit per visitor needs the visitor's own address,
+which behind Render's proxy waits on the same trust (client_address): counted per proxy address,
+it would stop everyone's sign-ups at once.
 
 Every route that changes something accepts JSON only (require_json, 415 otherwise), so another
 site cannot sign a speaker up, in or out, or delete their account. Nothing here logs an email, a
@@ -383,11 +389,17 @@ def clear_session_cookie(response: Response) -> None:
 def client_address(request: Request) -> str:
     """The IP address a request came from, as the ASGI server reports it.
 
-    Behind a proxy, as on Render, that is the proxy's address unless uvicorn is told to trust
-    the proxy's X-Forwarded-For (--forwarded-allow-ips). Failed logins are then counted per email
-    across everyone behind the proxy: never looser, but five wrong passwords from anyone hold
-    that email's logins up for 15 minutes. Reading X-Forwarded-For here instead would let a
-    client name any address it likes, and so start a fresh count whenever it liked.
+    This never reads X-Forwarded-For itself. Its left-most entries are whatever the visitor
+    wrote, so reading them would let anyone start a fresh failed-login count whenever they liked.
+
+    Behind a proxy, as on Render, uvicorn reports the proxy's own address unless it is told to
+    trust the proxy (FORWARDED_ALLOW_IPS, or --forwarded-allow-ips). Until then every visitor
+    shares that address, and failed logins are counted per email for everyone at once: never
+    looser, but five wrong passwords from anyone hold that email's logins up for 15 minutes.
+    Told to trust exactly the proxy's hops, uvicorn reports the right-most address the proxy
+    appended, which no visitor can forge, and each visitor gets a count of their own. Never
+    trust "*": uvicorn then reports the left-most entry, the visitor's own writing, and the
+    count holds no one back. Which hops Render's proxy adds is to be checked on a deploy.
     """
     return request.client.host if request.client else UNKNOWN_ADDRESS
 
