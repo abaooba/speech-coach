@@ -17,7 +17,7 @@ the map.
 | `ui.js` | `app.ui` | The DOM helpers every screen builds from. `el(tag, attrs, children)` builds nodes, never markup; `renderState(root, {kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary})` is the only builder of the empty, error and loading blocks; `clear(root)` empties a node; `announce(text)` writes the live region; `formatClock(seconds)` gives "1:05" and `formatDate(iso)` "Oct 9, 10:21 PM". Also `formatDay`, `icon` and the theme helpers `getTheme`, `applyTheme`, `setTheme`, `nextTheme`. |
 | `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`. A session holds metrics and transcript, never audio. |
 | `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType, script)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`; a `script` with words goes along as the form field `script`, and `metrics.script` then lists restarts, skipped and misread script words (the backend drops a script the take does not follow and scores it as free talk). A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
-| `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). No DOM. |
+| `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). `coldReads()` returns a new list of the cold reads (`coldRead: true`), original passages for the skill path's cold-read mode that no tab lists. No DOM. |
 | `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
 | `tips.js` | `app.tips` | `select(report, options)` returns at most two `{id, text}` tips in priority order. Pure. |
 | `pauses.js` | `app.pauses` | Human-owned (T08); agents never edit it. `start(stream)` samples the microphone's loudness while a take records, `stop()` hands the samples back, and `reconcile(metrics, samples)` folds the quiet stretches into the backend's pauses. |
@@ -156,7 +156,8 @@ reload.
    app.passages.length
    ```
 
-   It prints `10`: four timed prompts, then six passages.
+   It prints `10`: four timed prompts, then six passages. `app.passages.coldReads().length`
+   prints `15`, the cold reads, which no tab lists.
 
 **Progress seed.** Five sessions with varied numbers, one per day over the last five days.
 Each lasts one minute, so the `um` count is also the fillers-per-minute value, and `pauses`
