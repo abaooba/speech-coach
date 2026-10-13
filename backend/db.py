@@ -58,7 +58,7 @@ CONNECT_TIMEOUT_SECONDS = 10
 # How SQLAlchemy writes a SQLite database that lives in memory: no file name, or ":memory:".
 IN_MEMORY_SQLITE_DATABASES = (None, "", ":memory:")
 
-# A session token's sha256, written as hex.
+# A session token's 32-byte digest (backend/auth.py token_hash), written as hex.
 TOKEN_HASH_LENGTH = 64
 
 
@@ -110,9 +110,10 @@ users = Table(
     CheckConstraint("email = lower(email)", name="users_email_is_lowercase"),
 )
 
-# A browser signed in to an account until expires_at. token_hash is the sha256 of the token in
-# its cookie, so the database never holds a token that would sign anyone in. As the primary key
-# it is the index every signed-in request looks the token up by.
+# A browser signed in to an account until expires_at. token_hash is a digest of the token in its
+# cookie (SHA-256, or HMAC-SHA256 keyed by SESSION_SECRET: backend/auth.py), so the database never
+# holds a token that would sign anyone in. As the primary key it is the index every signed-in
+# request looks the token up by.
 auth_sessions = Table(
     "auth_sessions",
     metadata,

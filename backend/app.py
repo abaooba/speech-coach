@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import RequestResponseEndpoint
 
-from backend import db, metrics
+from backend import auth, db, metrics
 from backend.advice import coach, load_library
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
@@ -189,6 +189,10 @@ async def advice(
     """
     return await coach.advise(advice_request, load_library(), client)
 
+
+# Accounts (backend/auth.py): POST /api/auth/signup, /login and /logout, and GET and DELETE
+# /api/me. Every one answers 503 while DATABASE_URL is unset.
+app.include_router(auth.router)
 
 # Mounted last so /api routes take priority.
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
