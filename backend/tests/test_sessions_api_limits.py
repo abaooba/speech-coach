@@ -4,6 +4,11 @@ A report or a transcript nests at most 64 arrays and objects deep; real ones go 
 Deeper JSON is refused (422) before it is kept, by POST /api/sessions and by an import alike, so
 nothing kept can break the listing that gives it back.
 
+An import holds 2,000,000 bytes of takes at most, counted as each take is (json_bytes): a longer
+history goes in parts (422 otherwise). No request to these routes may carry a body over
+3,000,000 bytes: it is refused with 413 before it is read in full, as its Content-Length says or
+as its bytes arrive, because FastAPI parses a JSON body before any other check runs.
+
 Every database here is SQLite in memory, and every route reads the time from NOW. A browser is a
 TestClient at https://testserver, so its Secure session cookie goes back.
 """
@@ -28,6 +33,12 @@ PASSWORD = "correct horse battery staple"
 JSON_HEADERS = {"content-type": "application/json"}
 
 MAX_JSON_DEPTH = 64
+MAX_TAKE_BYTES = 1_000_000
+MAX_IMPORT_BYTES = 2_000_000
+MAX_REQUEST_BYTES = 3_000_000
+REQUEST_TOO_LARGE = {
+    "detail": "send at most 3,000,000 bytes in one request: import a long history in parts"
+}
 # A marker no answer may quote back.
 SECRET = "the-words-of-a-refused-take"
 
@@ -180,3 +191,115 @@ def test_a_take_nested_deeper_than_64_is_refused_and_the_listing_still_works(
     assert SECRET not in kept.text + imported.text
     assert row_count(engine) == 1
     assert [kept["id"] for kept in takes_of(ann)] == ["kept-before"]
+
+
+# --- how much one request may carry --------------------------------------------------------------
+
+
+def take_of_size(take_id: str, size: int) -> dict[str, Any]:
+    """A take whose report and transcript come to `size` bytes as json_bytes() counts them.
+
+    {} is 2 bytes and ["x...x"] the x's and 4 more.
+    """
+    return take(take_id, report={}, transcript=["x" * (size - 6)])
+
+
+def test_an_import_of_up_to_2_mb_is_kept_and_a_byte_more_is_refused(
+    accounts_on: None, engine: Engine
+) -> None:
+    ann = signed_in()
+    # Two of the largest takes, then the same bytes and one more spread over three.
+    most = [take_of_size("most-1", MAX_TAKE_BYTES), take_of_size("most-2", MAX_TAKE_BYTES)]
+    one_byte_over = [
+        take_of_size("over-1", MAX_TAKE_BYTES),
+        take_of_size("over-2", MAX_TAKE_BYTES - 3),
+        take("over-3", report={}, transcript=[]),
+    ]
+
+    over = import_takes(ann, one_byte_over)
+    kept = import_takes(ann, most)
+
+    assert over.status_code == 422
+    assert kept.status_code == 200
+    assert kept.json() == {"imported": 2, "skipped": 0}
+    assert sorted(kept["id"] for kept in takes_of(ann)) == ["most-1", "most-2"]
+
+
+def padded_to(body: object, size: int) -> bytes:
+    """`body` as JSON, followed by as many spaces as make it `size` bytes long."""
+    text = json.dumps(body).encode()
+    return text + b" " * (size - len(text))
+
+
+BODIES = {
+    "/api/sessions": take("padded"),
+    "/api/sessions/import": {"sessions": [take("padded")]},
+    "/api/progress": {"shown_advice": [{"entry_id": "filler-001", "shown_at": NOW_TEXT}]},
+}
+
+
+@pytest.mark.parametrize("path", BODIES)
+def test_a_body_over_3_mb_is_refused_with_413(
+    accounts_on: None, engine: Engine, path: str
+) -> None:
+    ann = signed_in()
+
+    response = ann.post(
+        path, content=padded_to(BODIES[path], MAX_REQUEST_BYTES + 1), headers=JSON_HEADERS
+    )
+
+    assert response.status_code == 413
+    assert response.json() == REQUEST_TOO_LARGE
+    assert row_count(engine) == 0
+    assert ann.get("/api/progress").json()["shown_advice"] == []
+
+
+@pytest.mark.parametrize("path", BODIES)
+def test_a_body_of_3_mb_is_read(accounts_on: None, path: str) -> None:
+    ann = signed_in()
+
+    response = ann.post(
+        path, content=padded_to(BODIES[path], MAX_REQUEST_BYTES), headers=JSON_HEADERS
+    )
+
+    assert response.status_code == 200
+
+
+def test_a_body_sent_without_its_length_is_counted_as_it_arrives(
+    accounts_on: None, engine: Engine
+) -> None:
+    ann = signed_in()
+    body = padded_to(BODIES["/api/sessions/import"], MAX_REQUEST_BYTES + 1)
+    # Sent in chunks, the request has no Content-Length: Transfer-Encoding: chunked.
+    chunks = iter([body[:1_000], body[1_000:]])
+
+    response = ann.post("/api/sessions/import", content=chunks, headers=JSON_HEADERS)
+
+    assert "content-length" not in response.request.headers
+    assert response.status_code == 413
+    assert row_count(engine) == 0
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/api/sessions"),
+        ("POST", "/api/sessions/import"),
+        ("POST", "/api/progress"),
+        ("DELETE", "/api/sessions"),
+        ("DELETE", "/api/sessions/take-one"),
+    ],
+)
+def test_a_request_that_says_it_carries_over_3_mb_is_refused_before_it_is_read(
+    accounts_on: None, engine: Engine, method: str, path: str
+) -> None:
+    ann = signed_in()
+    keep(ann, take("take-one"))
+    # The body itself is small and would be taken: only its stated length is refused.
+    small = json.dumps(BODIES.get(path, {})).encode()
+    headers = {**JSON_HEADERS, "content-length": str(MAX_REQUEST_BYTES + 1)}
+
+    response = ann.request(method, path, content=small, headers=headers)
+
+    assert response.status_code == 413
+    assert [kept["id"] for kept in takes_of(ann)] == ["take-one"]

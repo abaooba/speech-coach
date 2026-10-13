@@ -16,10 +16,12 @@ who signs in, these routes keep the same data on the server too, so their other 
 A take is {id, created_at, report, transcript}, as store.js keeps one: the id the browser gave
 it, when it was recorded (a time with its zone, given back in UTC), its report (a JSON object:
 the metrics and details) and its transcript (a JSON array: the words with their timings). The
-report and the transcript are kept exactly as sent, MAX_TAKE_BYTES at most together, and audio
-never is (TakeToKeep). Keeping a take with an id the speaker already has replaces that take, as
-the browser's store does. An import keeps only the takes whose ids the speaker has no take with,
-so importing the same guest history twice keeps one copy of each take.
+report and the transcript are kept exactly as sent, MAX_TAKE_BYTES at most together and nested
+MAX_JSON_DEPTH deep at most, and audio never is (TakeToKeep). Keeping a take with an id the
+speaker already has replaces that take, as the browser's store does. An import keeps only the
+takes whose ids the speaker has no take with, so importing the same guest history twice keeps one
+copy of each take. It holds MAX_IMPORT_TAKES takes and MAX_IMPORT_BYTES of them at most, so a
+long history goes in parts.
 
 Progress is {shown_advice: [{entry_id, shown_at}], path_progress: [{level_id, cleared_at}]}: the
 library advice the speaker has been shown and the skill-path levels (frontend/path.js) they have
@@ -33,17 +35,22 @@ Every route needs a signed-in speaker (auth.signed_in_account: 401 "not signed i
 and writes that speaker's rows only. A take's id names it within one account (the key of
 speech_sessions is user_id and id), so another speaker's take with the same id is never read,
 replaced or deleted. While DATABASE_URL is unset every route answers 503 (db.accounts_engine),
-and every route that changes something accepts JSON only (auth.require_json, 415 otherwise).
+and every route that changes something accepts JSON only (auth.require_json, 415 otherwise). A
+request body over MAX_REQUEST_BYTES is refused with 413 before it is read in full
+(LimitedBodyRoute).
 """
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Iterable, Mapping, Sequence
 from datetime import UTC, datetime
+from functools import cached_property
 from typing import Annotated, Any, Self
 
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
+from fastapi.routing import APIRoute
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import Connection, Dialect, Engine, Insert, Select, delete, select
+from starlette.types import Message, Receive
 
 from backend import auth, db
 from backend.advice.coach import MAX_ID_CHARACTERS
@@ -55,9 +62,20 @@ MAX_TAKE_BYTES = 1_000_000
 # about 5 deep. Far deeper JSON breaks the code that reads it back: pydantic, which writes
 # FastAPI's answers, stops at 255 levels, so a take nested deeper would fail every listing of it.
 MAX_JSON_DEPTH = 64
-# Takes in one import: a long guest history in one request, while the request stays one the
-# server can hold. A longer history goes in parts, which importing twice makes safe.
+# What one import may hold: this many takes, and this many bytes of them, each take counted as
+# MAX_TAKE_BYTES counts it. That is two of the largest takes, or about sixty five-minute ones. A
+# longer history goes in parts, which importing twice makes safe.
 MAX_IMPORT_TAKES = 500
+MAX_IMPORT_BYTES = 2_000_000
+# The body of any request to these routes: an import of MAX_IMPORT_BYTES with room for the takes'
+# ids, times and keys and for JSON written with spaces. FastAPI parses a JSON body before any
+# check of ours runs, and parsed, JSON can take 35 times its size in memory: 3 MB of [{},{},...]
+# takes about 100 MB, of the 512 MB the server has for everything. So a body over this is
+# refused with 413 as it arrives, before it is read in full (LimitedBodyRoute).
+MAX_REQUEST_BYTES = 3_000_000
+REQUEST_TOO_LARGE = (
+    f"send at most {MAX_REQUEST_BYTES:,} bytes in one request: import a long history in parts"
+)
 # Shown entries, or cleared levels, in one post: more than the library has entries (482) and
 # far more than the path has levels.
 MAX_PROGRESS_ROWS = 2_000
@@ -162,6 +180,11 @@ class TakeToKeep(Take):
     id: Id
     created_at: Moment
 
+    @cached_property
+    def size(self) -> int:
+        """The bytes of the report and the transcript together, as json_bytes() counts them."""
+        return json_bytes(self.report) + json_bytes(self.transcript)
+
     @model_validator(mode="after")
     def holds_no_audio_and_fits(self) -> Self:
         if self.report.keys() & AUDIO_FIELDS:
@@ -170,18 +193,29 @@ class TakeToKeep(Take):
         depth = max(nesting_depth(self.report), nesting_depth(self.transcript))
         if depth > MAX_JSON_DEPTH:
             raise ValueError(f"the report or transcript nests {depth} deep, over {MAX_JSON_DEPTH}")
-        size = json_bytes(self.report) + json_bytes(self.transcript)
-        if size > MAX_TAKE_BYTES:
-            raise ValueError(f"the report and transcript take {size} bytes, over {MAX_TAKE_BYTES}")
+        if self.size > MAX_TAKE_BYTES:
+            raise ValueError(
+                f"the report and transcript take {self.size} bytes, over {MAX_TAKE_BYTES}"
+            )
         return self
 
 
 class TakeImport(BaseModel):
-    """The body of POST /api/sessions/import: a guest's history, MAX_IMPORT_TAKES takes at most."""
+    """The body of POST /api/sessions/import: a guest's history, MAX_IMPORT_TAKES takes and
+    MAX_IMPORT_BYTES of them at most, each take counted as TakeToKeep.size counts it."""
 
     model_config = ConfigDict(extra="forbid")
 
     sessions: list[TakeToKeep] = Field(max_length=MAX_IMPORT_TAKES)
+
+    @model_validator(mode="after")
+    def fits(self) -> Self:
+        total = sum(take.size for take in self.sessions)
+        if total > MAX_IMPORT_BYTES:
+            raise ValueError(
+                f"the takes come to {total} bytes, over {MAX_IMPORT_BYTES}: import them in parts"
+            )
+        return self
 
 
 class ImportResult(BaseModel):
@@ -399,11 +433,61 @@ def record_shown(
         connection.execute(shown_advice_statement(connection.dialect, user_id, showings))
 
 
+# --- how much a request may carry ----------------------------------------------------------------
+
+
+def _declared_length(request: Request) -> int:
+    """The body's length as the request's Content-Length states it; 0 when it states none."""
+    try:
+        return int(request.headers.get("content-length", "0"))
+    except ValueError:
+        return 0
+
+
+def _receive_at_most(receive: Receive, limit: int) -> Receive:
+    """`receive`, turning the request away with 413 once over `limit` bytes of body arrive."""
+    received = 0
+
+    async def receive_within_limit() -> Message:
+        nonlocal received
+        message = await receive()
+        if message["type"] == "http.request":
+            received += len(message.get("body", b""))
+            if received > limit:
+                raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
+        return message
+
+    return receive_within_limit
+
+
+class LimitedBodyRoute(APIRoute):
+    """A route that reads MAX_REQUEST_BYTES of a request body at most: past that, 413.
+
+    FastAPI reads and parses a JSON body before any dependency runs, so a dependency would check
+    the size too late. This checks first what the Content-Length states, then the bytes as they
+    arrive, which also counts a body sent in chunks with no length stated.
+    """
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handle = super().get_route_handler()
+
+        async def handle_within_limit(request: Request) -> Response:
+            if _declared_length(request) > MAX_REQUEST_BYTES:
+                raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
+            receive = _receive_at_most(request.receive, MAX_REQUEST_BYTES)
+            return await handle(Request(request.scope, receive))
+
+        return handle_within_limit
+
+
 # --- routes --------------------------------------------------------------------------------------
 
 # Every route here needs the database, so while accounts are off each answers 503 before its own
-# checks run. FastAPI reads a JSON body first, though, and answers one that does not parse with 422.
-router = APIRouter(prefix="/api", dependencies=[Depends(db.accounts_engine)])
+# checks run. FastAPI reads a JSON body first, though, and answers one that does not parse with 422,
+# and a body over MAX_REQUEST_BYTES is refused with 413 before either (LimitedBodyRoute).
+router = APIRouter(
+    prefix="/api", dependencies=[Depends(db.accounts_engine)], route_class=LimitedBodyRoute
+)
 
 Database = Annotated[Engine, Depends(db.accounts_engine)]
 Speaker = Annotated[auth.SignedInAccount, Depends(auth.signed_in_account)]
