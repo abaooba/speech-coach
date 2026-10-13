@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Without it accounts are off and nothing is created. A database that cannot be reached is
     logged and passed over, because guests never need it: their takes stay in the browser.
     Account routes then fail until it can be reached, and on a first deploy until the next start.
+    When the server stops, the database connections it holds are closed.
     """
     engine = db.configured_engine()
     if engine is not None:
@@ -74,6 +75,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 type(error).__name__,
             )
     yield
+    if engine is not None:
+        await run_in_threadpool(engine.dispose)
 
 
 app = FastAPI(title="Speech Coach", lifespan=lifespan)
