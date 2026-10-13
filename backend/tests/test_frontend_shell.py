@@ -31,6 +31,7 @@ SCREEN_IDS = [
 SCRIPT_LOAD_ORDER = [
     "app.js",
     "ui.js",
+    "auth.js",
     "store.js",
     "api.js",
     "passages.js",
@@ -42,6 +43,7 @@ SCRIPT_LOAD_ORDER = [
     "screens/results.js",
     "screens/history.js",
     "screens/progress.js",
+    "screens/account.js",
     "screens/onboarding.js",
 ]
 

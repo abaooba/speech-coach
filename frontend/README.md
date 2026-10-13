@@ -15,7 +15,8 @@ the map.
 |---|---|---|
 | `app.js` | `app.router` | Creates `window.app` (with an empty `app.screens`) and owns the hash router. `go(name, params)` sets the hash to `#/<name>` or `#/<name>/<id>`; `current()` returns `{name, params}` for the hash, and Practice for an unknown one. At boot it applies the saved theme, mounts every registered screen once, then routes, to Onboarding on a first launch. |
 | `ui.js` | `app.ui` | The DOM helpers every screen builds from. `el(tag, attrs, children)` builds nodes, never markup; `renderState(root, {kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary})` is the only builder of the empty, error and loading blocks; `clear(root)` empties a node; `announce(text)` writes the live region; `formatClock(seconds)` gives "1:05" and `formatDate(iso)` "Oct 9, 10:21 PM". Also `formatDay`, `icon` and the theme helpers `getTheme`, `applyTheme`, `setTheme`, `nextTheme`. |
-| `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`; `markLevelCleared(levelId)` and `listClearedLevels()` keep the skill path's cleared levels. A session holds metrics and transcript, never audio. |
+| `auth.js` | `app.auth` | The optional account (docs/PLAN.md T49). `signUp(email, password)` and `logIn(email, password)` resolve the account's email and sign this device in; `logOut()`, `deleteAccount()` and `me()` (the email, or null for a guest) talk to `/api/auth/*` and `/api/me`. A failure rejects with an `Error` whose `.kind` names it and whose `.message` is the matching sentence in `messages`: one uniform "Email or password is wrong.", "Too many tries. Wait 15 minutes, then try again." for a 429 and "Accounts are not available right now." for a 503. `request(method, url, body)` is the one way the account's routes are called: the session cookie goes along (same origin) and every change is sent as JSON. `guestImportOffer()`, `importGuestTakes()` and `declineGuestImport()` ask once per account to add this device's guest takes. It loads before `store.js`, which connects its sync here (`connectStore`). |
+| `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`; `markLevelCleared(levelId)` and `listClearedLevels()` keep the skill path's cleared levels. A session holds metrics and transcript, never audio. For a guest nothing else happens and nothing is sent. Signed in through `auth.js`, the same eight functions also sync with the server (backend/sessions_api.py): saves, deletes and cleared levels go through to it, with IndexedDB as the offline copy; `list()`, `get(id)` and `listClearedLevels()` merge the server's, and fall back to the device's own with no reply; a write the server misses waits in a queue (in the flags store) and goes up on the next load or when the device is back online. Each account's copies on the device show to that account alone, never to a guest or another account. Signing out keeps them for the next sign in; deleting the account turns them into the device's own takes, kept as a guest's. |
 | `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType, script)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`; a `script` with words goes along as the form field `script`, and `metrics.script` then lists restarts, skipped and misread script words (the backend drops a script the take does not follow and scores it as free talk). A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
 | `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). `coldReads()` returns a new list of the cold reads (`coldRead: true`), original passages for the skill path's cold-read mode that no tab lists. No DOM. |
 | `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
@@ -26,6 +27,7 @@ the map.
 | `screens/results.js` | `app.screens.results` | `mount`, `show({id})`, `hide`, plus the pure helpers `summarize`, `buildTranscriptPlan`, `headlineFor`, `compareWithPrevious`, `timelineSegments` and `isSample`, which touch no DOM. |
 | `screens/history.js` | `app.screens.history` | `mount`, `show`, `hide`, plus `formatStats(session)` and the pure `statusFor(summary)`. |
 | `screens/progress.js` | `app.screens.progress` | `mount`, `show`, `hide`, plus the pure `series`, `scale` and `summaryFor`. |
+| `screens/account.js` | `app.screens.account` | `#/account`, reached from the "Account" link in History's header (the nav keeps its three items). `mount`, `show`, `hide`, plus `COPY`, every string on the screen. A guest signs up or logs in; signed in, the speaker sees who they are, the once-per-account offer to add this device's takes, Log out, and Delete account behind a second tap. One line says what the server keeps: each take's metrics and transcript, never audio, until the account is deleted. It talks only to `app.auth`. |
 | `screens/onboarding.js` | `app.screens.onboarding` | `mount`, `show`, `hide`, plus `COPY`, every string on the screen. |
 | `sw.js` | none | The service worker, which runs in its own scope with no `app`. It caches the app shell (`SHELL`) so the app opens offline, and never touches `/api/`. |
 | `how.html` | none | The static "How we measure" page, with no script, linked from the Results transcript legend. |
@@ -37,14 +39,15 @@ id on Results) and `hide()` when a route leaves it. The `screen__body` rule: eac
 exactly one `div.screen__body` (`backend/tests/test_frontend_shell.py` checks it), and the screen
 draws its content, state blocks included, inside it, so the `h1` above it (and Practice's header)
 stays put. A screen touches nothing outside its own section; shared data goes through `app.store`
-and route params.
+(the account through `app.auth`) and route params.
 
 **Script load order.** `index.html` loads classic `<script>` tags (no modules, no build step, no
 CDN) in this order, fixed by `backend/tests/test_frontend_shell.py`: `app.js`, `ui.js`,
-`store.js`, `api.js`, `passages.js`, `delivery.js`, `path.js`, `tips.js`, `pauses.js`, then
-`screens/practice.js`, `screens/results.js`, `screens/history.js`, `screens/progress.js` and
-`screens/onboarding.js`. `app.js` comes first because it creates `window.app`. Every
-`<script src>` is also listed in `SHELL` in `sw.js` (`backend/tests/test_pwa_files.py`).
+`auth.js`, `store.js`, `api.js`, `passages.js`, `delivery.js`, `path.js`, `tips.js`, `pauses.js`,
+then `screens/practice.js`, `screens/results.js`, `screens/history.js`, `screens/progress.js`,
+`screens/account.js` and `screens/onboarding.js`. `app.js` comes first because it creates
+`window.app`; `auth.js` comes before `store.js`, which connects its sync to it as it loads.
+Every `<script src>` is also listed in `SHELL` in `sw.js` (`backend/tests/test_pwa_files.py`).
 
 **Two rules every script keeps.**
 
@@ -93,6 +96,9 @@ wide as the block. "Empty the store" is the first DevTools snippet under the tab
 | History | No sessions yet | Empty the store, tap "Start practicing", open `#/history`. Deleting the last session in History shows it too. | Microphone, "No sessions yet" / "Your first recording will show up here." Button "Record", which opens Practice. |
 | Progress | Need two sessions, one take | Empty the store, tap "Start practicing", save one session (store round trip, step 1), open `#/progress`. A sample is not a take: tap "See a sample result" on Practice, come back, and the same block shows. | Chart, "Need two sessions" / "Record one more to see a trend." Button "Record", which opens Practice. |
 | Progress | Need two sessions, no take | Empty the store, tap "Start practicing", open `#/progress`. | Chart, "Need two sessions" / "Record two sessions to see a trend." Button "Record". |
+| Account | Checking | Open `#/account` with DevTools network throttling at "Slow 4G". | Spinner, "Checking your account" / "This takes a moment." No button. |
+| Account | Accounts not available | Run uvicorn without `DATABASE_URL` (accounts off), open `#/account`. | Plain circle, "Accounts are not available right now" / "Your takes stay on this device, and everything else works as before." Button "Practice". Every other screen works as a guest's. |
+| Account | Could not reach the server, guest | Load the app once, stop uvicorn, open `#/account` (the service worker serves the page). | "Could not reach the server" / "Check your connection, then try again." Button "Try again", which checks again. |
 
 ### DevTools snippets
 
@@ -201,6 +207,10 @@ keyboard.
 - Keyboard: press Tab from the top of each screen. Focus moves top to bottom, the nav comes
   last, and every focused control shows a blue ring.
 - Console: no errors on any screen, including `#/results/nope` and an empty History.
+- Two devices (needs the deployed app with `DATABASE_URL` set): sign up on the phone, record a
+  take, then log in on a laptop. History, Progress and the take's Results match the phone's.
+  Delete the account on the laptop: the phone signs out at its next sync. Guest mode still
+  records and saves with the network off.
 
 ## Screen walkthroughs
 
@@ -365,7 +375,9 @@ sample result", which opens a real sample take on this screen.
 **History (about one minute).** Needs two saved sessions: run the Practice happy path twice,
 or save two with the store round trip. Then open http://127.0.0.1:8000/#/history.
 
-1. Under the "History" heading, one row per session, newest first: the passage title over
+1. At the right of the "History" heading, a small "Account" link opens `#/account`; the nav
+   keeps Practice, History and Progress. Under the heading, one row per session, newest first:
+   the passage title over
    the date, then the stats as `152 wpm · 3.1 /min` (the same numbers as that session's
    first two Results cards) and a status word with its icon. A green check reads "On
    target"; a rust warning triangle reads "Too slow", "Too fast" or "Fillers over 3", and
@@ -451,3 +463,37 @@ Progress seed snippet, then open http://127.0.0.1:8000/#/progress.
    still nothing scrolls sideways. Switch the theme with the toggle on Practice, or the OS
    setting: gridlines, labels, the band, the ring and all four line colors stay visible in both
    themes.
+
+**Account (about three minutes).** Accounts need a database. Locally a SQLite file does:
+`DATABASE_URL=sqlite:///./accounts-dev.db .venv/bin/uvicorn backend.app:app --reload` (delete
+the file afterwards). Use http://localhost:8000, where browsers keep the Secure session cookie
+over plain http. Save two sessions as a guest first (store round trip), then open
+http://localhost:8000/#/history.
+
+1. Tap "Account" at the right of the History heading. The screen reads "An account keeps your
+   takes on every device you use. Without one, they stay on this device.", then a "Sign up" /
+   "Log in" switch (Sign up selected), Email and Password fields with "At least 10
+   characters." under the password, a full-width "Create account" and, last, the line "Your
+   account keeps each take's metrics and transcript on our server, never audio. Deleting the
+   account here erases them." No nav item is highlighted.
+2. Type an email and a 9-character password, then tap Create account: a rust line with the
+   warning icon reads "Use a password of 10 to 256 characters." and nothing is sent (Network
+   tab). Fix the password and send: "Signed in as" and the email, then a blue card "This
+   device has 2 takes from before you signed in. Add them to your account?" with "Add to
+   account" and "Keep on this device".
+3. Tap "Add to account": the card reads "Added 2 takes to your account." In the Network tab
+   one `POST /api/sessions/import` carried both. Open History: the same two rows. Reload and
+   come back to Account: the card is gone for good (asked once per account).
+4. Record a take (or save one with the store round trip): a `POST /api/sessions` follows the
+   save, and History lists it. With DevTools offline, save another: History still lists it;
+   go back online and the queued `POST /api/sessions` goes out by itself.
+5. Tap "Log out": the form comes back empty, on "Log in", focus on its first line. History
+   now shows no rows: the account's takes show only to the account. Log in again: the rows
+   are back. A wrong password reads "Email or password is wrong.", for an unknown email
+   too; six wrong tries in a row read "Too many tries. Wait 15 minutes, then try again."
+6. Tap "Delete account": it turns into "Delete your account and every take it keeps on our
+   server? Takes on this device stay here." with a red "Delete account" and "Cancel", focus on
+   Cancel. Cancel brings the button back. Confirm: the empty sign-up form comes back and the
+   live region says "Account deleted". History still lists every take, as a guest's; nothing more is sent.
+7. At 320px wide, light and dark: the fields and buttons fit with no sideways scroll, and the
+   History heading keeps its height with the Account link beside it.

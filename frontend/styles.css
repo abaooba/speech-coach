@@ -1966,3 +1966,148 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 #screen-practice[data-state="recording"] .practice__sample {
   display: none;
 }
+
+/* 12. Account screen (#/account) and the Account link in History's header (docs/PLAN.md T49).
+   Red stays for Delete alone (section 4 of DESIGN.md), so a refused log in reads in --warn
+   after the warning icon, as the out-of-target hints do. */
+
+/* The link at the right of History's header: small, 500, on a 44px target whose --s-2 overhang
+   above, below and at the right keeps the row as tall as the h1, as the theme toggle's does. */
+.account-link {
+  min-height: 44px;
+  margin-block: calc(-1 * var(--s-2));
+  margin-right: calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* The screen is one column of blocks: the first line, the switch, the form or the account's
+   actions, and the line on what the server keeps. */
+#screen-account .screen__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.account__lead,
+.account__status {
+  margin: 0;
+}
+
+/* What the server keeps, and a signed-in device's offline note: small and muted. */
+.account__privacy,
+.account__note {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.account__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.account__label {
+  display: block;
+  margin-bottom: var(--s-1);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* A one-line field built like Practice's script box: --surface, a 1px --border, --r-btn corners
+   and the body size, so iPhone Safari does not zoom in when it takes focus. */
+.account__input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+.account__hint {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* A refused sign up or log in, or a log out or delete that failed: the sentence in --warn after
+   the warning icon. Empty, the line takes no room; it stays in place for role="alert". */
+.account__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--warn);
+}
+
+.account__error:empty {
+  display: none;
+}
+
+.account__error svg {
+  flex: none;
+}
+
+/* The offer to add this device's takes is a tip card holding its question over its two buttons;
+   the screen's gap spaces it, not the tip card's own top margin. */
+.account__offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: 0;
+}
+
+.account__offer-text {
+  margin: 0;
+}
+
+.account__offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* Log out over Delete account, each as wide as its words. */
+.account__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+/* Delete account asks first: the question on a line of its own over the red Delete account and
+   a ghost Cancel. */
+.account__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.account__confirm-text {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+/* Keyboard focus scrolls a control clear of the nav, ring and all, as on History. */
+#screen-account :is(a, button, input, [tabindex]) {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}

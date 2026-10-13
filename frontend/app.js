@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  const SCREEN_NAMES = ["onboarding", "practice", "results", "history", "progress"];
+  const SCREEN_NAMES = ["onboarding", "practice", "results", "history", "progress", "account"];
   const DEFAULT_SCREEN = "practice";
   const ACTIVE_SCREEN_CLASS = "screen--active";
   const ACTIVE_NAV_CLASS = "nav__item--active";

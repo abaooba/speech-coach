@@ -5,7 +5,7 @@
 "use strict";
 
 // Bump the version whenever SHELL changes; activate then deletes the old cache.
-const CACHE_NAME = "speech-coach-shell-v2";
+const CACHE_NAME = "speech-coach-shell-v3";
 
 // Paths relative to this file. Every <script src> in index.html must be listed:
 // backend/tests/test_pwa_files.py checks the list against the page and the disk.
@@ -15,6 +15,7 @@ const SHELL = [
   "manifest.json",
   "app.js",
   "ui.js",
+  "auth.js",
   "store.js",
   "api.js",
   "passages.js",
@@ -26,6 +27,7 @@ const SHELL = [
   "screens/results.js",
   "screens/history.js",
   "screens/progress.js",
+  "screens/account.js",
   "screens/onboarding.js",
   "icons/icon-192.png",
   "icons/icon-512.png",
