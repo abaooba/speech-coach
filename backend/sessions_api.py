@@ -178,9 +178,9 @@ def nesting_depth(value: object) -> int:
 def json_bytes(value: object) -> int:
     """How many bytes `value` takes as JSON.stringify writes it: no spaces, in UTF-8.
 
-    Raises ValueError for what standard JSON cannot carry: NaN or Infinity, which Postgres
-    refuses, and half of a UTF-16 surrogate pair, which UTF-8 cannot write, so every answer
-    holding the take would fail. The message never quotes the value.
+    Raises ValueError for what a take never holds: NaN or Infinity, which JSON has not and
+    Postgres refuses, and half of a UTF-16 surrogate pair, which no browser sends and which has
+    no UTF-8 bytes to count. The message never quotes the value.
     """
     try:
         text = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))

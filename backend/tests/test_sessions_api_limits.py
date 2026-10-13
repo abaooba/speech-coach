@@ -29,7 +29,7 @@ from typing import Any
 import httpx2
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, func, insert, select
+from sqlalchemy import Engine, Text, cast, func, insert, select
 
 from backend import app as app_module
 from backend import auth, db, sessions_api
@@ -364,6 +364,26 @@ def keep_directly(engine: Engine, sizes: list[int], email: str = ANN) -> list[st
 
 def ids_of(client: TestClient) -> list[str]:
     return sorted(kept["id"] for kept in takes_of(client))
+
+
+def test_an_account_is_counted_in_the_bytes_the_database_keeps(
+    accounts_on: None, engine: Engine
+) -> None:
+    ann = signed_in()
+    keep(ann, take("accents", report={"title": "Résumé ✓"}, transcript=["🎤" * 1_000, "naïve"]))
+    takes = db.speech_sessions
+
+    with engine.connect() as connection:
+        kept = connection.execute(select(cast(takes.c.report, Text), cast(takes.c.transcript, Text)))
+        text = "".join(kept.one())
+        counted = connection.execute(
+            sessions_api.stored_take_bytes(user_id_of(engine, ANN))
+        ).scalar_one()
+
+    # Kept with \u escapes, the JSON is ASCII, so its characters, which the database counts,
+    # are its bytes: 12 for each microphone, where UTF-8 has 4.
+    assert text.isascii()
+    assert counted == len(text.encode()) > 12 * 1_000
 
 
 def test_an_account_keeps_up_to_20_mb_of_takes_and_no_more(accounts_on: None) -> None:
