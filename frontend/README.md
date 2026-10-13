@@ -323,12 +323,17 @@ sample result", which opens a real sample take on this screen.
    control, the bar's two included, with its whole ring clear of the nav.
 
 4. Speech timeline: under the cards, a "Speech timeline" heading and a strip from the first
-   word to the last: amber ticks for fillers, purple blocks for mid-sentence pauses and a pale
-   green band with a darker green base line for the longest clean stretch. Under it, the
-   first word's time, the midpoint and the last word's time (the same clock as the tips), then
-   a legend. A screen reader reads the strip as one image, "Speech timeline from 0:01 to 0:32:
-   11 fillers, 3 mid-sentence pauses, 1 restart, a 4.9 second clean stretch", and then a list
-   of every moment, a restart included ("Restart “and I” at 0:16"). A session saved with an empty transcript shows no timeline.
+   word to the last: amber ticks for fillers, purple blocks for mid-sentence pauses, a taller
+   pink block for each pause of 5 s or more, even after a period, and a pale green band with a
+   darker green base line for the longest clean stretch. Under it, the first word's time, the
+   midpoint and the last word's time (the same clock as the tips), then a legend, which adds
+   "Long pause (5 s+)" when the strip has one. A screen reader reads the strip as one image,
+   "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, 1 restart, a 4.9
+   second clean stretch", with "1 long pause" after the mid-sentence count when there is one,
+   and then a list of every moment, a restart included ("Restart “and I” at 0:16"). End a
+   sentence and stay silent for 6 seconds: the strip draws the pink block, and the list reads
+   "Long pause at 0:04, 6.0 seconds". A session saved with an empty transcript shows no
+   timeline.
 
 5. Transcript: under the timeline, a "Transcript" heading, a small legend and every word of the
    take. The legend reads "Highlighted words are hesitations: um, uh, mhm. Underlined words
