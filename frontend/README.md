@@ -19,6 +19,7 @@ the map.
 | `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType, script)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`; a `script` with words goes along as the form field `script`, and `metrics.script` then lists restarts, skipped and misread script words (the backend drops a script the take does not follow and scores it as free talk). A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
 | `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). `coldReads()` returns a new list of the cold reads (`coldRead: true`), original passages for the skill path's cold-read mode that no tab lists. No DOM. |
 | `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
+| `path.js` | `app.path` | The skill path (docs/PLAN.md T42): `UNITS`, four units of five challenge levels. `evaluate(level, report)` passes or fails a take with a sentence saying why, `order(history)` puts the weakest unit first, `isUnlocked`, `statusOf` and `currentLevel` read the cleared levels, and `pickColdRead(history, random)` picks a cold read the speaker has never read. Pure: no DOM, no store. |
 | `tips.js` | `app.tips` | `select(report, options)` returns at most two `{id, text}` tips in priority order. Pure. |
 | `pauses.js` | `app.pauses` | Human-owned (T08); agents never edit it. `start(stream)` samples the microphone's loudness while a take records, `stop()` hands the samples back, and `reconcile(metrics, samples)` folds the quiet stretches into the backend's pauses. |
 | `screens/practice.js` | `app.screens.practice` | `mount`, `show`, `hide`, plus `render(state, detail)` (the one function that repaints the screen), the `state` string (`idle`, `recording`, `uploading` or `error`), `STATES`, `viewFor` and `selectedPassage`. Records a take, uploads it through `app.api` and saves it through `app.store`. |
@@ -40,7 +41,7 @@ and route params.
 
 **Script load order.** `index.html` loads classic `<script>` tags (no modules, no build step, no
 CDN) in this order, fixed by `backend/tests/test_frontend_shell.py`: `app.js`, `ui.js`,
-`store.js`, `api.js`, `passages.js`, `delivery.js`, `tips.js`, `pauses.js`, then
+`store.js`, `api.js`, `passages.js`, `delivery.js`, `path.js`, `tips.js`, `pauses.js`, then
 `screens/practice.js`, `screens/results.js`, `screens/history.js`, `screens/progress.js` and
 `screens/onboarding.js`. `app.js` comes first because it creates `window.app`. Every
 `<script src>` is also listed in `SHELL` in `sw.js` (`backend/tests/test_pwa_files.py`).
