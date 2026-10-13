@@ -82,6 +82,7 @@ from starlette.types import Message, Receive
 
 from backend import auth, db
 from backend.advice.coach import MAX_ID_CHARACTERS, MAX_SHOWN_IDS
+from backend.nul_free import holds_nul
 
 # A take's report and transcript together, as JSON.stringify writes them: no spaces, in UTF-8.
 # A take holds about 7 KB a minute of speech, so an hour-long one fits with room to spare.
@@ -206,8 +207,9 @@ class TakeToKeep(Take):
 
     It has the four fields and nothing else, so a take carrying its audio is refused, as is a
     report with an audio field (AUDIO_FIELDS). The report and the transcript each nest
-    MAX_JSON_DEPTH deep at most, and they take MAX_TAKE_BYTES at most together, written as
-    json_bytes() writes them, which also refuses what Postgres or UTF-8 cannot hold.
+    MAX_JSON_DEPTH deep at most, hold no NUL in any key or text (backend/nul_free.py), and take
+    MAX_TAKE_BYTES at most together, written as json_bytes() writes them, which also refuses
+    what Postgres or UTF-8 cannot hold.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -228,6 +230,8 @@ class TakeToKeep(Take):
         depth = max(nesting_depth(self.report), nesting_depth(self.transcript))
         if depth > MAX_JSON_DEPTH:
             raise ValueError(f"the report or transcript nests {depth} deep, over {MAX_JSON_DEPTH}")
+        if holds_nul(self.report) or holds_nul(self.transcript):
+            raise ValueError("the report and transcript may not hold NUL (U+0000) in a key or text")
         if self.size > MAX_TAKE_BYTES:
             raise ValueError(
                 f"the report and transcript take {self.size} bytes, over {MAX_TAKE_BYTES}"

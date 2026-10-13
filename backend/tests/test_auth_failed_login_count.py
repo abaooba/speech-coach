@@ -4,7 +4,7 @@ Five failed logins for one email from one address within 15 minutes turn that pa
 A failed login is a wrong email or password. A login that ends in a fault instead, such as a
 database that cannot be reached, checked no password, so its attempt is taken back: faults cannot
 lock out a speaker whose password is right. A login that no account could match, such as one for
-an email holding a NUL, is answered at once and not counted.
+an email holding a control character, is answered at once and not counted.
 
 The address is the one the ASGI server reports, never one the visitor writes in X-Forwarded-For.
 Behind a proxy that uvicorn is told to trust (FORWARDED_ALLOW_IPS), it is the address the proxy
@@ -228,17 +228,18 @@ def test_withdrawing_takes_back_only_an_attempt_still_on_record_from_that_moment
 @pytest.mark.parametrize(
     ("email", "password"),
     [
-        ("ann\x00@example.com", PASSWORD),
+        ("ann\x01@example.com", PASSWORD),
         ("ann\ud800@example.com", PASSWORD),
         ("a" * 243 + "@example.com", PASSWORD),
         (EMAIL, "a" * 257),
     ],
-    ids=["NUL in the email", "half a surrogate pair", "255-character email", "257-char password"],
+    ids=["control character", "half a surrogate pair", "255-character email", "257-char password"],
 )
 def test_a_login_no_account_could_match_is_answered_without_being_counted(
     accounts_on: None, limiter: auth.FailedLoginLimiter, email: str, password: str
 ) -> None:
-    # A NUL never reaches the lookup: Postgres cannot hold one, and refuses a query with one.
+    # Such an email never reaches the lookup: no stored email holds it. (NUL is refused sooner,
+    # with 422, as Postgres cannot hold one: test_nul_refused.py.)
     body = json.dumps({"email": email, "password": password})
     headers = {"content-type": "application/json"}
 

@@ -415,7 +415,7 @@ def test_a_password_holding_half_of_a_surrogate_pair_is_hashed_like_any_other(
         "ann @example.com",
         "ann@@example.com",
         "ann@bob@example.com",
-        "ann\x00@example.com",
+        "ann\x01@example.com",
         "a" * 243 + "@example.com",
     ],
 )
@@ -526,7 +526,7 @@ def test_the_first_unknown_email_after_a_restart_costs_what_a_wrong_password_cos
     ("email", "password"),
     [
         ("a" * 243 + "@example.com", PASSWORD),
-        ("ann\x00@example.com", PASSWORD),
+        ("ann\x01@example.com", PASSWORD),
         (EMAIL, "a" * 257),
     ],
 )

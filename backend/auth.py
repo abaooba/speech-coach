@@ -12,6 +12,8 @@ that, so a body sent as JSON that does not parse gets FastAPI's 422 instead.)
 
 A password is 10 to 256 characters and is kept only as an Argon2id hash (argon2-cffi). An email is
 kept trimmed and lowercased; signing up checks that it looks like an address, and nothing more.
+Neither may hold NUL, which Postgres text cannot: such a request is refused with FastAPI's 422
+before any check here runs (backend/nul_free.py).
 
 A session is 32 random bytes, sent as URL-safe base64 in the sc_session cookie (HttpOnly; Secure;
 SameSite=Lax; Path=/), and lasts 30 days from sign-in, cookie and session alike. The database
@@ -66,6 +68,7 @@ from sqlalchemy import Connection, Engine, Row, delete, insert, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from backend import db
+from backend.nul_free import NulFreeStr
 
 logger = logging.getLogger(__name__)
 
@@ -140,10 +143,10 @@ LoginPair = tuple[str, str]
 
 
 class Credentials(BaseModel):
-    """What the sign-up and log-in forms send."""
+    """What the sign-up and log-in forms send. Neither may hold NUL (backend/nul_free.py): 422."""
 
-    email: str
-    password: str
+    email: NulFreeStr
+    password: NulFreeStr
 
 
 @dataclass(frozen=True)
@@ -271,8 +274,9 @@ def could_belong_to_an_account(email: str, password: str) -> bool:
     """False when no account can have this email (normalized) and password, whatever is stored.
 
     Nothing longer than the limits is ever stored, and no stored email holds a character that is
-    not printable, such as NUL (which Postgres cannot hold) or half of a UTF-16 surrogate pair
-    (which UTF-8 cannot write). A login that fails here is neither looked up nor counted.
+    not printable, such as a line break or half of a UTF-16 surrogate pair (which UTF-8 cannot
+    write); NUL never gets this far (Credentials). A login that fails here is neither looked up
+    nor counted.
     """
     return (
         len(email) <= MAX_EMAIL_LENGTH
