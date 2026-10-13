@@ -7,7 +7,8 @@
     DELETE /api/me                              204; the account and every row it owns are gone
 
 Accounts are optional. With DATABASE_URL unset every route here answers 503 (db.accounts_engine)
-and guests carry on as before, their takes kept in the browser.
+and guests carry on as before, their takes kept in the browser. (FastAPI reads a JSON body before
+that, so a body sent as JSON that does not parse gets FastAPI's 422 instead.)
 
 A password is 10 to 256 characters and is kept only as an Argon2id hash (argon2-cffi). An email is
 kept trimmed and lowercased; signing up checks that it looks like an address, and nothing more.
@@ -81,6 +82,7 @@ MIN_PASSWORD_LENGTH = 10
 # Room for any passphrase, while a request cannot hand Argon2 an essay.
 MAX_PASSWORD_LENGTH = 256
 # The longest address mail can be delivered to: RFC 5321's 256-octet path, less its two brackets.
+# It is counted in characters: one octet each in an ASCII address, up to four in others.
 MAX_EMAIL_LENGTH = 254
 # something@something.something with no spaces: enough to catch a slip, not an RFC 5322 parser.
 EMAIL_SHAPE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
@@ -97,8 +99,10 @@ MAX_CONCURRENT_HASHES = 4
 
 MAX_FAILED_LOGINS = 5
 FAILED_LOGIN_WINDOW = timedelta(minutes=15)
-# How many (email, address) pairs the failed-login count keeps: under 10 MB, even when every email
-# is as long as allowed. Past it, the pair whose last failure is oldest is forgotten first.
+# How many (email, address) pairs the failed-login count keeps. Full, with five failures each, it
+# takes about 8 MB when every email is as long as allowed, and about 16 MB when those emails are
+# written in 4-byte characters such as emoji. Past it, the pair whose last failure is oldest is
+# forgotten first.
 MAX_PAIRS_TRACKED = 10_000
 # Where a request came from when the server cannot say (an ASGI server may leave it out).
 UNKNOWN_ADDRESS = "unknown"
@@ -124,8 +128,8 @@ PASSWORD_HASHER = PasswordHasher(
 )
 HASHING_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_HASHES)
 
-# Every route here needs the database, so while accounts are off each answers 503 before anything
-# else is looked at.
+# Every route here needs the database, so while accounts are off each answers 503 before its own
+# checks run. FastAPI reads a JSON body first, though, and answers one that does not parse with 422.
 router = APIRouter(prefix="/api", dependencies=[Depends(db.accounts_engine)])
 
 # (normalized email, IP address): what failed logins are counted by.

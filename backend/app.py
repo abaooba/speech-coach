@@ -191,7 +191,8 @@ async def advice(
 
 
 # Accounts (backend/auth.py): POST /api/auth/signup, /login and /logout, and GET and DELETE
-# /api/me. Every one answers 503 while DATABASE_URL is unset.
+# /api/me. Every one answers 503 while DATABASE_URL is unset, though a body sent as JSON that does
+# not parse gets FastAPI's 422 first.
 app.include_router(auth.router)
 
 # Mounted last so /api routes take priority.
