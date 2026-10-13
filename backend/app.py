@@ -2,6 +2,8 @@
 
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
@@ -15,9 +17,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import RequestResponseEndpoint
 
-from backend import metrics
+from backend import db, metrics
 from backend.advice import coach, load_library
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
@@ -51,7 +54,29 @@ SHELL_CACHE_CONTROL = "no-cache"
 ASSET_CACHE_CONTROL = "public, max-age=3600"
 API_CACHE_CONTROL = "no-store"
 
-app = FastAPI(title="Speech Coach")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """On startup, create the account tables when DATABASE_URL is set (backend/db.py).
+
+    Without it accounts are off and nothing is created. A database that cannot be reached is
+    logged and passed over, because guests never need it: their takes stay in the browser.
+    Account routes then fail until it can be reached, and on a first deploy until the next start.
+    """
+    engine = db.configured_engine()
+    if engine is not None:
+        try:
+            await run_in_threadpool(db.create_tables, engine)
+        except SQLAlchemyError as error:
+            # Named by its class alone: the error's text can name the database host and user.
+            logger.error(
+                "Could not create the account tables (%s); guests are unaffected",
+                type(error).__name__,
+            )
+    yield
+
+
+app = FastAPI(title="Speech Coach", lifespan=lifespan)
 
 
 @app.middleware("http")
