@@ -13,9 +13,13 @@
 Guests come first: the browser keeps every take in IndexedDB (frontend/store.js). For a speaker
 who signs in, these routes keep the same data on the server too, so their other devices see it.
 
-A take is {id, created_at, report, transcript}, as store.js keeps one: the id the browser gave
-it, when it was recorded (a time with its zone, given back in UTC), its report (a JSON object:
-the metrics and details) and its transcript (a JSON array: the words with their timings). The
+A take is {id, created_at, report, transcript}: the id the browser gave it (letters, digits, "-"
+and "_"), when it was recorded (a time with its zone, given back in UTC), its report (a JSON
+object: the metrics and details) and its transcript (a JSON array: the words with their timings).
+That is not the record store.js keeps, {id, createdAt, passageId, passageTitle, durationSeconds,
+metrics, transcript}, which is refused as it is (422). The browser sends the record's createdAt as
+created_at, its passageId, passageTitle, durationSeconds and metrics as the report, and its
+transcript as the transcript, and turns a take given back into a record the other way. The
 report and the transcript are kept exactly as sent, MAX_TAKE_BYTES at most together and nested
 MAX_JSON_DEPTH deep at most, and audio never is (TakeToKeep). Keeping a take with an id the
 speaker already has replaces that take, as the browser's store does. An import keeps only the
@@ -127,17 +131,6 @@ TAKE_CONTENTS = ("created_at", "report", "transcript")
 # --- what the routes take and give ---------------------------------------------------------------
 
 
-def _printable(text: str) -> str:
-    """`text`, if every character in it is printable.
-
-    No id the app makes holds any other, such as NUL, which Postgres text cannot hold, or half
-    of a UTF-16 surrogate pair, which UTF-8 cannot write (as auth.could_belong_to_an_account).
-    """
-    if not text.isprintable():
-        raise ValueError("an id holds printable characters only")
-    return text
-
-
 def _in_utc(moment: datetime) -> datetime:
     """`moment` in UTC, as the database keeps it. A time that has no UTC equivalent is refused.
 
@@ -149,8 +142,13 @@ def _in_utc(moment: datetime) -> datetime:
         raise ValueError("the time is out of range") from None
 
 
-# A take's id (crypto.randomUUID in store.js), a library entry's ("filler-001") or a level's.
-Id = Annotated[str, Field(min_length=1, max_length=MAX_ID_CHARACTERS), AfterValidator(_printable)]
+# A take's id (crypto.randomUUID in store.js, or its base-36 fallback), a library entry's
+# ("filler-001") or a level's ("long-pauses-3"): letters, digits, hyphens and underscores, as
+# every id the app makes is. So a take's id stands in DELETE /api/sessions/{id} as it is, with no
+# "/" that would split the path or "." and ".." that clients fold away, and no id holds NUL,
+# which Postgres text cannot, or half of a UTF-16 surrogate pair, which UTF-8 cannot write.
+ID_PATTERN = r"^[A-Za-z0-9_-]+$"
+Id = Annotated[str, Field(min_length=1, max_length=MAX_ID_CHARACTERS, pattern=ID_PATTERN)]
 # A time with its zone, such as toISOString's "2026-10-12T18:30:00.000Z", kept in UTC.
 Moment = Annotated[AwareDatetime, AfterValidator(_in_utc)]
 
