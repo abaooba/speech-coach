@@ -81,8 +81,9 @@
   const DEFAULT_TARGET_WPM = [140, 160];
   const NONE_AT_ALL = -1;
   const TIE_DECIMALS = 9;
-  // The units follow the speaker's latest takes, averaged over this many, so one odd take
-  // cannot reorder the path and a habit the speaker has since fixed stops leading it.
+  // The units follow the speaker's latest takes, this many, so a habit the speaker has since
+  // fixed stops leading the path. Each take counts for its speaking time (see order), so a few
+  // seconds of a take the speaker gave up on cannot reorder it.
   const RECENT_TAKES = 5;
 
   const NO_SPEECH = "No speech was found in this take. Try the level again.";
@@ -410,9 +411,12 @@
 
   // --- Weakest unit first ----------------------------------------------------------------------
 
-  // The units, the weakest first: each unit's distance from its target (distancesFromTarget),
-  // averaged over the speaker's RECENT_TAKES latest takes with speech, ranked as
-  // backend/advice/select.py weakest_skills ranks one take. `history` is the takes as
+  // The units, the weakest first: each unit's distance from its target (distancesFromTarget)
+  // over the speaker's RECENT_TAKES latest takes with speech, ranked as
+  // backend/advice/select.py weakest_skills ranks one take. The takes' distances are averaged
+  // with each take weighted by its speaking minutes, so a rate reads as the rate over all their
+  // minutes together: 5 s of a take the speaker gave up on weigh what 5 s of any take weigh,
+  // and one take alone ranks exactly as weakest_skills ranks it. `history` is the takes as
   // app.store.list() resolves them, in any order; the sample a visitor opens from Practice is
   // left out, as Progress leaves it out. Ties, and a speaker with no takes, keep UNITS' order.
   function order(history) {
@@ -420,15 +424,17 @@
     if (recent.length === 0) {
       return UNITS.slice();
     }
+    const minutes = recent.reduce((sum, take) => sum + take.minutes, 0);
     const average = {};
     UNITS.forEach((entry) => {
-      const total = recent.reduce((sum, distances) => sum + distances[entry.id], 0);
-      average[entry.id] = roundTo(total / recent.length, TIE_DECIMALS);
+      const total = recent.reduce((sum, take) => sum + take.distances[entry.id] * take.minutes, 0);
+      average[entry.id] = roundTo(total / minutes, TIE_DECIMALS);
     });
     return UNITS.slice().sort((a, b) => average[b.id] - average[a.id]);
   }
 
-  // Each unit's distance for the RECENT_TAKES latest takes that hold speech, newest first.
+  // The RECENT_TAKES latest takes that hold speech, newest first, each as {distances, minutes}:
+  // its distance for each unit and its speaking time.
   function recentDistances(history) {
     const takes = listOf(history)
       .filter((take) => take && typeof take === "object" && isOwnTake(take))
@@ -438,28 +444,29 @@
       if (recent.length === RECENT_TAKES) {
         break;
       }
-      const distances = unitDistancesOf(take);
-      if (distances !== null) {
-        recent.push(distances);
+      const measured = unitDistancesOf(take);
+      if (measured !== null) {
+        recent.push(measured);
       }
     }
     return recent;
   }
 
-  // One take's distance from target for each unit, by unit id, or null for a take with no
-  // speaking time, which says nothing about any skill. Pace has a tag for each edge of its band
-  // and reads the edge the take is nearer, the one weakest_skills ranks (the far one goes last).
+  // One take as {distances, minutes}: its distance from target for each unit, by unit id, and
+  // its speaking minutes; null for a take with no speaking time, which says nothing about any
+  // skill. Pace has a tag for each edge of its band and reads the edge the take is nearer, the
+  // one weakest_skills ranks (the far one goes last).
   function unitDistancesOf(take) {
     const report = app.delivery.analyze(take.transcript, take.metrics);
     if (!(report.speakingSeconds > 0)) {
       return null;
     }
     const byTag = distancesFromTarget(report, paceBandOf(take.passageId));
-    const byUnit = {};
+    const distances = {};
     UNITS.forEach((entry) => {
-      byUnit[entry.id] = Math.max(...entry.tags.map((tag) => byTag[tag]));
+      distances[entry.id] = Math.max(...entry.tags.map((tag) => byTag[tag]));
     });
-    return byUnit;
+    return { distances, minutes: report.speakingSeconds / SECONDS_PER_MINUTE };
   }
 
   // select.py distances_from_target for the tags the path has a unit for (none trains
