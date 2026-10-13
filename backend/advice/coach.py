@@ -14,6 +14,7 @@ same way. Either way the answer has one shape: {tips: [{entry_id, text, drill, c
 source: "ai" | "library"}. The API key and the transcript are never logged.
 """
 
+import html
 import logging
 from collections.abc import Collection, Sequence
 from functools import cache
@@ -32,8 +33,10 @@ from backend.advice.select import (
     RESTARTS_PER_MINUTE_TARGET,
     SECONDS_PER_MINUTE,
     SKILLS_ADVISED,
+    TIE_DECIMALS,
     ReportSummary,
     candidates,
+    distances_from_target,
     weakest_skills,
 )
 
@@ -73,7 +76,7 @@ MAX_TIER_CHARACTERS = 40
 AI_SOURCE = "ai"
 LIBRARY_SOURCE = "library"
 
-# How the prompt names the library's skill tags.
+# How the prompt names the library's skill tags, in the skills each entry helps with.
 SKILL_NAMES = {
     "restart": "restarts",
     "filler": "fillers",
@@ -83,6 +86,10 @@ SKILL_NAMES = {
     "pace_slow": "speaking too slowly",
     "general": "delivery in general",
 }
+# Pace is one skill with a tag for each edge of its band (select.py). A take inside the band is
+# still coached on the edge it is nearer, with no fault in it, so the skills to coach call it
+# "pace", not SKILL_NAMES's "speaking too fast", and say which way only past the band.
+PACE_PAST_TARGET = {"pace_fast": "faster than the target", "pace_slow": "slower than the target"}
 
 # The reply the model must give: a JSON schema for structured outputs (output_config.format).
 # Structured outputs cannot cap an array at 3 items or a string at 60 words, so the descriptions
@@ -121,6 +128,7 @@ coach notes: 2 or 3 short tips, each one drawn from one of the library entries y
 Rules for every tip:
 - Make it personal: speak to the speaker as "you", and tie the entry's advice to their \
 numbers or to what they said.
+- Where a skill is on target, do not tell the speaker to fix it: help them keep it there.
 - Use only the given entries and the given numbers. Add no facts, studies, statistics or \
 advice of your own.
 - Do not mention sources, authors, titles or links. The app shows each tip's source itself.
@@ -329,16 +337,22 @@ def take_prompt(
 ) -> str:
     """The user turn: the take's numbers against their targets, the excerpt, then the entries.
 
-    The entries come best first, as candidates() orders them, each with its id, the skills it
-    helps, its advice and its drill. Their sources are left out: the app cites them, the model
-    must not.
+    After the numbers come the skills to coach, the most urgent first, each said to be on target
+    or past it (coached_skill). The excerpt is HTML-escaped, so the speaker's text cannot close
+    its block or forge an entry. The entries come best first, as candidates() orders them, each
+    with its id, the skills it helps, its advice and its drill. Their sources are left out: the
+    app cites them, the model must not.
     """
     minutes = summary.duration_seconds / SECONDS_PER_MINUTE
     low, high = summary.pace_band()
-    filler_target = f"under {FILLERS_PER_MINUTE_TARGET:g} a minute"
+    # "Or fewer" throughout: a take exactly on a rate is not past it (select.py).
+    filler_target = f"{FILLERS_PER_MINUTE_TARGET:g} a minute or fewer"
     restart_target = f"{RESTARTS_PER_MINUTE_TARGET:g} a minute or fewer"
     pause_target = f"{MID_SENTENCE_PAUSES_PER_MINUTE_TARGET:g} a minute or fewer"
-    focus = ", then ".join(SKILL_NAMES.get(tag, tag) for tag in weak_skills[:SKILLS_ADVISED])
+    distances = distances_from_target(summary.report_summary())
+    focus = ", then ".join(
+        coached_skill(tag, distances[tag]) for tag in weak_skills[:SKILLS_ADVISED]
+    )
     lines = [
         "The take:",
         f"- Speaking time: {summary.duration_seconds:.0f} seconds",
@@ -347,11 +361,11 @@ def take_prompt(
         _count_line("Restarts", summary.restart_count, minutes, restart_target),
         _count_line("Mid-sentence pauses", summary.mid_sentence_pause_count, minutes, pause_target),
         f"- Long pauses of 5 seconds or more: {summary.long_pause_count} (target: none)",
-        f"Weakest skills: {focus}",
+        f"Skills to coach, the most urgent first: {focus}",
         "",
         "The transcript excerpt:",
         "<transcript>",
-        summary.transcript_excerpt or "(none)",
+        html.escape(summary.transcript_excerpt, quote=False) or "(none)",
         "</transcript>",
         "",
         "The library entries, best first:",
@@ -365,10 +379,25 @@ def take_prompt(
     return "\n".join(lines)
 
 
+def coached_skill(tag: str, distance: float) -> str:
+    """A skill to coach and where the take stands on it, as in "restarts (past the target)".
+
+    `distance` is the take's distance from the skill's target (select.distances_from_target),
+    compared as weakest_skills() compares it: above 0 is past the target, 0 or below is on
+    target. weakest_skills() ranks every skill, so a take that meets every target is still
+    coached on the ones nearest to slipping, and the model must not be told they are faults.
+    Pace is named "pace" and, past the band, says which way (PACE_PAST_TARGET).
+    """
+    name = "pace" if tag in PACE_PAST_TARGET else SKILL_NAMES.get(tag, tag)
+    if round(distance, TIE_DECIMALS) <= 0:
+        return f"{name} (on target)"
+    return f"{name} ({PACE_PAST_TARGET.get(tag, 'past the target')})"
+
+
 def _count_line(name: str, count: int, minutes: float, target: str) -> str:
     """One count of the take with its rate a minute and its target.
 
-    As in "- Fillers: 4, 2.0 a minute (target: under 3 a minute)". A take with no length has
+    As in "- Fillers: 4, 2.0 a minute (target: 3 a minute or fewer)". A take with no length has
     no rate.
     """
     rate = f", {count / minutes:.1f} a minute" if minutes > 0 else ""
