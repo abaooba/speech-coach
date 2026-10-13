@@ -8,10 +8,11 @@ added to what the entries and the numbers say. Its reply is used only when it ke
 in checked_tips(). The drill and the citation of each tip are copied here from its library
 entry, never taken from the model.
 
-When the model cannot be used (no API key, no reply within 8 s, an API error, a refusal, or a
-reply that is not a message or breaks a rule), the first candidates are shown word for word
-instead, cited the same way. Either way the answer has one shape: {tips: [{entry_id, text,
-drill, citation}], source: "ai" | "library"}. The API key and the transcript are never logged.
+When the model cannot be used (no API key, the hour's budget of calls spent (budget.py), no
+reply within 8 s, an API error, a refusal, or a reply that is not a message or breaks a rule),
+the first candidates are shown word for word instead, cited the same way. Either way the answer
+has one shape: {tips: [{entry_id, text, drill, citation}], source: "ai" | "library"}. The API key
+and the transcript are never logged.
 """
 
 import asyncio
@@ -34,6 +35,7 @@ from pydantic import (
 )
 
 from backend.advice import AdviceEntry, citation
+from backend.advice.budget import ADVICE_CALL_BUDGET, AICallBudget
 from backend.advice.select import (
     DEFAULT_TARGET_WPM,
     FILLERS_PER_MINUTE_TARGET,
@@ -329,21 +331,32 @@ def client_for_key(api_key: str) -> AsyncAnthropic:
 
 
 async def advise(
-    request: AdviceRequest, library: Sequence[AdviceEntry], client: AsyncAnthropic | None
+    request: AdviceRequest,
+    library: Sequence[AdviceEntry],
+    client: AsyncAnthropic | None,
+    budget: AICallBudget = ADVICE_CALL_BUDGET,
 ) -> Advice:
     """The coach notes for one take.
 
     The tips draw on candidates() for the take's weakest skills, leaving out what the speaker has
-    been shown. With a client and at least MIN_TIPS candidates, the model writes them; without
-    one, when it has not answered within TIMEOUT_SECONDS, or when its reply cannot be used, the
-    first candidates are shown word for word. A failure is logged by its kind only, never with
-    the prompt or the reply.
+    been shown. With a client and at least MIN_TIPS candidates, the model writes them, each call
+    spending one of `budget`'s (budget.py: the server's own unless a test brings one). Without a
+    client, once the budget's calls are spent, when the model has not answered within
+    TIMEOUT_SECONDS, or when its reply cannot be used, the first candidates are shown word for
+    word. A failure is logged by its kind only, never with the prompt or the reply, and a spent
+    budget by its count of calls alone.
     """
     weak_skills = weakest_skills(request.summary.report_summary())
     offered = candidates(
         library, weak_skills, request.tier, request.shown_ids, session_id=request.session_id
     )
     if client is None or len(offered) < MIN_TIPS:
+        return library_advice(offered)
+    if not budget.try_to_spend():
+        logger.warning(
+            "Coach notes fell back to the library tips: the budget of %d AI calls an hour is spent",
+            budget.calls_per_window,
+        )
         return library_advice(offered)
     prompt = take_prompt(request.summary, weak_skills, offered)
     try:

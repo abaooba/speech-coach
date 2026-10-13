@@ -24,6 +24,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from backend import auth, db, metrics, sessions_api
 from backend.advice import coach, load_library
+from backend.advice.budget import ADVICE_CALL_BUDGET, AICallBudget
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
 from backend.script_align import analyze_reading
@@ -177,6 +178,14 @@ def advice_client() -> AsyncAnthropic | None:
     return coach.client_for_key(api_key) if api_key else None
 
 
+def advice_call_budget() -> AICallBudget:
+    """The AI calls /api/advice may still make this hour: the server's one budget (budget.py).
+
+    Every visitor spends from it, whatever their address. Tests replace it with their own.
+    """
+    return ADVICE_CALL_BUDGET
+
+
 @app.post("/api/advice")
 async def advice(
     advice_request: coach.AdviceRequest,
@@ -184,12 +193,14 @@ async def advice(
     speaker: Annotated[auth.SignedInAccount | None, Depends(auth.signed_in_account_or_guest)],
     engine: Annotated[Engine | None, Depends(db.accounts_engine_or_none)],
     now: Annotated[datetime, Depends(auth.current_time)],
+    budget: Annotated[AICallBudget, Depends(advice_call_budget)],
 ) -> coach.Advice:
     """Coach notes for one take: 2-3 tips, each with its library entry's drill and citation.
 
     The body is the take's numbers with a transcript excerpt, the speaker's tier and the ids of
     the advice already shown (coach.AdviceRequest). Claude Haiku writes the tips from library
-    advice when a key is set and its reply keeps the rules; otherwise they are the library's
+    advice when a key is set, the hour's budget of calls for the whole server is not spent
+    (backend/advice/budget.py) and its reply keeps the rules; otherwise they are the library's
     own words. `source` says which ("ai" or "library"), and the shape is the same either way.
 
     A guest's shown ids are the ones the request sends. A signed-in speaker's come from the
@@ -206,7 +217,7 @@ async def advice(
     library = load_library()
     # An account is only ever found while accounts are on, so with one there is an engine.
     if speaker is None or engine is None:
-        return await coach.advise(advice_request, library, client)
+        return await coach.advise(advice_request, library, client, budget)
     # Any fault is caught, not only the database's own errors (SQLAlchemyError): one the driver
     # raises unwrapped, or a statement that cannot be built, must not cost the speaker their tips.
     # Each is named by its class alone: the error's text can name the database host and user.
@@ -216,9 +227,9 @@ async def advice(
         logger.warning(
             "Could not read the advice shown (%s); served as a guest", type(error).__name__
         )
-        return await coach.advise(advice_request, library, client)
+        return await coach.advise(advice_request, library, client, budget)
     from_the_account = advice_request.model_copy(update={"shown_ids": shown_ids})
-    answer = await coach.advise(from_the_account, library, client)
+    answer = await coach.advise(from_the_account, library, client, budget)
     tip_ids = [tip.entry_id for tip in answer.tips]
     try:
         await run_in_threadpool(sessions_api.record_shown, engine, speaker.user_id, tip_ids, now)
