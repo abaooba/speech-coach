@@ -347,9 +347,9 @@ test("a take the server refuses for good stays on the device and leaves the queu
   await settle();
   const retried = server.requests.slice(before).filter((sent) => sent.method === "POST");
   assert.deepEqual(retried, [], "a refused take is not sent again");
-  // It is this device's take now, not the account's: signing out leaves it in a guest's list.
+  // It stays the account's, on this device only: signing out hides it from a guest.
   await device.auth.logOut();
-  assert.deepEqual(idsOf(await device.store.list()), ["refused"]);
+  assert.deepEqual(idsOf(await device.store.list()), []);
 });
 
 test("a take no server could keep is never sent, and stays on the device", async () => {
@@ -635,7 +635,7 @@ test("another account on the same device never sees the first one's takes", asyn
   assert.equal(await device.auth.guestImportOffer(), null, "ann's takes are not a guest's");
 });
 
-test("deleting the account signs out, keeping every take here as a guest's", async () => {
+test("deleting the account signs out, keeping the takes recorded here as a guest's", async () => {
   const server = new FakeAccountServer();
   const device = loadDevice(server);
   await device.store.save(session("guest-take", T1));
@@ -649,7 +649,7 @@ test("deleting the account signs out, keeping every take here as a guest's", asy
   assert.equal(server.users.has(ANN), false);
   assert.equal(await device.auth.account(), null);
   const before = server.requests.length;
-  assert.deepEqual(idsOf(await device.store.list()), ["from-laptop", "account-take", "guest-take"]);
+  assert.deepEqual(idsOf(await device.store.list()), ["account-take", "guest-take"]);
   await device.store.save(session("after", T4));
   await settle();
   assert.deepEqual(server.requests.slice(before), [], "a guest again: nothing is sent");
@@ -658,7 +658,7 @@ test("deleting the account signs out, keeping every take here as a guest's", asy
   await device.auth.signUp(ANN, PASSWORD);
   await settle();
   assert.deepEqual(server.takesOf(ANN), []);
-  assert.deepEqual(plain(await device.auth.guestImportOffer()), { count: 4 });
+  assert.deepEqual(plain(await device.auth.guestImportOffer()), { count: 3 });
 });
 
 test("an account deleted elsewhere: signing up again here keeps this device's takes", async () => {
@@ -670,8 +670,9 @@ test("an account deleted elsewhere: signing up again here keeps this device's ta
   await laptop.auth.logIn(ANN, PASSWORD);
   await laptop.auth.deleteAccount();
 
-  // The phone learns of it only as a 401: its session ended, so it signs out.
-  assert.deepEqual(plain(await phone.store.list()), []);
+  // The phone learns of it only as a 401: its session ended, so it signs out, its takes still
+  // showing.
+  assert.deepEqual(idsOf(await phone.store.list()), ["phone-take"]);
   assert.equal(await phone.auth.account(), null);
 
   // Signing up opens a new account: what the phone kept for the old one is the phone's own again.

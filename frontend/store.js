@@ -65,11 +65,22 @@
   const SERVER_TIME = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z$/;
   const MILLISECOND_DIGITS = 3;
 
+  // How long a signed-in list waits for the server's before it answers with this device's copy.
+  // The server's list still comes in behind it and updates that copy for the next list, so a
+  // screen never stalls on a slow network. A device that has never listed the account's takes
+  // has no copy worth showing yet, so its first list waits as long as a request may take
+  // (auth.js REQUEST_TIMEOUT_MS).
+  const LIST_WAIT_MS = 1000;
+  const FIRST_LIST_WAIT_MS = 20000;
+  // What a wait for the server's list resolves when the time runs out first.
+  const TOO_SLOW = "too-slow";
+
   // A queued write of a take: kept on the server (POST) or deleted there (DELETE).
   const KEEP = "keep";
   const DELETE = "delete";
 
-  // How an account's offer to add this device's guest takes stands; null until it is answered.
+  // How an account's last answer to the offer to add this device's guest takes stands; null
+  // until it is first answered. PENDING: the speaker said yes and the takes are still going up.
   const IMPORT_PENDING = "pending";
   const IMPORT_DONE = "imported";
   const IMPORT_DECLINED = "declined";
@@ -222,8 +233,9 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2);
   }
 
-  // Newest first. A guest's list is this device's sessions that belong to no account; a signed-in
-  // speaker's merges the server's list with this device's, which stands in when no reply comes.
+  // Newest first. A guest's list is this device's sessions that belong to no account, with the
+  // takes of an account whose session ended here (visibleTo); a signed-in speaker's merges the
+  // server's list with this device's, which stands in when no reply comes in time.
   async function list() {
     const state = await readSyncState();
     if (state.email !== null) {
@@ -253,16 +265,20 @@
     return sessions.find((listed) => listed.id === id);
   }
 
+  // Deletes a session. Signed in, the delete is queued for the account's server too, as a save
+  // is. A guest deleting a take of the account whose session ended here queues the delete for
+  // that account's next sign in, so the take does not come back with its next list.
   async function remove(id) {
-    const { email } = await readSyncState();
-    if (email === null) {
+    const state = await readSyncState();
+    if (state.email === null && endedOwnerOf(id, state) === null) {
       await run(SESSIONS_STORE, WRITE, (store) => store.delete(id));
       return;
     }
-    await changeSyncState(async (stores, state) => {
+    await changeSyncState(async (stores, now) => {
       await request(stores[SESSIONS_STORE].delete(id));
-      if (state.email !== null) {
-        queueTakeWrite(accountSyncOf(state, state.email), id, DELETE);
+      const account = now.email !== null ? now.email : endedOwnerOf(id, now);
+      if (account !== null) {
+        queueTakeWrite(accountSyncOf(now, account), id, DELETE);
       }
     });
     sendQueuedSoon();
@@ -279,9 +295,11 @@
 
   // Records a skill-path level (an app.path level id, such as "fillers-2") as cleared and
   // resolves the record kept: {levelId, clearedAt}, clearedAt an ISO time, now unless given. A
-  // level cleared before keeps its first clearedAt, the day it was earned. The lookup and the
-  // write share one transaction, so two calls at once cannot both write. Signed in, the record
-  // kept is queued for the server too, which also keeps each level's first clearing.
+  // level cleared before keeps its first clearedAt, the day it was earned. A guest's levels are
+  // this device's own, in pathProgress, where the lookup and the write share one transaction so
+  // two calls at once cannot both write. A signed-in account's are its own, kept in its sync
+  // state on this device and queued for the server, which also keeps each level's first
+  // clearing; they show to that account alone, as its takes do.
   async function markLevelCleared(levelId, clearedAt) {
     if (typeof levelId !== "string" || levelId === "") {
       throw new Error("markLevelCleared expects a level id such as 'fillers-2'");
@@ -291,15 +309,11 @@
     }
     const record = { levelId, clearedAt: clearedAt || new Date().toISOString() };
     const { email } = await readSyncState();
-    const kept = await keepClearedLevel(record);
-    if (email !== null) {
-      await changeSyncState(async (stores, state) => {
-        if (state.email !== null) {
-          accountSyncOf(state, state.email).pendingLevels[kept.levelId] = kept.clearedAt;
-        }
-      });
-      sendQueuedSoon();
+    const kept = email === null ? null : await keepAccountLevel(record);
+    if (kept === null) {
+      return keepClearedLevel(record);
     }
+    sendQueuedSoon();
     return kept;
   }
 
@@ -322,27 +336,57 @@
     });
   }
 
-  // Every cleared level as {levelId, clearedAt}, in the order they were cleared. Signed in, the
-  // levels the account cleared on other devices join this device's, each at its first clearing.
+  // The signed-in account's record of a level, at its first clearing, queued for the server.
+  // Resolves null when no one is signed in by the time it runs: the level is then a guest's.
+  function keepAccountLevel(record) {
+    return changeSyncState(async (stores, state) => {
+      if (state.email === null) {
+        return null;
+      }
+      const accountSync = accountSyncOf(state, state.email);
+      if (accountSync.levels[record.levelId] === undefined) {
+        accountSync.levels[record.levelId] = record.clearedAt;
+      }
+      const first = { levelId: record.levelId, clearedAt: accountSync.levels[record.levelId] };
+      accountSync.pendingLevels[first.levelId] = first.clearedAt;
+      return first;
+    });
+  }
+
+  // Every cleared level as {levelId, clearedAt}, in the order they were cleared, each at its
+  // first clearing: this device's own levels, then the signed-in account's (with the ones it
+  // cleared on other devices, from the server) or, for a guest, those of an account whose
+  // session ended here.
   async function listClearedLevels() {
-    const { email } = await readSyncState();
-    const records = await run(PATH_PROGRESS_STORE, READ, (store) => store.getAll());
-    const local = records.sort(earliestClearedFirst);
-    if (email === null) {
-      return local;
+    const state = await readSyncState();
+    const deviceOwn = await run(PATH_PROGRESS_STORE, READ, (store) => store.getAll());
+    const shown = [...deviceOwn, ...accountLevelsShownTo(state.email, state)];
+    if (state.email === null) {
+      return firstClearings(shown);
     }
     sendQueuedSoon();
     const reply = await send("GET", PROGRESS_URL);
     const outcome = outcomeOf(reply.status);
     if (outcome === SIGNED_OUT) {
-      await signOutAfter401(email);
-      return local;
+      await endSessionOf(state.email);
+      return listClearedLevels();
     }
     const levels = reply.body && reply.body.path_progress;
     if (outcome !== DONE || !Array.isArray(levels)) {
-      return local;
+      return firstClearings(shown);
     }
-    return firstClearings([...local, ...levels.map(levelFromServer).filter(Boolean)]);
+    return firstClearings([...shown, ...levels.map(levelFromServer).filter(Boolean)]);
+  }
+
+  // The levels of the account `email` may see (null for a guest: the account whose session
+  // ended here, if any), as listClearedLevels lists them.
+  function accountLevelsShownTo(email, state) {
+    const owner = email !== null ? email : endedAccountOf(state);
+    if (owner === null || state.accounts[owner] === undefined) {
+      return [];
+    }
+    const levels = state.accounts[owner].levels;
+    return Object.keys(levels).map((levelId) => ({ levelId, clearedAt: levels[levelId] }));
   }
 
   function earliestClearedFirst(a, b) {
@@ -377,22 +421,44 @@
   // sync state on this device (newAccountSync) remembers which sessions here are its copies.
   // Those copies show to that account only: a guest, or another account signed in on this
   // device, never sees them. Sessions that belong to no account are this device's own, and show
-  // to everyone who uses it; signing in offers once to add them to the account.
+  // to everyone who uses it; signing in offers to add them to the account, asking once about
+  // each take. One exception keeps a lapsed session from hiding a speaker's own takes: when the
+  // server ends this device's session (a 401), the device is a guest's, but that account's
+  // copies still show here until someone signs in or the speaker lets them go.
 
-  // An account's sync state on this device: takeIds, the sessions here that are copies of its
-  // takes; pending, take id -> {write: KEEP or DELETE, number}, the writes the server has not
-  // confirmed (number tells a write from a later one of the same take); deletedIds, takes deleted
-  // from the server from here, until a list shows them gone; pendingLevels, level id -> its first
-  // clearedAt, for the server; guestImport, how the offer to add this device's takes stands;
-  // writes, the count that numbers each queued write.
+  // An account's sync state on this device:
+  // - takeIds: the sessions here that are the account's copies. Of those, cachedIds came here in
+  //   a list (recorded on another device), and notKeptIds are takes recorded here that the server
+  //   refused, such as when the account is full, which stay on this device only.
+  // - pending: take id -> {write: KEEP or DELETE, number}, the writes the server has not
+  //   confirmed (number tells a write from a later one of the same take); writes counts them.
+  // - deletedIds: takes deleted from the server from here, until a list shows them gone.
+  // - levels: level id -> first clearedAt, the levels the account cleared on this device;
+  //   pendingLevels: the same for the ones the server has not confirmed.
+  // - guestImport: how the latest answer to the offer of this device's guest takes stands;
+  //   answeredIds: the guest takes an answer covered, never offered again; importIds: the ones
+  //   the speaker said yes to that are still to go up.
+  // - listed: a list from the server has been folded in here at least once.
+  // - firstListSinceLogIn: set by a log in. The account behind the email may have been deleted
+  //   and made again since this device last listed it, so the next list keeps a take recorded
+  //   here that it leaves out, as this device's own, rather than delete it (foldInto).
+  // - sessionEnded: the server ended this device's session for the account (a 401).
   function newAccountSync() {
     return {
       takeIds: [],
+      cachedIds: [],
+      notKeptIds: [],
       pending: {},
+      writes: 0,
       deletedIds: [],
+      levels: {},
       pendingLevels: {},
       guestImport: null,
-      writes: 0,
+      answeredIds: [],
+      importIds: [],
+      listed: false,
+      firstListSinceLogIn: false,
+      sessionEnded: false,
     };
   }
 
@@ -431,15 +497,16 @@
   }
 
   // Changes to the sync state run one at a time in this page, each in one transaction over the
-  // sessions and the flags, so two never start from the same copy of the state.
+  // sessions, flags and cleared levels, so two never start from the same copy of the state.
   let changesInLine = Promise.resolve();
 
   // Runs change(stores, state) with the sync state read in a read-write transaction over the
-  // sessions and flags stores, then writes back what it changed: state.accounts, and
-  // state.email, the signed-in account (null to sign out). Resolves what change resolves.
+  // sessions, flags and pathProgress stores, then writes back what it changed: state.accounts,
+  // and state.email, the signed-in account (null to sign out). Resolves what change resolves.
   function changeSyncState(change) {
+    const storeNames = [SESSIONS_STORE, FLAGS_STORE, PATH_PROGRESS_STORE];
     const next = changesInLine.then(() =>
-      inTransaction([SESSIONS_STORE, FLAGS_STORE], WRITE, async (stores) => {
+      inTransaction(storeNames, WRITE, async (stores) => {
         const flags = stores[FLAGS_STORE];
         const [accountRecord, syncRecord] = await Promise.all([
           request(flags.get(ACCOUNT_FLAG)),
@@ -466,9 +533,8 @@
     return next;
   }
 
-  // The sessions in `sessions` that `email` may see (null for a guest): the ones that belong to
-  // no account, and that account's own copies.
-  function visibleTo(email, sessions, state) {
+  // Take id -> the account whose copy it is, the first one listing it.
+  function ownersOf(state) {
     const owners = new Map();
     Object.keys(state.accounts).forEach((owner) => {
       state.accounts[owner].takeIds.forEach((id) => {
@@ -477,45 +543,134 @@
         }
       });
     });
+    return owners;
+  }
+
+  // The account whose session the server ended here, while no one is signed in; otherwise null.
+  // At most one: only the signed-in account's session can end, and a sign in clears the mark.
+  function endedAccountOf(state) {
+    if (state.email !== null) {
+      return null;
+    }
+    const ended = Object.keys(state.accounts).find((email) => state.accounts[email].sessionEnded);
+    return ended === undefined ? null : ended;
+  }
+
+  // That account, when take `id` is one of its copies; otherwise null.
+  function endedOwnerOf(id, state) {
+    const ended = endedAccountOf(state);
+    return ended !== null && state.accounts[ended].takeIds.includes(id) ? ended : null;
+  }
+
+  // The sessions in `sessions` that `email` may see (null for a guest): the ones that belong to
+  // no account and that account's own copies; a guest also sees those of the account whose
+  // session ended here.
+  function visibleTo(email, sessions, state) {
+    const owners = ownersOf(state);
+    const ended = email === null ? endedAccountOf(state) : null;
     return sessions.filter((session) => {
       const owner = owners.get(session.id);
-      return owner === undefined || owner === email;
+      return owner === undefined || owner === email || (ended !== null && owner === ended);
     });
   }
 
-  // Queues `write` of take `id` for the account: a KEEP makes the session here its copy, a DELETE
-  // lets it go. A later write of the same take replaces an earlier one still waiting.
+  // The ids of the sessions in `sessions` that belong to no account: this device's own.
+  function unownedIds(sessions, state) {
+    const owners = ownersOf(state);
+    return sessions.map((session) => session.id).filter((id) => !owners.has(id));
+  }
+
+  function without(ids, id) {
+    return ids.filter((other) => other !== id);
+  }
+
+  // Queues `write` of take `id` for the account: a KEEP makes the session here its copy, recorded
+  // here, a DELETE lets it go. A later write of the same take replaces an earlier one waiting.
   function queueTakeWrite(accountSync, id, write) {
     accountSync.writes += 1;
     accountSync.pending[id] = { write, number: accountSync.writes };
-    accountSync.takeIds = accountSync.takeIds.filter((owned) => owned !== id);
-    accountSync.deletedIds = accountSync.deletedIds.filter((deleted) => deleted !== id);
+    accountSync.takeIds = without(accountSync.takeIds, id);
+    accountSync.cachedIds = without(accountSync.cachedIds, id);
+    accountSync.notKeptIds = without(accountSync.notKeptIds, id);
+    accountSync.deletedIds = without(accountSync.deletedIds, id);
     if (write === KEEP) {
       accountSync.takeIds.push(id);
     }
   }
 
   // The signed-in speaker's list: the server's, merged into this device's copies (foldServerList),
-  // or this device's alone when the server gives none.
+  // or this device's alone when the server gives none, or none in time (LIST_WAIT_MS).
   async function listForAccount(state) {
     const email = state.email;
     const accountSync = accountSyncOf(state, email);
-    // The takes known to be on the server as this list is asked for: copies here with no write
-    // waiting. One the list leaves out was deleted on another device. A take written meanwhile is
-    // never judged by a list asked for before it.
-    const confirmed = new Set(accountSync.takeIds.filter((id) => !accountSync.pending[id]));
-    sendQueuedSoon();
-    const reply = await send("GET", SESSIONS_URL);
-    const outcome = outcomeOf(reply.status);
-    if (outcome === SIGNED_OUT) {
-      await signOutAfter401(email);
+    const reading = readServerList(email, accountSync);
+    const wait = accountSync.listed ? LIST_WAIT_MS : FIRST_LIST_WAIT_MS;
+    const answer = await withinWait(reading, wait);
+    if (answer === SIGNED_OUT) {
       return list();
     }
-    if (outcome !== DONE || !Array.isArray(reply.body)) {
-      return sessionsShownTo(email, await readSyncState());
+    if (Array.isArray(answer)) {
+      return answer;
     }
-    const fromServer = reply.body.map(sessionFromTake).filter((session) => session !== null);
-    return foldServerList(email, fromServer, confirmed);
+    return sessionsShownTo(email, await readSyncState());
+  }
+
+  // The read of the server's list under way, {email, done}: a list asked for meanwhile shares
+  // it rather than download every take of the account again. Null when none is under way.
+  let serverRead = null;
+
+  // Asks the server for `email`'s takes and folds them in here. Resolves what the account may
+  // see then, SIGNED_OUT after a 401, or null when no list came (no reply, a fault).
+  function readServerList(email, accountSync) {
+    if (serverRead !== null && serverRead.email === email) {
+      return serverRead.done;
+    }
+    // The takes known to be on the server as this list is asked for: copies here with no write
+    // waiting, which the server took. One the list leaves out was deleted on another device. A
+    // take written meanwhile is never judged by a list asked for before it.
+    const notKept = new Set(accountSync.notKeptIds);
+    const confirmed = new Set(
+      accountSync.takeIds.filter((id) => !accountSync.pending[id] && !notKept.has(id)),
+    );
+    sendQueuedSoon();
+    const current = { email, done: null };
+    current.done = (async () => {
+      try {
+        const reply = await send("GET", SESSIONS_URL);
+        const outcome = outcomeOf(reply.status);
+        if (outcome === SIGNED_OUT) {
+          await endSessionOf(email);
+          return SIGNED_OUT;
+        }
+        if (outcome !== DONE || !Array.isArray(reply.body)) {
+          return null;
+        }
+        const fromServer = reply.body.map(sessionFromTake).filter((session) => session !== null);
+        return await foldServerList(email, fromServer, confirmed);
+      } catch {
+        // IndexedDB failed under the fold: the next list tries again.
+        return null;
+      } finally {
+        if (serverRead === current) {
+          serverRead = null;
+        }
+      }
+    })();
+    serverRead = current;
+    return current.done;
+  }
+
+  // `promise`, or TOO_SLOW once `ms` pass first. Without timers (an old browser, the test
+  // sandbox) it waits for `promise` itself.
+  function withinWait(promise, ms) {
+    if (typeof setTimeout !== "function" || typeof clearTimeout !== "function") {
+      return promise;
+    }
+    let timer = null;
+    const timeUp = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(TOO_SLOW), ms);
+    });
+    return Promise.race([promise, timeUp]).finally(() => clearTimeout(timer));
   }
 
   // This device's sessions that `email` may see (null for a guest) under `state`, newest first.
@@ -548,9 +703,15 @@
   }
 
   // The decisions of foldServerList, changing `accountSync` in place: which server takes to
-  // cache here, and which copies here to drop. `here` maps id to this device's session.
+  // cache here, and which copies here to drop. `here` maps id to this device's session. A copy
+  // the server took that its list leaves out was deleted on another device, and goes; a take
+  // the server refused is not on its list and stays. On the first list since a log in, a take
+  // recorded here that the list leaves out stays too, as this device's own: the account behind
+  // the email may be a new one, made after the one this device synced with was deleted.
   function foldInto(accountSync, fromServer, here, confirmed) {
     const owned = new Set(accountSync.takeIds);
+    const cached = new Set(accountSync.cachedIds);
+    const notKept = new Set(accountSync.notKeptIds);
     const deletedHere = new Set(accountSync.deletedIds);
     const onServer = new Set(fromServer.map((session) => session.id));
     const toCache = [];
@@ -560,26 +721,40 @@
         return;
       }
       owned.add(session.id);
+      notKept.delete(session.id);
       if (waiting) {
         return;
       }
       const copy = here.get(session.id);
+      if (copy === undefined) {
+        cached.add(session.id);
+      }
       if (copy === undefined || !sameSession(copy, session)) {
         toCache.push(session);
       }
     });
     const toDrop = [];
     confirmed.forEach((id) => {
-      if (owned.has(id) && !onServer.has(id) && !accountSync.pending[id]) {
-        owned.delete(id);
-        if (here.has(id)) {
-          toDrop.push(id);
-        }
+      const gone =
+        owned.has(id) && !onServer.has(id) && !accountSync.pending[id] && !notKept.has(id);
+      if (!gone) {
+        return;
+      }
+      owned.delete(id);
+      const recordedHere = !cached.has(id);
+      cached.delete(id);
+      const keptAsOwn = accountSync.firstListSinceLogIn && recordedHere;
+      if (!keptAsOwn && here.has(id)) {
+        toDrop.push(id);
       }
     });
     accountSync.takeIds = [...owned];
+    accountSync.cachedIds = [...cached].filter((id) => owned.has(id));
+    accountSync.notKeptIds = [...notKept].filter((id) => owned.has(id));
     // A take deleted from here that the list no longer holds is gone from the server for good.
     accountSync.deletedIds = accountSync.deletedIds.filter((id) => onServer.has(id));
+    accountSync.firstListSinceLogIn = false;
+    accountSync.listed = true;
     return { toCache, toDrop };
   }
 
@@ -693,12 +868,17 @@
     return REFUSED;
   }
 
-  // After a 401: the session behind `email` has ended, so this device stops syncing with it. Its
-  // queue and copies stay for its next sign in.
-  function signOutAfter401(email) {
+  // After a 401 for `email`: the server ended this device's session with that account, which a
+  // 30-day session running out, a new SESSION_SECRET or the account's deletion elsewhere all do.
+  // The device is a guest's from now on and sends nothing, but the account's copies still show
+  // here (visibleTo), so a take recorded just before still opens and History loses nothing,
+  // until someone signs in or the speaker lets them go (forgetEndedSession). Its queue waits for
+  // its next sign in.
+  function endSessionOf(email) {
     return changeSyncState(async (stores, state) => {
       if (state.email === email) {
         state.email = null;
+        accountSyncOf(state, email).sessionEnded = true;
       }
     });
   }
@@ -749,7 +929,7 @@
       const queued = accountSync.pending[id];
       const outcome = await sendTakeWrite(id, queued.write);
       if (outcome === SIGNED_OUT) {
-        await signOutAfter401(email);
+        await endSessionOf(email);
         return;
       }
       if (outcome === LATER) {
@@ -787,8 +967,9 @@
   }
 
   // Takes a sent write off the queue, unless a later write of the same take replaced it. A take
-  // the server deleted is remembered as deleted (foldInto); one it refused for good stays here as
-  // this device's own, no longer a copy of the account's.
+  // the server deleted is remembered as deleted (foldInto). One it refused for good, such as
+  // when the account is full, stays the account's copy on this device only (notKeptIds): never
+  // shown to a guest or another account, and never sent again on its own.
   function settleTakeWrite(email, id, queued, outcome) {
     return changeSyncState(async (stores, state) => {
       const accountSync = state.accounts[email];
@@ -800,8 +981,8 @@
       if (queued.write === DELETE && outcome === DONE) {
         accountSync.deletedIds.push(id);
       }
-      if (queued.write === KEEP && outcome === REFUSED) {
-        accountSync.takeIds = accountSync.takeIds.filter((owned) => owned !== id);
+      if (queued.write === KEEP && outcome === REFUSED && accountSync.takeIds.includes(id)) {
+        accountSync.notKeptIds = [...without(accountSync.notKeptIds, id), id];
       }
     });
   }
@@ -826,7 +1007,7 @@
       outcome = outcomeOf(reply.status);
     }
     if (outcome === SIGNED_OUT) {
-      await signOutAfter401(email);
+      await endSessionOf(email);
       return false;
     }
     if (outcome === LATER) {
@@ -860,10 +1041,10 @@
     return importing;
   }
 
-  // Imports this device's sessions that belong to no account into `email`'s, in batches within
-  // the server's limits. Each batch the server takes makes its sessions the account's copies, so
-  // a run cut short sends only the rest next time, and the server keeps one copy of any it is
-  // sent twice. Resolves {added, keptHere, waiting} (auth.js importGuestTakes).
+  // Imports the guest takes the speaker said yes to (importIds) into `email`'s account, in
+  // batches within the server's limits. Each batch the server takes makes its sessions the
+  // account's copies, so a run cut short sends only the rest next time, and the server keeps one
+  // copy of any it is sent twice. Resolves {added, keptHere, waiting} (auth.js importGuestTakes).
   async function importGuestTakesInto(email) {
     const result = { added: 0, keptHere: 0, waiting: false };
     const state = await readSyncState();
@@ -871,15 +1052,24 @@
       return { ...result, waiting: true };
     }
     const sessions = await run(SESSIONS_STORE, READ, (store) => store.getAll());
+    const byId = new Map(sessions.map((session) => [session.id, session]));
+    const unowned = new Set(unownedIds(sessions, state));
     const takes = [];
-    visibleTo(null, sessions, state).forEach((session) => {
-      const take = takeFromSession(session);
-      if (take === null) {
-        result.keptHere += 1;
-      } else {
+    // Ids that leave the import without a request: deleted since, an account's by now, or a
+    // take no server could keep, which stays on this device.
+    const settled = [];
+    accountSyncOf(state, email).importIds.forEach((id) => {
+      const take = unowned.has(id) ? takeFromSession(byId.get(id)) : null;
+      if (take !== null) {
         takes.push(take);
+        return;
       }
+      if (unowned.has(id)) {
+        result.keptHere += 1;
+      }
+      settled.push(id);
     });
+    await leaveImport(email, settled, false);
     for (const batch of importBatches(takes)) {
       if (!(await stillSignedIn(email))) {
         return { ...result, waiting: true };
@@ -887,18 +1077,24 @@
       const reply = await send("POST", IMPORT_URL, { sessions: batch });
       const outcome = outcomeOf(reply.status);
       if (outcome === SIGNED_OUT) {
-        await signOutAfter401(email);
+        await endSessionOf(email);
         return { ...result, waiting: true };
       }
       if (outcome === LATER) {
         return { ...result, waiting: true };
       }
-      if (outcome === REFUSED) {
-        result.keptHere += batch.length;
-      } else {
-        // Kept now, or kept before: either way the account has these takes.
+      // Kept now, or kept before: either way the account has these takes. A refused batch
+      // stays on this device, as its own.
+      const kept = outcome !== REFUSED;
+      await leaveImport(
+        email,
+        batch.map((take) => take.id),
+        kept,
+      );
+      if (kept) {
         result.added += batch.length;
-        await claimForAccount(email, batch.map((take) => take.id));
+      } else {
+        result.keptHere += batch.length;
       }
     }
     await setGuestImport(email, IMPORT_DONE);
@@ -928,10 +1124,20 @@
     return batches;
   }
 
-  function claimForAccount(email, ids) {
+  // Takes `ids` out of the account's import; when `claimed`, the account has them now, so the
+  // sessions here become its copies.
+  function leaveImport(email, ids, claimed) {
+    if (ids.length === 0) {
+      return Promise.resolve();
+    }
     return changeSyncState(async (stores, state) => {
       const accountSync = state.accounts[email];
-      if (accountSync !== undefined) {
+      if (accountSync === undefined) {
+        return;
+      }
+      const leaving = new Set(ids);
+      accountSync.importIds = accountSync.importIds.filter((id) => !leaving.has(id));
+      if (claimed) {
         accountSync.takeIds = [...new Set([...accountSync.takeIds, ...ids])];
       }
     });
@@ -945,6 +1151,27 @@
     });
   }
 
+  // The signed-in account's answer to the offer, about the guest takes on this device it has not
+  // been asked about yet: a yes queues them for the import, either answer covers them for good.
+  // Resolves the email, or null with no one signed in.
+  function answerGuestOffer(standing) {
+    return changeSyncState(async (stores, state) => {
+      if (state.email === null) {
+        return null;
+      }
+      const accountSync = accountSyncOf(state, state.email);
+      const sessions = await request(stores[SESSIONS_STORE].getAll());
+      const answered = new Set(accountSync.answeredIds);
+      const asked = unownedIds(sessions, state).filter((id) => !answered.has(id));
+      accountSync.answeredIds = [...answered, ...asked];
+      if (standing === IMPORT_PENDING) {
+        accountSync.importIds = [...new Set([...accountSync.importIds, ...asked])];
+      }
+      accountSync.guestImport = standing;
+      return state.email;
+    });
+  }
+
   // --- what auth.js drives (connectStore) ------------------------------------------------------
 
   async function account() {
@@ -952,16 +1179,21 @@
   }
 
   // Signed in as `email`: this device syncs with that account from now on, and what it queued
-  // before, signed in earlier, goes up. A sign up (`isNewAccount`) opens a new account, so what
-  // this device kept under that email belonged to one since deleted elsewhere: it is forgotten
-  // first, as forgetAccount does, and its copies here are this device's own again.
+  // before, signed in earlier, goes up. Whatever account's session had ended here no longer
+  // shows to a guest. A sign up (`isNewAccount`) opens a new account, so what this device kept
+  // under that email belonged to one since deleted elsewhere: it is let go first, as when the
+  // account is deleted here (letGo). A log in may also reach an account made again under the
+  // same email; the next list checks for it (firstListSinceLogIn).
   async function startSync(email, isNewAccount) {
     await changeSyncState(async (stores, state) => {
       if (isNewAccount) {
-        delete state.accounts[email];
+        await letGo(stores, state, email);
       }
+      Object.keys(state.accounts).forEach((other) => {
+        state.accounts[other].sessionEnded = false;
+      });
       state.email = email;
-      accountSyncOf(state, email);
+      accountSyncOf(state, email).firstListSinceLogIn = !isNewAccount;
     });
     sendQueuedSoon();
   }
@@ -974,43 +1206,113 @@
     });
   }
 
-  // The account is deleted: this device forgets it. Its queue goes, and its copies here become
-  // this device's own sessions, which a guest sees, as the takes recorded here always were.
+  // A 401 that auth.js met (me(), or deleting the account): the session of whoever is signed in
+  // here has ended (endSessionOf).
+  async function endSession() {
+    const { email } = await readSyncState();
+    if (email !== null) {
+      await endSessionOf(email);
+    }
+  }
+
+  // This device lets go of `email`'s account: its takes recorded here, sent or not, become this
+  // device's own and show to anyone who uses it, as a guest's always do; its copies of takes
+  // recorded on other devices are deleted here, as the account they came with is gone; the levels
+  // it cleared here become this device's; its queue goes.
+  async function letGo(stores, state, email) {
+    const accountSync = state.accounts[email];
+    if (accountSync === undefined) {
+      return;
+    }
+    delete state.accounts[email];
+    const ownedElsewhere = ownersOf(state);
+    const fromOtherDevices = accountSync.cachedIds.filter((id) => !ownedElsewhere.has(id));
+    for (const id of fromOtherDevices) {
+      await request(stores[SESSIONS_STORE].delete(id));
+    }
+    const levels = stores[PATH_PROGRESS_STORE];
+    for (const levelId of Object.keys(accountSync.levels)) {
+      const clearedAt = accountSync.levels[levelId];
+      const before = await request(levels.get(levelId));
+      if (before === undefined || clearedAt < before.clearedAt) {
+        await request(levels.put({ levelId, clearedAt }));
+      }
+    }
+    if (state.email === email) {
+      state.email = null;
+    }
+  }
+
+  // The account is deleted: this device lets go of it (letGo).
   function forgetAccount(email) {
+    return changeSyncState((stores, state) => letGo(stores, state, email));
+  }
+
+  // The speaker keeps the takes of the account whose session ended here on this device instead
+  // of logging in again, as when that account was deleted elsewhere (letGo).
+  function forgetEndedSession() {
     return changeSyncState(async (stores, state) => {
-      delete state.accounts[email];
-      if (state.email === email) {
-        state.email = null;
+      const ended = endedAccountOf(state);
+      if (ended !== null) {
+        await letGo(stores, state, ended);
       }
     });
   }
 
+  // What the account screen and History tell the speaker about this device beyond who is signed
+  // in, read without asking the server: {endedSession, takesNotKept}. endedSession is {email,
+  // takesHere} while the session of the account `email` has ended here and no one has signed in
+  // since, takesHere counting its takes recorded on this device; otherwise null. takesNotKept
+  // counts the signed-in account's takes the server refused, on this device only.
+  async function syncStatus() {
+    const state = await readSyncState();
+    const sessions = await run(SESSIONS_STORE, READ, (store) => store.getAll());
+    const here = new Set(sessions.map((session) => session.id));
+    const status = { endedSession: null, takesNotKept: 0 };
+    if (state.email !== null) {
+      const notKept = accountSyncOf(state, state.email).notKeptIds;
+      status.takesNotKept = notKept.filter((id) => here.has(id)).length;
+      return status;
+    }
+    const ended = endedAccountOf(state);
+    if (ended !== null) {
+      const accountSync = state.accounts[ended];
+      const cached = new Set(accountSync.cachedIds);
+      const recordedHere = accountSync.takeIds.filter((id) => here.has(id) && !cached.has(id));
+      status.endedSession = { email: ended, takesHere: recordedHere.length };
+    }
+    return status;
+  }
+
+  // {count} of the guest takes on this device the signed-in account has not been asked about,
+  // when there are any and no import it said yes to is still going up; otherwise null.
   async function guestImportOffer() {
     const state = await readSyncState();
-    if (state.email === null || accountSyncOf(state, state.email).guestImport !== null) {
+    if (state.email === null) {
+      return null;
+    }
+    const accountSync = accountSyncOf(state, state.email);
+    if (accountSync.guestImport === IMPORT_PENDING) {
       return null;
     }
     const sessions = await run(SESSIONS_STORE, READ, (store) => store.getAll());
-    const count = visibleTo(null, sessions, state).length;
+    const answered = new Set(accountSync.answeredIds);
+    const count = unownedIds(sessions, state).filter((id) => !answered.has(id)).length;
     return count > 0 ? { count } : null;
   }
 
-  // The speaker said yes: the import is queued, so a run the network cuts short finishes on the
-  // next load or reconnect, then started now.
+  // The speaker said yes: those takes are queued for the import, so a run the network cuts short
+  // finishes on the next load or reconnect, then it starts now.
   async function importGuestTakes() {
-    const { email } = await readSyncState();
+    const email = await answerGuestOffer(IMPORT_PENDING);
     if (email === null) {
       return { added: 0, keptHere: 0, waiting: false };
     }
-    await setGuestImport(email, IMPORT_PENDING);
     return importGuestTakesOnce(email);
   }
 
   async function declineGuestImport() {
-    const { email } = await readSyncState();
-    if (email !== null) {
-      await setGuestImport(email, IMPORT_DECLINED);
-    }
+    await answerGuestOffer(IMPORT_DECLINED);
   }
 
   app.store = {
@@ -1031,7 +1333,10 @@
       account,
       startSync,
       stopSync,
+      endSession,
       forgetAccount,
+      forgetEndedSession,
+      syncStatus,
       sendQueued: sendQueuedSoon,
       guestImportOffer,
       importGuestTakes,

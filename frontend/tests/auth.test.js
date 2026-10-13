@@ -70,12 +70,14 @@ test("auth.js assigns exactly app.auth and sends nothing at load", () => {
     "deleteAccount",
     "guestImportOffer",
     "importGuestTakes",
+    "keepEndedTakesHere",
     "logIn",
     "logOut",
     "me",
     "messages",
     "request",
     "signUp",
+    "syncStatus",
   ]);
   assert.deepEqual(calls, []);
 });

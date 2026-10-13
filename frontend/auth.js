@@ -205,9 +205,10 @@
     }
   }
 
-  // Deletes the account and everything the server keeps for it. This device then forgets the
-  // account: the takes on it stay, a guest's from now on. A session that has ended cannot delete
-  // anything: this device is signed out and the call rejects with "signed_out".
+  // Deletes the account and everything the server keeps for it. This device then lets go of the
+  // account: the takes recorded on it stay, a guest's from now on, and copies of takes from other
+  // devices go (store.js letGo). A session that has ended cannot delete anything: this device is
+  // signed out, as after any 401 (store.js endSessionOf), and the call rejects with "signed_out".
   async function deleteAccount() {
     const email = sync !== null ? await sync.account() : null;
     const reply = await request("DELETE", ME_URL);
@@ -219,7 +220,7 @@
     }
     if (reply.status === UNAUTHORIZED) {
       if (sync !== null) {
-        await sync.stopSync();
+        await sync.endSession();
       }
       throw authError("signed_out");
     }
@@ -227,8 +228,9 @@
   }
 
   // Asks the server who this browser is signed in as, and brings this device in line: resolves
-  // the email, or null for a guest (a session that has ended signs this device out). Rejects
-  // with "unavailable" while accounts are off and "network" with no reply, changing nothing.
+  // the email, or null for a guest (a session that has ended signs this device out, as after any
+  // 401). Rejects with "unavailable" while accounts are off and "network" with no reply, changing
+  // nothing.
   async function me() {
     const reply = await request("GET", ME_URL);
     if (reply.status === OK && reply.body && typeof reply.body.email === "string") {
@@ -240,7 +242,7 @@
     }
     if (reply.status === UNAUTHORIZED) {
       if (sync !== null) {
-        await sync.stopSync();
+        await sync.endSession();
       }
       return null;
     }
@@ -269,10 +271,31 @@
     return sync.importGuestTakes();
   }
 
-  // Keeps those takes on this device only; the account is not asked again.
+  // Keeps those takes on this device only; the account is not asked about them again.
   async function declineGuestImport() {
     if (sync !== null) {
       await sync.declineGuestImport();
+    }
+  }
+
+  // What this device holds beyond who is signed in, for the account screen and History:
+  // {endedSession, takesNotKept}. endedSession is {email, takesHere} once the server has ended
+  // this device's session (a 401) and until someone signs in: the device is a guest's, but that
+  // account's takes still show here, takesHere of them recorded on this device. takesNotKept
+  // counts the signed-in account's takes the server refused, which stay on this device only.
+  async function syncStatus() {
+    if (sync === null) {
+      return { endedSession: null, takesNotKept: 0 };
+    }
+    return sync.syncStatus();
+  }
+
+  // For a speaker who cannot log in again, as when the account was deleted elsewhere: the
+  // account whose session ended lets go of this device. Its takes recorded here become this
+  // device's own, shown to anyone who uses it; copies of its takes from other devices go.
+  async function keepEndedTakesHere() {
+    if (sync !== null) {
+      await sync.forgetEndedSession();
     }
   }
 
@@ -286,6 +309,8 @@
     guestImportOffer,
     importGuestTakes,
     declineGuestImport,
+    syncStatus,
+    keepEndedTakesHere,
     request,
     messages,
     connectStore,
