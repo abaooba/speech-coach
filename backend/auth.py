@@ -279,6 +279,7 @@ def stand_in_hash(hasher: PasswordHasher) -> str:
 
     A login for an email with no account checks its password against this, so it is refused
     after the same work as a wrong password, and the time taken does not tell the two apart.
+    Every login asks for it, so the one that makes it is simply the first after a start.
     """
     return hash_password(hasher, secrets.token_urlsafe(SESSION_TOKEN_BYTES))
 
@@ -488,6 +489,8 @@ def log_in(
     wait = limiter.start_attempt(pair, now)
     if wait is not None:
         raise too_many_failed_logins(wait)
+    # Taken before the lookup, so the first login of any kind makes it, not the first unknown email.
+    stand_in = stand_in_hash(hasher)
     users = db.users
     with engine.connect() as connection:
         account = connection.execute(
@@ -495,7 +498,7 @@ def log_in(
         ).first()
     if account is None:
         # The same Argon2 check a wrong password gets, so the time taken does not tell.
-        password_matches(hasher, stand_in_hash(hasher), password)
+        password_matches(hasher, stand_in, password)
         raise wrong_email_or_password()
     if not password_matches(hasher, account.password_hash, password):
         raise wrong_email_or_password()

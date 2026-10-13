@@ -79,7 +79,10 @@ class Clock:
 
 
 class RecordingHasher(PasswordHasher):
-    """The app's own Argon2 settings, noting the hash each password is checked against."""
+    """The app's own Argon2 settings, noting each hash made and each hash checked against.
+
+    A new one also stands for a server that has just started: nothing made by it is cached yet.
+    """
 
     def __init__(self) -> None:
         settings = auth.PASSWORD_HASHER
@@ -91,7 +94,12 @@ class RecordingHasher(PasswordHasher):
             salt_len=settings.salt_len,
             type=settings.type,
         )
+        self.hashes_made = 0
         self.checked_against: list[str] = []
+
+    def hash(self, password: str | bytes, *, salt: bytes | None = None) -> str:
+        self.hashes_made += 1
+        return super().hash(password, salt=salt)
 
     def verify(self, hash: str | bytes, password: str | bytes) -> Any:
         self.checked_against.append(hash if isinstance(hash, str) else hash.decode())
@@ -137,17 +145,23 @@ def accounts_on(
     overrides[auth.current_time] = lambda: clock.now
     overrides[auth.login_limiter] = lambda: limiter
     yield
+    # With the hasher too, which a test may have swapped in (use_hasher).
     for dependency in (db.accounts_engine, auth.current_time, auth.login_limiter):
         overrides.pop(dependency, None)
+    overrides.pop(auth.password_hasher, None)
+
+
+def use_hasher(hasher: PasswordHasher) -> None:
+    """Have every account route hash and check passwords with `hasher` (needs accounts_on)."""
+    app_module.app.dependency_overrides[auth.password_hasher] = lambda: hasher
 
 
 @pytest.fixture
-def recording_hasher(accounts_on: None) -> Iterator[RecordingHasher]:
+def recording_hasher(accounts_on: None) -> RecordingHasher:
     """Accounts on, with every password hashed and checked by a RecordingHasher."""
     hasher = RecordingHasher()
-    app_module.app.dependency_overrides[auth.password_hasher] = lambda: hasher
-    yield hasher
-    app_module.app.dependency_overrides.pop(auth.password_hasher, None)
+    use_hasher(hasher)
+    return hasher
 
 
 def browser(address: str = ADDRESS) -> TestClient:
@@ -489,6 +503,23 @@ def test_an_unknown_email_costs_the_same_argon2_check_as_a_wrong_password(
     assert account_hash == user.password_hash
     assert stand_in_hash != user.password_hash
     assert settings_of(stand_in_hash) == settings_of(user.password_hash) == ARGON2ID_SETTINGS
+
+
+def test_the_first_unknown_email_after_a_restart_costs_what_a_wrong_password_costs(
+    accounts_on: None,
+) -> None:
+    # The stand-in hash is made once per server. Were the first unknown email the one to make
+    # it, that login would take an extra hash, and its time would tell.
+    sign_up(browser())
+    work = []
+    for email in (EMAIL, OTHER_EMAIL):
+        just_started = RecordingHasher()
+        use_hasher(just_started)
+        log_in(browser(), email=email, password=WRONG_PASSWORD)
+        work.append((just_started.hashes_made, len(just_started.checked_against)))
+
+    [wrong_password, unknown_email] = work
+    assert wrong_password == unknown_email
 
 
 @pytest.mark.parametrize(
