@@ -13,7 +13,7 @@ const vm = require("node:vm");
 const STORE_SOURCE = fs.readFileSync(path.join(__dirname, "..", "store.js"), "utf8");
 
 const DB_NAME = "speech-coach";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 class FakeRequest {
   constructor() {
@@ -200,18 +200,27 @@ function sessionFixture(overrides = {}) {
   };
 }
 
-test("store.js assigns exactly app.store with the six functions and opens nothing at load", () => {
+test("store.js assigns exactly app.store with eight functions and opens nothing at load", () => {
   const { app, store, indexedDB } = loadStore();
   assert.deepEqual(Object.keys(app), ["store"]);
   assert.deepEqual(
     Object.keys(store).sort(),
-    ["get", "getFlag", "list", "remove", "save", "setFlag"],
+    [
+      "get",
+      "getFlag",
+      "list",
+      "listClearedLevels",
+      "markLevelCleared",
+      "remove",
+      "save",
+      "setFlag",
+    ],
   );
   Object.values(store).forEach((fn) => assert.equal(typeof fn, "function"));
   assert.equal(indexedDB.openCalls.length, 0);
 });
 
-test("first use opens 'speech-coach' v1 and creates the sessions and flags stores", async () => {
+test("first use opens 'speech-coach' v2 and creates the sessions and flags stores", async () => {
   const { store, indexedDB } = loadStore();
   await store.list();
   assert.deepEqual(indexedDB.openCalls, [{ name: DB_NAME, version: DB_VERSION }]);

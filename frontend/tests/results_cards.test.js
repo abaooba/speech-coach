@@ -134,11 +134,11 @@ function ruleFor(selector, at = null) {
   return rule.declarations;
 }
 
-test("the four cards read Pace, Fillers, Mid-sentence pauses and Clean stretch", async () => {
+test("the four cards read Pace, Fillers, Pauses and Clean stretch", async () => {
   const cards = await showCards(SESSION);
   assert.deepEqual(
     cards.map((card) => byClass(card, "metric-card__label").textContent),
-    ["Pace", "Fillers", "Mid-sentence pauses", "Clean stretch"],
+    ["Pace", "Fillers", "Pauses", "Clean stretch"],
   );
 });
 

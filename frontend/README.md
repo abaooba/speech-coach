@@ -15,10 +15,11 @@ the map.
 |---|---|---|
 | `app.js` | `app.router` | Creates `window.app` (with an empty `app.screens`) and owns the hash router. `go(name, params)` sets the hash to `#/<name>` or `#/<name>/<id>`; `current()` returns `{name, params}` for the hash, and Practice for an unknown one. At boot it applies the saved theme, mounts every registered screen once, then routes, to Onboarding on a first launch. |
 | `ui.js` | `app.ui` | The DOM helpers every screen builds from. `el(tag, attrs, children)` builds nodes, never markup; `renderState(root, {kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary})` is the only builder of the empty, error and loading blocks; `clear(root)` empties a node; `announce(text)` writes the live region; `formatClock(seconds)` gives "1:05" and `formatDate(iso)` "Oct 9, 10:21 PM". Also `formatDay`, `icon` and the theme helpers `getTheme`, `applyTheme`, `setTheme`, `nextTheme`. |
-| `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`. A session holds metrics and transcript, never audio. |
+| `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`; `markLevelCleared(levelId)` and `listClearedLevels()` keep the skill path's cleared levels. A session holds metrics and transcript, never audio. |
 | `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType, script)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`; a `script` with words goes along as the form field `script`, and `metrics.script` then lists restarts, skipped and misread script words (the backend drops a script the take does not follow and scores it as free talk). A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
-| `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). No DOM. |
+| `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). `coldReads()` returns a new list of the cold reads (`coldRead: true`), original passages for the skill path's cold-read mode that no tab lists. No DOM. |
 | `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
+| `path.js` | `app.path` | The skill path (docs/PLAN.md T42): `UNITS`, four units of five challenge levels. `evaluate(level, report)` passes or fails a take with a sentence saying why, `order(history)` puts the weakest unit first, `isUnlocked`, `statusOf` and `currentLevel` read the cleared levels, and `pickColdRead(history, random)` picks a cold read the speaker has never read. Pure: no DOM, no store. |
 | `tips.js` | `app.tips` | `select(report, options)` returns at most two `{id, text}` tips in priority order. Pure. |
 | `pauses.js` | `app.pauses` | Human-owned (T08); agents never edit it. `start(stream)` samples the microphone's loudness while a take records, `stop()` hands the samples back, and `reconcile(metrics, samples)` folds the quiet stretches into the backend's pauses. |
 | `screens/practice.js` | `app.screens.practice` | `mount`, `show`, `hide`, plus `render(state, detail)` (the one function that repaints the screen), the `state` string (`idle`, `recording`, `uploading` or `error`), `STATES`, `viewFor` and `selectedPassage`. Records a take, uploads it through `app.api` and saves it through `app.store`. |
@@ -40,7 +41,7 @@ and route params.
 
 **Script load order.** `index.html` loads classic `<script>` tags (no modules, no build step, no
 CDN) in this order, fixed by `backend/tests/test_frontend_shell.py`: `app.js`, `ui.js`,
-`store.js`, `api.js`, `passages.js`, `delivery.js`, `tips.js`, `pauses.js`, then
+`store.js`, `api.js`, `passages.js`, `delivery.js`, `path.js`, `tips.js`, `pauses.js`, then
 `screens/practice.js`, `screens/results.js`, `screens/history.js`, `screens/progress.js` and
 `screens/onboarding.js`. `app.js` comes first because it creates `window.app`. Every
 `<script src>` is also listed in `SHELL` in `sw.js` (`backend/tests/test_pwa_files.py`).
@@ -156,7 +157,8 @@ reload.
    app.passages.length
    ```
 
-   It prints `10`: four timed prompts, then six passages.
+   It prints `10`: four timed prompts, then six passages. `app.passages.coldReads().length`
+   prints `15`, the cold reads, which no tab lists.
 
 **Progress seed.** Five sessions with varied numbers, one per day over the last five days.
 Each lasts one minute, so the `um` count is also the fillers-per-minute value, and `pauses`
@@ -274,7 +276,7 @@ sample result", which opens a real sample take on this screen.
    two sentences: a green check before one strength and a blue arrow before one focus, such
    as "Your longest clean stretch is 4.9 seconds." and "Next take, cut fillers under 3 a
    minute." Then exactly four cards, two per row, in this order: "Pace", "Fillers",
-   "Mid-sentence pauses", "Clean stretch". Hesitation sounds (um, uh) are not counted as
+   "Pauses", "Clean stretch". Hesitation sounds (um, uh) are not counted as
    words. The Pace hint reads "Target lo to hi" in green with a check when the pace is inside
    the passage's range, or "Slow down" / "Speed up" in rust with a warning triangle outside
    it; the numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to
@@ -308,8 +310,8 @@ sample result", which opens a real sample take on this screen.
    green band with a darker green base line for the longest clean stretch. Under it, the
    first word's time, the midpoint and the last word's time (the same clock as the tips), then
    a legend. A screen reader reads the strip as one image, "Speech timeline from 0:01 to 0:32:
-   11 fillers, 3 mid-sentence pauses, a 4.9 second clean stretch", and then a list of every
-   moment. A session saved with an empty transcript shows no timeline.
+   11 fillers, 3 mid-sentence pauses, 1 restart, a 4.9 second clean stretch", and then a list
+   of every moment, a restart included ("Restart “and I” at 0:16"). A session saved with an empty transcript shows no timeline.
 
 5. Transcript: under the timeline, a "Transcript" heading, a small legend and every word of the
    take. The legend reads "Highlighted words are ums and uhs. Underlined words are verbal
@@ -319,7 +321,7 @@ sample result", which opens a real sample take on this screen.
    dotted underline, and only where the context rules count them: "I like this plan" is not
    marked. Each mid-sentence pause of 1.5 s or more is a purple pill such as "2.1 s pause"
    right after the word before the gap. A pause after a period is not marked, so the
-   transcript, the Mid-sentence pauses card and the timeline always show the same pauses.
+   transcript, the Pauses card and the timeline always show the same pauses.
    Record 10 seconds, say "um" five times and stop talking for 3 seconds mid-sentence: five
    amber "um" tokens and one "x.x s pause" pill. A session saved with an empty transcript
    (the store round trip) shows no Transcript section at all.
@@ -421,7 +423,7 @@ Progress seed snippet, then open http://127.0.0.1:8000/#/progress.
    A green band shades 0 to 3 with a dashed line at 3, and under the chart a legend with a
    swatch of the band reads "Target under 3". The cells read 1.0 /min, 1.0 /min and "1.5
    fewer" with a down triangle; the ring sits on the last dot (ties go to the most recent take).
-   Tap "Pauses": purple, the heading "Mid-sentence pauses", dots at 1, 2, 2, 0, 1, the ring on
+   Tap "Pauses": purple, the heading "Pauses", dots at 1, 2, 2, 0, 1, the ring on
    the 0, and "No change" with a dash. Tap "Clean": green, "Longest clean stretch"; these
    sessions have no words, so every value is 0.0 s. Open History and come back: the option you
    chose is still selected. Only the fillers chart has the band and the legend.

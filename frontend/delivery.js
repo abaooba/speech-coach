@@ -49,9 +49,13 @@
   const MILLISECOND = 0.001;
 
   // How the backend reads a repeat (backend/metrics.py find_repeats, backend/script_align.py),
-  // so Results can find the words that say a phrase again. These sounds and bare punctuation
-  // ("—" said on its own) are never part of a phrase.
-  const REPEAT_SKIP_WORDS = ["um", "uh", "hmm"];
+  // so Results can find the words that say a phrase again. These sounds, the same set as
+  // backend REPEAT_SKIP_WORDS, and bare punctuation ("—" said on its own) are never part of a
+  // phrase. "mhm" stands for every spelling AGREEMENT_SOUND matches, as backend filler_key
+  // reads them: mhmm, mm-hmm, mm-hm, uh-huh.
+  const REPEAT_SKIP_WORDS = ["um", "uh", "hmm", "mhm"];
+  const AGREEMENT_SOUND = /^(?:m+-?h+m+|u+h+-h+u+h+)$/;
+  const AGREEMENT_KEY = "mhm";
   // After a free-talk first copy the second starts within this many words: a restart leaves at
   // most 2 abandoned words, a cut-off restart starts again within 4 (CUTOFF_LOOKAHEAD_WORDS).
   // A script restart has no such limit (see restartOf).
@@ -71,6 +75,11 @@
 
   function isHesitation(text) {
     return HESITATION_PATTERN.test(normalizeWord(text));
+  }
+
+  // Whether a normalized word is a sound repeats skip: um, uh, hmm, or mhm in any spelling.
+  function isRepeatSkip(token) {
+    return REPEAT_SKIP_WORDS.includes(AGREEMENT_SOUND.test(token) ? AGREEMENT_KEY : token);
   }
 
   function numberOr0(value) {
@@ -213,6 +222,7 @@
       long: isLongPause(length) && isInsideSpeech(list, at),
     }));
     const breaks = classified.filter(isCountedPause);
+    const restarts = restartsOf(list, repeats);
     return {
       kinds,
       fillers,
@@ -226,9 +236,10 @@
       fillersPerMinute: perMinute(fillers.length, speakingSeconds),
       pauses: classified,
       ...pauseTallies(classified),
-      cleanStretch: longestCleanStretch(list, fillers, breaks, repeats),
+      cleanStretch: longestCleanStretch(list, fillers, breaks, repeats, restarts),
       repeatCount: repeats.length,
-      restarts: restartsOf(list, repeats),
+      restarts,
+      followedScript: isScriptBlock(given.script),
       ...scriptSlipsOf(list, given.script),
     };
   }
@@ -266,6 +277,7 @@
       cleanStretch: null,
       repeatCount: repeats.length,
       restarts: restartsOf([], repeats),
+      followedScript: isScriptBlock(metrics.script),
       ...scriptSlipsOf([], metrics.script),
     };
   }
@@ -364,11 +376,12 @@
   // The longest stretch of speech with no filler, no counted pause (mid-sentence, or 5 s+
   // anywhere) and no restart, as {start, end, seconds}. Every filler and break cuts the take;
   // a restart cuts from the first copy of the phrase to the moment the speaker starts it over.
-  function longestCleanStretch(list, fillers, breaks, repeats) {
+  // `restarts` are the repeats as restartsOf reads them, in the same order.
+  function longestCleanStretch(list, fillers, breaks, repeats, restarts) {
     const cuts = [
       ...fillers.map((event) => [event.start, event.end]),
       ...breaks.map((pause) => [pause.at, pause.at + pause.length]),
-      ...repeatCuts(list, repeats),
+      ...repeatCuts(list, repeats, restarts),
     ].sort((a, b) => a[0] - b[0]);
     let best = { start: 0, end: 0, seconds: 0 };
     let from = list[0].start;
@@ -386,11 +399,17 @@
     return best;
   }
 
-  // [first copy start, restart] for each backend repeat {text, at}: the restart is the first
-  // word after as many words as the phrase has, skipping hesitations as the backend does.
-  // When no word starts at `at`, the cut shrinks to that instant.
-  function repeatCuts(list, repeats) {
-    return repeats.map((repeat) => {
+  // [first copy start, restart] for each backend repeat {text, at}. The restart is the first
+  // word of the second copy restartOf found, the one Results underlines, so the words the
+  // speaker abandoned between the copies ("day—") are cut too. When no second copy was found,
+  // it is the first word after as many words as the phrase has, skipping hesitations as the
+  // backend does; when no word starts at `at` either, the cut shrinks to that instant.
+  function repeatCuts(list, repeats, restarts) {
+    return repeats.map((repeat, order) => {
+      const secondCopy = restarts[order].secondCopy;
+      if (secondCopy.length > 0) {
+        return [repeat.at, list[secondCopy[0]].start];
+      }
       const first = list.findIndex((word) => Math.abs(word.start - repeat.at) < MILLISECOND);
       if (first === -1) {
         return [repeat.at, repeat.at];
@@ -484,14 +503,14 @@
   }
 
   // The spoken words as the backend compares them for a repeat, as {index, token, start,
-  // cutOff}: um, uh, hmm and bare punctuation ("—" said on its own) left out, and two words
+  // cutOff}: um, uh, hmm, mhm and bare punctuation ("—" said on its own) left out, and two words
   // joined by a dash ("bullying—the") split into two pieces of the same word, as
   // backend/script_align.py reads them. `index` is the word's place in the transcript;
   // `cutOff` says the word ends in a cut-off dash ("ner—").
   function repeatPieces(list) {
     return list.flatMap((word, index) => {
       const token = normalizeWord(word.text);
-      if (token === "" || REPEAT_SKIP_WORDS.includes(token)) {
+      if (token === "" || isRepeatSkip(token)) {
         return [];
       }
       const parts = isHesitation(word.text) ? [token] : token.split(JOINING_DASH);
@@ -549,7 +568,7 @@
   // entry without a numeric `at` and a text `word` (and, for a misread, `said`) is left out, and
   // a take without a script block has neither.
   function scriptSlipsOf(list, script) {
-    const block = script && typeof script === "object" ? script : {};
+    const block = isScriptBlock(script) ? script : {};
     const misreads = (Array.isArray(block.misread) ? block.misread : [])
       .filter((slip) => isSlip(slip) && typeof slip.said === "string")
       .map((slip) => ({
@@ -566,6 +585,15 @@
 
   function isSlip(slip) {
     return Boolean(slip) && isFiniteNumber(slip.at) && typeof slip.word === "string";
+  }
+
+  // True when the take's metrics carry a script block: the backend lined the take up against
+  // the script it was sent and found that the take follows it. Free talk has no block, and nor
+  // has a take that strays from its script (backend/script_align.py MIN_SCRIPT_FOLLOWED_SHARE),
+  // which the backend scores as free talk: its misreads and skips are empty, as a flawless
+  // read's are, so the report's followedScript tells the two apart.
+  function isScriptBlock(script) {
+    return Boolean(script) && typeof script === "object" && !Array.isArray(script);
   }
 
   // The index of the word starting at `at` that says `said`: the whole word, or one of the two

@@ -21,12 +21,12 @@ from backend.metrics import (
     CUTOFF_MARKS,
     FILLER_PHRASE,
     MAX_REPEAT_PHRASE_WORDS,
-    REPEAT_SKIP_WORDS,
     Repeat,
     analyze,
     clean,
     filler_key,
     find_repeats,
+    is_repeat_skip,
     normalize,
     says_again,
 )
@@ -164,7 +164,7 @@ def _read(words: Sequence[Word], script: str) -> tuple[ScriptReport, _ReadSpan |
         phrase = [
             clean(spoken.words[i].text)
             for i in range(first, last + 1)
-            if spoken.tokens[i] not in REPEAT_SKIP_WORDS
+            if not is_repeat_skip(spoken.tokens[i])
         ]
         restarts.append(Repeat(text=" ".join(phrase), at=spoken.words[first].start))
     report = ScriptReport(restarts=restarts, skipped=skipped, misread=misread)

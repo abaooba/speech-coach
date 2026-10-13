@@ -1,14 +1,16 @@
-/* store.js: app.store, the IndexedDB layer behind History and Progress.
-   save/list/get/remove keep practice sessions (metrics and transcript only, never audio);
-   getFlag/setFlag keep small settings such as "onboarded". Every IDBRequest is wrapped in
-   a Promise so a failure rejects instead of hanging, and all calls share one open. */
+/* store.js: app.store, the IndexedDB layer behind History, Progress and the skill path.
+   save/list/get/remove keep sessions (metrics and transcript, never audio); getFlag/setFlag keep
+   settings such as "onboarded"; markLevelCleared/listClearedLevels keep path progress. Requests
+   are wrapped in Promises, so a failure rejects instead of hanging; all calls share one open. */
 (function () {
   "use strict";
 
   const DB_NAME = "speech-coach";
-  const DB_VERSION = 1;
+  // Version 1 held sessions and flags; version 2 adds pathProgress (docs/PLAN.md T42).
+  const DB_VERSION = 2;
   const SESSIONS_STORE = "sessions";
   const FLAGS_STORE = "flags";
+  const PATH_PROGRESS_STORE = "pathProgress";
   const CREATED_AT_INDEX = "createdAt";
   const READ = "readonly";
   const WRITE = "readwrite";
@@ -27,28 +29,63 @@
   // Audio never reaches the database; a session carrying one of these is a programming error.
   const AUDIO_FIELDS = ["blob", "audio"];
 
+  // What every call says while an older version of the app, open in another tab, holds the
+  // database at the version before. store.js before version 2 never lets go of its connection,
+  // so the upgrade waits for that tab to close.
+  const UPGRADE_BLOCKED_MESSAGE =
+    "Close other Speech Coach tabs to finish updating, then try again.";
+
   // Shared by every call so the database is opened once; reset when that open fails.
   let openPromise = null;
 
+  // A blocked open fails its callers at once rather than leave them waiting: app.js boot waits
+  // for a flag before it shows any screen. The open itself goes on, and every call until it
+  // finishes gets the same failure, because an open made behind it would wait unheard. Once the
+  // older tab closes, the open upgrades the database and every later call uses its connection.
   function openDatabase() {
     if (openPromise === null) {
       openPromise = new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onupgradeneeded = () => createStores(request.result);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(errorOf(request, "Could not open the session database"));
-      });
-      openPromise.catch(() => {
-        openPromise = null;
+        request.onupgradeneeded = (event) => upgrade(request.result, event.oldVersion);
+        request.onblocked = () => reject(new Error(UPGRADE_BLOCKED_MESSAGE));
+        request.onsuccess = () => {
+          const db = closeForNewerVersions(request.result);
+          openPromise = Promise.resolve(db);
+          resolve(db);
+        };
+        request.onerror = () => {
+          openPromise = null;
+          reject(errorOf(request, "Could not open the session database"));
+        };
       });
     }
     return openPromise;
   }
 
-  function createStores(db) {
-    const sessions = db.createObjectStore(SESSIONS_STORE, { keyPath: "id" });
-    sessions.createIndex(CREATED_AT_INDEX, CREATED_AT_INDEX);
-    db.createObjectStore(FLAGS_STORE, { keyPath: "key" });
+  // A newer app version opening the database in another tab can upgrade it only once every
+  // open connection closes, so this one closes when asked; the next call here opens again.
+  function closeForNewerVersions(db) {
+    db.onversionchange = () => {
+      db.close();
+      openPromise = null;
+    };
+    return db;
+  }
+
+  // Brings the database from `oldVersion` (0 for a new one, or when the event leaves it out)
+  // up to DB_VERSION, creating only the stores each later version added. Creating a store that
+  // exists would abort the upgrade, so an upgrade never touches the sessions and flags a
+  // speaker already saved.
+  function upgrade(db, oldVersion) {
+    const from = Number.isFinite(oldVersion) ? oldVersion : 0;
+    if (from < 1) {
+      const sessions = db.createObjectStore(SESSIONS_STORE, { keyPath: "id" });
+      sessions.createIndex(CREATED_AT_INDEX, CREATED_AT_INDEX);
+      db.createObjectStore(FLAGS_STORE, { keyPath: "key" });
+    }
+    if (from < 2) {
+      db.createObjectStore(PATH_PROGRESS_STORE, { keyPath: "levelId" });
+    }
   }
 
   function requestToPromise(request, failureMessage) {
@@ -138,5 +175,57 @@
     await run(FLAGS_STORE, WRITE, (store) => store.put({ key, value }));
   }
 
-  app.store = { save, list, get, remove, getFlag, setFlag };
+  // Records a skill-path level (an app.path level id, such as "fillers-2") as cleared and
+  // resolves the record kept: {levelId, clearedAt}, clearedAt an ISO time, now unless given. A
+  // level cleared before keeps its first clearedAt, the day it was earned. The lookup and the
+  // write share one transaction, so two calls at once cannot both write.
+  async function markLevelCleared(levelId, clearedAt) {
+    if (typeof levelId !== "string" || levelId === "") {
+      throw new Error("markLevelCleared expects a level id such as 'fillers-2'");
+    }
+    if (clearedAt !== undefined && typeof clearedAt !== "string") {
+      throw new Error("markLevelCleared expects clearedAt as an ISO time string");
+    }
+    const record = { levelId, clearedAt: clearedAt || new Date().toISOString() };
+    const db = await openDatabase();
+    const store = db.transaction(PATH_PROGRESS_STORE, WRITE).objectStore(PATH_PROGRESS_STORE);
+    return new Promise((resolve, reject) => {
+      const failed = (request) => () => reject(errorOf(request, "Could not save path progress"));
+      const lookup = store.get(levelId);
+      lookup.onerror = failed(lookup);
+      lookup.onsuccess = () => {
+        if (lookup.result !== undefined) {
+          resolve(lookup.result);
+          return;
+        }
+        const write = store.put(record);
+        write.onerror = failed(write);
+        write.onsuccess = () => resolve(record);
+      };
+    });
+  }
+
+  // Every cleared level as {levelId, clearedAt}, in the order they were cleared.
+  async function listClearedLevels() {
+    const records = await run(PATH_PROGRESS_STORE, READ, (store) => store.getAll());
+    return records.sort(earliestClearedFirst);
+  }
+
+  function earliestClearedFirst(a, b) {
+    if (a.clearedAt === b.clearedAt) {
+      return a.levelId < b.levelId ? -1 : 1;
+    }
+    return a.clearedAt < b.clearedAt ? -1 : 1;
+  }
+
+  app.store = {
+    save,
+    list,
+    get,
+    remove,
+    getFlag,
+    setFlag,
+    markLevelCleared,
+    listClearedLevels,
+  };
 })();

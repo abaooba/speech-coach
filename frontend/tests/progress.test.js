@@ -523,7 +523,7 @@ test("tapping Pauses draws the pause count in the pause color", async () => {
   chipsOf(body)[2].click();
 
   const svg = chartOf(body);
-  assert.equal(svg.getAttribute("aria-label"), "Mid-sentence pauses over 3 sessions, latest 0");
+  assert.equal(svg.getAttribute("aria-label"), "Pauses over 3 sessions, latest 0");
   const polyline = polylineOf(svg);
   assert.equal(polyline.getAttribute("stroke"), PAUSES_COLOR);
   // Pauses 1, 3, 0 on a 0 to 10 axis.

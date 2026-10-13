@@ -57,7 +57,7 @@
     {
       key: "pauseCount",
       short: "Pauses",
-      label: "Mid-sentence pauses",
+      label: "Pauses",
       color: "var(--pause)",
       fromZero: true,
       best: LOWEST,
