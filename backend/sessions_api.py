@@ -51,6 +51,10 @@ from backend.advice.coach import MAX_ID_CHARACTERS
 # A take's report and transcript together, as JSON.stringify writes them: no spaces, in UTF-8.
 # A take holds about 7 KB a minute of speech, so an hour-long one fits with room to spare.
 MAX_TAKE_BYTES = 1_000_000
+# How many arrays and objects deep a report or a transcript may nest (nesting_depth). Real ones go
+# about 5 deep. Far deeper JSON breaks the code that reads it back: pydantic, which writes
+# FastAPI's answers, stops at 255 levels, so a take nested deeper would fail every listing of it.
+MAX_JSON_DEPTH = 64
 # Takes in one import: a long guest history in one request, while the request stays one the
 # server can hold. A longer history goes in parts, which importing twice makes safe.
 MAX_IMPORT_TAKES = 500
@@ -96,6 +100,28 @@ Id = Annotated[str, Field(min_length=1, max_length=MAX_ID_CHARACTERS), AfterVali
 Moment = Annotated[AwareDatetime, AfterValidator(_in_utc)]
 
 
+def nesting_depth(value: object) -> int:
+    """How many arrays and objects deep `value` goes: 0 for a string, a number, true, false or
+    null, 1 for [] or {}, and one more for each level inside on the deepest branch.
+
+    Walked with a list of what is left to look at rather than by recursion, so no depth of input
+    can exhaust the stack.
+    """
+    deepest = 0
+    unvisited: list[tuple[object, int]] = [(value, 1)]
+    while unvisited:
+        item, depth = unvisited.pop()
+        if isinstance(item, dict):
+            children: Iterable[object] = item.values()
+        elif isinstance(item, list):
+            children = item
+        else:
+            continue
+        deepest = max(deepest, depth)
+        unvisited.extend((child, depth + 1) for child in children)
+    return deepest
+
+
 def json_bytes(value: object) -> int:
     """How many bytes `value` takes as JSON.stringify writes it: no spaces, in UTF-8.
 
@@ -126,9 +152,9 @@ class TakeToKeep(Take):
     """A take as a browser sends it to be kept, checked before it reaches the database.
 
     It has the four fields and nothing else, so a take carrying its audio is refused, as is a
-    report with an audio field (AUDIO_FIELDS). The report and the transcript take MAX_TAKE_BYTES
-    at most together, written as json_bytes() writes them, which also refuses what Postgres or
-    UTF-8 cannot hold.
+    report with an audio field (AUDIO_FIELDS). The report and the transcript each nest
+    MAX_JSON_DEPTH deep at most, and they take MAX_TAKE_BYTES at most together, written as
+    json_bytes() writes them, which also refuses what Postgres or UTF-8 cannot hold.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -140,6 +166,10 @@ class TakeToKeep(Take):
     def holds_no_audio_and_fits(self) -> Self:
         if self.report.keys() & AUDIO_FIELDS:
             raise ValueError("a take never holds audio")
+        # Before json_bytes(), whose writer recurses through every level.
+        depth = max(nesting_depth(self.report), nesting_depth(self.transcript))
+        if depth > MAX_JSON_DEPTH:
+            raise ValueError(f"the report or transcript nests {depth} deep, over {MAX_JSON_DEPTH}")
         size = json_bytes(self.report) + json_bytes(self.transcript)
         if size > MAX_TAKE_BYTES:
             raise ValueError(f"the report and transcript take {size} bytes, over {MAX_TAKE_BYTES}")
