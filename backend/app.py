@@ -1,18 +1,21 @@
 """FastAPI entry point. Serves the API and the static frontend."""
 
 import logging
+import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
 
 import httpx
+from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import RequestResponseEndpoint
 
 from backend import metrics
+from backend.advice import coach, load_library
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
 from backend.script_align import analyze_reading
@@ -34,6 +37,10 @@ EMPTY_UPLOAD_MESSAGE = "The upload was empty. Record again and resend."
 TOO_SHORT_MESSAGE = "That recording had under 5 seconds of speech. Try again."
 PROVIDER_FAILED_MESSAGE = "Speech-to-text failed on our side. Your recording is safe; try again."
 SCRIPT_TOO_LONG_MESSAGE = "The script is over 20,000 characters. Shorten it and resend."
+
+# Where the server finds the Anthropic API key for coach notes: the environment only (the
+# Render dashboard, or .env locally), never a file in the repo.
+ANTHROPIC_API_KEY_VARIABLE = "ANTHROPIC_API_KEY"
 
 # The PWA shell: the browser must revalidate these on every open so a deploy shows up.
 SHELL_PATHS = frozenset({"/", "/index.html", "/sw.js", "/manifest.json"})
@@ -110,6 +117,31 @@ async def analyze(
 def speech_end_seconds(words: list[Word]) -> float:
     """When the last word ended, in seconds from the clip start; 0.0 when nothing was said."""
     return words[-1].end if words else 0.0
+
+
+def advice_client() -> AsyncAnthropic | None:
+    """The client /api/advice asks Claude with, or None when ANTHROPIC_API_KEY is unset or blank.
+
+    Without a key no client is built and the speaker gets the library's tips. The key is read
+    from the environment only and never logged. Tests replace this dependency with a fake.
+    """
+    api_key = os.environ.get(ANTHROPIC_API_KEY_VARIABLE, "").strip()
+    return coach.client_for_key(api_key) if api_key else None
+
+
+@app.post("/api/advice")
+async def advice(
+    advice_request: coach.AdviceRequest,
+    client: Annotated[AsyncAnthropic | None, Depends(advice_client)],
+) -> coach.Advice:
+    """Coach notes for one take: 2-3 tips, each with its library entry's drill and citation.
+
+    The body is the take's numbers with a transcript excerpt, the speaker's tier and the ids of
+    the advice already shown (coach.AdviceRequest). Claude Haiku writes the tips from library
+    advice when a key is set and its reply keeps the rules; otherwise they are the library's
+    own words. `source` says which ("ai" or "library"), and the shape is the same either way.
+    """
+    return await coach.advise(advice_request, load_library(), client)
 
 
 # Mounted last so /api routes take priority.
