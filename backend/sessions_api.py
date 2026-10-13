@@ -334,7 +334,9 @@ def first_clearings(path_progress: Iterable[ClearedLevel]) -> dict[str, datetime
 
 # --- statements ----------------------------------------------------------------------------------
 # Each is built for the database it will run on (db.insert_for): Postgres in production, SQLite
-# in the tests. Every one writes the rows of `user_id` only.
+# in the tests. Every one writes the rows of `user_id` only, in the order of their keys: two
+# requests that write the same rows in different orders, as two devices syncing at once can,
+# would each lock a row the other waits for, and Postgres would end one with a deadlock.
 
 
 def _take_row(user_id: int, take: TakeToKeep) -> dict[str, object]:
@@ -362,7 +364,7 @@ def import_statement(dialect: Dialect, user_id: int, takes: Sequence[TakeToKeep]
 
     The takes they have are left as they are. The statement returns the ids of the takes kept.
     """
-    rows = [_take_row(user_id, take) for take in takes]
+    rows = [_take_row(user_id, take) for take in sorted(takes, key=lambda take: take.id)]
     return (
         db.insert_for(dialect, db.speech_sessions)
         .values(rows)
@@ -381,7 +383,7 @@ def shown_advice_statement(
     table = db.shown_advice
     rows = [
         {"user_id": user_id, "entry_id": entry_id, "shown_at": shown_at}
-        for entry_id, shown_at in showings.items()
+        for entry_id, shown_at in sorted(showings.items())
     ]
     statement = db.insert_for(dialect, table).values(rows)
     return statement.on_conflict_do_update(
@@ -401,7 +403,7 @@ def cleared_levels_statement(
     table = db.path_progress
     rows = [
         {"user_id": user_id, "level_id": level_id, "cleared_at": cleared_at}
-        for level_id, cleared_at in clearings.items()
+        for level_id, cleared_at in sorted(clearings.items())
     ]
     statement = db.insert_for(dialect, table).values(rows)
     return statement.on_conflict_do_update(
