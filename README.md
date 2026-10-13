@@ -45,6 +45,7 @@ each transcript entry is `{"text", "start", "end"}` in seconds and
 | --- | --- | --- |
 | 200 | Transcribed and measured | transcript and metrics |
 | 400 | Empty upload, or the last word ends before 5 s | `{"detail": message}` |
+| 413 | The upload is over 40 MB, refused before it is read in full | `{"detail": message}` |
 | 422 | The `audio` field is missing | FastAPI validation error |
 | 502 | The speech-to-text provider is misconfigured, unreachable or failed | `{"detail": message}` |
 

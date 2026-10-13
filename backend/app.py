@@ -25,6 +25,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from backend import auth, db, metrics, sessions_api
 from backend.advice import coach, load_library
 from backend.advice.budget import ADVICE_CALL_BUDGET, AICallBudget
+from backend.limits import RequestBodyLimit
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
 from backend.script_align import analyze_reading
@@ -83,6 +84,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Speech Coach", lifespan=lifespan)
+
+# Every request body is held to its route's limit, 413 past it (backend/limits.py). Added before
+# the cache headers below, so it runs inside them and its 413 is never stored, as no API answer is.
+app.add_middleware(RequestBodyLimit)
 
 
 @app.middleware("http")

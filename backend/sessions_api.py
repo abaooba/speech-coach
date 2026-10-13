@@ -44,18 +44,17 @@ speech_sessions is user_id and id), so another speaker's take with the same id i
 replaced or deleted. While DATABASE_URL is unset every route answers 503 (db.accounts_engine),
 and every route that changes something accepts JSON only (auth.require_json, 415 otherwise). A
 request body over MAX_REQUEST_BYTES is refused with 413 before it is read in full
-(LimitedBodyRoute).
+(backend/limits.py).
 """
 
 import json
-from collections.abc import Callable, Coroutine, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from functools import cached_property
 from typing import Annotated, Any, Self
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.responses import StreamingResponse
-from fastapi.routing import APIRoute
 from pydantic import (
     AfterValidator,
     AwareDatetime,
@@ -78,7 +77,6 @@ from sqlalchemy import (
     func,
     select,
 )
-from starlette.types import Message, Receive
 
 from backend import auth, db
 from backend.advice.coach import MAX_ID_CHARACTERS, MAX_SHOWN_IDS
@@ -100,7 +98,7 @@ MAX_IMPORT_BYTES = 2_000_000
 # ids, times and keys and for JSON written with spaces. FastAPI parses a JSON body before any
 # check of ours runs, and parsed, JSON can take 35 times its size in memory: 3 MB of [{},{},...]
 # takes about 100 MB, of the 512 MB the server has for everything. So a body over this is
-# refused with 413 as it arrives, before it is read in full (LimitedBodyRoute).
+# refused with 413 as it arrives, before it is read in full (backend/limits.py).
 MAX_REQUEST_BYTES = 3_000_000
 REQUEST_TOO_LARGE = (
     f"send at most {MAX_REQUEST_BYTES:,} bytes in one request: import a long history in parts"
@@ -539,61 +537,12 @@ def takes_as_json(rows: Sequence[Row[tuple[str, datetime, str, str]]]) -> Iterat
     yield "]"
 
 
-# --- how much a request may carry ----------------------------------------------------------------
-
-
-def _declared_length(request: Request) -> int:
-    """The body's length as the request's Content-Length states it; 0 when it states none."""
-    try:
-        return int(request.headers.get("content-length", "0"))
-    except ValueError:
-        return 0
-
-
-def _receive_at_most(receive: Receive, limit: int) -> Receive:
-    """`receive`, turning the request away with 413 once over `limit` bytes of body arrive."""
-    received = 0
-
-    async def receive_within_limit() -> Message:
-        nonlocal received
-        message = await receive()
-        if message["type"] == "http.request":
-            received += len(message.get("body", b""))
-            if received > limit:
-                raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
-        return message
-
-    return receive_within_limit
-
-
-class LimitedBodyRoute(APIRoute):
-    """A route that reads MAX_REQUEST_BYTES of a request body at most: past that, 413.
-
-    FastAPI reads and parses a JSON body before any dependency runs, so a dependency would check
-    the size too late. This checks first what the Content-Length states, then the bytes as they
-    arrive, which also counts a body sent in chunks with no length stated.
-    """
-
-    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
-        handle = super().get_route_handler()
-
-        async def handle_within_limit(request: Request) -> Response:
-            if _declared_length(request) > MAX_REQUEST_BYTES:
-                raise HTTPException(status_code=413, detail=REQUEST_TOO_LARGE)
-            receive = _receive_at_most(request.receive, MAX_REQUEST_BYTES)
-            return await handle(Request(request.scope, receive))
-
-        return handle_within_limit
-
-
 # --- routes --------------------------------------------------------------------------------------
 
 # Every route here needs the database, so while accounts are off each answers 503 before its own
 # checks run. FastAPI reads a JSON body first, though, and answers one that does not parse with 422,
-# and a body over MAX_REQUEST_BYTES is refused with 413 before either (LimitedBodyRoute).
-router = APIRouter(
-    prefix="/api", dependencies=[Depends(db.accounts_engine)], route_class=LimitedBodyRoute
-)
+# and a body over MAX_REQUEST_BYTES is refused with 413 before either (backend/limits.py).
+router = APIRouter(prefix="/api", dependencies=[Depends(db.accounts_engine)])
 
 Database = Annotated[Engine, Depends(db.accounts_engine)]
 Speaker = Annotated[auth.SignedInAccount, Depends(auth.signed_in_account)]
