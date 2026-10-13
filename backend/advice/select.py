@@ -20,7 +20,8 @@ from backend.advice import AdviceEntry
 SECONDS_PER_MINUTE = 60
 
 # The skills a take is measured on, named by their library tags, in the order a tie is broken.
-# "general" advice is about speaking as a whole, so no take is ranked weak in it.
+# pace_fast and pace_slow are the two edges of one skill, pace (see weakest_skills). "general"
+# advice is about speaking as a whole, so no take is ranked weak in it.
 MEASURED_SKILLS = ("restart", "filler", "mid_pause", "long_pause", "pace_fast", "pace_slow")
 
 # The targets. A take right on one is at distance 0 from it (see distances_from_target).
@@ -84,10 +85,15 @@ def weakest_skills(summary: ReportSummary) -> list[str]:
 
     Ranked by distances_from_target(): the skills past their targets come first, the farthest
     leading, then the skills on target, the one nearest its target first, so a clean take still
-    gets advice on what is closest to slipping. Ties keep the order of MEASURED_SKILLS.
+    gets advice on what is closest to slipping. Pace is one skill with a tag for each edge of
+    the band. A take is nearer one edge, the fast one from the middle of the band up, so the far
+    edge's tag ranks last: advice never tells the speaker to slow down and to speed up at once.
+    Ties keep the order of MEASURED_SKILLS.
     """
     distances = distances_from_target(summary)
-    return sorted(MEASURED_SKILLS, key=lambda skill: -distances[skill])
+    # The tag for the edge of the pace band the take is farther from.
+    far_edge = "pace_slow" if distances["pace_fast"] >= distances["pace_slow"] else "pace_fast"
+    return sorted(MEASURED_SKILLS, key=lambda skill: (skill == far_edge, -distances[skill]))
 
 
 def distances_from_target(summary: ReportSummary) -> dict[str, float]:

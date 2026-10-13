@@ -269,14 +269,15 @@ def test_a_clean_take_ranks_the_skills_nearest_their_targets_first() -> None:
     clean = take(words_per_minute=158.0, filler_count=2)
 
     assert weakest_skills(clean) == [
-        "pace_fast", "filler", "pace_slow", "restart", "mid_pause", "long_pause",
+        "pace_fast", "filler", "restart", "mid_pause", "long_pause", "pace_slow",
     ]
 
 
 def test_ties_keep_the_order_of_the_measured_skills() -> None:
-    # 150 wpm sits mid-band (-0.5 each way); every count is zero (-1.0).
+    # 150 wpm sits mid-band (-0.5 each way); every count is zero (-1.0). From the middle up the
+    # take counts as nearer the fast edge, so pace_slow, the far edge, goes last.
     assert weakest_skills(take()) == [
-        "pace_fast", "pace_slow", "restart", "filler", "mid_pause", "long_pause",
+        "pace_fast", "restart", "filler", "mid_pause", "long_pause", "pace_slow",
     ]
 
 
