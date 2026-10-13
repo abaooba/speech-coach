@@ -25,9 +25,9 @@ the map.
 | `pauses.js` | `app.pauses` | Human-owned (T08); agents never edit it. `start(stream)` samples the microphone's loudness while a take records, `stop()` hands the samples back, and `reconcile(metrics, samples)` folds the quiet stretches into the backend's pauses. |
 | `screens/practice.js` | `app.screens.practice` | `mount`, `show`, `hide`, plus `render(state, detail)` (the one function that repaints the screen), the `state` string (`idle`, `recording`, `uploading` or `error`), `STATES`, `viewFor` and `selectedPassage`. Records a take, uploads it through `app.api` and saves it through `app.store`. |
 | `screens/results.js` | `app.screens.results` | `mount`, `show({id})`, `hide`, plus the pure helpers `summarize`, `buildTranscriptPlan`, `headlineFor`, `compareWithPrevious`, `timelineSegments` and `isSample`, which touch no DOM. |
-| `screens/history.js` | `app.screens.history` | `mount`, `show`, `hide`, plus `formatStats(session)` and the pure `statusFor(summary)`. |
+| `screens/history.js` | `app.screens.history` | `mount`, `show`, `hide`, plus `formatStats(session)` and the pure `statusFor(summary)`. Once the server has ended this device's account session (`app.auth.syncStatus`), a small line above the rows says to log in again from Account. |
 | `screens/progress.js` | `app.screens.progress` | `mount`, `show`, `hide`, plus the pure `series`, `scale` and `summaryFor`. |
-| `screens/account.js` | `app.screens.account` | `#/account`, reached from the "Account" link in History's header (the nav keeps its three items). `mount`, `show`, `hide`, plus `COPY`, every string on the screen. A guest signs up or logs in; signed in, the speaker sees who they are, the once-per-account offer to add this device's takes, Log out, and Delete account behind a second tap. One line says what the server keeps: each take's metrics and transcript, never audio, until the account is deleted. It talks only to `app.auth`. |
+| `screens/account.js` | `app.screens.account` | `#/account`, reached from the "Account" link in History's header (the nav keeps its three items). `mount`, `show`, `hide`, plus `COPY`, every string on the screen. A guest signs up or logs in; signed in, the speaker sees who they are, how many takes the server did not keep, the offer to add this device's takes (asked once about each), Log out, and Delete account behind a second tap. Once the server has ended this device's session, the form opens on Log in with that email filled in, and a card offers to keep the account's takes recorded here on the device instead. One line says what the server keeps: each take's metrics and transcript, never audio, until the account is deleted. It talks only to `app.auth`. |
 | `screens/onboarding.js` | `app.screens.onboarding` | `mount`, `show`, `hide`, plus `COPY`, every string on the screen. |
 | `sw.js` | none | The service worker, which runs in its own scope with no `app`. It caches the app shell (`SHELL`) so the app opens offline, and never touches `/api/`. |
 | `how.html` | none | The static "How we measure" page, with no script, linked from the Results transcript legend. |
@@ -98,7 +98,10 @@ wide as the block. "Empty the store" is the first DevTools snippet under the tab
 | Progress | Need two sessions, no take | Empty the store, tap "Start practicing", open `#/progress`. | Chart, "Need two sessions" / "Record two sessions to see a trend." Button "Record". |
 | Account | Checking | Open `#/account` with DevTools network throttling at "Slow 4G". | Spinner, "Checking your account" / "This takes a moment." No button. |
 | Account | Accounts not available | Run uvicorn without `DATABASE_URL` (accounts off), open `#/account`. | Plain circle, "Accounts are not available right now" / "Your takes stay on this device, and everything else works as before." Button "Practice". Every other screen works as a guest's. |
-| Account | Could not reach the server, guest | Load the app once, stop uvicorn, open `#/account` (the service worker serves the page). | "Could not reach the server" / "Check your connection, then try again." Button "Try again", which checks again. |
+| Account | Could not reach the server, guest | Load the app once, stop uvicorn, open `#/account` (the service worker serves the page). | "Could not reach the server" / "Check your connection, then try again." Button "Try again", which checks again and moves focus to the first line of what it shows. |
+| Account | Could not check your account | Sign up, then restart uvicorn with `DATABASE_URL` pointing at a SQLite file in a folder that does not exist: the startup logs the fault and goes on, and `GET /api/me` with the session cookie answers 500. Open `#/account`. To see a guest's block, first clear the site's IndexedDB in the Application tab, keeping the cookie. | Signed in: the account view, with "Something went wrong on our side. Try again." as the note under "Signed in as", never "You are offline". A guest: alert triangle, "Could not check your account" / "Something went wrong on our side. Try again." Button "Try again". |
+| Account | Session ended | Sign up, record a take, then end the session: delete the account from a second browser (log in there, Delete account), or delete the `sc_session` cookie in DevTools. Open `#/account`. | "Your session has ended. Log in again to sync your takes." over the switch on "Log in", the email filled in, and a blue card "Cannot log in? Keep the 1 take recorded here on this device, without the account." with a ghost "Keep on this device", which keeps the take here as the device's own and brings back the plain sign-up form. |
+| History | Session ended note | As for Account, Session ended, then open `#/history`. | The account's takes still listed, under the small muted line "Your session has ended. Log in again from Account to sync your takes." |
 
 ### DevTools snippets
 
@@ -206,11 +209,15 @@ keyboard.
   spinner stops turning.
 - Keyboard: press Tab from the top of each screen. Focus moves top to bottom, the nav comes
   last, and every focused control shows a blue ring.
-- Console: no errors on any screen, including `#/results/nope` and an empty History.
+- Console: no errors on any screen, including `#/results/nope` and an empty History. One
+  network line is expected: a guest's visit to `#/account` asks `GET /api/me`, which answers
+  401 (503 with accounts off), and Chrome logs every 4xx and 5xx reply as "Failed to load
+  resource". That is the server saying "not signed in", not an error in the page.
 - Two devices (needs the deployed app with `DATABASE_URL` set): sign up on the phone, record a
   take, then log in on a laptop. History, Progress and the take's Results match the phone's.
-  Delete the account on the laptop: the phone signs out at its next sync. Guest mode still
-  records and saves with the network off.
+  Delete the account on the laptop: at its next sync the phone is a guest's but still lists
+  its takes, History says the session has ended, and Account offers Log in or "Keep on this
+  device". Guest mode still records and saves with the network off.
 
 ## Screen walkthroughs
 
@@ -487,13 +494,20 @@ http://localhost:8000/#/history.
 4. Record a take (or save one with the store round trip): a `POST /api/sessions` follows the
    save, and History lists it. With DevTools offline, save another: History still lists it;
    go back online and the queued `POST /api/sessions` goes out by itself.
-5. Tap "Log out": the form comes back empty, on "Log in", focus on its first line. History
+5. Tap "Log out": while takes queued on this device go up first (10 seconds at most) the button
+   reads "Logging out", dimmed and still focused. Then the form comes back empty, on "Log
+   in", focus on its first line. History
    now shows no rows: the account's takes show only to the account. Log in again: the rows
    are back. A wrong password reads "Email or password is wrong.", for an unknown email
    too; six wrong tries in a row read "Too many tries. Wait 15 minutes, then try again."
 6. Tap "Delete account": it turns into "Delete your account and every take it keeps on our
-   server? Takes on this device stay here." with a red "Delete account" and "Cancel", focus on
-   Cancel. Cancel brings the button back. Confirm: the empty sign-up form comes back and the
-   live region says "Account deleted". History still lists every take, as a guest's; nothing more is sent.
-7. At 320px wide, light and dark: the fields and buttons fit with no sideways scroll, and the
-   History heading keeps its height with the Account link beside it.
+   server? Takes recorded on this device stay here, for anyone who uses it." with a red
+   "Delete account" and "Cancel", focus on Cancel. Cancel brings the button back. Confirm: the
+   empty sign-up form comes back and the live region says "Account deleted". History lists
+   the takes recorded on this device, as a guest's; copies of takes from other devices are
+   gone from it, and nothing more is sent.
+7. At 320px wide, light and dark: the fields and buttons fit with no sideways scroll, a long
+   email after "Signed in as" wraps, and the History heading keeps its height with the
+   Account link beside it.
+8. Type a wrong password and press Enter on the focused "Log in" button: the warning line
+   shows and focus stays on the button, so the next Tab goes on from there.

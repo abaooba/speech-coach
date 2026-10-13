@@ -1,7 +1,9 @@
 /* screens/account.js: app.screens.account (#/account), the optional account (docs/PLAN.md T49).
    A guest signs up or logs in; signed in, the speaker can add this device's takes to the account
-   once, log out, or delete the account after a second tap. It talks only to app.auth, and one
-   line says what the server keeps and how to erase it. COPY holds every string. */
+   once, log out, or delete the account after a second tap. When the server has ended this
+   device's session, the form says so, opens on Log in with that email, and offers to keep the
+   account's takes on the device instead. It talks only to app.auth, and one line says what the
+   server keeps and how to erase it. COPY holds every fixed string. */
 (function () {
   "use strict";
 
@@ -13,10 +15,12 @@
     unavailableAction: "Practice",
     offlineTitle: "Could not reach the server",
     offlineBody: "Check your connection, then try again.",
+    faultTitle: "Could not check your account",
     retry: "Try again",
     lead:
       "An account keeps your takes on every device you use. " +
       "Without one, they stay on this device.",
+    endedLead: "Your session has ended. Log in again to sync your takes.",
     modes: "Sign up or log in",
     signUp: "Sign up",
     logIn: "Log in",
@@ -32,11 +36,15 @@
     addTakes: "Add to account",
     keepTakes: "Keep on this device",
     waiting: "Your takes join your account once you are back online.",
+    notAdded: "Your account could not keep these takes.",
+    keptHere: "Takes kept on this device",
     logOut: "Log out",
+    loggingOut: "Logging out",
     deleteAccount: "Delete account",
     deleteGroup: "Delete account?",
     deletePrompt:
-      "Delete your account and every take it keeps on our server? Takes on this device stay here.",
+      "Delete your account and every take it keeps on our server? " +
+      "Takes recorded on this device stay here, for anyone who uses it.",
     cancel: "Cancel",
     signedIn: "Signed in",
     loggedOut: "Logged out",
@@ -64,6 +72,22 @@
     return takesText(count) + (count === 1 ? " stays" : " stay") + " on this device only.";
   }
 
+  // The server refused some of the signed-in account's takes, as when the account is full.
+  function notKeptText(count) {
+    const they = count === 1 ? "It stays" : "They stay";
+    return (
+      "Your account could not keep " + takesText(count) + ". " + they + " on this device only."
+    );
+  }
+
+  // For a speaker whose session ended and who cannot log in again.
+  function keepEndedText(count) {
+    return (
+      "Cannot log in? Keep the " + takesText(count) +
+      " recorded here on this device, without the account."
+    );
+  }
+
   // The guest form's two choices, in the order the switch shows them.
   const SIGN_UP = "signUp";
   const LOG_IN = "logIn";
@@ -79,7 +103,9 @@
   const PRACTICE_SCREEN = "practice";
   // auth.js's failure kinds this screen tells apart.
   const UNAVAILABLE = "unavailable";
+  const NETWORK = "network";
   const SIGNED_OUT = "signed_out";
+  const NO_SYNC_NEWS = Object.freeze({ endedSession: null, takesNotKept: 0 });
 
   // The screen's .screen__body; every view is rebuilt inside it.
   let body = null;
@@ -91,6 +117,9 @@
   let mode = SIGN_UP;
   const typed = { email: "", password: "" };
   let fields = null;
+  // {email, takesHere} while the server has ended this device's session for that account, as the
+  // last check found it (app.auth.syncStatus); null otherwise.
+  let endedSession = null;
 
   function el(tag, attrs, children) {
     return app.ui.el(tag, attrs, children);
@@ -101,7 +130,7 @@
   }
 
   function show() {
-    return check(++showCount);
+    return check(++showCount, false);
   }
 
   // show() asks the server again every time; only a typed password is let go.
@@ -109,13 +138,18 @@
     typed.password = "";
   }
 
-  // Asks the server who this browser is signed in as, then draws the matching view.
-  async function check(ticket) {
-    app.ui.renderState(body, {
+  // Asks the server who this browser is signed in as, then draws the matching view. With
+  // `moveFocus` (Try again, whose button the redraw removes) focus goes to the loading title,
+  // then to the first line of the view drawn.
+  async function check(ticket, moveFocus) {
+    const loading = app.ui.renderState(body, {
       kind: "loading",
       title: COPY.checkingTitle,
       body: COPY.checkingBody,
     });
+    if (moveFocus) {
+      focusTitleOf(loading);
+    }
     let email = null;
     let failure = null;
     try {
@@ -127,23 +161,29 @@
       return;
     }
     if (failure === null) {
-      await (email === null ? renderGuest(ticket) : renderSignedIn(ticket, email, {}));
+      if (email === null) {
+        await showGuest(ticket, moveFocus ? "lead" : null);
+      } else {
+        await renderSignedIn(ticket, email, { focus: moveFocus });
+      }
       return;
     }
     if (failure && failure.kind === UNAVAILABLE) {
-      renderUnavailable();
+      renderUnavailable(moveFocus);
       return;
     }
-    // No reply: a device signed in before keeps its account, which works offline; a guest can
-    // only try again.
+    // No reply, or a fault on our side: a device signed in before keeps its account, which works
+    // offline, with a note saying which; a guest can only try again.
+    const offline = Boolean(failure) && failure.kind === NETWORK;
     const known = await lastKnownAccount();
     if (ticket !== showCount) {
       return;
     }
     if (known === null) {
-      renderOffline();
+      renderCheckFailed(offline, moveFocus);
     } else {
-      await renderSignedIn(ticket, known, { offline: true });
+      const note = offline ? COPY.offlineNote : sentenceFor(failure);
+      await renderSignedIn(ticket, known, { note, focus: moveFocus });
     }
   }
 
@@ -155,46 +195,122 @@
     }
   }
 
+  // What the store holds beyond who is signed in (auth.js syncStatus), or nothing to say when it
+  // cannot tell.
+  async function syncNews() {
+    if (typeof app.auth.syncStatus !== "function") {
+      return NO_SYNC_NEWS;
+    }
+    try {
+      return (await app.auth.syncStatus()) || NO_SYNC_NEWS;
+    } catch {
+      return NO_SYNC_NEWS;
+    }
+  }
+
   // Accounts are off on this server: guests carry on as before, so this is all there is to say.
-  function renderUnavailable() {
-    app.ui.renderState(body, {
+  function renderUnavailable(moveFocus) {
+    const block = app.ui.renderState(body, {
       kind: "empty",
       title: COPY.unavailableTitle,
       body: COPY.unavailableBody,
       actionLabel: COPY.unavailableAction,
       onAction: () => app.router.go(PRACTICE_SCREEN),
     });
+    if (moveFocus) {
+      focusTitleOf(block);
+    }
   }
 
-  function renderOffline() {
-    app.ui.renderState(body, {
+  // A guest's check got no reply (`offline`) or met a fault on our side: Try again checks again.
+  function renderCheckFailed(offline, moveFocus) {
+    const block = app.ui.renderState(body, {
       kind: "error",
-      title: COPY.offlineTitle,
-      body: COPY.offlineBody,
+      title: offline ? COPY.offlineTitle : COPY.faultTitle,
+      body: offline ? COPY.offlineBody : sentenceFor(null),
       actionLabel: COPY.retry,
-      onAction: () => show(),
+      onAction: () => check(++showCount, true),
     });
+    if (moveFocus) {
+      focusTitleOf(block);
+    }
   }
 
   // --- a guest: sign up or log in --------------------------------------------------------------
 
+  // The form, after asking the store whether the server ended this device's session: then it
+  // opens on Log in with that account's email filled in.
+  async function showGuest(ticket, focusTarget) {
+    const news = await syncNews();
+    if (ticket !== showCount) {
+      return;
+    }
+    endedSession = news.endedSession || null;
+    if (endedSession !== null) {
+      mode = LOG_IN;
+      if (typed.email === "") {
+        typed.email = endedSession.email;
+      }
+    }
+    renderGuest(ticket, focusTarget);
+  }
+
   // `focusTarget` is "lead" to move focus to the first line, or a mode to keep it on the switch.
-  async function renderGuest(ticket, focusTarget) {
+  function renderGuest(ticket, focusTarget) {
     if (ticket !== showCount) {
       return;
     }
     app.ui.clear(body);
-    const lead = el("p", { class: "account__lead", tabindex: "-1", text: COPY.lead });
+    const leadText = endedSession !== null ? COPY.endedLead : COPY.lead;
+    const lead = el("p", { class: "account__lead", tabindex: "-1", text: leadText });
     const modes = buildModeSwitch();
     body.appendChild(lead);
     body.appendChild(modes);
     body.appendChild(buildForm());
+    if (endedSession !== null && endedSession.takesHere > 0) {
+      body.appendChild(buildKeepCard(endedSession.takesHere));
+    }
     body.appendChild(el("p", { class: "account__privacy", text: COPY.privacy }));
     if (focusTarget === "lead") {
       focusIfPossible(lead);
     } else if (MODES.includes(focusTarget)) {
       focusIfPossible(modes.children[MODES.indexOf(focusTarget)]);
     }
+  }
+
+  // For a speaker who cannot log in again (the account was deleted elsewhere, or the password is
+  // lost): Keep on this device lets the ended account go, its takes recorded here kept as this
+  // device's own (auth.js keepEndedTakesHere), and the plain form comes back. The form's Log in
+  // stays the screen's one primary button.
+  function buildKeepCard(count) {
+    const keep = el("button", { class: "btn btn--ghost", type: "button" }, COPY.keepTakes);
+    const card = el("section", { class: "tip-card account__offer" }, [
+      el("p", { class: "account__offer-text", text: keepEndedText(count) }),
+      el("div", { class: "account__offer-actions" }, [keep]),
+    ]);
+    let answered = false;
+    keep.addEventListener("click", async () => {
+      if (answered) {
+        return;
+      }
+      answered = true;
+      setBusy(keep, true);
+      try {
+        await app.auth.keepEndedTakesHere();
+      } catch {
+        answered = false;
+        setBusy(keep, false);
+        if (fields !== null) {
+          showError(fields.error, sentenceFor(null));
+        }
+        return;
+      }
+      endedSession = null;
+      freshForm(SIGN_UP);
+      app.ui.announce(COPY.keptHere);
+      renderGuest(showCount, "lead");
+    });
+    return card;
   }
 
   // Sign up or Log in, as a segmented control (DESIGN.md section 6).
@@ -297,7 +413,8 @@
   }
 
   // Signs up or logs in with what was typed. Signed in, the account view replaces the form, with
-  // focus on its first line; a failure shows its sentence above the button.
+  // focus on its first line; a failure shows its sentence above the button, and focus stays
+  // where it was: the button is busy while the request runs, never disabled (setBusy).
   async function sendForm(event, form) {
     if (event && typeof event.preventDefault === "function") {
       event.preventDefault();
@@ -306,7 +423,7 @@
       return;
     }
     form.busy = true;
-    form.submit.disabled = true;
+    setBusy(form.submit, true);
     showError(form.error, null);
     typed.email = valueOf(form.email);
     const ticket = showCount;
@@ -319,18 +436,26 @@
           : await app.auth.logIn(typed.email, password);
     } catch (error) {
       form.busy = false;
-      form.submit.disabled = false;
+      setBusy(form.submit, false);
       showError(form.error, sentenceFor(error));
       return;
     }
     // The password is not kept once it has done its job.
     typed.password = "";
+    endedSession = null;
     app.ui.announce(COPY.signedIn);
     await renderSignedIn(ticket, email, { focus: true });
   }
 
   function valueOf(input) {
     return typeof input.value === "string" ? input.value : "";
+  }
+
+  // A button whose request is under way: it keeps focus, which disabling it would drop to the
+  // page, so it reads as unavailable (aria-disabled) and dims as a disabled one does, while its
+  // handler ignores taps until the request ends.
+  function setBusy(button, busy) {
+    button.setAttribute("aria-disabled", busy ? "true" : "false");
   }
 
   // auth.js's own sentence for a failure it names; anything else reads as a fault on our side.
@@ -351,14 +476,12 @@
 
   // --- signed in -------------------------------------------------------------------------------
 
+  // `options.note` is a line under who is signed in (offline, or a fault on our side);
+  // `options.focus` moves focus to that first line.
   async function renderSignedIn(ticket, email, options) {
     fields = null;
-    let offer = null;
-    try {
-      offer = await app.auth.guestImportOffer();
-    } catch {
-      offer = null;
-    }
+    endedSession = null;
+    const [offer, news] = await Promise.all([importOffer(), syncNews()]);
     if (ticket !== showCount) {
       return;
     }
@@ -368,8 +491,11 @@
       el("strong", { text: email }),
     ]);
     body.appendChild(status);
-    if (options.offline) {
-      body.appendChild(el("p", { class: "account__note", text: COPY.offlineNote }));
+    if (options.note) {
+      body.appendChild(el("p", { class: "account__note", text: options.note }));
+    }
+    if (news.takesNotKept > 0) {
+      body.appendChild(el("p", { class: "account__note", text: notKeptText(news.takesNotKept) }));
     }
     if (offer !== null && offer.count > 0) {
       body.appendChild(buildOffer(offer.count, status));
@@ -386,8 +512,16 @@
     }
   }
 
-  // The offer to add this device's guest takes, asked once an account: Add to account sends them,
-  // Keep on this device leaves them here for good. Either answer replaces the card's buttons.
+  async function importOffer() {
+    try {
+      return await app.auth.guestImportOffer();
+    } catch {
+      return null;
+    }
+  }
+
+  // The offer to add this device's guest takes, asked once about each: Add to account sends
+  // them, Keep on this device leaves them here for good. Either answer replaces the buttons.
   function buildOffer(count, status) {
     const add = el("button", { class: "btn btn--primary", type: "button" }, COPY.addTakes);
     const keep = el("button", { class: "btn btn--ghost", type: "button" }, COPY.keepTakes);
@@ -437,41 +571,49 @@
     return card;
   }
 
+  // What became of the import. When the account kept none of the takes, why comes first.
   function importOutcomeText(result) {
     if (!result || result.waiting) {
       return COPY.waiting;
+    }
+    if (result.added === 0 && result.keptHere > 0) {
+      return COPY.notAdded + " " + keptHereText(result.keptHere);
     }
     const kept = result.keptHere > 0 ? " " + keptHereText(result.keptHere) : "";
     return addedText(result.added) + kept;
   }
 
+  // Log out, which first sends what this device queued for the account (auth.js waits up to
+  // 10 seconds for it): meanwhile the button reads "Logging out", busy and still focused.
   function buildLogOutButton(error) {
     let leaving = false;
-    return el(
-      "button",
-      {
-        class: "btn btn--secondary",
-        type: "button",
-        onClick: async () => {
-          if (leaving) {
-            return;
-          }
-          leaving = true;
-          showError(error, null);
-          try {
-            await app.auth.logOut();
-          } catch (failure) {
-            leaving = false;
-            showError(error, sentenceFor(failure));
-            return;
-          }
-          app.ui.announce(COPY.loggedOut);
-          freshForm(LOG_IN);
-          await renderGuest(showCount, "lead");
-        },
+    const button = el("button", {
+      class: "btn btn--secondary",
+      type: "button",
+      text: COPY.logOut,
+      onClick: async () => {
+        if (leaving) {
+          return;
+        }
+        leaving = true;
+        button.textContent = COPY.loggingOut;
+        setBusy(button, true);
+        showError(error, null);
+        try {
+          await app.auth.logOut();
+        } catch (failure) {
+          leaving = false;
+          button.textContent = COPY.logOut;
+          setBusy(button, false);
+          showError(error, sentenceFor(failure));
+          return;
+        }
+        app.ui.announce(COPY.loggedOut);
+        freshForm(LOG_IN);
+        renderGuest(showCount, "lead");
       },
-      COPY.logOut,
-    );
+    });
+    return button;
   }
 
   // The Delete account button, which a tap swaps for "Delete your account ...?" with a red
@@ -558,7 +700,7 @@
     } catch (failure) {
       if (failure && failure.kind === SIGNED_OUT) {
         mode = LOG_IN;
-        await renderGuest(showCount, "lead");
+        await showGuest(showCount, "lead");
         if (fields !== null) {
           showError(fields.error, sentenceFor(failure));
         }
@@ -570,7 +712,7 @@
     }
     app.ui.announce(COPY.deleted);
     freshForm(SIGN_UP);
-    await renderGuest(showCount, "lead");
+    renderGuest(showCount, "lead");
   }
 
   // The form as the next speaker on this device should find it, on `nextMode` (Log in after a log
@@ -579,6 +721,19 @@
     mode = nextMode;
     typed.email = "";
     typed.password = "";
+  }
+
+  // Moves focus to a state block's title, which takes it from script alone (tabindex="-1"), so
+  // the block is read out when it replaces the button that had focus.
+  function focusTitleOf(block) {
+    const title =
+      block && typeof block.querySelector === "function"
+        ? block.querySelector(".state__title")
+        : null;
+    if (title) {
+      title.setAttribute("tabindex", "-1");
+      focusIfPossible(title);
+    }
   }
 
   // Moves keyboard focus when the node can take it; the test fakes have no focus().

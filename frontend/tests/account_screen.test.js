@@ -502,7 +502,8 @@ test("Delete account asks first; Cancel puts the button back, nothing deleted", 
   assert.equal(confirm.getAttribute("aria-label"), "Delete account?");
   assert.equal(
     fullText(byClassDeep(confirm, "account__confirm-text")),
-    "Delete your account and every take it keeps on our server? Takes on this device stay here.",
+    "Delete your account and every take it keeps on our server? " +
+      "Takes recorded on this device stay here, for anyone who uses it.",
   );
   const confirmButton = buttonNamed(confirm, "Delete account");
   assert.ok(hasClass(confirmButton, "btn--danger"));

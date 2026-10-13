@@ -1983,6 +1983,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-decoration: none;
 }
 
+/* History's line above the rows once the server has ended this device's session: small and
+   muted, as the account screen's notes are, with the list's gap under it. */
+.history__note {
+  margin: 0 0 var(--s-4);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 /* The screen is one column of blocks: the first line, the switch, the form or the account's
    actions, and the line on what the server keeps. */
 #screen-account .screen__body {
@@ -1994,6 +2004,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 .account__lead,
 .account__status {
   margin: 0;
+}
+
+/* An email has no spaces to break at, so a long one wraps anywhere rather than widen the page
+   at 320px, as .session-row__text and .transcript do. */
+.account__status {
+  overflow-wrap: anywhere;
+}
+
+/* A button whose request is under way keeps focus, so it is never disabled: it reads as
+   unavailable (aria-disabled) and dims as a disabled button does, and ignores taps meanwhile. */
+#screen-account .btn[aria-disabled="true"] {
+  opacity: .5;
 }
 
 /* What the server keeps, and a signed-in device's offline note: small and muted. */
