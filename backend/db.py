@@ -11,6 +11,7 @@ Every table but users belongs to one account, and deleting the account deletes i
 DELETE CASCADE). No table has a column for audio: recordings are never stored.
 """
 
+import json
 import os
 from datetime import UTC, datetime
 from functools import cache
@@ -182,8 +183,8 @@ def make_engine(url: str) -> Engine:
     Postgres connections are pinged before each use, because Neon closes idle ones when it
     suspends the database, and give up after CONNECT_TIMEOUT_SECONDS. SQLite (the tests, or a
     file for local work) is made to enforce foreign keys, ON DELETE CASCADE included, which it
-    otherwise ignores. Every engine keeps the values bound to a statement out of its errors
-    (_new_engine).
+    otherwise ignores. Every engine keeps the values bound to a statement out of its errors and
+    writes JSON without NaN or Infinity (_new_engine).
     """
     database_url = make_url(normalize_database_url(url))
     if database_url.get_backend_name() == "sqlite":
@@ -201,8 +202,21 @@ def _new_engine(database_url: URL, **options: Any) -> Engine:
     hide_parameters: an error names the statement that failed but not the values bound to it,
     such as a password hash, a token hash, an email or a transcript. A route's error that is not
     caught is logged whole, and those values must never reach the log.
+
+    json_serializer: reports and transcripts are written by _json_text on every database.
     """
-    return create_engine(database_url, hide_parameters=True, **options)
+    return create_engine(database_url, hide_parameters=True, json_serializer=_json_text, **options)
+
+
+def _json_text(value: Any) -> str:
+    """A report or transcript as JSON text. NaN and Infinity are refused: JSON has neither.
+
+    Postgres refuses them in a json column, but Python writes them unless told not to, and SQLite
+    would keep them, so a test on SQLite could pass where Neon fails. Refusing them here makes
+    every database refuse them, before the statement reaches it: as a StatementError on SQLite,
+    and as the ValueError itself on Postgres, where psycopg writes the JSON.
+    """
+    return json.dumps(value, allow_nan=False)
 
 
 def _sqlite_engine(database_url: URL) -> Engine:
