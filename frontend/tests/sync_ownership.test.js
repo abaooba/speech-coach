@@ -107,7 +107,7 @@ async function deleteFromAnotherDevice(server, email) {
 
 // --- a session the server ends ----------------------------------------------------------------
 
-test("a take recorded as the session ends still opens, and History keeps the account's takes", async () => {
+test("a take recorded as the session ends still opens, and History keeps the takes", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.store.save(session("guest-before", T1));
@@ -150,7 +150,7 @@ test("logging back in sends the take that met the 401, which stayed the account'
   assert.equal(await phone.auth.guestImportOffer(), null, "not a guest's take: nothing to offer");
 });
 
-test("a take saved after the session ended is offered to the account when it logs back in", async () => {
+test("a take saved after the session ended is offered when the account logs back in", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.store.save(session("guest-before", T1));
@@ -180,7 +180,7 @@ test("a take saved after the session ended is offered to the account when it log
   ]);
 });
 
-test("an answer covers the takes it was asked about: declined ones are not offered again", async () => {
+test("an answer covers the takes it was asked about, so new ones are offered", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.store.save(session("declined", T1));
@@ -221,7 +221,7 @@ test("syncStatus names the account whose session ended and the takes recorded he
   await assert.rejects(phone.auth.logIn(ANN, PASSWORD), { kind: "wrong" });
 });
 
-test("keeping an ended account's takes here makes the ones recorded here the device's own", async () => {
+test("keeping an ended account's takes makes the ones recorded here the device's own", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.auth.signUp(ANN, PASSWORD);
@@ -242,7 +242,7 @@ test("keeping an ended account's takes here makes the ones recorded here the dev
   assert.deepEqual(plain(await phone.auth.guestImportOffer()), { count: 1 });
 });
 
-test("another account signing in hides the ended account's takes and is never offered them", async () => {
+test("another account signing in hides the ended account's takes, never offered them", async () => {
   const server = new FakeAccountServer();
   const tablet = loadDevice(server);
   await tablet.store.save(session("guest-take", T1));
@@ -266,7 +266,7 @@ test("another account signing in hides the ended account's takes and is never of
   assert.deepEqual(idsOf(await tablet.store.list()), ["ann-take"]);
 });
 
-test("a guest deleting an ended account's take deletes it from the account on its next log in", async () => {
+test("a guest deleting an ended account's take deletes it there on its next log in", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.auth.signUp(ANN, PASSWORD);
@@ -313,7 +313,7 @@ test("a 401 met by me() or by deleting the account ends the session the same way
 
 // --- an account made again under the same email --------------------------------------------------
 
-test("logging in to an account deleted and made again elsewhere keeps the takes recorded here", async () => {
+test("logging in to an account deleted and made again keeps the takes recorded here", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.auth.signUp(ANN, PASSWORD);
@@ -334,7 +334,7 @@ test("logging in to an account deleted and made again elsewhere keeps the takes 
   assert.deepEqual(idsOf(server.takesOf(ANN)), ["phone-take-2", "phone-take-1"]);
 });
 
-test("the laptop that imported its guest takes keeps them when the account is made again", async () => {
+test("a laptop keeps its imported takes when the account is made again", async () => {
   const server = new FakeAccountServer();
   const laptop = loadDevice(server);
   await laptop.store.save(session("laptop-guest", T1));
@@ -352,7 +352,7 @@ test("the laptop that imported its guest takes keeps them when the account is ma
   assert.deepEqual(storedIds(laptop), ["laptop-guest", "laptop-signed-in"]);
 });
 
-test("the first list after a log in drops a missing copy from elsewhere, not one recorded here", async () => {
+test("the first list after a log in drops a missing copy from elsewhere only", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.auth.signUp(ANN, PASSWORD);
@@ -370,7 +370,7 @@ test("the first list after a log in drops a missing copy from elsewhere, not one
   assert.deepEqual(storedIds(phone), ["phone-take"]);
 });
 
-test("after that first list, a take deleted on another device goes from this one as before", async () => {
+test("after that first list, a take deleted on another device goes from this one too", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.auth.signUp(ANN, PASSWORD);
@@ -387,9 +387,9 @@ test("after that first list, a take deleted on another device goes from this one
   assert.deepEqual(storedIds(phone), ["take-2"]);
 });
 
-// --- a take the server refuses ---------------------------------------------------------------------
+// --- a take the server refuses ------------------------------------------------------------------
 
-test("a take the server refuses stays the account's: no guest or other account sees it", async () => {
+test("a take the server refuses stays the account's: no guest or account sees it", async () => {
   const server = new FakeAccountServer();
   const tablet = loadDevice(server);
   await tablet.auth.signUp(ANN, PASSWORD);
@@ -446,7 +446,7 @@ test("deleting the account keeps a refused take on the device, as the device's o
 
 // --- deleting the account ----------------------------------------------------------------------
 
-test("deleting the account keeps the takes recorded here and removes copies from elsewhere", async () => {
+test("deleting the account keeps the takes recorded here and removes other copies", async () => {
   const server = new FakeAccountServer();
   const tablet = loadDevice(server);
   await tablet.store.save(session("guest-take", T1));
@@ -468,7 +468,7 @@ test("deleting the account keeps the takes recorded here and removes copies from
 
 // --- cleared path levels -------------------------------------------------------------------------
 
-test("a level an account clears shows to it alone, and another account keeps its own date", async () => {
+test("a level an account clears shows to it alone; another keeps its own date", async () => {
   const server = new FakeAccountServer();
   const tablet = loadDevice(server);
   await tablet.auth.signUp(ANN, PASSWORD);
@@ -491,7 +491,7 @@ test("a level an account clears shows to it alone, and another account keeps its
   assert.deepEqual(levelsOf(await tablet.store.listClearedLevels()), ["fillers-1 " + T1]);
 });
 
-test("a guest's levels show to every account, and an ended account's levels to the guest", async () => {
+test("a guest's levels show to every account, an ended account's to the guest", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.store.markLevelCleared("pace-1", T1);
@@ -512,7 +512,7 @@ test("a guest's levels show to every account, and an ended account's levels to t
   assert.equal(await phone.auth.account(), null);
 });
 
-test("deleting the account keeps the levels it cleared on this device, as the device's own", async () => {
+test("deleting the account keeps the levels it cleared here, as the device's own", async () => {
   const server = new FakeAccountServer();
   const phone = loadDevice(server);
   await phone.store.markLevelCleared("fillers-1", T4);

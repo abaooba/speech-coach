@@ -140,7 +140,10 @@ test("a reply whose body keeps arriving is read whole, however long it takes", a
   call.end();
   await settle();
 
-  assert.deepEqual(plain(reply.value), { status: 200, body: [{ id: "a" }, { id: "b" }, { id: "c" }] });
+  assert.deepEqual(plain(reply.value), {
+    status: 200,
+    body: [{ id: "a" }, { id: "b" }, { id: "c" }],
+  });
 });
 
 test("a reply that stops arriving for 20 seconds is cut short", async () => {
@@ -191,7 +194,7 @@ test("a request that sends a big body gets time to send it on a slow uplink", as
   assert.deepEqual(plain(reply.value), { status: 0, body: null });
 });
 
-test("log out waits for the queue 10 seconds at most, and the rest waits for the next sign in", async () => {
+test("log out waits 10 seconds at most for the queue; the rest waits for a sign in", async () => {
   const clock = fakeClock();
   const server = new FakeAccountServer();
   const context = {

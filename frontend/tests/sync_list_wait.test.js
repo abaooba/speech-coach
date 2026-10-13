@@ -141,7 +141,7 @@ async function watch(promise) {
   return watched;
 }
 
-test("a slow list shows this device's copy after a second, and the server's lands behind it", async () => {
+test("a slow list shows the device's copy after a second; the server's lands later", async () => {
   const clock = fakeClock();
   const server = new FakeAccountServer();
   const phone = loadDevice(server, clock);
