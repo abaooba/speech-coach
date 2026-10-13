@@ -23,7 +23,8 @@ SESSION_SECRET ends every session.
 A wrong password and an email with no account get the same 401 "email or password is wrong",
 after the same Argon2 check: an unknown email is checked against a stand-in hash. Five failed
 logins for one email from one IP address within 15 minutes turn that pair away with 429 until the
-oldest of them is 15 minutes old (FailedLoginLimiter, kept in this process's memory).
+oldest of them is 15 minutes old (FailedLoginLimiter, kept in this process's memory). A login
+that ends in a fault instead, such as a database that cannot be reached, is not counted.
 
 Signing up with an email that already has an account is refused with 409 "an account with this
 email already exists: log in instead", and the account is left exactly as it was. That answer
@@ -47,13 +48,13 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import cache
-from typing import Annotated
+from typing import Annotated, Any
 
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
-from sqlalchemy import Connection, Engine, delete, insert, select, update
+from sqlalchemy import Connection, Engine, Row, delete, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from backend import db
@@ -145,9 +146,11 @@ class FailedLoginLimiter:
 
     A pair that has failed max_failures times within the last `window` is turned away until the
     oldest of those failures is `window` old. An attempt counts as failed from the moment it
-    starts until forget() says it succeeded, so attempts sent all at once cannot each be let
-    through before any of them is counted. A pair is forgotten once its last failure is `window`
-    old, and past max_pairs the pair whose last failure is oldest goes first.
+    starts, so attempts sent all at once cannot each be let through before any of them is
+    counted. forget() clears a pair whose login succeeded, and withdraw_attempt() takes back an
+    attempt that ended in a fault rather than a wrong email or password. A pair is forgotten
+    once its last failure is `window` old, and past max_pairs the pair whose last failure is
+    oldest goes first.
 
     The count lives as long as the process: a restart clears it, and each server process keeps
     its own (Render runs one).
@@ -189,6 +192,23 @@ class FailedLoginLimiter:
         """Forget every failure of `pair`: its attempt succeeded."""
         with self._lock:
             self._failures.pop(pair, None)
+
+    def withdraw_attempt(self, pair: LoginPair, started: datetime) -> None:
+        """Take back the attempt `pair` started at `started`: it ended in a fault, not a failure.
+
+        Only for an attempt that a fault, such as a database that cannot be reached, ended before
+        its password was found right or wrong. Such an attempt tells the visitor nothing, so it
+        must not count towards turning the pair away. An attempt no longer on record, as after
+        forget(), is left alone. The pair keeps its place among the others, so at worst it is
+        forgotten a little later.
+        """
+        with self._lock:
+            failures = self._failures.get(pair)
+            if failures is None or started not in failures:
+                return
+            failures.remove(started)
+            if not failures:
+                del self._failures[pair]
 
     def __len__(self) -> int:
         """How many pairs have a failure on record."""
@@ -282,6 +302,31 @@ def stand_in_hash(hasher: PasswordHasher) -> str:
     Every login asks for it, so the one that makes it is simply the first after a start.
     """
     return hash_password(hasher, secrets.token_urlsafe(SESSION_TOKEN_BYTES))
+
+
+def matching_account(
+    engine: Engine, hasher: PasswordHasher, email: str, password: str
+) -> Row[Any] | None:
+    """The account (id, password_hash) with `email` and `password`, or None when there is none.
+
+    An email with no account has its password checked against the stand-in hash all the same.
+    Anything this raises is a fault, such as a database that cannot be reached, and never means
+    a wrong email or password.
+    """
+    # Taken before the lookup, so the first login of any kind makes it, not the first unknown email.
+    stand_in = stand_in_hash(hasher)
+    users = db.users
+    with engine.connect() as connection:
+        account = connection.execute(
+            select(users.c.id, users.c.password_hash).where(users.c.email == email)
+        ).first()
+    if account is None:
+        # The same Argon2 check a wrong password gets, so the time taken does not tell.
+        password_matches(hasher, stand_in, password)
+        return None
+    if not password_matches(hasher, account.password_hash, password):
+        return None
+    return account
 
 
 # --- sessions ------------------------------------------------------------------------------------
@@ -478,8 +523,10 @@ def log_in(
 
     Every failure on the email or the password is 401 "email or password is wrong". Once an
     email has failed 5 times from one address within 15 minutes, the next attempt is turned
-    away with 429 and Retry-After before any password is checked. Logging in also replaces a
-    hash made with older Argon2 settings and clears the account's expired sessions.
+    away with 429 and Retry-After before any password is checked. A login that ends in a fault
+    instead, such as a database that cannot be reached, is not counted as failed. Logging in
+    also replaces a hash made with older Argon2 settings and clears the account's expired
+    sessions.
     """
     email = normalized_email(credentials.email)
     password = credentials.password
@@ -489,25 +536,21 @@ def log_in(
     wait = limiter.start_attempt(pair, now)
     if wait is not None:
         raise too_many_failed_logins(wait)
-    # Taken before the lookup, so the first login of any kind makes it, not the first unknown email.
-    stand_in = stand_in_hash(hasher)
-    users = db.users
-    with engine.connect() as connection:
-        account = connection.execute(
-            select(users.c.id, users.c.password_hash).where(users.c.email == email)
-        ).first()
+    try:
+        account = matching_account(engine, hasher, email, password)
+    except Exception:
+        # A fault, not a failed login. Taken back, it cannot lock out a speaker who types the
+        # right password once the database is back.
+        limiter.withdraw_attempt(pair, now)
+        raise
     if account is None:
-        # The same Argon2 check a wrong password gets, so the time taken does not tell.
-        password_matches(hasher, stand_in, password)
-        raise wrong_email_or_password()
-    if not password_matches(hasher, account.password_hash, password):
         raise wrong_email_or_password()
     limiter.forget(pair)
 
     rehashed = None
     if hasher.check_needs_rehash(account.password_hash):
         rehashed = hash_password(hasher, password)
-    sessions = db.auth_sessions
+    users, sessions = db.users, db.auth_sessions
     with engine.begin() as connection:
         if rehashed is not None:
             connection.execute(
