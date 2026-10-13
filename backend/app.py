@@ -11,6 +11,9 @@ from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import RequestResponseEndpoint
 
@@ -67,6 +70,21 @@ async def add_cache_headers(request: Request, call_next: RequestResponseEndpoint
         is_shell = path in SHELL_PATHS
         response.headers["Cache-Control"] = SHELL_CACHE_CONTROL if is_shell else ASSET_CACHE_CONTROL
     return response
+
+
+@app.exception_handler(RequestValidationError)
+async def refuse_invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
+    """Answer a request that fails validation with a 422 naming each problem, not its value.
+
+    FastAPI's own answer quotes each rejected value back. A value JSON cannot carry, such as NaN
+    or half of a UTF-16 surrogate pair, then breaks that answer into a 500, and a rejected
+    transcript excerpt is sent straight back. Each problem keeps its location, message and type.
+    """
+    problems = [
+        {key: value for key, value in problem.items() if key != "input"}
+        for problem in error.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(problems)})
 
 
 @app.get("/api/health")
