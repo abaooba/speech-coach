@@ -198,18 +198,21 @@ async def advice(
     (backend/sessions_api.py). Guests are served whether accounts are on or off.
 
     Advice itself never needs the database, so a fault there costs the speaker their account's
-    history and nothing more. A speaker whose shown ids cannot be read is served as a guest, by
-    the ids the request sends, and tips that cannot be recorded are given all the same. Each
-    fault is logged by its kind alone.
+    history and nothing more: any fault, not only the database's own errors. A speaker whose
+    shown ids cannot be read is served as a guest, by the ids the request sends, and nothing is
+    recorded; tips that cannot be recorded are given all the same. Each fault is logged by its
+    kind alone.
     """
     library = load_library()
     # An account is only ever found while accounts are on, so with one there is an engine.
     if speaker is None or engine is None:
         return await coach.advise(advice_request, library, client)
-    # Each fault is named by its class alone: the error's text can name the database host and user.
+    # Any fault is caught, not only the database's own errors (SQLAlchemyError): one the driver
+    # raises unwrapped, or a statement that cannot be built, must not cost the speaker their tips.
+    # Each is named by its class alone: the error's text can name the database host and user.
     try:
         shown_ids = await run_in_threadpool(sessions_api.shown_entry_ids, engine, speaker.user_id)
-    except SQLAlchemyError as error:
+    except Exception as error:  # noqa: BLE001
         logger.warning(
             "Could not read the advice shown (%s); served as a guest", type(error).__name__
         )
@@ -219,7 +222,7 @@ async def advice(
     tip_ids = [tip.entry_id for tip in answer.tips]
     try:
         await run_in_threadpool(sessions_api.record_shown, engine, speaker.user_id, tip_ids, now)
-    except SQLAlchemyError as error:
+    except Exception as error:  # noqa: BLE001
         logger.warning(
             "Could not record the tips given (%s); they were given all the same",
             type(error).__name__,

@@ -65,7 +65,7 @@ from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import Connection, Engine, Row, delete, insert, select, update
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 
 from backend import db
 from backend.nul_free import NulFreeStr
@@ -495,14 +495,15 @@ def signed_in_account_or_guest(
 
     A guest is a browser with no session cookie, or one whose session is not live (made up,
     expired or ended), or any browser while accounts are off. None is never a 401, a 503 or a
-    500: a browser whose session cannot be looked up, as when the database cannot be reached, is
-    a guest too, and the fault is logged by its kind alone.
+    500: a browser whose session cannot be looked up, for any reason, as when the database cannot
+    be reached, is a guest too, and the fault is logged by its kind alone.
     """
     if engine is None or not token:
         return None
     try:
         return account_signed_in_by(engine, token, now)
-    except SQLAlchemyError as error:
+    except Exception as error:  # noqa: BLE001
+        # Any fault, not only the database's own errors: the route still serves the guest.
         # Named by its class alone: the error's text can name the database host and user.
         logger.warning(
             "Could not look up a session (%s); served as a guest", type(error).__name__
