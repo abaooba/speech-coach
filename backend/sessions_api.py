@@ -21,15 +21,18 @@ MAX_JSON_DEPTH deep at most, and audio never is (TakeToKeep). Keeping a take wit
 speaker already has replaces that take, as the browser's store does. An import keeps only the
 takes whose ids the speaker has no take with, so importing the same guest history twice keeps one
 copy of each take. It holds MAX_IMPORT_TAKES takes and MAX_IMPORT_BYTES of them at most, so a
-long history goes in parts.
+long history goes in parts. One account keeps MAX_STORED_BYTES_PER_SPEAKER of takes at most, and
+a write that would leave it over is refused (409) and changes nothing. The listing sends each
+report and transcript as the JSON text the database keeps, so it never holds them parsed.
 
 Progress is {shown_advice: [{entry_id, shown_at}], path_progress: [{level_id, cleared_at}]}: the
 library advice the speaker has been shown and the skill-path levels (frontend/path.js) they have
 cleared, each list oldest first. Posting progress merges it in, so posting it twice changes
 nothing: an entry keeps the latest time it was shown, as advice is chosen by when it was last
-shown, and a level the first time it was cleared, the day it was earned, as in store.js.
-/api/advice (backend/app.py) reads and records a signed-in speaker's shown advice here too
-(shown_entry_ids, record_shown).
+shown, and a level the first time it was cleared, the day it was earned, as in store.js. One
+account keeps MAX_PROGRESS_ROWS entries and as many levels at most (409 past that). /api/advice
+(backend/app.py) reads and records a signed-in speaker's shown advice here too (shown_entry_ids,
+record_shown).
 
 Every route needs a signed-in speaker (auth.signed_in_account: 401 "not signed in") and reads
 and writes that speaker's rows only. A take's id names it within one account (the key of
@@ -41,26 +44,47 @@ request body over MAX_REQUEST_BYTES is refused with 413 before it is read in ful
 """
 
 import json
-from collections.abc import Callable, Coroutine, Iterable, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Iterable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime
 from functools import cached_property
 from typing import Annotated, Any, Self
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
+from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
-from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import Connection, Dialect, Engine, Insert, Select, delete, select
+from pydantic import (
+    AfterValidator,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    model_validator,
+)
+from sqlalchemy import (
+    Connection,
+    Dialect,
+    Engine,
+    Insert,
+    Row,
+    Select,
+    Text,
+    cast,
+    delete,
+    func,
+    select,
+)
 from starlette.types import Message, Receive
 
 from backend import auth, db
-from backend.advice.coach import MAX_ID_CHARACTERS
+from backend.advice.coach import MAX_ID_CHARACTERS, MAX_SHOWN_IDS
 
 # A take's report and transcript together, as JSON.stringify writes them: no spaces, in UTF-8.
 # A take holds about 7 KB a minute of speech, so an hour-long one fits with room to spare.
 MAX_TAKE_BYTES = 1_000_000
 # How many arrays and objects deep a report or a transcript may nest (nesting_depth). Real ones go
-# about 5 deep. Far deeper JSON breaks the code that reads it back: pydantic, which writes
-# FastAPI's answers, stops at 255 levels, so a take nested deeper would fail every listing of it.
+# about 5 deep. Far deeper JSON breaks code that reads it back: pydantic, which writes FastAPI's
+# answers, stops at 255 levels.
 MAX_JSON_DEPTH = 64
 # What one import may hold: this many takes, and this many bytes of them, each take counted as
 # MAX_TAKE_BYTES counts it. That is two of the largest takes, or about sixty five-minute ones. A
@@ -76,9 +100,22 @@ MAX_REQUEST_BYTES = 3_000_000
 REQUEST_TOO_LARGE = (
     f"send at most {MAX_REQUEST_BYTES:,} bytes in one request: import a long history in parts"
 )
-# Shown entries, or cleared levels, in one post: more than the library has entries (482) and
-# far more than the path has levels.
+# Shown entries, or cleared levels, that one post and one account may hold: more than the library
+# has entries (482) and far more than the path has levels (20). /api/advice records library
+# entries only, so an account that is sent nothing else never comes near it.
 MAX_PROGRESS_ROWS = 2_000
+PROGRESS_FULL = (
+    f"this account keeps at most {MAX_PROGRESS_ROWS:,} shown entries and "
+    f"{MAX_PROGRESS_ROWS:,} cleared levels"
+)
+# The takes one account may keep, counted as the database keeps their reports and transcripts
+# (stored_take_bytes): about 600 five-minute takes. It bounds how much of the shared database
+# one account fills, and the memory listing its takes needs (list_takes).
+MAX_STORED_BYTES_PER_SPEAKER = 20_000_000
+TAKES_FULL = (
+    f"this account keeps at most {MAX_STORED_BYTES_PER_SPEAKER:,} bytes of takes: "
+    "delete some to keep more"
+)
 # What frontend/store.js refuses to keep on a session (AUDIO_FIELDS), so a report never has one.
 AUDIO_FIELDS = frozenset({"audio", "blob"})
 # A take is known by its account and its id, the key of db.speech_sessions.
@@ -417,9 +454,19 @@ def shown_entry_ids(engine: Engine, user_id: int) -> list[str]:
     """The ids of the library entries shown to `user_id`, the least recently shown first.
 
     As candidates() (backend/advice/select.py) takes them; entries shown at once go in id order.
+    The MAX_SHOWN_IDS most recently shown at most, as many as a guest's request may send
+    (coach.AdviceRequest): /api/advice puts these in place of the request's own without a check.
     """
+    table = db.shown_advice
+    most_recent = (
+        select(table.c.entry_id)
+        .where(table.c.user_id == user_id)
+        .order_by(table.c.shown_at.desc(), table.c.entry_id.desc())
+        .limit(MAX_SHOWN_IDS)
+    )
     with engine.connect() as connection:
-        return list(connection.execute(_shown_advice_oldest_first(user_id)).scalars())
+        most_recent_first = list(connection.execute(most_recent).scalars())
+    return most_recent_first[::-1]
 
 
 def record_shown(
@@ -431,6 +478,61 @@ def record_shown(
     with engine.begin() as connection:
         showings = dict.fromkeys(entry_ids, shown_at)
         connection.execute(shown_advice_statement(connection.dialect, user_id, showings))
+
+
+# --- what one account may keep -------------------------------------------------------------------
+# Checked after a write, in its transaction: over the limit, the HTTPException undoes the write.
+# Writes made at the same moment may each pass before the others are counted, so together they
+# can leave an account over by what they carried.
+
+
+def stored_take_bytes(user_id: int) -> Select[tuple[int]]:
+    """How many bytes `user_id`'s takes take as the database keeps their reports and transcripts.
+
+    db._json_text writes them in ASCII, with \\u escapes for everything else, so on Postgres and
+    SQLite alike the length of the text in characters is its length in bytes.
+    """
+    takes = db.speech_sessions
+    sizes = func.length(cast(takes.c.report, Text)) + func.length(cast(takes.c.transcript, Text))
+    return select(func.coalesce(func.sum(sizes), 0)).where(takes.c.user_id == user_id)
+
+
+def refuse_takes_over_the_limit(connection: Connection, user_id: int) -> None:
+    """409, undoing the write, when `user_id`'s takes take over MAX_STORED_BYTES_PER_SPEAKER."""
+    if connection.execute(stored_take_bytes(user_id)).scalar_one() > MAX_STORED_BYTES_PER_SPEAKER:
+        raise HTTPException(status_code=409, detail=TAKES_FULL)
+
+
+def refuse_progress_over_the_limit(connection: Connection, user_id: int) -> None:
+    """409, undoing the write, when `user_id` has over MAX_PROGRESS_ROWS entries or levels."""
+    for table in (db.shown_advice, db.path_progress):
+        rows = select(func.count()).select_from(table).where(table.c.user_id == user_id)
+        if connection.execute(rows).scalar_one() > MAX_PROGRESS_ROWS:
+            raise HTTPException(status_code=409, detail=PROGRESS_FULL)
+
+
+# --- the listing ---------------------------------------------------------------------------------
+# A take's report and transcript go out as the JSON text the database keeps, never parsed into
+# Python and written again: parsed, JSON can take 35 times its size in memory.
+
+# How a Take's created_at is written: ISO 8601 in UTC, ending in Z.
+MOMENT_JSON = TypeAdapter(datetime)
+
+
+def take_as_json(take_id: str, created_at: datetime, report: str, transcript: str) -> str:
+    """One take as JSON, given its `report` and `transcript` as JSON text already."""
+    return (
+        f'{{"id":{json.dumps(take_id)},"created_at":{MOMENT_JSON.dump_json(created_at).decode()},'
+        f'"report":{report},"transcript":{transcript}}}'
+    )
+
+
+def takes_as_json(rows: Sequence[Row[tuple[str, datetime, str, str]]]) -> Iterator[str]:
+    """`rows` of (id, created_at, report, transcript) as one JSON array, a take at a time."""
+    yield "["
+    for place, row in enumerate(rows):
+        yield ("," if place else "") + take_as_json(*row)
+    yield "]"
 
 
 # --- how much a request may carry ----------------------------------------------------------------
@@ -494,25 +596,39 @@ Speaker = Annotated[auth.SignedInAccount, Depends(auth.signed_in_account)]
 JSON_ONLY = [Depends(auth.require_json)]
 
 
-@router.get("/sessions")
-def list_takes(engine: Database, speaker: Speaker) -> list[Take]:
-    """Every take the signed-in speaker kept, the newest first (takes kept at once by id)."""
+@router.get("/sessions", response_model=list[Take])
+def list_takes(engine: Database, speaker: Speaker) -> StreamingResponse:
+    """Every take the signed-in speaker kept, the newest first (takes kept at once by id).
+
+    Each report and transcript is sent as the JSON text the database keeps (takes_as_json), so
+    the answer needs about the memory of the takes themselves: MAX_STORED_BYTES_PER_SPEAKER.
+    """
     takes = db.speech_sessions
     query = (
-        select(takes.c.id, takes.c.created_at, takes.c.report, takes.c.transcript)
+        select(
+            takes.c.id,
+            takes.c.created_at,
+            cast(takes.c.report, Text),
+            cast(takes.c.transcript, Text),
+        )
         .where(takes.c.user_id == speaker.user_id)
         .order_by(takes.c.created_at.desc(), takes.c.id)
     )
     with engine.connect() as connection:
         rows = connection.execute(query).all()
-    return [Take.model_validate(row._asdict()) for row in rows]
+    return StreamingResponse(takes_as_json(rows), media_type="application/json")
 
 
 @router.post("/sessions", dependencies=JSON_ONLY)
 def keep_take(take: TakeToKeep, engine: Database, speaker: Speaker) -> dict[str, str]:
-    """Keep one take: 200 {"id": ...}. It replaces the speaker's own take with that id, if any."""
+    """Keep one take: 200 {"id": ...}. It replaces the speaker's own take with that id, if any.
+
+    409, and nothing kept, when the speaker's takes would then take over
+    MAX_STORED_BYTES_PER_SPEAKER (a take it replaces no longer counts).
+    """
     with engine.begin() as connection:
         connection.execute(keep_take_statement(connection.dialect, speaker.user_id, take))
+        refuse_takes_over_the_limit(connection, speaker.user_id)
     return {"id": take.id}
 
 
@@ -543,7 +659,8 @@ def import_takes(history: TakeImport, engine: Database, speaker: Speaker) -> Imp
 
     A take whose id the speaker has is skipped and theirs left as it was, and a take listed
     twice is kept as first listed, so importing the same history again keeps one copy of each.
-    One take the import cannot keep refuses the whole import (422), and none is kept.
+    One take the import cannot keep refuses the whole import (422), and none is kept, as does
+    an import that would leave the speaker's takes over MAX_STORED_BYTES_PER_SPEAKER (409).
     """
     takes = first_copies(history.sessions)
     imported = 0
@@ -551,6 +668,8 @@ def import_takes(history: TakeImport, engine: Database, speaker: Speaker) -> Imp
         with engine.begin() as connection:
             statement = import_statement(connection.dialect, speaker.user_id, takes)
             imported = len(connection.execute(statement).all())
+            if imported:
+                refuse_takes_over_the_limit(connection, speaker.user_id)
     return ImportResult(imported=imported, skipped=len(history.sessions) - imported)
 
 
@@ -566,7 +685,8 @@ def merge_progress(progress: ProgressToMerge, engine: Database, speaker: Speaker
     """Merge `progress` into the speaker's, and answer with the whole of theirs: 200.
 
     An entry keeps the latest time it was shown and a level the first time it was cleared, so
-    posting the same progress twice, or in any order, comes to the same.
+    posting the same progress twice, or in any order, comes to the same. 409, and nothing
+    merged, when the speaker would then have over MAX_PROGRESS_ROWS entries or levels.
     """
     showings = latest_showings(progress.shown_advice)
     clearings = first_clearings(progress.path_progress)
@@ -577,4 +697,5 @@ def merge_progress(progress: ProgressToMerge, engine: Database, speaker: Speaker
         if clearings:
             statement = cleared_levels_statement(connection.dialect, speaker.user_id, clearings)
             connection.execute(statement)
+        refuse_progress_over_the_limit(connection, speaker.user_id)
         return progress_of(connection, speaker.user_id)

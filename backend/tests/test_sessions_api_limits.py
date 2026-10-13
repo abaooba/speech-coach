@@ -9,19 +9,27 @@ history goes in parts (422 otherwise). No request to these routes may carry a bo
 3,000,000 bytes: it is refused with 413 before it is read in full, as its Content-Length says or
 as its bytes arrive, because FastAPI parses a JSON body before any other check runs.
 
+One account keeps 20,000,000 bytes of takes at most, counted as the database keeps their reports
+and transcripts, and 2,000 shown entries and 2,000 cleared levels at most. A request that would
+leave it holding more is refused (409) and changes nothing. /api/advice reads the 2,000 most
+recently shown entries at most, as many as a guest's request may send. GET /api/sessions sends
+each take's JSON as the database keeps it, never parsed, so listing an account needs about as
+much memory as its takes take.
+
 Every database here is SQLite in memory, and every route reads the time from NOW. A browser is a
 TestClient at https://testserver, so its Secure session cookie goes back.
 """
 
 import json
+import tracemalloc
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx2
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, insert, select
 
 from backend import app as app_module
 from backend import auth, db, sessions_api
@@ -39,6 +47,16 @@ MAX_REQUEST_BYTES = 3_000_000
 REQUEST_TOO_LARGE = {
     "detail": "send at most 3,000,000 bytes in one request: import a long history in parts"
 }
+MAX_STORED_BYTES_PER_SPEAKER = 20_000_000
+MAX_PROGRESS_ROWS = 2_000
+MAX_SHOWN_IDS = 2_000
+TAKES_FULL = {
+    "detail": "this account keeps at most 20,000,000 bytes of takes: delete some to keep more"
+}
+PROGRESS_FULL = {
+    "detail": "this account keeps at most 2,000 shown entries and 2,000 cleared levels"
+}
+BOB = "bob@example.com"
 # A marker no answer may quote back.
 SECRET = "the-words-of-a-refused-take"
 
@@ -303,3 +321,198 @@ def test_a_request_that_says_it_carries_over_3_mb_is_refused_before_it_is_read(
 
     assert response.status_code == 413
     assert [kept["id"] for kept in takes_of(ann)] == ["take-one"]
+
+
+# --- how much one account may keep ---------------------------------------------------------------
+# A take's report and transcript take as many bytes in the database as JSON with a space after
+# each comma and colon, and \u escapes for whatever is not ASCII. {} and ["x...x"] have neither,
+# so take_of_size() makes a take of the same size there as json_bytes() counts it.
+
+TAKE_KEPT_SIZE = 1_000_000
+TAKES_THAT_FILL_AN_ACCOUNT = MAX_STORED_BYTES_PER_SPEAKER // TAKE_KEPT_SIZE
+# The sizes of takes that fill an account to the byte.
+FULL = [TAKE_KEPT_SIZE] * TAKES_THAT_FILL_AN_ACCOUNT
+
+
+def user_id_of(engine: Engine, email: str) -> int:
+    with engine.connect() as connection:
+        query = select(db.users.c.id).where(db.users.c.email == email)
+        return connection.execute(query).scalar_one()
+
+
+def keep_directly(engine: Engine, sizes: list[int], email: str = ANN) -> list[str]:
+    """Keep takes of these `sizes` for `email`, straight into the database; their ids.
+
+    Each is the take take_of_size() makes, kept as the API keeps it, a day before the last.
+    """
+    user_id = user_id_of(engine, email)
+    ids = [f"kept-{n:02}" for n in range(len(sizes))]
+    rows = [
+        {
+            "id": take_id,
+            "user_id": user_id,
+            "created_at": NOW - timedelta(days=place),
+            "report": {},
+            "transcript": ["x" * (size - 6)],
+        }
+        for place, (take_id, size) in enumerate(zip(ids, sizes, strict=True))
+    ]
+    with engine.begin() as connection:
+        connection.execute(insert(db.speech_sessions), rows)
+    return ids
+
+
+def ids_of(client: TestClient) -> list[str]:
+    return sorted(kept["id"] for kept in takes_of(client))
+
+
+def test_an_account_keeps_up_to_20_mb_of_takes_and_no_more(accounts_on: None) -> None:
+    ann = signed_in()
+    kept = [
+        keep(ann, take_of_size(f"take-{n:02}", TAKE_KEPT_SIZE))
+        for n in range(TAKES_THAT_FILL_AN_ACCOUNT)
+    ]
+
+    over = keep(ann, take("one-more", report={}, transcript=[]))
+
+    assert [response.status_code for response in kept] == [200] * TAKES_THAT_FILL_AN_ACCOUNT
+    assert over.status_code == 409
+    assert over.json() == TAKES_FULL
+    assert len(takes_of(ann)) == TAKES_THAT_FILL_AN_ACCOUNT
+
+
+def test_keeping_a_take_again_counts_only_its_new_copy(accounts_on: None, engine: Engine) -> None:
+    ann = signed_in()
+    # 500 bytes of room are left, and one take can grow by more than that.
+    ids = keep_directly(engine, [*FULL[:-1], TAKE_KEPT_SIZE - 1_000, 500])
+    growing = ids[-2]
+
+    to_the_limit = keep(ann, take_of_size(growing, TAKE_KEPT_SIZE - 500))
+    past_it = keep(ann, take_of_size(growing, TAKE_KEPT_SIZE - 499))
+
+    assert to_the_limit.status_code == 200
+    assert past_it.status_code == 409
+    assert past_it.json() == TAKES_FULL
+    sizes = {kept["id"]: len(kept["transcript"][0]) + 6 for kept in takes_of(ann)}
+    assert sizes[growing] == TAKE_KEPT_SIZE - 500
+
+
+def test_an_import_that_would_fill_an_account_past_20_mb_keeps_none_of_it(
+    accounts_on: None, engine: Engine
+) -> None:
+    ann = signed_in()
+    ids = keep_directly(engine, [*FULL[:-1], TAKE_KEPT_SIZE - 10])
+
+    response = import_takes(
+        ann, [take("fits", report={}, transcript=[]), take_of_size("over", TAKE_KEPT_SIZE)]
+    )
+
+    assert response.status_code == 409
+    assert response.json() == TAKES_FULL
+    assert ids_of(ann) == ids
+
+
+def test_a_full_account_may_import_the_takes_it_has_again(
+    accounts_on: None, engine: Engine
+) -> None:
+    ann = signed_in()
+    ids = keep_directly(engine, FULL)
+
+    response = import_takes(ann, [take_of_size(ids[0], TAKE_KEPT_SIZE)])
+
+    assert response.status_code == 200
+    assert response.json() == {"imported": 0, "skipped": 1}
+
+
+def test_deleting_a_take_makes_room_again(accounts_on: None, engine: Engine) -> None:
+    ann = signed_in()
+    ids = keep_directly(engine, FULL)
+
+    ann.request("DELETE", f"/api/sessions/{ids[0]}", json={})
+    response = keep(ann, take_of_size("new", TAKE_KEPT_SIZE))
+
+    assert response.status_code == 200
+    assert ids_of(ann) == sorted([*ids[1:], "new"])
+
+
+def test_one_full_account_leaves_every_other_account_its_room(
+    accounts_on: None, engine: Engine
+) -> None:
+    signed_in(ANN)
+    bob = signed_in(BOB)
+    keep_directly(engine, FULL, ANN)
+
+    response = keep(bob, take_of_size("bobs", TAKE_KEPT_SIZE))
+
+    assert response.status_code == 200
+
+
+def shown(entry_id: str, shown_at: datetime) -> dict[str, str]:
+    return {"entry_id": entry_id, "shown_at": shown_at.isoformat().replace("+00:00", "Z")}
+
+
+def cleared(level_id: str, cleared_at: datetime) -> dict[str, str]:
+    return {"level_id": level_id, "cleared_at": cleared_at.isoformat().replace("+00:00", "Z")}
+
+
+@pytest.mark.parametrize(("field", "row"), [("shown_advice", shown), ("path_progress", cleared)])
+def test_an_account_keeps_up_to_2000_entries_and_2000_levels(
+    accounts_on: None, field: str, row: Any
+) -> None:
+    ann = signed_in()
+    ids = [f"id-{n:04}" for n in range(MAX_PROGRESS_ROWS)]
+    most = ann.post("/api/progress", json={field: [row(each, NOW) for each in ids]})
+    kept = ann.get("/api/progress").json()
+
+    one_more = ann.post("/api/progress", json={field: [row("one-more", NOW)]})
+    the_same_later = ann.post(
+        "/api/progress", json={field: [row(each, NOW + timedelta(hours=1)) for each in ids]}
+    )
+
+    assert most.status_code == 200
+    assert one_more.status_code == 409
+    assert one_more.json() == PROGRESS_FULL
+    assert the_same_later.status_code == 200
+    assert len(ann.get("/api/progress").json()[field]) == MAX_PROGRESS_ROWS
+    assert len(kept[field]) == MAX_PROGRESS_ROWS
+
+
+def test_advice_reads_the_2000_most_recently_shown_entries_at_most(
+    accounts_on: None, engine: Engine
+) -> None:
+    signed_in()
+    user_id = user_id_of(engine, ANN)
+    # One more than a request may send, the first shown longest ago, as the database can hold
+    # once advice has recorded tips on top of a full post.
+    rows = [
+        {"user_id": user_id, "entry_id": f"e-{n:04}", "shown_at": NOW + timedelta(minutes=n)}
+        for n in range(MAX_SHOWN_IDS + 1)
+    ]
+    with engine.begin() as connection:
+        connection.execute(insert(db.shown_advice), rows)
+
+    shown_ids = sessions_api.shown_entry_ids(engine, user_id)
+
+    assert shown_ids == [f"e-{n:04}" for n in range(1, MAX_SHOWN_IDS + 1)]
+
+
+def test_listing_an_account_takes_about_the_memory_of_its_takes(accounts_on: None) -> None:
+    ann = signed_in()
+    # [{}, {}, ...]: the JSON that takes most memory parsed for its size, 1,000,000 bytes each as
+    # the database keeps it (750,001 as sent, with no spaces).
+    for n in range(4):
+        response = keep(ann, take(f"objects-{n}", report={}, transcript=[{}] * 250_000))
+        assert response.status_code == 200
+    kept_bytes = 4 * 1_000_000
+
+    tracemalloc.start()
+    try:
+        response = ann.get("/api/sessions")
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert response.status_code == 200
+    assert [len(kept["transcript"]) for kept in response.json()] == [250_000] * 4
+    # Parsed, the four transcripts alone would take over 60,000,000 bytes.
+    assert peak < 4 * kept_bytes
