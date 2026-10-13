@@ -83,7 +83,7 @@ class ReportSummary(TypedDict):
     target_wpm: NotRequired[list[float]]
 
 
-def weakest_skills(summary: ReportSummary) -> list[str]:
+def weakest_skills(report_summary: ReportSummary) -> list[str]:
     """Every measured skill's tag, the skill farthest from its target first.
 
     Ranked by distances_from_target(): the skills past their targets come first, the farthest
@@ -95,14 +95,14 @@ def weakest_skills(summary: ReportSummary) -> list[str]:
     """
     distances = {
         skill: round(distance, TIE_DECIMALS)
-        for skill, distance in distances_from_target(summary).items()
+        for skill, distance in distances_from_target(report_summary).items()
     }
     # The tag for the edge of the pace band the take is farther from.
     far_edge = "pace_slow" if distances["pace_fast"] >= distances["pace_slow"] else "pace_fast"
     return sorted(MEASURED_SKILLS, key=lambda skill: (skill == far_edge, -distances[skill]))
 
 
-def distances_from_target(summary: ReportSummary) -> dict[str, float]:
+def distances_from_target(report_summary: ReportSummary) -> dict[str, float]:
     """How far the take is from target on each measured skill, by tag. Above 0 is past it.
 
     Every skill reads on one scale, so different skills compare. A rate is its share of its
@@ -111,15 +111,21 @@ def distances_from_target(summary: ReportSummary) -> dict[str, float]:
     without one reads -1.0. Pace counts band widths past the edge of the band: against
     140-160, 180 wpm is 1.0 for pace_fast, and 150 wpm is -0.5 for pace_fast and pace_slow.
     """
-    minutes = summary["duration_seconds"] / SECONDS_PER_MINUTE
-    lo, hi = _pace_band(summary.get("target_wpm"))
-    wpm = summary["words_per_minute"]
-    long_pauses = summary["long_pause_count"]
+    minutes = report_summary["duration_seconds"] / SECONDS_PER_MINUTE
+    lo, hi = _pace_band(report_summary.get("target_wpm"))
+    wpm = report_summary["words_per_minute"]
+    long_pauses = report_summary["long_pause_count"]
     return {
-        "restart": _rate_distance(summary["restart_count"], minutes, RESTARTS_PER_MINUTE_TARGET),
-        "filler": _rate_distance(summary["filler_count"], minutes, FILLERS_PER_MINUTE_TARGET),
+        "restart": _rate_distance(
+            report_summary["restart_count"], minutes, RESTARTS_PER_MINUTE_TARGET
+        ),
+        "filler": _rate_distance(
+            report_summary["filler_count"], minutes, FILLERS_PER_MINUTE_TARGET
+        ),
         "mid_pause": _rate_distance(
-            summary["mid_sentence_pause_count"], minutes, MID_SENTENCE_PAUSES_PER_MINUTE_TARGET
+            report_summary["mid_sentence_pause_count"],
+            minutes,
+            MID_SENTENCE_PAUSES_PER_MINUTE_TARGET,
         ),
         "long_pause": float(long_pauses) if long_pauses > LONG_PAUSES_TARGET else NONE_AT_ALL,
         "pace_fast": (wpm - hi) / (hi - lo),
@@ -146,19 +152,28 @@ def _pace_band(target_wpm: object) -> tuple[float, float]:
 
 
 def _is_number(value: object) -> bool:
-    """True for a finite int or float. A bool is an int in Python, but not a number of wpm."""
-    is_numeric = isinstance(value, int | float) and not isinstance(value, bool)
-    return is_numeric and math.isfinite(value)
+    """True for a finite int or float. A bool is an int in Python, but not a number of wpm.
+
+    An int too large for a float (JSON allows thousands of digits) is not a pace either.
+    """
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def level_for(tier: str | None) -> str:
     """The library level for a speaker's advice: "advanced" from Elite up, "beginner" below.
 
     The tier is matched to TIERS ignoring case and surrounding spaces. A missing or unknown
-    tier is DEFAULT_TIER, so a speaker with no rank yet starts with beginner advice.
+    tier, or anything that is not a string, is DEFAULT_TIER, so a speaker with no rank yet
+    starts with beginner advice.
     """
     known = {name.casefold(): name for name in TIERS}
-    name = known.get((tier or "").strip().casefold(), DEFAULT_TIER)
+    asked = tier.strip().casefold() if isinstance(tier, str) else ""
+    name = known.get(asked, DEFAULT_TIER)
     return ADVANCED if TIERS.index(name) >= TIERS.index(FIRST_ADVANCED_TIER) else BEGINNER
 
 
