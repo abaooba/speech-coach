@@ -88,6 +88,10 @@
   const NO_SPEECH = "No speech was found in this take. Try the level again.";
   // How a detail ends when it says what clears the level.
   const TO_CLEAR_THIS_LEVEL = " to clear this level.";
+  // A reading take the backend found does not follow its passage (talk, another text, or a few
+  // lines read and then ad-libbed) reports no script slips, just as a flawless read does.
+  const NOT_FOLLOWED =
+    "This take did not follow the passage. Read it as written" + TO_CLEAR_THIS_LEVEL;
 
   // The units in the order select.py's MEASURED_SKILLS lists their library tags, which is the
   // order ties keep. Each unit trains its skill with one mode, a little harder at each level.
@@ -219,10 +223,11 @@
 
   // Whether a take clears `level`, as {passed, detail}. `detail` tells the speaker what the take
   // did and, short of the target, what clears the level. `report` is the take's app.delivery
-  // report; a take with no words clears nothing. A reading level trusts the report's script
-  // slips, so its take must be sent with the passage as its script; a take the backend finds
-  // does not follow the passage is scored as free talk and reports none
-  // (backend/script_align.py MIN_SCRIPT_FOLLOWED_SHARE).
+  // report; a take with no words clears nothing. A reading level is scored on the report's
+  // script slips, so its take must be sent with the passage as its script. A take the backend
+  // finds does not follow the passage comes back as free talk with no slips at all
+  // (backend/script_align.py MIN_SCRIPT_FOLLOWED_SHARE), so a reading level clears only when
+  // report.followedScript says the take followed it.
   function evaluate(level, report) {
     const mode = level ? level.mode : undefined;
     if (!Object.prototype.hasOwnProperty.call(JUDGES, mode)) {
@@ -259,9 +264,13 @@
     return { passed, detail: said + " " + next };
   }
 
-  // speedLadder: cleared when the pace the Pace card shows (wpm, rounded) is within
-  // pass.toleranceWpm of pass.wpm and the take has at most pass.maxRestarts restarts.
+  // speedLadder: cleared when the take followed the passage, the pace the Pace card shows (wpm,
+  // rounded) is within pass.toleranceWpm of pass.wpm and it has at most pass.maxRestarts
+  // restarts.
   function judgeSpeedLadder(pass, facts) {
+    if (!facts.followedScript) {
+      return { passed: false, detail: NOT_FOLLOWED };
+    }
     const unread = longestSkipRun(facts.skips);
     if (unread > MAX_SKIPPED_IN_ONE_PLACE) {
       return notReadThrough(unread);
@@ -291,9 +300,13 @@
     return { passed: false, detail: said + " " + fix + TO_CLEAR_THIS_LEVEL };
   }
 
-  // coldRead: cleared with at most pass.maxSlips restarts and misreads in all (PLAN T42). A
-  // skipped word is not a slip: a transcript can drop a short word the speaker said.
+  // coldRead: cleared when the take followed the passage with at most pass.maxSlips restarts
+  // and misreads in all (PLAN T42). A skipped word is not a slip: a transcript can drop a short
+  // word the speaker said.
   function judgeColdRead(pass, facts) {
+    if (!facts.followedScript) {
+      return { passed: false, detail: NOT_FOLLOWED };
+    }
     const unread = longestSkipRun(facts.skips);
     if (unread > MAX_SKIPPED_IN_ONE_PLACE) {
       return notReadThrough(unread);
@@ -345,6 +358,7 @@
       wpm: Math.round(numberOr0(given.wordsPerMinute)),
       slips: slipsOf(given),
       restartCount: numberOr0(given.repeatCount),
+      followedScript: given.followedScript === true,
       misreadCount: listOf(given.misreads).length,
       skips: listOf(given.skips),
       cleanStretchSeconds: clean && typeof clean === "object" ? numberOr0(clean.seconds) : 0,

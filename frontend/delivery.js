@@ -239,6 +239,7 @@
       cleanStretch: longestCleanStretch(list, fillers, breaks, repeats, restarts),
       repeatCount: repeats.length,
       restarts,
+      followedScript: isScriptBlock(given.script),
       ...scriptSlipsOf(list, given.script),
     };
   }
@@ -276,6 +277,7 @@
       cleanStretch: null,
       repeatCount: repeats.length,
       restarts: restartsOf([], repeats),
+      followedScript: isScriptBlock(metrics.script),
       ...scriptSlipsOf([], metrics.script),
     };
   }
@@ -566,7 +568,7 @@
   // entry without a numeric `at` and a text `word` (and, for a misread, `said`) is left out, and
   // a take without a script block has neither.
   function scriptSlipsOf(list, script) {
-    const block = script && typeof script === "object" ? script : {};
+    const block = isScriptBlock(script) ? script : {};
     const misreads = (Array.isArray(block.misread) ? block.misread : [])
       .filter((slip) => isSlip(slip) && typeof slip.said === "string")
       .map((slip) => ({
@@ -583,6 +585,15 @@
 
   function isSlip(slip) {
     return Boolean(slip) && isFiniteNumber(slip.at) && typeof slip.word === "string";
+  }
+
+  // True when the take's metrics carry a script block: the backend lined the take up against
+  // the script it was sent and found that the take follows it. Free talk has no block, and nor
+  // has a take that strays from its script (backend/script_align.py MIN_SCRIPT_FOLLOWED_SHARE),
+  // which the backend scores as free talk: its misreads and skips are empty, as a flawless
+  // read's are, so the report's followedScript tells the two apart.
+  function isScriptBlock(script) {
+    return Boolean(script) && typeof script === "object" && !Array.isArray(script);
   }
 
   // The index of the word starting at `at` that says `said`: the whole word, or one of the two
