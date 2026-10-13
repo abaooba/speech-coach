@@ -14,6 +14,7 @@ DELETE CASCADE). No table has a column for audio: recordings are never stored.
 import os
 from datetime import UTC, datetime
 from functools import cache
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import (
@@ -181,27 +182,38 @@ def make_engine(url: str) -> Engine:
     Postgres connections are pinged before each use, because Neon closes idle ones when it
     suspends the database, and give up after CONNECT_TIMEOUT_SECONDS. SQLite (the tests, or a
     file for local work) is made to enforce foreign keys, ON DELETE CASCADE included, which it
-    otherwise ignores.
+    otherwise ignores. Every engine keeps the values bound to a statement out of its errors
+    (_new_engine).
     """
     database_url = make_url(normalize_database_url(url))
     if database_url.get_backend_name() == "sqlite":
         return _sqlite_engine(database_url)
-    return create_engine(
+    return _new_engine(
         database_url,
         pool_pre_ping=True,
         connect_args={"connect_timeout": CONNECT_TIMEOUT_SECONDS},
     )
 
 
+def _new_engine(database_url: URL, **options: Any) -> Engine:
+    """create_engine with `options` and what every engine here shares.
+
+    hide_parameters: an error names the statement that failed but not the values bound to it,
+    such as a password hash, a token hash, an email or a transcript. A route's error that is not
+    caught is logged whole, and those values must never reach the log.
+    """
+    return create_engine(database_url, hide_parameters=True, **options)
+
+
 def _sqlite_engine(database_url: URL) -> Engine:
     if database_url.database in IN_MEMORY_SQLITE_DATABASES:
         # An in-memory database lives inside its connection, so there is one connection and
         # every thread shares it: FastAPI runs each plain `def` route on a worker thread.
-        engine = create_engine(
+        engine = _new_engine(
             database_url, poolclass=StaticPool, connect_args={"check_same_thread": False}
         )
     else:
-        engine = create_engine(database_url)
+        engine = _new_engine(database_url)
     event.listen(engine, "connect", _enforce_foreign_keys)
     return engine
 
