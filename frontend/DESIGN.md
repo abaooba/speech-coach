@@ -41,7 +41,7 @@ frontend/
   manifest.json  sw.js  icons/   (T10)
 ```
 
-Script order: `app.js`, `ui.js`, `store.js`, `api.js`, `passages.js`, `delivery.js`, `path.js`, `tips.js`, `pauses.js`, then the five screens. Classic `<script>` tags, no modules, no build, no CDN. The list is fixed by `backend/tests/test_frontend_shell.py`, so a new helper lives in the module that owns its data, never in a new file. Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`, and SVG with `createElementNS`.
+Script order: `app.js`, `ui.js`, `store.js`, `api.js`, `passages.js`, `delivery.js`, `path.js`, `tips.js`, `pauses.js`, then the five screens. Classic `<script>` tags, no modules, no build, no CDN. The list is fixed by `backend/tests/test_frontend_shell.py`, so a new helper lives in the module that owns its data. A new file comes only when `docs/PLAN.md` names one, as it named `path.js`, and then joins this list, that test, `SHELL` in `sw.js` (with a `CACHE_NAME` bump) and `index.html` together. Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`, and SVG with `createElementNS`.
 
 Contracts (exact names):
 
