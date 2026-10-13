@@ -11,9 +11,16 @@
   const ME_URL = "/api/me";
   const JSON_TYPE = "application/json";
 
-  // A request still open after this long fails as "network". Logging in may wait while the
-  // database wakes up (backend/db.py allows it 10 seconds), so this leaves room for that.
+  // A request the server says nothing to for this long fails as "network". Logging in may wait
+  // while the database wakes up (backend/db.py allows it 10 seconds), so this leaves room for
+  // that. A reply's body is never cut short while it keeps arriving (bodyOf).
   const REQUEST_TIMEOUT_MS = 20000;
+  // Sending a body takes longer the bigger it is, and an import carries up to 2 MB, so a
+  // request's deadline grows by a millisecond for every UPLOAD_BYTES_PER_MS bytes it sends: the
+  // pace of a weak mobile uplink, 64 kbit/s.
+  const UPLOAD_BYTES_PER_MS = 8;
+  // Log out first sends what this device queued for the account, waiting this long at most.
+  const LOG_OUT_SEND_WAIT_MS = 10000;
   // What request() resolves when no reply came: offline, refused, or past the timeout.
   const NO_REPLY = 0;
 
@@ -68,13 +75,14 @@
     if (body !== undefined) {
       init.body = JSON.stringify(body);
     }
-    const deadline = startDeadline();
+    const sending = Math.ceil(bytesOf(init.body) / UPLOAD_BYTES_PER_MS);
+    const deadline = startDeadline(REQUEST_TIMEOUT_MS + sending);
     if (deadline.signal) {
       init.signal = deadline.signal;
     }
     try {
       const response = await fetch(url, init);
-      return { status: response.status, body: await bodyOf(response) };
+      return { status: response.status, body: await bodyOf(response, deadline) };
     } catch {
       return { status: NO_REPLY, body: null };
     } finally {
@@ -82,28 +90,86 @@
     }
   }
 
-  // The reply's JSON, or null for one without (a 204) or one cut short.
-  async function bodyOf(response) {
+  // The bytes `text` takes in UTF-8 (0 for no body), or its length where TextEncoder is missing.
+  function bytesOf(text) {
+    if (typeof text !== "string") {
+      return 0;
+    }
+    return typeof TextEncoder === "function" ? new TextEncoder().encode(text).length : text.length;
+  }
+
+  // The reply's JSON, or null for one without (a 204) or one cut short. Once the reply has come,
+  // its body gets REQUEST_TIMEOUT_MS, and while it keeps arriving it is never cut short: each part
+  // that comes gives the rest another REQUEST_TIMEOUT_MS. So a long list on a slow connection is
+  // read whole, and only a reply that stops arriving fails.
+  async function bodyOf(response, deadline) {
+    deadline.restart();
     try {
-      return await response.json();
+      if (!canStream(response)) {
+        return await response.json();
+      }
+      const text = await streamedText(response.body.getReader(), deadline);
+      return text === "" ? null : JSON.parse(text);
     } catch {
       return null;
     }
   }
 
-  // Aborts the request REQUEST_TIMEOUT_MS after it starts. Without AbortController or the timers
-  // (an old browser, the test sandbox) the request has no deadline, as in api.js.
-  function startDeadline() {
+  function canStream(response) {
+    return (
+      response.body !== null &&
+      typeof response.body === "object" &&
+      typeof response.body.getReader === "function" &&
+      typeof TextDecoder === "function"
+    );
+  }
+
+  async function streamedText(reader, deadline) {
+    const decoder = new TextDecoder();
+    let text = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return text + decoder.decode();
+      }
+      deadline.restart();
+      text += decoder.decode(value, { stream: true });
+    }
+  }
+
+  // Aborts the request `ms` after it starts; restart() gives it REQUEST_TIMEOUT_MS more from now.
+  // Without AbortController or the timers (an old browser, the test sandbox) the request has no
+  // deadline, as in api.js.
+  function startDeadline(ms) {
     const canAbort =
       typeof AbortController === "function" &&
       typeof setTimeout === "function" &&
       typeof clearTimeout === "function";
     if (!canAbort) {
-      return { signal: undefined, clear: () => {} };
+      return { signal: undefined, restart: () => {}, clear: () => {} };
     }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    return { signal: controller.signal, clear: () => clearTimeout(timer) };
+    let timer = setTimeout(() => controller.abort(), ms);
+    return {
+      signal: controller.signal,
+      restart: () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      },
+      clear: () => clearTimeout(timer),
+    };
+  }
+
+  // `promise`, or nothing once `ms` pass first; without timers it waits for `promise` itself.
+  function withinWait(promise, ms) {
+    if (typeof setTimeout !== "function" || typeof clearTimeout !== "function") {
+      return promise;
+    }
+    let timer = null;
+    const timeUp = new Promise((resolve) => {
+      timer = setTimeout(resolve, ms);
+    });
+    return Promise.race([promise, timeUp]).finally(() => clearTimeout(timer));
   }
 
   function authError(kind) {
@@ -189,11 +255,13 @@
   }
 
   // Ends this browser's session. Takes saved here go up first when they can, so none waits for a
-  // sign in that may never come. A session already over, or accounts turned off since, signs
-  // this device out all the same; with no reply it stays signed in, and the call rejects.
+  // sign in that may never come, but for LOG_OUT_SEND_WAIT_MS at most: what has not gone up by
+  // then waits, hidden from a guest, for the account's next sign in on this device. A session
+  // already over, or accounts turned off since, signs this device out all the same; with no
+  // reply it stays signed in, and the call rejects.
   async function logOut() {
     if (sync !== null) {
-      await sync.sendQueued();
+      await withinWait(sync.sendQueued(), LOG_OUT_SEND_WAIT_MS);
     }
     const reply = await request("POST", LOGOUT_URL);
     const over = [NO_CONTENT, UNAUTHORIZED, SERVICE_UNAVAILABLE].includes(reply.status);
