@@ -46,6 +46,7 @@ password or a token.
 
 import hashlib
 import hmac
+import logging
 import math
 import os
 import re
@@ -62,9 +63,11 @@ from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import Connection, Engine, Row, delete, insert, select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from backend import db
+
+logger = logging.getLogger(__name__)
 
 # The session cookie. HttpOnly: no script on the page can read it. Secure: it travels over https
 # only. SameSite=Lax: a form posted from another site goes without it. Path=/: every route gets
@@ -487,11 +490,20 @@ def signed_in_account_or_guest(
     """The FastAPI dependency of a route that serves guests too: the account, or None for a guest.
 
     A guest is a browser with no session cookie, or one whose session is not live (made up,
-    expired or ended), or any browser while accounts are off. None is never a 401 or a 503.
+    expired or ended), or any browser while accounts are off. None is never a 401, a 503 or a
+    500: a browser whose session cannot be looked up, as when the database cannot be reached, is
+    a guest too, and the fault is logged by its kind alone.
     """
     if engine is None or not token:
         return None
-    return account_signed_in_by(engine, token, now)
+    try:
+        return account_signed_in_by(engine, token, now)
+    except SQLAlchemyError as error:
+        # Named by its class alone: the error's text can name the database host and user.
+        logger.warning(
+            "Could not look up a session (%s); served as a guest", type(error).__name__
+        )
+        return None
 
 
 def account_signed_in_by(engine: Engine, token: str, now: datetime) -> SignedInAccount | None:
