@@ -298,11 +298,16 @@
   // Asks the server who this browser is signed in as, and brings this device in line: resolves
   // the email, or null for a guest (a session that has ended signs this device out, as after any
   // 401). Rejects with "unavailable" while accounts are off and "network" with no reply, changing
-  // nothing.
+  // nothing. A session cookie for an account the speaker logged out of here outlived a log out
+  // the server could not record: it is ended now, and the device stays a guest's.
   async function me() {
     const reply = await request("GET", ME_URL);
     if (reply.status === OK && reply.body && typeof reply.body.email === "string") {
       const email = reply.body.email;
+      if (sync !== null && (await sync.loggedOutHere(email))) {
+        await request("POST", LOGOUT_URL);
+        return null;
+      }
       if (sync !== null && (await sync.account()) !== email) {
         await sync.startSync(email, false);
       }

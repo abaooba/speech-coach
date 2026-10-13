@@ -443,6 +443,9 @@
   //   and made again since this device last listed it, so the next list keeps a take recorded
   //   here that it leaves out, as this device's own, rather than delete it (foldInto).
   // - sessionEnded: the server ended this device's session for the account (a 401).
+  // - loggedOutHere: the speaker logged out of the account on this device, and no one has logged
+  //   in to it here since. The server may not have recorded that log out (accounts were off), so
+  //   auth.js me() never takes the account back from the browser's cookie.
   function newAccountSync() {
     return {
       takeIds: [],
@@ -459,6 +462,7 @@
       listed: false,
       firstListSinceLogIn: false,
       sessionEnded: false,
+      loggedOutHere: false,
     };
   }
 
@@ -1193,17 +1197,29 @@
         state.accounts[other].sessionEnded = false;
       });
       state.email = email;
-      accountSyncOf(state, email).firstListSinceLogIn = !isNewAccount;
+      const accountSync = accountSyncOf(state, email);
+      accountSync.firstListSinceLogIn = !isNewAccount;
+      accountSync.loggedOutHere = false;
     });
     sendQueuedSoon();
   }
 
-  // Signed out: this device stops syncing. The account's copies here stay, shown to it alone,
+  // Logged out: this device stops syncing. The account's copies here stay, shown to it alone,
   // and its queue waits for its next sign in.
   function stopSync() {
     return changeSyncState(async (stores, state) => {
+      if (state.email !== null) {
+        accountSyncOf(state, state.email).loggedOutHere = true;
+      }
       state.email = null;
     });
+  }
+
+  // Whether the speaker logged out of `email`'s account on this device since anyone last logged
+  // in to it here.
+  async function loggedOutHere(email) {
+    const accountSync = (await readSyncState()).accounts[email];
+    return accountSync !== undefined && accountSync.loggedOutHere === true;
   }
 
   // A 401 that auth.js met (me(), or deleting the account): the session of whoever is signed in
@@ -1285,11 +1301,22 @@
   }
 
   // {count} of the guest takes on this device the signed-in account has not been asked about,
-  // when there are any and no import it said yes to is still going up; otherwise null.
+  // when there are any and no import it said yes to is still going up; otherwise null. Right
+  // after a log in to an account with copies here, it waits up to LIST_WAIT_MS for the first
+  // list, which settles which takes here are the account's: on an account made again under the
+  // same email, the ones recorded here are the device's own, and are offered.
   async function guestImportOffer() {
-    const state = await readSyncState();
+    let state = await readSyncState();
     if (state.email === null) {
       return null;
+    }
+    const before = accountSyncOf(state, state.email);
+    if (before.firstListSinceLogIn && before.takeIds.length > 0) {
+      await withinWait(readServerList(state.email, before), LIST_WAIT_MS);
+      state = await readSyncState();
+      if (state.email === null) {
+        return null;
+      }
     }
     const accountSync = accountSyncOf(state, state.email);
     if (accountSync.guestImport === IMPORT_PENDING) {
@@ -1333,6 +1360,7 @@
       account,
       startSync,
       stopSync,
+      loggedOutHere,
       endSession,
       forgetAccount,
       forgetEndedSession,
