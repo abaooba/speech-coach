@@ -139,6 +139,32 @@ def test_a_clean_take_gets_no_advice_for_the_far_edge_of_its_band() -> None:
         assert not [entry_id for entry_id in offered if entry_id.startswith(far_edge_advice)]
 
 
+# --- exact ties --------------------------------------------------------------------------------
+
+
+def test_rates_exactly_as_far_from_their_targets_tie_whatever_the_float_division_leaves() -> None:
+    # One restart and three fillers in 30.012 s are both 60/30.012 times their targets, but the
+    # float division leaves the two distances a last digit apart. The long pause (1.0) leads,
+    # and the restart wins the tie, as MEASURED_SKILLS lists it first.
+    tied = take(duration_seconds=30.012, filler_count=3, restart_count=1, long_pause_count=1)
+
+    assert advised(tied) == ["long_pause", "restart"]
+
+
+def test_tied_restart_and_filler_rates_keep_their_order_at_any_length() -> None:
+    # r restarts and 3r fillers are the same share of their targets at every length.
+    wrong = []
+    for milliseconds, restarts in product(range(30_000, 180_001, 7), (1, 2)):
+        seconds = milliseconds / 1000
+        ranked = weakest_skills(
+            take(duration_seconds=seconds, restart_count=restarts, filler_count=3 * restarts)
+        )
+        if ranked.index("restart") + 1 != ranked.index("filler"):
+            wrong.append((seconds, restarts))
+
+    assert wrong == []
+
+
 # --- the real takes, with the band the app sends -----------------------------------------------
 
 

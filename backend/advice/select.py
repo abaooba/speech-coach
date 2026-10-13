@@ -37,6 +37,9 @@ LONG_PAUSES_TARGET = 0
 DEFAULT_TARGET_WPM = (140.0, 160.0)
 # The distance of a skill the take shows none of: a rate of 0, or no long pause at all.
 NONE_AT_ALL = -1.0
+# Distances are compared to 9 decimal places: two rates exactly as far from their targets can
+# come out of float division a last digit apart, and must still tie.
+TIE_DECIMALS = 9
 
 # The rank tiers, lowest first (PLAN T36). The tier comes with the request; rank.js works it out.
 TIERS = ("Novice", "Contender", "Varsity", "Elite", "Champion", "Master", "Flawless")
@@ -88,9 +91,12 @@ def weakest_skills(summary: ReportSummary) -> list[str]:
     gets advice on what is closest to slipping. Pace is one skill with a tag for each edge of
     the band. A take is nearer one edge, the fast one from the middle of the band up, so the far
     edge's tag ranks last: advice never tells the speaker to slow down and to speed up at once.
-    Ties keep the order of MEASURED_SKILLS.
+    Distances are compared to TIE_DECIMALS places, and ties keep the order of MEASURED_SKILLS.
     """
-    distances = distances_from_target(summary)
+    distances = {
+        skill: round(distance, TIE_DECIMALS)
+        for skill, distance in distances_from_target(summary).items()
+    }
     # The tag for the edge of the pace band the take is farther from.
     far_edge = "pace_slow" if distances["pace_fast"] >= distances["pace_slow"] else "pace_fast"
     return sorted(MEASURED_SKILLS, key=lambda skill: (skill == far_edge, -distances[skill]))
