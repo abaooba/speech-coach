@@ -22,10 +22,12 @@ echo "=== night.sh start $(date) repo=$REPO max_tasks=$MAX_TASKS effort=$EFFORT 
 Q() { python3 "$REPO/automation/queue.py" "$@"; }
 LOCK="$REPO/.night.lock"
 cleanup() { Q reset-doing "run ended while task was in progress"; rmdir "$LOCK" 2>/dev/null; }
-# Where a task may add files but never change, delete or rename one: the test folders, the
-# frontend spec, the human-owned pauses.js, docs, rules, queue and automation. hooks/protect.sh
+# Where a task may add files but never change, delete or rename one: the same paths
+# hooks/protect.sh guards (the test folders, the frontend spec, the human-owned pauses.js, the
+# plan, notes and specs in docs, rules, queue, automation, .claude and every .env file). The hook
 # stops the file tools there; checking each task's commits also catches a Bash edit or a git rm.
-PROTECTED_PATHS=(backend/tests frontend/tests frontend/DESIGN.md frontend/pauses.js docs CLAUDE.md tasks automation .claude)
+PROTECTED_PATHS=(backend/tests frontend/tests frontend/DESIGN.md frontend/pauses.js docs/PLAN.md
+  docs/challenge-notes.md docs/superpowers CLAUDE.md tasks/queue.json automation .claude '.env*')
 
 if [ -f "$REPO/STOP" ]; then echo "STOP file present; exiting"; exit 0; fi
 if ! mkdir "$LOCK" 2>/dev/null; then echo "another night.sh is running (remove $LOCK if stale); exiting"; exit 0; fi
