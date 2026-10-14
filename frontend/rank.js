@@ -13,8 +13,10 @@
   const FILLER_WEIGHT = 1;
   // A restart repeats words the judge already heard, so it costs more than an um.
   const RESTART_WEIGHT = 1.5;
+  // Each pause is charged once. A mid-sentence pause under 5 s stalls the line like an um.
   const MID_SENTENCE_PAUSE_WEIGHT = 1;
-  // A 5 s+ freeze reads as a lost place: the costliest slip.
+  // A 5 s+ freeze reads as a lost place: the costliest slip, the same mid-sentence or after a
+  // period, and never added to the mid-sentence weight.
   const LONG_PAUSE_WEIGHT = 3;
   // A misread word is an error; a skipped word is half one, since the listener rarely notices.
   const MISREAD_WEIGHT = 1;
@@ -73,7 +75,7 @@
     const weighted =
       numberOr0(given.fillerCount) * FILLER_WEIGHT +
       numberOr0(given.repeatCount) * RESTART_WEIGHT +
-      numberOr0(given.midSentencePauseCount) * MID_SENTENCE_PAUSE_WEIGHT +
+      shortMidSentencePauseCount(given) * MID_SENTENCE_PAUSE_WEIGHT +
       numberOr0(given.longPauseCount) * LONG_PAUSE_WEIGHT +
       countOf(given.misreads) * MISREAD_WEIGHT +
       chargedSkipCount(given.skips) * SKIP_WEIGHT;
@@ -193,6 +195,18 @@
       targetWpm.every((bound) => Number.isFinite(Number(bound)));
     const range = valid ? targetWpm : DEFAULT_TARGET_WPM;
     return [Number(range[0]), Number(range[1])];
+  }
+
+  // The mid-sentence pauses that are not long, so a long one is charged once, as long. The
+  // report's `pauses` lists each as {at, length, midSentence, long}; a report without that list
+  // falls back to midSentencePauseCount.
+  function shortMidSentencePauseCount(report) {
+    if (!Array.isArray(report.pauses)) {
+      return numberOr0(report.midSentencePauseCount);
+    }
+    return report.pauses.filter(
+      (pause) => Boolean(pause) && pause.midSentence === true && pause.long !== true,
+    ).length;
   }
 
   // The skips a take is charged for: every skip outside a run of more than
