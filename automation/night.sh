@@ -15,7 +15,7 @@ BRANCH="night/$RUN"
 WT="$WT_ROOT/$RUN"
 NIGHT_DIR="$REPO/nights/$RUN"
 LOG="$REPO/logs/night-$RUN.log"
-mkdir -p "$REPO/logs" "$NIGHT_DIR" "$WT_ROOT"
+mkdir -p "$REPO/logs"
 exec > >(tee -a "$LOG") 2>&1
 echo "=== night.sh start $(date) repo=$REPO max_tasks=$MAX_TASKS effort=$EFFORT timeout=${TASK_TIMEOUT}s budget=\$$BUDGET_USD"
 
@@ -27,6 +27,9 @@ if [ -f "$REPO/STOP" ]; then echo "STOP file present; exiting"; exit 0; fi
 if ! mkdir "$LOCK" 2>/dev/null; then echo "another night.sh is running (remove $LOCK if stale); exiting"; exit 0; fi
 trap cleanup EXIT
 cd "$REPO" || exit 1
+# An empty queue leaves nothing behind: no branch, worktree, run folder or report.
+if [ -z "$(Q next)" ]; then echo "queue empty; nothing to build"; exit 0; fi
+mkdir -p "$NIGHT_DIR" "$WT_ROOT"
 git fetch -q origin main || { echo "fetch failed"; exit 1; }
 
 # Fresh worktree from origin/main. If today's branch already exists, add a suffix.

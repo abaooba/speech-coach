@@ -497,22 +497,28 @@
    "title": "Restart detection: repeated phrase with abandoned words between copies",
    "brief": "In backend/metrics.py, extend find_repeats so a restart counts as a repeat: a phrase of 2 to MAX_REPEAT_PHRASE_WORDS words that is said again after up to 2 abandoned words (plus any um/uh/hmm, which are already skipped). Real example recorded on 2026-10-11 that the current code misses: 'one of the few decisions a day, uh, the few decisions a student makes every day' where the phrase 'the few decisions a' is restarted after the abandoned word 'day'. Keep the existing immediate-repeat behaviour (single words included). Prefer the longest matching phrase, never overlap matches, and keep Repeat(text, at) with at = start of the first copy. Add a RESTART_MAX_ABANDONED_WORDS = 2 constant with a comment. Guard against false positives: single-word phrases may not have abandoned words between copies (otherwise 'the day the' would match). Add tests in a NEW file backend/tests/test_metrics_restarts.py: the sentence above (as a Word list with made-up but increasing times) yields exactly one repeat with text 'the few decisions a'; 'the day the end' yields none; 'I went I went to' still yields 'I went'; a restart with three abandoned words yields none. Do not edit existing tests; all must keep passing.",
    "acceptance": "Script: `.venv/bin/pytest -q backend/tests/test_metrics_restarts.py` passes with at least 6 tests and the full suite passes with the same count plus the new tests; ruff clean.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [],
-   "notes": []
+   "notes": [
+    "2026-10-12: run 2026-10-12-0030: 1 commits, 31 turns, $1.33, rc=0 done",
+    "2026-10-13: built on branch upgrade with T30-T35, merged to main; the duplicate run 2026-10-12-0030 (PR #5) was closed unmerged"
+   ]
   },
   {
    "id": "T29",
    "title": "Show restarts in the transcript and speech timeline",
    "brief": "Restarts (metrics.repeats) are currently invisible unless three or more trigger a tip. Make each one visible: in frontend/screens/results.js (or wherever the transcript tokens are built; read frontend/delivery.js first) add a `.tok--restart` class to the words of the SECOND copy of each repeat, styled in frontend/styles.css with a dotted underline in --pause color and aria-label 'restart' (follow DESIGN.md token and class conventions; add the token/class to DESIGN.md section 6 only as a new line, do not restructure). Add a 'Restart' entry to the transcript legend sentence and a thin --pause tick on the speech timeline at each repeat's `at`, with a legend chip. Match repeats to transcript words by time: the second copy starts at the first word whose start >= repeat.at and whose normalized text begins the phrase. Update the Results screen's existing tests by ADDING a new test file frontend/tests/restarts.test.js (do not edit existing test files) that renders a transcript with one repeat and asserts the class, the aria-label and the timeline tick. Keep tips.js thresholds unchanged.",
    "acceptance": "Script: `node --test frontend/tests` passes including restarts.test.js; `.venv/bin/pytest -q` passes. Manual: the 2026-10-11 'few decisions' take shows a dotted underline under the second 'the few decisions a' and a tick on the timeline.",
-   "status": "todo",
+   "status": "done",
    "owner": "agent",
    "depends_on": [
     "T28"
    ],
-   "notes": []
+   "notes": [
+    "2026-10-12: run 2026-10-12-0030: 1 commits, 79 turns, $3.77, rc=0 done",
+    "2026-10-13: built on branch upgrade with T30-T35, merged to main; the duplicate run 2026-10-12-0030 (PR #5) was closed unmerged"
+   ]
   }
  ]
 }
