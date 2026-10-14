@@ -74,7 +74,7 @@ test("without take 1's audio the Review still says the privacy line, with its lo
   assert.equal(visibleText(find(world.body, "btn--primary")).trim(), "Say it again");
 });
 
-test("a three-read level keeps read 1's recording through reads 2 and 3, no other", async () => {
+test("a three-read level keeps read 1's recording until read 2 is saved, no other", async () => {
   const world = createWorld({ history: [] });
   await world.open("restarts-1");
   world.tap("Record read 1");
@@ -87,16 +87,17 @@ test("a three-read level keeps read 1's recording through reads 2 and 3, no othe
   assert.deepEqual(takeOne.decodes, [{ bytesOf: "read-1" }]);
 
   world.tap("Read it again");
+  assert.equal(takeOne.closed, false, "read 1's audio stays while read 2 records: Back still reviews");
   const readTwo = await handBack(world, readResult({ restartsAt: [20] }), "read-2");
   assert.equal(world.request().title, "Read 2 of 3", "the take handed back was read 2");
   assert.equal(await stillHeld(readTwo), false, "read 2's recording is never kept");
-  assert.equal(takeOne.closed, false, "read 1's audio stays for the level");
+  assert.equal(takeOne.closed, true, "read 2 saved: the Review is past, so read 1's audio goes");
   assert.equal(world.contexts.length, 1);
 
   world.tap("Read it again");
   const readThree = await handBack(world, readResult({}), "read-3");
   assert.equal(textOf(find(world.body, "level-result__title")), "Level cleared");
   assert.equal(await stillHeld(readThree), false, "nor is read 3's");
-  assert.equal(takeOne.closed, true, "the Result lets read 1 go");
+  assert.equal(takeOne.closed, true, "read 1's audio is still gone at the Result");
   assert.deepEqual(takeOne.decodes, [{ bytesOf: "read-1" }], "only read 1 was ever decoded");
 });
