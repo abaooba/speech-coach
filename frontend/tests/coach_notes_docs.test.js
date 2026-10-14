@@ -1,6 +1,7 @@
 // Tests that the coach notes (docs/PLAN.md T41) are explained where a reader looks: how.html
-// says who writes them and what is sent to Anthropic, in short sentences; styles.css styles
-// every class results.js draws them with, from tokens only; frontend/README.md names them.
+// says who writes them, what the model is told and what is sent to Anthropic, and that the tips
+// show first, in short sentences; styles.css styles every class results.js draws them with,
+// from tokens only; frontend/README.md names them.
 "use strict";
 
 const test = require("node:test");
@@ -38,10 +39,33 @@ function ruleFor(css, selector) {
   return match[1];
 }
 
+// The paragraphs of how.html's "The tips" section, as a reader sees them; its table is left out.
+function tipsSectionParagraphs() {
+  const html = read("how.html");
+  const start = html.indexOf("<h2>6. The tips</h2>");
+  const end = html.indexOf("<h2>7. ", start);
+  assert.ok(start !== -1 && end !== -1, "how.html has a section 6 'The tips' before section 7");
+  return [...html.slice(start, end).matchAll(/<p>([\s\S]*?)<\/p>/g)].map((match) =>
+    match[1].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+  );
+}
+
+function assertShortSentences(text) {
+  assert.ok(!text.includes("!"));
+  text
+    .split(/(?<=[.?])\s+/)
+    .filter((sentence) => sentence.trim() !== "")
+    .forEach((sentence) => {
+      const words = sentence.trim().split(" ").length;
+      assert.ok(words < MAX_SENTENCE_WORDS, words + " words: " + sentence);
+    });
+}
+
 test("how.html's Coach notes section says who writes the notes and what is sent", () => {
   const text = coachNotesSection();
   [
     "Claude, an AI model from Anthropic, writes the notes.",
+    "It is told to use only the entries and your numbers.",
     "Your take’s numbers, and the first 1,500 characters of your transcript.",
     "It never sends audio.",
     "It never sends your email.",
@@ -51,18 +75,21 @@ test("how.html's Coach notes section says who writes the notes and what is sent"
     "Tap a source to read it. The link opens in a new tab.",
   ].forEach((sentence) => assert.ok(text.includes(sentence), sentence));
   assert.ok(text.includes("482"), "names the size of the library");
+  assert.ok(
+    !text.includes("It adds no facts of its own."),
+    "the model is told what to use; nothing checks that it added nothing",
+  );
 });
 
 test("every sentence of the Coach notes section is under 15 words, with no exclamation", () => {
-  const text = coachNotesSection();
-  assert.ok(!text.includes("!"));
-  text
-    .split(/(?<=[.?])\s+/)
-    .filter((sentence) => sentence.trim() !== "")
-    .forEach((sentence) => {
-      const words = sentence.trim().split(" ").length;
-      assert.ok(words < MAX_SENTENCE_WORDS, words + " words: " + sentence);
-    });
+  assertShortSentences(coachNotesSection());
+});
+
+test("how.html's tips section says the tips show first and the notes take their place", () => {
+  const prose = tipsSectionParagraphs().join(" ");
+  assert.ok(prose.includes("The tips show first."));
+  assert.ok(prose.includes("Coach notes take their place when they arrive."));
+  assertShortSentences(prose);
 });
 
 test("how.html keeps one numbered section per rule, 1 to 8, in order", () => {
