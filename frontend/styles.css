@@ -403,7 +403,7 @@ h2 {
   }
 }
 
-/* 6. Bottom nav: the bar spans the window, its three items sit in the centered content column. */
+/* 6. Bottom nav: the bar spans the window, its four items sit in the centered content column. */
 .nav {
   position: fixed;
   bottom: 0;
@@ -417,8 +417,11 @@ h2 {
   border-top: 1px solid var(--border);
 }
 
+/* The four items share the width equally: min-width 0 keeps a label from widening its item and
+   pushing the others off the screen. */
 .nav__item {
   flex: 1 1 0;
+  min-width: 0;
   max-width: calc(var(--col-max) / 4);
   min-height: var(--nav-h);
   display: flex;
@@ -443,6 +446,49 @@ h2 {
 /* The nav touches the viewport edges, so its focus ring is drawn inside the item. */
 .nav__item:focus-visible {
   outline-offset: -3px;
+}
+
+/* 200% zoom on a phone leaves a 160 to 215px window, too narrow for four labels side by side
+   ("Progress" needs about 53px of a quarter). Each item shows its icon only; its label stays in
+   the link, visually hidden as .sr-only hides text, so the link keeps its name. */
+@media (max-width: 239px) {
+  .nav__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+/* Under 176px four 44px items no longer fit in a row: the nav takes two rows of two, each item
+   its icon over its label again, and --nav-h doubles, so every screen's bottom padding and
+   scroll margins still clear the nav. */
+@media (max-width: 175px) {
+  :root {
+    --nav-h: 112px;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+  }
+
+  .nav__item {
+    flex-basis: 50%;
+    min-height: calc(var(--nav-h) / 2);
+  }
+
+  .nav__label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
 }
 
 /* While Practice records or uploads, the nav steps aside. Only the active Practice counts: an
