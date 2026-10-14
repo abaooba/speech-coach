@@ -36,24 +36,46 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 
 ### API
 
-`POST /api/analyze` takes a multipart form with one field, `audio`, holding
-the recording. It returns `{"transcript": [...], "metrics": {...}}` where
-each transcript entry is `{"text", "start", "end"}` in seconds and
-`metrics` is the dict from `backend/metrics.py`.
+`POST /api/analyze` takes a multipart form with the field `audio`, holding
+the recording, and an optional field `script`, the text the take was read
+from. It returns `{"transcript": [...], "metrics": {...}}` where each
+transcript entry is `{"text", "start", "end"}` in seconds and `metrics` is
+the dict from `backend/metrics.py`. When the take follows its script,
+`metrics` also has a `script` block (restarts, skipped and misread words)
+from `backend/script_align.py`.
 
 | Status | When | Body |
 | --- | --- | --- |
 | 200 | Transcribed and measured | transcript and metrics |
-| 400 | Empty upload, or the last word ends before 5 s | `{"detail": message}` |
+| 400 | Empty upload, a `script` over 20,000 characters, or the last word ends before 5 s | `{"detail": message}` |
 | 413 | The upload is over 40 MB, refused before it is read in full | `{"detail": message}` |
 | 422 | The `audio` field is missing | FastAPI validation error |
 | 502 | The speech-to-text provider is misconfigured, unreachable or failed | `{"detail": message}` |
+
+The other routes:
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/health` | Liveness check that Render polls: `{"status": "ok"}` |
+| `POST /api/advice` | Coach notes for one take: tips Claude Haiku writes from the tip library while `ANTHROPIC_API_KEY` is set and the server's hourly budget of AI calls lasts, the library's own words otherwise |
+| `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/logout` | Open an account, log in or log out; the session lives in an HttpOnly cookie |
+| `GET /api/me`, `DELETE /api/me` | The signed-in account's email, or delete the account with everything it keeps |
+| `GET /api/sessions`, `POST /api/sessions`, `DELETE /api/sessions`, `DELETE /api/sessions/{id}` | A signed-in speaker's takes: list them, keep one, delete them all or one |
+| `POST /api/sessions/import` | Add this device's takes to the account, skipping any it already has |
+| `GET /api/progress`, `POST /api/progress` | The advice a signed-in speaker was shown and the skill-path levels they cleared |
+
+Accounts are optional. Every account route (`/api/auth/*`, `/api/me`,
+`/api/sessions`, `/api/progress`) answers 503 while `DATABASE_URL` is unset,
+and guests keep their takes in the browser; `/api/advice` serves guests
+either way.
 
 ### Stack
 
 - Backend: Python 3.13, FastAPI, httpx, pytest
 - Frontend: plain HTML, CSS and JavaScript (PWA), no framework
-- Speech-to-text: Deepgram (primary) or AssemblyAI (fallback)
+- Speech-to-text: AssemblyAI by default, or Deepgram; `STT_PROVIDER`
+  (`assemblyai` or `deepgram`) picks one, with no automatic fallback between
+  them
 - Hosting: Render free tier (backend + static files)
 
 ### Repo layout
