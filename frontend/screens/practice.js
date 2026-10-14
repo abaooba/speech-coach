@@ -85,6 +85,12 @@
   const UPLOAD_FAILED_TITLE = "Upload failed";
   const UPLOAD_FAILED_ACTION = "Retry upload";
   const NEW_TAKE_ACTION = "Record a new take";
+  // What app.store rejects every call with while an older version of the app, open in another
+  // tab, blocks the database upgrade (store.js UPGRADE_BLOCKED_MESSAGE; DESIGN.md section 2).
+  // It says what to do, so a save refused with it shows it word for word; nothing else a save
+  // throws ever does.
+  const STORE_BLOCKED_SENTENCE =
+    "Close other Speech Coach tabs to finish updating, then try again.";
   const SAMPLE_URL = "sample-session.json";
   const SAMPLE_LABEL = "See a sample result";
   const SAMPLE_ERROR_TITLE = "Sample unavailable";
@@ -979,6 +985,18 @@
     }
   }
 
+  // Whether Practice still holds `request`: the request on screen, or the one a recorded take
+  // still answers (an upload in flight, or one that failed and waits for Retry). One it let go
+  // (handed back with its take, left, or dropped by hide() with no take held) is not held, and in
+  // normal mode nothing is. The Level screen keeps its run, and take 1's audio, on #/practice
+  // only while Practice holds one of the run's requests. It reads state and changes nothing.
+  function holdsLevelRequest(request) {
+    if (request === null || request === undefined) {
+      return false;
+    }
+    return levelRequest === request || (pendingTake !== null && pendingTake.request === request);
+  }
+
   // A request Practice can paint and record: its callbacks, and a material whose kind decides
   // the script (MODES lists the two) and whose band the card's target line reads.
   function isLevelRequest(request) {
@@ -1209,7 +1227,8 @@
   // The analysis, a level take's judging and the save can each fail into the Upload failed
   // block, and each step that succeeded stays with the take: Retry sends the same blob again
   // only when no analysis came back, and never judges a take twice. The hand-off runs once the
-  // take is saved, so it is never repeated.
+  // take is saved, so it is never repeated. The block's sentence is fixed copy, apart from the
+  // store's own while another tab blocks its upgrade (saveFailureSentence).
   async function upload() {
     const take = pendingTake;
     if (take === null) {
@@ -1242,16 +1261,21 @@
         return;
       }
     }
+    if (take.session === null) {
+      try {
+        take.session = sessionFor(take, take.analysis.transcript, take.analysis.metrics);
+      } catch {
+        // The judge threw. Whatever it threw, the block reads as for an unknown failure on our
+        // side, and the speaker's recording is still here for Retry.
+        showUploadFailed(app.api.messages.provider);
+        return;
+      }
+    }
     let id = null;
     try {
-      if (take.session === null) {
-        take.session = sessionFor(take, take.analysis.transcript, take.analysis.metrics);
-      }
       id = await app.store.save(take.session);
-    } catch {
-      // The judge or the save threw. Whatever it threw, the block reads as for an unknown
-      // failure on our side, and the speaker's recording is still here for Retry.
-      showUploadFailed(app.api.messages.provider);
+    } catch (error) {
+      showUploadFailed(saveFailureSentence(error));
       return;
     }
     const session = take.session;
@@ -1285,6 +1309,15 @@
     const kind = error !== null && typeof error === "object" ? error.kind : undefined;
     const sentence = typeof kind === "string" ? messages[kind] : undefined;
     return typeof sentence === "string" ? sentence : messages.provider;
+  }
+
+  // The sentence for a save that failed. While an older tab blocks the database upgrade, the
+  // store's own sentence tells the speaker to close it and try again, and Retry then saves the
+  // same take. Anything else reads as an unknown failure on our side: an exception's own words
+  // never show.
+  function saveFailureSentence(error) {
+    const message = error !== null && typeof error === "object" ? error.message : undefined;
+    return message === STORE_BLOCKED_SENTENCE ? STORE_BLOCKED_SENTENCE : app.api.messages.provider;
   }
 
   // The Upload failed block, with Retry and "Record a new take". It is kept with its take, so
@@ -1450,6 +1483,7 @@
     show,
     hide,
     startLevelTake,
+    holdsLevelRequest,
     STATES,
     viewFor,
     render,

@@ -2186,14 +2186,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   gap: var(--s-1) var(--s-3);
 }
 
+/* "Take 1's audio is gone" reads the same in a review without audio and on the Goal of a run
+   that follows one cut off after take 1: a small muted line. */
 .level-review__about,
-.level-review__gone {
+.level-review__gone,
+.level-goal__gone {
   font-size: var(--fs-small);
   line-height: 1.4;
   color: var(--muted);
 }
 
-.level-review__gone {
+.level-review__gone,
+.level-goal__gone {
   margin: 0;
 }
 
@@ -3805,13 +3809,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-radius: var(--r-chip);
 }
 
-/* A cleared level's rings, --s-1 out: half, a --warn arc over the top half of the edge, once its
-   first check-back passed; gold, the full --warn ring, once its second did. */
+/* A cleared level's rings, 3px of --warn on the circle's edge, as the design draws them: half,
+   an arc over the top half of the edge, once its first check-back passed; gold, the full ring,
+   once its second did. The inset counts from inside the circle's 1px border, so the ring ends
+   3px out, clear of the label --s-1 under the circle. */
 .path-node--half .path-node__circle::after,
 .path-node--gold .path-node__circle::after {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: -4px;
   border: 3px solid var(--warn);
   border-radius: var(--r-chip);
 }
@@ -3840,7 +3846,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--warn);
 }
 
-/* The clock on a cleared level whose check-back is due, over its ring. */
+/* A node's badge, over its ring: the clock on a cleared level whose check-back is due, the lock
+   on a locked crown, the check on a cleared checkpoint. The last two say what the circle's
+   colour alone would not (DESIGN.md section 9). */
 .path-node__badge {
   position: absolute;
   z-index: 1;
@@ -3855,6 +3863,14 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-radius: var(--r-chip);
   background: var(--bg);
   color: var(--text);
+}
+
+/* On a crown's or a checkpoint's 48px circle the badge sits --s-2 out, across its edge as on a
+   level's circle, so it never covers the crown or the flag. */
+.path-node--crown .path-node__badge,
+.path-node--checkpoint .path-node__badge {
+  top: calc(-1 * var(--s-2));
+  right: calc(-1 * var(--s-2));
 }
 
 /* A node's card, beside its node (under it for the crown and the checkpoint) and pointing at

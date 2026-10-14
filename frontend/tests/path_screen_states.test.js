@@ -199,7 +199,7 @@ test("a crown stays locked until level 3 is cleared", async () => {
   const { body } = await shown({ cleared: clearedThrough("fillers", 2) });
   const crown = crownNode(unitTitled(body, "Fillers"));
   assert.equal(stateOf(crown), "locked");
-  assert.deepEqual(iconsOf(find(crown, "path-node__circle")), ["crown"]);
+  assert.deepEqual(iconsOf(find(crown, "path-node__circle")), ["crown", "lock"]);
   crown.click();
   assert.deepEqual(cardLines(cardOf(body, crown)), ["Clear level 3 first."]);
   assert.equal(startOf(body, crown), null);

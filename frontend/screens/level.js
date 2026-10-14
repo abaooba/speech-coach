@@ -237,7 +237,8 @@
   }
 
   // Leaving stops the countdown and anything playing. The run lives on only while the route
-  // shows Practice (a take of this play is being recorded) or this same play.
+  // shows this same play, or Practice while it holds one of the run's requests (a take of this
+  // play is being recorded, uploaded or retried there).
   function hide() {
     visible = false;
     shownPlayId = null;
@@ -261,9 +262,23 @@
     if (!route) {
       return false;
     }
-    const samePlay = route.name === LEVEL_ROUTE && Boolean(route.params) &&
+    if (route.name === PRACTICE_ROUTE) {
+      return practiceHolds(target);
+    }
+    return route.name === LEVEL_ROUTE && Boolean(route.params) &&
       route.params.id === target.playId;
-    return route.name === PRACTICE_ROUTE || samePlay;
+  }
+
+  // Whether Practice still holds one of the run's requests. The nav's Practice item, tapped with
+  // none held, opens Practice in normal mode, which keeps nothing of this play, so the run ends
+  // there as on any other screen. A Practice that cannot say (one without holdsLevelRequest) is
+  // taken to hold it, so a take of this play is never cut off.
+  function practiceHolds(target) {
+    const practice = app.screens.practice;
+    if (!practice || typeof practice.holdsLevelRequest !== "function") {
+      return true;
+    }
+    return target.requests.some((request) => practice.holdsLevelRequest(request));
   }
 
   // --- The run ---------------------------------------------------------------------------------
@@ -283,11 +298,15 @@
       history,
       material: app.path.materialFor(play, history, Math.random, 0),
       topFillers: play.listsTopFillers ? app.path.topFillers(history) : [],
+      // Whether the play's last run was cut off after take 1 today, its audio gone with it.
+      takeOneGone: takeOneCutOff(play, history),
       // By take index: {transcript, metrics, report, evaluation, liveTaps, session}.
       takes: [],
-      // The run's saved sessions, newest first, and the records its passes kept.
+      // The run's saved sessions, newest first, and the records its passes kept, with the ids
+      // of any whose write failed (keepRecords).
       sessions: [],
       kept: [],
+      unsaved: [],
       saveFailed: false,
       // The Review's choices: what happened at each moment, and the fix for the next take.
       choices: {},
@@ -302,11 +321,32 @@
       // The take recorded next, and the one the Result shows.
       takeIndex: 0,
       last: null,
-      // Whether the run has handed Practice a take to record yet (startTake).
+      // Whether the run has handed Practice a take to record yet, and every request it handed
+      // (startTake), which keep the run while Practice holds one (routeKeeps).
       requested: false,
+      requests: [],
       // The step last drawn, so a new step takes focus and is announced.
       drawn: null,
     };
+  }
+
+  // Whether a loop's last run ended after its take 1, today: the play's newest saved take is that
+  // take 1. The page was reloaded or the level was left before the review was done, and take 1's
+  // audio, kept only in memory while the level was open, went with that run. The new run starts
+  // at its Goal (spec section 8), which says so, since the review that would is gone too.
+  function takeOneCutOff(play, history) {
+    if (play.kind !== LOOP) {
+      return false;
+    }
+    const newest = history.find(
+      (session) => session && session.path && session.path.play === play.id,
+    );
+    return (
+      Boolean(newest) &&
+      newest.path.kind === LOOP &&
+      newest.path.take === 1 &&
+      app.path.localDay(newest.createdAt) === today()
+    );
   }
 
   // The run ends: its countdown stops and take 1's audio is released.
@@ -360,8 +400,10 @@
     }
     stopPrep();
     stopPlayback(target.audio);
+    const request = requestFor(target, takeIndex);
     target.requested = true;
-    practice.startLevelTake(requestFor(target, takeIndex));
+    target.requests.push(request);
+    practice.startLevelTake(request);
   }
 
   // What Practice shows and calls back for one take.
@@ -603,7 +645,8 @@
   // Writes each record in order, all with one clearedAt, the time the take passed, so levels a
   // take jumped share its day and their check-backs fall with its own (spec section 4), even
   // when the writes straddle midnight. A write that fails still counts for the dates shown, and
-  // the Result says the progress could not be saved.
+  // the Result says the progress could not be saved; its id is noted, since the store does not
+  // have it for what comes next (savedCleared).
   async function keepRecords(target, records) {
     const clearedAt = new Date().toISOString();
     for (const levelId of records) {
@@ -612,6 +655,7 @@
         target.kept.push(kept && typeof kept.levelId === "string" ? kept : { levelId, clearedAt });
       } catch {
         target.saveFailed = true;
+        target.unsaved.push(levelId);
         target.kept.push({ levelId, clearedAt });
       }
     }
@@ -619,9 +663,11 @@
 
   // The step after the take at `takeIndex`: the next one app.loop.stepsFor lists, or for a
   // retry the Result once its attempt is complete. An attempt is as many takes as the play's
-  // list scores: one, or Pace level 2's pair of reads. The Result releases take 1's audio, and
-  // so does a feedback with no moment to look at: its "Go to take 2" skips the review, the only
-  // step that plays take 1, so the recording is not kept for nothing.
+  // list scores: one, or Pace level 2's pair of reads. Take 1's audio is kept only for the
+  // review after it, the one step that plays take 1, so it is released as soon as nothing can
+  // play it: when a later take is saved (the review never shows again, and Restarts levels 1
+  // and 2 still wait on read 3), on the Result, and after a feedback with no moment to look at,
+  // whose "Go to take 2" skips the review. The recording is never kept for nothing.
   function advance(target, takeIndex) {
     const next = stepAfter(target, takeIndex);
     target.view = next.view;
@@ -632,6 +678,9 @@
       if (target.moments.length === 0) {
         releaseAudio(target);
       }
+    }
+    if (takeIndex > 0) {
+      releaseAudio(target);
     }
     if (next.view === RESULT_VIEW) {
       target.last = takeIndex;
@@ -683,8 +732,18 @@
     return target.sessions.concat(target.history);
   }
 
+  // The cleared records as the run's passes left them, a write that failed included: the dates
+  // the Result shows count from them.
   function clearedAfter(target) {
     return target.cleared.concat(target.kept);
+  }
+
+  // The cleared records the store holds now: those it had at the Goal and every record a pass
+  // kept, leaving out any whose write failed. What opens next is read from these, as the Path and
+  // the Level screen read them from the store.
+  function savedCleared(target) {
+    const saved = target.kept.filter((record) => !target.unsaved.includes(record.levelId));
+    return target.cleared.concat(saved);
   }
 
   // --- Plays that cannot start -----------------------------------------------------------------
@@ -907,7 +966,8 @@
   // --- Goal ------------------------------------------------------------------------------------
 
   // The target card with the unit's why line, Fillers level 1's top fillers, the long-pause
-  // prep, a checkpoint's switch, then the button that starts take 1.
+  // prep, a checkpoint's switch, then the button that starts take 1. A run that follows one cut
+  // off after take 1 says, right above that button, that the earlier take 1's audio is gone.
   function buildGoal(target) {
     const play = target.play;
     const title = stepHeading(app.loop.stepsFor(play.id)[0].label);
@@ -920,6 +980,9 @@
     }
     if (play.inRoomSwitch) {
       parts.push(inRoomSwitch(target));
+    }
+    if (target.takeOneGone) {
+      parts.push(el("p", { class: "level-goal__gone", text: AUDIO_GONE }));
     }
     const start = primaryButton(goalAction(play), () => startTake(target, 0));
     if (prepView !== null) {
@@ -1981,9 +2044,12 @@
   }
 
   // The unit's next level not cleared, or once all five are, its checkpoint: a card naming it
-  // and a link that starts it, beside Back to path.
+  // and a link that starts it, beside Back to path. It is read from the records the store kept
+  // (savedCleared), so the link never opens a level the store still has locked. A pass whose own
+  // record failed to save leaves the store's next level the one just played: nothing is offered
+  // then but Back to path.
   function nextParts(target) {
-    const cleared = clearedAfter(target);
+    const cleared = savedCleared(target);
     const unit = app.path.UNITS.find((entry) => entry.id === target.play.unit);
     const level = unit ? app.path.currentLevel(unit, cleared) : null;
     let nextId = level ? level.id : null;
@@ -1993,7 +2059,7 @@
         nextId = checkpoint.id;
       }
     }
-    if (nextId === null) {
+    if (nextId === null || nextId === target.play.level) {
       return [actionsOf([linkButton(BACK_TO_PATH, PATH_HREF, true)])];
     }
     const next = app.path.playById(nextId, { baseline: target.baseline, cleared });

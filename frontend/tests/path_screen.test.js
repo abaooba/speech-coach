@@ -375,7 +375,7 @@ test("circles and labels are drawn for the eye; the button's name speaks for the
   assert.equal(circle.getAttribute("aria-hidden"), "true");
   assert.equal(visible(circle), "1");
   assert.deepEqual(iconsOf(find(locked, "path-node__circle")), ["lock"]);
-  assert.deepEqual(iconsOf(find(crownNode(fillers), "path-node__circle")), ["crown"]);
+  assert.deepEqual(iconsOf(find(crownNode(fillers), "path-node__circle")), ["crown", "lock"]);
   assert.deepEqual(iconsOf(find(checkpointNode(fillers), "path-node__circle")), ["flag"]);
   assert.equal(find(current, "path-node__label").getAttribute("aria-hidden"), "true");
 });

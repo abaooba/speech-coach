@@ -98,12 +98,19 @@
   const RATE_DECIMALS = 1;
 
   // Icon sizes: a level's 64px circle holds a 28px check or a 22px lock or moon, a crown's or a
-  // checkpoint's 48px circle a 20px icon, the due badge a 14px clock, and a chip a 16px icon.
+  // checkpoint's 48px circle a 20px icon, a badge a 14px icon, and a chip a 16px icon.
   const CHECK_ICON_SIZE = 28;
   const LEVEL_ICON_SIZE = 22;
   const SMALL_NODE_ICON_SIZE = 20;
   const BADGE_ICON_SIZE = 14;
   const CHIP_ICON_SIZE = 16;
+
+  // A node's badge, the small circle on its top right, says what its colour alone would: a
+  // cleared level's check-back is due (a clock), a crown is locked (a lock), a checkpoint is
+  // cleared (a check). Its icon names it.
+  const DUE_BADGE = "clock";
+  const LOCKED_BADGE = "lock";
+  const CLEARED_BADGE = "check";
 
   const ESCAPE_KEY = "Escape";
   const CARD_ID_PREFIX = "path-card-";
@@ -484,7 +491,8 @@
 
   // A step is what one node and its card show: {id, kind, number, state, modifiers, name, label,
   // note, circle, badge, card}, `name` the node's accessible name, `circle` what its circle
-  // holds and `card` {lines, start, startName}, `start` the play its Start opens or null.
+  // holds, `badge` the icon of its badge or null, and `card` {lines, start, startName}, `start`
+  // the play its Start opens or null.
 
   function levelStep(pathUnit, level, view) {
     const state = app.path.statusOf(level, view.cleared, view.takes, view.today);
@@ -502,7 +510,7 @@
       label: level.title,
       note: state === RESTING ? RESTING_NOTE : null,
       circle: levelCircle(level, state),
-      badge: due,
+      badge: due ? DUE_BADGE : null,
       card: levelCard(level, state, ring, checkback, view),
     };
   }
@@ -565,9 +573,10 @@
   }
 
   // The crown beside level 3: locked until level 3 is cleared, then open, then earned once a
-  // run (sudden death) or the ladder is. Earned part of the way ("2 of 5 earned") it is partial:
-  // drawn unfilled, with that count under its label, since only a crown whose every run is
-  // earned is filled, as its card's "Crown earned." says.
+  // run (sudden death) or the ladder is. Locked, it carries the lock badge, since its crown
+  // differs from an open one's only in colour. Earned part of the way ("2 of 5 earned") it is
+  // partial: drawn unfilled, with that count under its label, since only a crown whose every
+  // run is earned is filled, as its card's "Crown earned." says.
   function crownStep(pathUnit, view) {
     const crown = app.path.crownState(pathUnit.id, view.cleared);
     let state = OPEN;
@@ -588,7 +597,7 @@
       label: crown.label,
       note: partial ? earnedCount(crown) : null,
       circle: app.ui.icon("crown", SMALL_NODE_ICON_SIZE),
-      badge: false,
+      badge: state === LOCKED ? LOCKED_BADGE : null,
       card: crownCard(crown, state, view),
     };
   }
@@ -613,7 +622,8 @@
   }
 
   // The checkpoint after level 5: locked until level 5 is cleared, then open, then cleared,
-  // perhaps in the room.
+  // perhaps in the room. Cleared, it carries the check badge, since its flag differs from an
+  // open one's only in the fill's colour.
   function checkpointStep(pathUnit, view) {
     const checkpoint = app.path.checkpointState(pathUnit.id, view.cleared);
     let state = LOCKED;
@@ -633,7 +643,7 @@
       label: checkpoint.label,
       note: null,
       circle: app.ui.icon("flag", SMALL_NODE_ICON_SIZE),
-      badge: false,
+      badge: state === CLEARED ? CLEARED_BADGE : null,
       card: checkpointCard(pathUnit, checkpoint, state, view),
     };
   }
@@ -696,7 +706,7 @@
       [
         app.ui.el("span", { class: "path-node__circle", "aria-hidden": "true" }, [
           step.circle,
-          step.badge ? buildBadge() : null,
+          step.badge === null ? null : buildBadge(step.badge),
         ]),
         app.ui.el("span", { class: "path-node__label", "aria-hidden": "true", text: step.label }),
         step.note === null
@@ -709,9 +719,9 @@
     return pair;
   }
 
-  // The small clock on a cleared level whose check-back is due.
-  function buildBadge() {
-    return app.ui.el("span", { class: "path-node__badge" }, app.ui.icon("clock", BADGE_ICON_SIZE));
+  // The small badge on a node's circle, with its icon: a clock, a lock or a check.
+  function buildBadge(icon) {
+    return app.ui.el("span", { class: "path-node__badge" }, app.ui.icon(icon, BADGE_ICON_SIZE));
   }
 
   // A node's card: its lines, then Start when it has a play to start, primary only for the
