@@ -96,7 +96,7 @@ test("an unread tail does not hide the skips before it", () => {
   near(load().takeScore(reportWith({ skips })), oneMinuteScore(1));
 });
 
-test("skips less than a millisecond apart are one place, so float error cannot split a tail", () => {
+test("skips under a millisecond apart are one place, so float error cannot split a tail", () => {
   const skips = skippedRun(20, 59, 23.317).map((skip, i) => ({
     ...skip,
     at: skip.at + (i % 2) * 0.0004,
