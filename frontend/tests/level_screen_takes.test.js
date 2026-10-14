@@ -398,9 +398,13 @@ test("judge gives a check-back its stage, a checkpoint whether someone listened"
     inRoom: null,
   });
 
+  // Check-back 2 is due 7 days after the level was cleared, so the level was cleared Oct 1.
   const second = createWorld({
     history: steadyHistory(),
-    cleared: clearedOn(["fillers-3", "fillers-3_cb1"]),
+    cleared: [
+      ...clearedOn(["fillers-3"], "2026-10-01"),
+      ...clearedOn(["fillers-3_cb1"], "2026-10-03"),
+    ],
   });
   await second.open("fillers-3_checkback");
   second.tap("Record");

@@ -26,6 +26,8 @@
   const CLEARED_STATUS = "cleared";
   const LOCKED_STATUS = "locked";
   const RESTING_STATUS = "resting";
+  // app.path.ringOf's ring for a level whose check-backs have both passed.
+  const GOLD_RING = "gold";
 
   // Route ids and records the spec names (section 1): a level's check-back is played as
   // "<level>_checkback", and a passed first check-back keeps "<level>_cb1". The Result asks
@@ -68,6 +70,9 @@
   const CLEAR_BEFORE_FIRST = "Clear the levels before it first.";
   const RESTING_TITLE = "Back tomorrow";
   const OPENS_TOMORROW = "This level opens again tomorrow.";
+  const NOT_DUE_TITLE = "Not due yet";
+  const LOCKED_IN_TITLE = "Locked in";
+  const NOTHING_LEFT_TO_CHECK = "Both check-backs passed. Nothing is left to check.";
   const BACK_TO_PATH = "Back to path";
 
   // Goal
@@ -648,8 +653,8 @@
 
   // --- Plays that cannot start -----------------------------------------------------------------
 
-  // Why a play cannot start, or null: a level not unlocked or resting today, a check-back of a
-  // level not cleared, a crown or checkpoint not open yet.
+  // Why a play cannot start, or null: a level not unlocked or resting today, a check-back not
+  // due today (checkbackBlocked), a crown or checkpoint not open yet.
   function blockedReason(play, history, cleared) {
     const locked = (why) => ({ title: LOCKED_TITLE, body: why, icon: "lock" });
     if (play.kind === LOOP) {
@@ -662,8 +667,7 @@
         : null;
     }
     if (play.kind === CHECKBACK) {
-      const levelCleared = app.path.statusOf(play.level, cleared) === CLEARED_STATUS;
-      return levelCleared ? null : locked("Clear level " + play.number + " first.");
+      return checkbackBlocked(play, history, cleared);
     }
     if (play.kind === CROWN) {
       const crown = app.path.crownState(play.unit, cleared);
@@ -672,6 +676,30 @@
     if (play.kind === CHECKPOINT) {
       const checkpoint = app.path.checkpointState(play.unit, cleared);
       return checkpoint && checkpoint.open ? null : locked(CLEAR_BEFORE_FIRST);
+    }
+    return null;
+  }
+
+  // A check-back starts only on the day app.path.checkbacks says it is due, as the Path offers
+  // it (spec sections 5 and 9): never before its level is cleared, never once the level is
+  // locked in gold, and before its day the screen says which day that is, as the Path does.
+  function checkbackBlocked(play, history, cleared) {
+    if (app.path.statusOf(play.level, cleared) !== CLEARED_STATUS) {
+      return { title: LOCKED_TITLE, body: "Clear level " + play.number + " first.", icon: "lock" };
+    }
+    if (app.path.ringOf(play.level, cleared) === GOLD_RING) {
+      return { title: LOCKED_IN_TITLE, body: NOTHING_LEFT_TO_CHECK, icon: "check" };
+    }
+    const next = app.path
+      .checkbacks(cleared, history, today())
+      .find((entry) => entry.levelId === play.level);
+    if (next && !next.due) {
+      const day = app.loop.dateText(next.dueOn, "long");
+      return {
+        title: NOT_DUE_TITLE,
+        body: "Check-back " + next.stage + " is due " + day + ".",
+        icon: "calendar",
+      };
     }
     return null;
   }

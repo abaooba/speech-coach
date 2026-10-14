@@ -304,9 +304,13 @@ test("a check-back pass keeps its record: a half ring, then gold", async () => {
   assert.equal(textOf(find(card, "level-result__verdict")), "Check-back passed: half ring");
   assert.equal(primaryText(first), "Back to path");
 
+  // Check-back 2 is due 7 days after the level was cleared, so the level was cleared Oct 1.
   const second = createWorld({
     history: fillersYesterday(),
-    cleared: clearedOn(["fillers-3", "fillers-3_cb1"]),
+    cleared: [
+      ...clearedOn(["fillers-3"], "2026-10-01"),
+      ...clearedOn(["fillers-3_cb1"], "2026-10-03"),
+    ],
   });
   await second.open("fillers-3_checkback");
   second.tap("Record");
