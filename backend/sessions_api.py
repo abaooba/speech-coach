@@ -104,7 +104,7 @@ REQUEST_TOO_LARGE = (
     f"send at most {MAX_REQUEST_BYTES:,} bytes in one request: import a long history in parts"
 )
 # Shown entries, or cleared levels, that one post and one account may hold: more than the library
-# has entries (482) and far more than the path has levels (20). /api/advice records library
+# has entries (632) and far more than the path has levels (20). /api/advice records library
 # entries only, so an account that is sent nothing else never comes near it.
 MAX_PROGRESS_ROWS = 2_000
 PROGRESS_FULL = (
