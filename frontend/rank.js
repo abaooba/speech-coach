@@ -19,6 +19,12 @@
   // A misread word is an error; a skipped word is half one, since the listener rarely notices.
   const MISREAD_WEIGHT = 1;
   const SKIP_WEIGHT = 0.5;
+  // More script words than this skipped in one place is script the take never reached (it
+  // stopped early or started partway in), not a slip, so that run costs nothing. The same line
+  // as path.js MAX_SKIPPED_IN_ONE_PLACE, kept here so rank.js loads on its own.
+  const MAX_SKIPPED_IN_ONE_PLACE = 8;
+  // A skip's `at` is a word time in seconds; two closer than this are the same place.
+  const MILLISECOND = 0.001;
 
   // score = 100 * exp(-DECAY * errors per minute): 1 a minute gives 86, 0.1 a minute 98.5.
   const DECAY_PER_ERROR_PER_MINUTE = 0.15;
@@ -68,7 +74,7 @@
       numberOr0(given.midSentencePauseCount) * MID_SENTENCE_PAUSE_WEIGHT +
       numberOr0(given.longPauseCount) * LONG_PAUSE_WEIGHT +
       countOf(given.misreads) * MISREAD_WEIGHT +
-      countOf(given.skips) * SKIP_WEIGHT;
+      chargedSkipCount(given.skips) * SKIP_WEIGHT;
     const errorScore = MAX_SCORE * Math.exp((-DECAY_PER_ERROR_PER_MINUTE * weighted) / minutes);
     const pacePenalty = wpmOutsideBand(numberOr0(given.wordsPerMinute), targetWpm);
     return clamp(errorScore - pacePenalty / WPM_PER_PACE_POINT, 0, MAX_SCORE);
@@ -177,6 +183,28 @@
       targetWpm.every((bound) => Number.isFinite(Number(bound)));
     const range = valid ? targetWpm : DEFAULT_TARGET_WPM;
     return [Number(range[0]), Number(range[1])];
+  }
+
+  // The skips a take is charged for: every skip outside a run of more than
+  // MAX_SKIPPED_IN_ONE_PLACE. Skips come in script order, and the words skipped in one place
+  // share their `at`, the end of the word said before them (path.js longestSkipRun); a skip
+  // without a numeric `at` is a place of its own.
+  function chargedSkipCount(skips) {
+    const runs = [];
+    let at = null;
+    (Array.isArray(skips) ? skips : []).forEach((skip) => {
+      const here = skip && Number.isFinite(skip.at) ? skip.at : null;
+      const samePlace = here !== null && at !== null && Math.abs(here - at) < MILLISECOND;
+      if (samePlace) {
+        runs[runs.length - 1] += 1;
+      } else {
+        runs.push(1);
+      }
+      at = here;
+    });
+    return runs
+      .filter((run) => run <= MAX_SKIPPED_IN_ONE_PLACE)
+      .reduce((sum, run) => sum + run, 0);
   }
 
   function countOf(list) {
