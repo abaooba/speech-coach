@@ -1330,24 +1330,36 @@
   }
 
   // A tap on a Play button: on the one playing it stops; otherwise whatever plays stops and,
-  // once take 1 is ready, `play` starts. Only the latest tap plays.
+  // once take 1 is ready, `play` starts, if the review is still on screen. Only the latest tap
+  // plays, and any stop in between (stopPlayback) cancels it, so a tap still waiting on the
+  // decode when the speaker moves on never plays on its own.
   function togglePlayback(target, control, play) {
     const audio = target.audio;
     if (!audio) {
       return;
     }
-    if (audio.playing && audio.playing.control === control) {
-      stopPlayback(audio);
+    const tappedStop = audio.playing !== null && audio.playing.control === control;
+    stopPlayback(audio);
+    if (tappedStop) {
       return;
     }
-    stopPlayback(audio);
-    audio.token += 1;
     const token = audio.token;
     prepareAudio(audio).then((ready) => {
-      if (ready && !audio.released && audio.token === token) {
+      if (ready && !audio.released && audio.token === token && reviewShows(target)) {
         play(audio);
       }
     });
+  }
+
+  // Whether the run's review, the only step with Play buttons, is the screen on show.
+  function reviewShows(target) {
+    return (
+      visible &&
+      run === target &&
+      shownPlayId === target.playId &&
+      target.view === REVIEW_VIEW &&
+      target.phase === MOMENTS_PHASE
+    );
   }
 
   // Take 1's recording, kept for the review until the run ends or reaches its Result.
@@ -1565,9 +1577,15 @@
     }
   }
 
-  // Stops what plays. It is let go first, so the end the stop fires finds nothing to finish.
+  // Stops what plays, and cancels a Play tap still waiting on take 1's decode: leaving the
+  // screen, drawing it again, the next take and the release all come through here. What plays
+  // is let go first, so the end the stop fires finds nothing to finish.
   function stopPlayback(audio) {
-    if (!audio || !audio.playing) {
+    if (!audio) {
+      return;
+    }
+    audio.token += 1;
+    if (!audio.playing) {
       return;
     }
     const playing = audio.playing;
