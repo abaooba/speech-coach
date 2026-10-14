@@ -57,7 +57,7 @@ function aboveCrown(body, crown) {
   }));
 }
 
-test("tapping the crown leaves level 3's open card above it, so the crown does not move", async () => {
+test("tapping the crown leaves level 3's open card above it: the crown does not move", async () => {
   const { body } = await shown({ cleared: cleared("fillers-1", "fillers-2") });
   const fillers = unitTitled(body, "Fillers");
   const level3 = levelNodes(fillers)[2];
@@ -82,7 +82,7 @@ test("tapping the crown leaves level 3's open card above it, so the crown does n
   );
 
   crown.click();
-  assert.equal(crown.getAttribute("aria-expanded"), "false", "a second tap closes the crown's card");
+  assert.equal(crown.getAttribute("aria-expanded"), "false", "a second tap closes its card");
   assert.equal(cardOf(body, crown).hidden, true);
   assert.deepEqual(aboveCrown(body, crown), before, "and leaves level 3's card as it was");
 });
@@ -118,7 +118,7 @@ test("tapping a level or the checkpoint leaves the crown's card as it is", async
   assert.equal(checkpointNode(fillers).getAttribute("aria-expanded"), "false");
 });
 
-test("Escape closes the crown's card and returns focus to the crown, and nothing else", async () => {
+test("Escape closes the crown's card, focus back on the crown, and nothing else", async () => {
   const { body, focusLog } = await shown({ cleared: cleared("pace-1", "pace-2") });
   const pace = unitTitled(body, "Pace");
   const level3 = levelNodes(pace)[2];

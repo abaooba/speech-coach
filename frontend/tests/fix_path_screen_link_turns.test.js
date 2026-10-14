@@ -118,7 +118,7 @@ test("linkD crosses to the next node's column inside the foot, then drops into t
   assertTurnsInsideFoot(screen.linkD(50, 50), 50, 50, footY);
 });
 
-test("every turn drawn on the Path, into a left, right or centre node, stays in its foot", async () => {
+test("every turn drawn, into a left, right or centre node, stays in its foot", async () => {
   // Fillers stops at level 3 (a left node) and Pace at level 4 (a right one), each with its card
   // open from the start, the cases where the old turn ran behind a card.
   const cleared = ["fillers-1", "fillers-2", "pace-1", "pace-2", "pace-3"].map((id) =>
