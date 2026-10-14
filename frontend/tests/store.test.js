@@ -279,13 +279,32 @@ test("save falls back to a non-empty id without crypto and keeps a given id and 
   assert.equal((await store.get("fixed-id")).createdAt, "2026-10-09T22:21:00.000Z");
 });
 
-test("save stores only the seven session fields and drops anything else", async () => {
+test("save stores only the nine session fields and drops anything else", async () => {
   const { store } = loadStore();
-  const id = await store.save(sessionFixture({ extra: "nope", wpm: 150 }));
+  const path = { play: "fillers-3", kind: "loop", take: 2, scored: true, passed: false };
+  const id = await store.save(
+    sessionFixture({ extra: "nope", wpm: 150, topic: "Your day so far", path }),
+  );
   const stored = await store.get(id);
   assert.deepEqual(
     Object.keys(stored).sort(),
+    [
+      "createdAt",
+      "durationSeconds",
+      "id",
+      "metrics",
+      "passageId",
+      "passageTitle",
+      "path",
+      "topic",
+      "transcript",
+    ],
+  );
+  const plainId = await store.save(sessionFixture({ extra: "nope", wpm: 150 }));
+  assert.deepEqual(
+    Object.keys(await store.get(plainId)).sort(),
     ["createdAt", "durationSeconds", "id", "metrics", "passageId", "passageTitle", "transcript"],
+    "a plain take has no topic or path",
   );
 });
 
