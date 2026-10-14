@@ -70,7 +70,8 @@
     {
       id: "repeats",
       fires: (facts) => facts.repeatCount >= MIN_REPEATS,
-      text: () => "You restarted phrases three times. Finish the sentence, then fix it.",
+      text: (facts) =>
+        "You restarted phrases " + facts.repeatCount + " times. Finish the sentence, then fix it.",
     },
   ];
 

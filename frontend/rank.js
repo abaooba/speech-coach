@@ -13,12 +13,20 @@
   const FILLER_WEIGHT = 1;
   // A restart repeats words the judge already heard, so it costs more than an um.
   const RESTART_WEIGHT = 1.5;
+  // Each pause is charged once. A mid-sentence pause under 5 s stalls the line like an um.
   const MID_SENTENCE_PAUSE_WEIGHT = 1;
-  // A 5 s+ freeze reads as a lost place: the costliest slip.
+  // A 5 s+ freeze reads as a lost place: the costliest slip, the same mid-sentence or after a
+  // period, and never added to the mid-sentence weight.
   const LONG_PAUSE_WEIGHT = 3;
   // A misread word is an error; a skipped word is half one, since the listener rarely notices.
   const MISREAD_WEIGHT = 1;
   const SKIP_WEIGHT = 0.5;
+  // More script words than this skipped in one place is script the take never reached (it
+  // stopped early or started partway in), not a slip, so that run costs nothing. The same line
+  // as path.js MAX_SKIPPED_IN_ONE_PLACE, kept here so rank.js loads on its own.
+  const MAX_SKIPPED_IN_ONE_PLACE = 8;
+  // A skip's `at` is a word time in seconds; two closer than this are the same place.
+  const MILLISECOND = 0.001;
 
   // score = 100 * exp(-DECAY * errors per minute): 1 a minute gives 86, 0.1 a minute 98.5.
   const DECAY_PER_ERROR_PER_MINUTE = 0.15;
@@ -34,7 +42,9 @@
   const SHORT_TAKE_SECONDS = 30;
   const SHORT_TAKE_DISCOUNT = 0.25;
   // A new speaker starts at 40: up to 3 imaginary 40-point, 1-minute takes fill the empty slots
-  // of the 10, so one lucky take cannot jump tiers, and they fade out as real takes arrive.
+  // of the 10, so one lucky take cannot jump tiers, and they fade out as real takes arrive. They
+  // also make up whatever minutes the rated takes fall short of 3, whichever is more, so ten
+  // quick tries cannot push them out.
   const PRIOR_SCORE = 40;
   const PRIOR_TAKES = 3;
   const PRIOR_TAKE_MINUTES = 1;
@@ -65,10 +75,10 @@
     const weighted =
       numberOr0(given.fillerCount) * FILLER_WEIGHT +
       numberOr0(given.repeatCount) * RESTART_WEIGHT +
-      numberOr0(given.midSentencePauseCount) * MID_SENTENCE_PAUSE_WEIGHT +
+      shortMidSentencePauseCount(given) * MID_SENTENCE_PAUSE_WEIGHT +
       numberOr0(given.longPauseCount) * LONG_PAUSE_WEIGHT +
       countOf(given.misreads) * MISREAD_WEIGHT +
-      countOf(given.skips) * SKIP_WEIGHT;
+      chargedSkipCount(given.skips) * SKIP_WEIGHT;
     const errorScore = MAX_SCORE * Math.exp((-DECAY_PER_ERROR_PER_MINUTE * weighted) / minutes);
     const pacePenalty = wpmOutsideBand(numberOr0(given.wordsPerMinute), targetWpm);
     return clamp(errorScore - pacePenalty / WPM_PER_PACE_POINT, 0, MAX_SCORE);
@@ -76,15 +86,23 @@
 
   function rating(history) {
     const rated = newestTakes(history);
-    const priorTakes = Math.min(PRIOR_TAKES, RATED_TAKES - rated.length);
-    let total = PRIOR_SCORE * PRIOR_TAKE_MINUTES * priorTakes;
-    let weight = PRIOR_TAKE_MINUTES * priorTakes;
-    rated.forEach((entry) => {
-      const takeWeight = weightOf(entry.speakingSeconds);
-      total += clamp(numberOr0(entry.score), 0, MAX_SCORE) * takeWeight;
-      weight += takeWeight;
+    const ratedWeights = rated.map((entry) => weightOf(entry.speakingSeconds));
+    const ratedMinutes = ratedWeights.reduce((sum, takeWeight) => sum + takeWeight, 0);
+    const priorWeight = priorMinutes(rated.length, ratedMinutes);
+    let total = PRIOR_SCORE * priorWeight;
+    rated.forEach((entry, i) => {
+      total += clamp(numberOr0(entry.score), 0, MAX_SCORE) * ratedWeights[i];
     });
+    const weight = priorWeight + ratedMinutes;
     return weight > 0 ? total / weight : PRIOR_SCORE;
+  }
+
+  // The minutes the imaginary takes weigh: one per empty slot of the 10, up to 3, or the minutes
+  // the rated takes fall short of 3, whichever is more.
+  function priorMinutes(ratedCount, ratedMinutes) {
+    const emptySlots = Math.min(PRIOR_TAKES, RATED_TAKES - ratedCount);
+    const missingMinutes = PRIOR_TAKES * PRIOR_TAKE_MINUTES - ratedMinutes;
+    return Math.max(PRIOR_TAKE_MINUTES * emptySlots, missingMinutes);
   }
 
   function tier(value, history) {
@@ -177,6 +195,40 @@
       targetWpm.every((bound) => Number.isFinite(Number(bound)));
     const range = valid ? targetWpm : DEFAULT_TARGET_WPM;
     return [Number(range[0]), Number(range[1])];
+  }
+
+  // The mid-sentence pauses that are not long, so a long one is charged once, as long. The
+  // report's `pauses` lists each as {at, length, midSentence, long}; a report without that list
+  // falls back to midSentencePauseCount.
+  function shortMidSentencePauseCount(report) {
+    if (!Array.isArray(report.pauses)) {
+      return numberOr0(report.midSentencePauseCount);
+    }
+    return report.pauses.filter(
+      (pause) => Boolean(pause) && pause.midSentence === true && pause.long !== true,
+    ).length;
+  }
+
+  // The skips a take is charged for: every skip outside a run of more than
+  // MAX_SKIPPED_IN_ONE_PLACE. Skips come in script order, and the words skipped in one place
+  // share their `at`, the end of the word said before them (path.js longestSkipRun); a skip
+  // without a numeric `at` is a place of its own.
+  function chargedSkipCount(skips) {
+    const runs = [];
+    let at = null;
+    (Array.isArray(skips) ? skips : []).forEach((skip) => {
+      const here = skip && Number.isFinite(skip.at) ? skip.at : null;
+      const samePlace = here !== null && at !== null && Math.abs(here - at) < MILLISECOND;
+      if (samePlace) {
+        runs[runs.length - 1] += 1;
+      } else {
+        runs.push(1);
+      }
+      at = here;
+    });
+    return runs
+      .filter((run) => run <= MAX_SKIPPED_IN_ONE_PLACE)
+      .reduce((sum, run) => sum + run, 0);
   }
 
   function countOf(list) {
