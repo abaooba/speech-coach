@@ -87,7 +87,8 @@ PY
   turns="$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('num_turns','?'))" "$OUT" 2>/dev/null || echo '?')"
   cost="$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(round(d.get('total_cost_usd',0),2))" "$OUT" 2>/dev/null || echo '?')"
   subtype="$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('subtype','?'))" "$OUT" 2>/dev/null || echo '?')"
-  if grep -qiE "usage limit|rate limit|hit your limit|out of extra usage" "$OUT" "$ERR"; then usage_limit=1; fi
+  # Only the CLI's own report of a limit counts, never the agent's final message (usage_limit.py).
+  if python3 "$REPO/automation/usage_limit.py" "$OUT" "$ERR"; then usage_limit=1; fi
 
   # Verification is done by this script, never by the agent.
   commits="$(git -C "$WT" rev-list --count "$base_sha..HEAD")"
