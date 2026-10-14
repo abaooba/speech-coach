@@ -1,8 +1,9 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
    show({id}) reads the take and the speaker's take before it from app.store, never writing, and
-   draws the meta line, headline, cards, timeline, transcript, tips and actions node by node,
-   never from markup; the cited coach notes (app.tips.coachNotes) take the tips' place when they
-   arrive. summarize, headlineFor and the other pure helpers touch no DOM or app.ui. */
+   draws the meta line, headline, rank card (app.rankCard), cards, timeline, transcript, tips and
+   actions node by node, never from markup; the cited coach notes (app.tips.coachNotes) take the
+   tips' place when they arrive. summarize, headlineFor and the other pure helpers touch no DOM
+   or app.ui. */
 (function () {
   "use strict";
 
@@ -190,6 +191,8 @@
   const DEFAULT_TIER = "Novice";
   // app.rank rates the newest 10 takes (rank.js RATED_TAKES); the list is newest first.
   const RATED_TAKES = 10;
+  // The rank card (docs/PLAN.md T37) is built for this screen: it says what this take did.
+  const RANK_SCREEN = "results";
 
   // Punctuation at either end of a token, the same rule as backend.metrics.clean: "Um," and
   // "um" compare equal while "so-called" and "day's" stay whole words.
@@ -602,10 +605,12 @@
   // The take is drawn as soon as app.store.get() has it, with no comparison. Its last take, which
   // only the "vs last take" lines need, comes from app.store.list(), and a signed-in list can wait
   // a second for the server (20 on a device's first list); once that take is found, the screen is
-  // drawn again with the comparison. The same list gives the speaker's tier for the coach notes,
-  // which are asked for last and, when they come, take the tips' place in a third draw. A ticket
-  // check before each draw means a slow earlier visit can never paint over a newer one, whichever
-  // read is the slow one, and a take the speaker has left (hide) asks for no notes and draws none.
+  // drawn again with the comparison. The same list rates the takes up to this one for the rank
+  // card, which joins that second draw (a first take, with no comparison, is drawn again for its
+  // card alone), and gives the speaker's tier for the coach notes, which are asked for last and,
+  // when they come, take the tips' place in a third draw. A ticket check before each draw means a
+  // slow earlier visit can never paint over a newer one, whichever read is the slow one, and a
+  // take the speaker has left (hide) asks for no notes and draws none.
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
@@ -623,7 +628,8 @@
       return;
     }
     const previous = previousOf(session, sessions);
-    if (previous !== null) {
+    view.rankCard = rankCardFor(session, sessions);
+    if (previous !== null || view.rankCard !== null) {
       renderSession(session, view, previous);
     }
     const notes = await loadCoachNotes(session, view.summary, sessions);
@@ -755,6 +761,22 @@
     }
   }
 
+  // The rank card's model for this take, computed from the takes up to and including it, or
+  // null: for a sample (the card counts none), or while rank.js or rankcard.js is not loaded,
+  // when Results draws as it did before the card. The card is extra to the take's numbers, so
+  // one that cannot be worked out never stops the screen.
+  function rankCardFor(session, sessions) {
+    const rankCard = app.rankCard;
+    if (!rankCard || typeof rankCard.model !== "function" || typeof rankCard.build !== "function") {
+      return null;
+    }
+    try {
+      return rankCard.model(sessions, { screen: RANK_SCREEN, takeId: session.id });
+    } catch {
+      return null;
+    }
+  }
+
   // Leaving the screen ends the visit: a draw still on its way (the comparison, the coach notes)
   // is dropped, so a hidden screen is never redrawn and never announces over another one.
   // Nothing else to release: show() rebuilds the body from the stored session every time.
@@ -792,18 +814,20 @@
       tips: selectTips(summary.report, summary.target),
       // The coach notes, set by show() once they arrive.
       notes: null,
+      // The rank card's model, set by show() once the store's list has rated the take.
+      rankCard: null,
     };
   }
 
-  // Top to bottom: meta line, headline, the four cards (each with its "vs last take" line when
-  // there is a last take, and then one note under the grid), the speech timeline and the
-  // transcript (both skipped when the session has no words; pause markers alone would mean
-  // nothing), the coach notes once they have arrived or else the tips (skipped when there are
-  // none), the two actions. `previous` is the last take, or null while there is none to compare
-  // with; it is summarized for the comparison only, so no tips are chosen for it. Returns the
-  // Coach notes heading, or null when the notes are not drawn.
+  // Top to bottom: meta line, headline, the rank card once the store's list has rated the take,
+  // the four cards (each with its "vs last take" line when there is a last take, and then one
+  // note under the grid), the speech timeline and the transcript (both skipped when the session
+  // has no words; pause markers alone would mean nothing), the coach notes once they have arrived
+  // or else the tips (skipped when there are none), the two actions. `previous` is the last take,
+  // or null while there is none to compare with; it is summarized for the comparison only, so no
+  // tips are chosen for it. Returns the Coach notes heading, or null when the notes are not drawn.
   function renderSession(session, view, previous) {
-    const { summary, plan, hasTranscript, segments, tips, notes } = view;
+    const { summary, plan, hasTranscript, segments, tips, notes, rankCard } = view;
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
     let notesHeading = null;
@@ -811,6 +835,9 @@
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
     body.appendChild(buildHeadline(headlineFor(summary, previousSummary), summary.target));
+    if (rankCard) {
+      body.appendChild(app.rankCard.build(rankCard, { screen: RANK_SCREEN }));
+    }
     body.appendChild(buildMetricGrid(summary, deltas));
     if (deltas) {
       body.appendChild(app.ui.el("p", { class: "metric-grid__note", text: DELTA_NOTE }));

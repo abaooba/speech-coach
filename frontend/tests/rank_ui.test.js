@@ -1,8 +1,9 @@
 // Tests for the rank card on screen (docs/PLAN.md T37, "ladder and lens"; the tier spec's
-// sections 1 to 6 and 10): app.rankCard.build in frontend/rankcard.js, the flame icon in ui.js
-// and the card's section of styles.css. ui.js, delivery.js, rank.js, rankcard.js and
-// screens/results.js run for real against the shared fake DOM, so every take is scored from its
-// words exactly as the app scores it.
+// sections 1 to 6, 8 and 10): app.rankCard.build in frontend/rankcard.js, the card's place on
+// Progress and Results, the flame icon in ui.js and the card's section of styles.css. ui.js,
+// delivery.js, rank.js, rankcard.js and the screens run for real against the shared fake DOM,
+// so every take is scored from its words exactly as the app scores it; app.store and
+// app.router are fakes.
 "use strict";
 
 const test = require("node:test");
@@ -11,7 +12,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const { fakeDocument } = require("./fake-dom");
+const { FakeElement, fakeDocument } = require("./fake-dom");
 
 const FRONTEND_DIR = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
@@ -22,6 +23,7 @@ const SOURCES = {
   rank: read("rank.js"),
   rankCard: read("rankcard.js"),
   results: read(path.join("screens", "results.js")),
+  progress: read(path.join("screens", "progress.js")),
 };
 const CSS = read("styles.css");
 
@@ -578,4 +580,204 @@ test("narrow screens shrink the rating, then stack the ladder, then drop the mar
   assert.equal(stacked["grid-template-columns"], "minmax(0, 1fr)");
   assert.equal(stacked["row-gap"], "var(--s-3)");
   assert.equal(declared(".rank-ladder__mark", "@media (max-width: 199px)").display, "none");
+});
+
+// The screens. index.html loads rank.js and rankcard.js before the screens; `rank` and `card`
+// leave either out, as index.html does until it is wired. The store serves `sessions` newest
+// first. `calls.draws` counts Results draws: every draw empties the body and starts again with
+// the meta line. `tips` stands in for tips.js when a test needs the coach notes.
+function mountScreen(name, sessions, options) {
+  const { rank = true, card = true, tips = null } = options || {};
+  const app = { screens: {}, store: {}, router: { go() {} } };
+  const context = { app, document: fakeDocument() };
+  const files = ["ui", "delivery", rank ? "rank" : null, card ? "rankCard" : null, "results"];
+  files
+    .concat(name === "progress" ? ["progress"] : [])
+    .filter(Boolean)
+    .forEach((file) => vm.runInNewContext(SOURCES[file], context, { filename: file + ".js" }));
+  if (tips) {
+    app.tips = tips;
+  }
+  const byId = Object.fromEntries(sessions.map((session) => [session.id, session]));
+  const newestFirst = [...sessions].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  app.store.get = (id) => Promise.resolve(byId[id]);
+  app.store.list = () => Promise.resolve([...newestFirst]);
+
+  const calls = { draws: 0 };
+  const root = new FakeElement("section");
+  root.appendChild(new FakeElement("h1"));
+  const body = new FakeElement("div");
+  body.className = "screen__body";
+  const append = body.appendChild.bind(body);
+  body.appendChild = (child) => {
+    if (child.classList && child.classList.contains("results__meta")) {
+      calls.draws += 1;
+    }
+    return append(child);
+  };
+  root.appendChild(body);
+  const screen = app.screens[name];
+  screen.mount(root);
+  return { screen, body, calls };
+}
+
+async function showProgress(sessions, options) {
+  const page = mountScreen("progress", sessions, options);
+  await page.screen.show();
+  return page;
+}
+
+async function showResults(sessions, id, options) {
+  const page = mountScreen("results", sessions, options);
+  await page.screen.show({ id });
+  return page;
+}
+
+// The body's direct children by their first class: "rank-card", "segmented", "state", ...
+function partsOf(body) {
+  return body.children.map((child) => classOf(child).split(" ")[0]);
+}
+
+// The tree as plain data, for comparing two draws: tags, classes, attributes and text.
+function snapshot(node) {
+  if (!node.children) {
+    return { text: node.textContent };
+  }
+  return {
+    tag: node.tagName,
+    className: classOf(node),
+    attributes: { ...node.attributes },
+    text: node.textContent,
+    children: node.children.map(snapshot),
+  };
+}
+
+// Local noon `daysAgo` days before today. Progress counts its streak to the real clock, so its
+// takes are dated from it: the day before yesterday, yesterday and today make a 3-day streak.
+function localNoon(daysAgo) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString();
+}
+
+const RECENT_TAKES = [2, 1, 0].map((daysAgo) => cleanTake("r" + daysAgo, localNoon(daysAgo), 120));
+
+function sampleTake(id, createdAt) {
+  return { ...cleanTake(id, createdAt, 120), passageTitle: "Sample: Congress" };
+}
+
+test("Progress puts the card first under the h1, a section gap above the switch", async () => {
+  const { body } = await showProgress(RECENT_TAKES);
+  assert.deepEqual(partsOf(body).slice(0, 3), ["rank-card", "segmented", "progress__title"]);
+  const card = body.children[0];
+  assert.equal(visible(find(card, "rank-card__tier")), "Elite");
+  assert.equal(visible(find(card, "rank-card__rating")), "80.0");
+  assert.equal(find(card, "rank-card__change"), null, "no change line on Progress");
+  assert.equal(visible(find(card, "rank-card__foot")), "Current streak 3 days, longest 3");
+});
+
+test("with one rated take Progress puts the card above Need two sessions", async () => {
+  const { body } = await showProgress([RECENT_TAKES[2]]);
+  assert.deepEqual(partsOf(body), ["rank-card", "state"]);
+  const [card, block] = body.children;
+  assert.equal(visible(find(card, "rank-card__tier")), "Varsity");
+  assert.equal(visible(find(card, "rank-card__rating")), "64.0");
+  assert.equal(find(block, "state__title").textContent, "Need two sessions");
+  assert.equal(find(block, "state__body").textContent, "Record one more to see a trend.");
+});
+
+test("Progress draws no card with no rated take: no takes, or a sample alone", async () => {
+  for (const sessions of [[], [sampleTake("sample", localNoon(0))]]) {
+    const { body } = await showProgress(sessions);
+    assert.deepEqual(partsOf(body), ["state"]);
+    assert.equal(find(body, "state__body").textContent, "Record two sessions to see a trend.");
+  }
+});
+
+test("a sample never counts toward Progress's card", async () => {
+  const sample = sampleTake("sample", localNoon(0));
+  const withSample = await showProgress([...RECENT_TAKES, sample]);
+  const without = await showProgress(RECENT_TAKES);
+  assert.deepEqual(snapshot(withSample.body.children[0]), snapshot(without.body.children[0]));
+});
+
+test("Results puts the card under the headline and above the metric grid", async () => {
+  const { body } = await showResults(ELITE_TAKES, "day-3");
+  assert.deepEqual(partsOf(body).slice(0, 4), [
+    "results__meta",
+    "headline",
+    "rank-card",
+    "metric-grid",
+  ]);
+  const card = find(body, "rank-card");
+  assert.equal(visible(find(card, "rank-card__change")), "Up 5.7, now Elite");
+  assert.equal(
+    visible(find(card, "rank-card__foot")),
+    "This take scored 100. At least 2 more takes to Champion, even perfect ones.",
+  );
+});
+
+test("a reopened take's card shows the rank as it stood after that take", async () => {
+  const { body } = await showResults(ELITE_TAKES, "day-2");
+  const card = find(body, "rank-card");
+  assert.equal(visible(find(card, "rank-card__tier")), "Varsity");
+  assert.equal(visible(find(card, "rank-card__rating")), "74.3");
+  assert.equal(visible(find(card, "rank-card__change")), "Up 10.3");
+  assert.ok(find(card, "rank-card__notch"), "same tier, so the notch marks 64.0");
+});
+
+test("Results draws no card for a sample", async () => {
+  const sample = sampleTake("sample", "2026-10-14T12:00:00");
+  const { body } = await showResults([...ELITE_TAKES, sample], "sample");
+  assert.equal(find(body, "rank-card"), null);
+  assert.equal(find(body, "metric-grid__note"), null, "a sample compares with nothing");
+});
+
+test("a first take's card comes with the store's list, in one more draw", async () => {
+  const withCard = await showResults([DAY_1], "day-1");
+  assert.equal(withCard.calls.draws, 2, "at once, then with the card");
+  assert.equal(visible(find(withCard.body, "rank-card__change")), "First rated take");
+  const without = await showResults([DAY_1], "day-1", { rank: false, card: false });
+  assert.equal(without.calls.draws, 1, "no last take and no card: one draw, as before the card");
+  assert.equal(find(without.body, "rank-card"), null);
+});
+
+test("the card stays in place when the coach notes redraw Results", async () => {
+  const notes = {
+    tips: [
+      {
+        entry_id: "filler-001",
+        text: "Stay silent where the um would go.",
+        drill: "",
+        citation: { label: "A Coach, Ums (2017)", url: "https://example.org/um", type: "coach" },
+      },
+    ],
+    source: "ai",
+  };
+  const tips = { select: () => [], coachNotes: () => Promise.resolve(notes) };
+  const { body, calls } = await showResults(ELITE_TAKES, "day-3", { tips });
+  assert.equal(calls.draws, 3, "the take, the comparison and card, then the notes");
+  assert.deepEqual(partsOf(body).slice(1, 4), ["headline", "rank-card", "metric-grid"]);
+  assert.ok(find(body, "coach-notes"), "the notes arrived");
+});
+
+test("without rank.js or rankcard.js both screens draw exactly as before the card", async () => {
+  const before = { rank: false, card: false };
+  for (const missing of [{ rank: false }, { card: false }]) {
+    for (const sessions of [[], [RECENT_TAKES[2]], RECENT_TAKES]) {
+      const now = await showProgress(sessions, missing);
+      const then = await showProgress(sessions, before);
+      assert.deepEqual(snapshot(now.body), snapshot(then.body), JSON.stringify(missing));
+    }
+    for (const [sessions, id] of [
+      [ELITE_TAKES, "day-3"],
+      [[DAY_1], "day-1"],
+    ]) {
+      const now = await showResults(sessions, id, missing);
+      const then = await showResults(sessions, id, before);
+      assert.deepEqual(snapshot(now.body), snapshot(then.body), JSON.stringify(missing));
+      assert.equal(now.calls.draws, then.calls.draws);
+    }
+  }
 });
