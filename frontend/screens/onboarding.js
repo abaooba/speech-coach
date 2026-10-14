@@ -15,6 +15,8 @@
     // 1,500: the longest excerpt POST /api/advice carries (tips.js MAX_EXCERPT_CHARACTERS).
     privacy:
       "Audio is deleted right after analysis. " +
+      "During a Path level, take 1 stays in this phone's memory for replay. " +
+      "It is deleted when the level ends. " +
       "Coach notes send the first 1,500 characters of your transcript to Anthropic.",
     button: "Start practicing",
   });

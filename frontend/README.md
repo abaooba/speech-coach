@@ -226,9 +226,10 @@ keyboard.
 1. The Onboarding screen shows under its "Speech Coach" heading, with no nav: the line
    "Record a practice speech. Get your pace, pauses and filler words in seconds.", three
    items, each after an icon (a microphone, a magnifying glass, a chart), the muted line
-   "Audio is deleted right after analysis. Coach notes send the first 1,500 characters of
-   your transcript to Anthropic." and a full-width "Start practicing" button. The tab reads
-   "Speech Coach" and nothing has focus.
+   "Audio is deleted right after analysis. During a Path level, take 1 stays in this phone's
+   memory for replay. It is deleted when the level ends. Coach notes send the first 1,500
+   characters of your transcript to Anthropic." and a full-width "Start practicing" button.
+   The tab reads "Speech Coach" and nothing has focus.
 
 2. Tap "Start practicing": Practice shows with the nav. Reload: Practice opens directly, and
    the onboarding flag snippet prints `true`.
