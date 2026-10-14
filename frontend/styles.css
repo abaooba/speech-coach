@@ -1444,7 +1444,14 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* Coach notes (docs/PLAN.md T41) reuse the tip card. One small muted line under the heading
-   says who wrote the notes; each card then holds the note, its drill and its source. */
+   says who wrote the notes; each card then holds the note, its drill and its source. Focus
+   moves to the heading when the notes replace the control it was on (tabindex="-1"), so it
+   asks for the same room under it as every link and button above the stuck action bar, and
+   the browser never scrolls it in under the bar. */
+.coach-notes__heading {
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom));
+}
+
 .coach-notes__lead {
   margin: var(--s-2) 0 0;
   font-size: var(--fs-small);
@@ -1548,7 +1555,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    covered two thirds of a 160 x 284 window. There the bar stays in the page at its end, where
    main's bottom padding keeps it clear of the nav (at 200% zoom it wraps onto two rows).
    A focused link or button, the bar's own included, then only has to clear the nav, as on
-   History. */
+   History, and so does the Coach notes heading. */
 @media (max-height: 480px), (max-width: 319px) {
   #screen-results .results__actions {
     position: static;
@@ -1557,6 +1564,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
   #screen-results :is(a, button):not(.results__actions *),
   #screen-results .results__actions button {
+    scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+  }
+
+  .coach-notes__heading {
     scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
   }
 }

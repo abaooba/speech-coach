@@ -182,6 +182,8 @@
   const PEER_REVIEWED_BADGE = "Peer reviewed";
   // Read after the link's text, so a screen reader hears where the link goes.
   const NEW_TAB_NOTE = ", opens in a new tab";
+  // Said in the live region when the notes take the tips' place, a swap nothing else would say.
+  const NOTES_READY_ANNOUNCEMENT = "Coach notes ready.";
   // The tier the request names while rank.js is not loaded: the server's own default
   // (backend/advice/select.py DEFAULT_TIER). rank.js joins index.html with the rank badge (T37);
   // until then every speaker is coached at the beginner level.
@@ -603,7 +605,7 @@
   // drawn again with the comparison. The same list gives the speaker's tier for the coach notes,
   // which are asked for last and, when they come, take the tips' place in a third draw. A ticket
   // check before each draw means a slow earlier visit can never paint over a newer one, whichever
-  // read is the slow one, and a take the speaker has left asks for no notes.
+  // read is the slow one, and a take the speaker has left (hide) asks for no notes and draws none.
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
@@ -627,7 +629,38 @@
     const notes = await loadCoachNotes(session, view.summary, sessions);
     if (notes !== null && ticket === showCount) {
       view.notes = notes;
-      renderSession(session, view, previous);
+      drawNotes(session, view, previous);
+    }
+  }
+
+  // The third draw, with the coach notes in the tips' place. Like every draw it rebuilds the
+  // body, so a link or button the speaker was on inside it is gone: focus then moves to the
+  // Coach notes heading, where the next Tab carries on, instead of falling to the page. Focus
+  // anywhere else (the h1, the nav) stays put. Either way the live region says the notes are
+  // ready, since the tips change under the speaker without a sound.
+  function drawNotes(session, view, previous) {
+    const focusWasInBody = holdsFocus(body);
+    const heading = renderSession(session, view, previous);
+    if (focusWasInBody) {
+      focusIfPossible(heading);
+    }
+    app.ui.announce(NOTES_READY_ANNOUNCEMENT);
+  }
+
+  // True when keyboard focus sits on `node` or inside it. Some test fakes have no activeElement,
+  // and some have no contains().
+  function holdsFocus(node) {
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    if (!active || !node || typeof node.contains !== "function") {
+      return false;
+    }
+    return node.contains(active);
+  }
+
+  // Moves keyboard focus when the node can take it; the test fakes may have no focus().
+  function focusIfPossible(node) {
+    if (node && typeof node.focus === "function") {
+      node.focus();
     }
   }
 
@@ -722,8 +755,12 @@
     }
   }
 
-  // Nothing to release: show() rebuilds the body from the stored session every time.
-  function hide() {}
+  // Leaving the screen ends the visit: a draw still on its way (the comparison, the coach notes)
+  // is dropped, so a hidden screen is never redrawn and never announces over another one.
+  // Nothing else to release: show() rebuilds the body from the stored session every time.
+  function hide() {
+    showCount += 1;
+  }
 
   function renderNotFound() {
     app.ui.renderState(body, {
@@ -763,11 +800,13 @@
   // transcript (both skipped when the session has no words; pause markers alone would mean
   // nothing), the coach notes once they have arrived or else the tips (skipped when there are
   // none), the two actions. `previous` is the last take, or null while there is none to compare
-  // with; it is summarized for the comparison only, so no tips are chosen for it.
+  // with; it is summarized for the comparison only, so no tips are chosen for it. Returns the
+  // Coach notes heading, or null when the notes are not drawn.
   function renderSession(session, view, previous) {
     const { summary, plan, hasTranscript, segments, tips, notes } = view;
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
+    let notesHeading = null;
 
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
@@ -785,7 +824,8 @@
       body.appendChild(buildTranscript(plan));
     }
     if (notes) {
-      body.appendChild(sectionTitle(COACH_NOTES_TITLE));
+      notesHeading = buildNotesHeading();
+      body.appendChild(notesHeading);
       const lead = NOTES_LEAD[notes.source];
       body.appendChild(app.ui.el("p", { class: "coach-notes__lead", text: lead }));
       notes.tips.forEach((note) => body.appendChild(buildNoteCard(note)));
@@ -794,6 +834,7 @@
       tips.forEach((tip) => body.appendChild(buildTipCard(tip)));
     }
     body.appendChild(buildActions());
+    return notesHeading;
   }
 
   // The pauses the pauses card counts (mid-sentence, or 5 s+ anywhere), as [at, length] pairs
@@ -843,6 +884,16 @@
 
   function sectionTitle(text) {
     return app.ui.el("h2", { class: "results__heading", text });
+  }
+
+  // The section title over the coach notes. Focus moves to it when the notes replace the control
+  // the speaker was on (drawNotes), so script can focus it (tabindex="-1"), but Tab never stops.
+  function buildNotesHeading() {
+    return app.ui.el("h2", {
+      class: "results__heading coach-notes__heading",
+      tabindex: "-1",
+      text: COACH_NOTES_TITLE,
+    });
   }
 
   // Every item is followed by a space text node, so the words keep their breaks when the

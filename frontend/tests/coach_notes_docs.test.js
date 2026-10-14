@@ -103,6 +103,23 @@ test("styles.css styles each coach notes class from tokens only", () => {
   });
 });
 
+test("focus moved to the Coach notes heading scrolls clear of the action bar and the nav", () => {
+  const css = read("styles.css");
+  assert.match(
+    ruleFor(css, ".coach-notes__heading"),
+    /scroll-margin-bottom: calc\(var\(--nav-h\) \+ var\(--s-7\) \+ var\(--s-6\) \+ env\(safe-area-inset-bottom\)\)/,
+    "the room every link and button above the stuck bar asks for",
+  );
+  const short = css.slice(css.indexOf("@media (max-height: 480px), (max-width: 319px)"));
+  const where = /\n {2}\.coach-notes__heading \{([^}]*)\}/.exec(short);
+  assert.ok(where, "the short or zoomed window, where the bar sits at the end of the page");
+  assert.match(
+    where[1],
+    /scroll-margin-bottom: calc\(var\(--nav-h\) \+ var\(--s-2\) \+ env\(safe-area-inset-bottom\)\)/,
+    "there it clears only the nav, as every link and button does",
+  );
+});
+
 test("frontend/README.md names the coach notes and their source links", () => {
   const readme = read("README.md").replace(/\s+/g, " ");
   assert.ok(readme.includes("Coach notes"));

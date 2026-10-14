@@ -1,8 +1,8 @@
 // Tests for the coach notes on Results (docs/PLAN.md T41): the rule tips are drawn at once, the
 // cited notes from POST /api/advice take their place when they arrive, a failed request keeps
-// the tips, a slow reply never paints over a newer take, and the request names the speaker's
-// tier. ui.js, delivery.js, tips.js and results.js run for real; app.store, app.auth and the
-// document are fakes.
+// the tips, a slow reply never paints over a newer take, the request names the speaker's tier,
+// and the notes' arrival keeps keyboard focus and is announced. ui.js, delivery.js, tips.js and
+// results.js run for real; app.store, app.auth and the document are fakes.
 "use strict";
 
 const test = require("node:test");
@@ -11,7 +11,42 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const { FakeElement, fakeDocument, byClass } = require("./fake-dom");
+const { FakeElement, FakeTextNode, byClass } = require("./fake-dom");
+
+// The shared fake element, extended here as practice_revamp.test.js extends it: it takes
+// focus(), logging it, and answers contains() for itself and anything below it.
+class FocusElement extends FakeElement {
+  constructor(tagName, namespaceURI, focusLog) {
+    super(tagName, namespaceURI);
+    this.focusLog = focusLog;
+  }
+
+  focus() {
+    this.focusLog.push(this);
+  }
+
+  contains(node) {
+    return (
+      node === this ||
+      this.children.some((child) => typeof child.contains === "function" && child.contains(node))
+    );
+  }
+}
+
+// The document of the shared fake DOM with focus: its activeElement is the element focused
+// last (null before any focus() call), and getElementById finds the #live region that
+// app.ui.announce writes.
+function focusDocument(focusLog, live) {
+  return {
+    get activeElement() {
+      return focusLog.length > 0 ? focusLog[focusLog.length - 1] : null;
+    },
+    createElement: (tagName) => new FocusElement(tagName, null, focusLog),
+    createElementNS: (namespaceURI, tagName) => new FocusElement(tagName, namespaceURI, focusLog),
+    createTextNode: (text) => new FakeTextNode(text),
+    getElementById: (id) => (id === "live" ? live : null),
+  };
+}
 
 const FRONTEND_DIR = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
@@ -89,10 +124,15 @@ function flush() {
 // newest first and counts its calls, flags live in a Map, and auth.request hands each call to
 // `reply(call)` for its {status, body}. `withRank` loads rank.js too. `calls.draws` counts the
 // times the take is drawn: every draw empties the body and starts again with the meta line.
+// The section holds the screen's h1 above the body, as index.html does; `focused()` reads the
+// document's activeElement and `live` is the live region.
 function mount(sessions, reply, options) {
   const settings = options || {};
   const calls = { lists: 0, requests: [], draws: 0 };
   const flags = new Map(settings.flags || []);
+  const focusLog = [];
+  const live = new FakeElement("div");
+  const document = focusDocument(focusLog, live);
   const byId = Object.fromEntries(sessions.map((session) => [session.id, session]));
   const newestFirst = [...sessions].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   const context = {
@@ -120,14 +160,17 @@ function mount(sessions, reply, options) {
       },
       router: { go() {} },
     },
-    document: fakeDocument(),
+    document,
   };
   SOURCES.forEach(([file, source]) => vm.runInNewContext(source, context, { filename: file }));
   if (settings.withRank) {
     vm.runInNewContext(RANK_SOURCE, context, { filename: "rank.js" });
   }
-  const root = new FakeElement("section");
-  const body = new FakeElement("div");
+  const root = new FocusElement("section", null, focusLog);
+  const title = new FocusElement("h1", null, focusLog);
+  title.textContent = "Results";
+  root.appendChild(title);
+  const body = new FocusElement("div", null, focusLog);
   body.className = "screen__body";
   const append = body.appendChild.bind(body);
   body.appendChild = (child) => {
@@ -139,7 +182,8 @@ function mount(sessions, reply, options) {
   root.appendChild(body);
   const results = context.app.screens.results;
   results.mount(root);
-  return { results, body, calls, flags, app: context.app };
+  const focused = () => document.activeElement;
+  return { results, title, body, calls, flags, app: context.app, focused, live };
 }
 
 function fullText(node) {
@@ -389,4 +433,86 @@ test("without tips.js's coachNotes, or without auth, the screen keeps the tips",
   await guestless.results.show({ id: "current" });
   assert.deepEqual(headingsOf(guestless.body), ["Transcript", "Tips"]);
   assert.equal(guestless.calls.requests.length, 0);
+});
+
+// The History button of the action bar now in the body: a control the third draw replaces.
+function historyButton(body) {
+  return byClass(body, "results__actions").children[0];
+}
+
+test("focus in the body moves to the Coach notes heading, and the notes are announced", async () => {
+  const replied = deferred();
+  const page = mount([EARLIER, CURRENT], () => replied.promise);
+  const shown = page.results.show({ id: "current" });
+  await flush();
+  historyButton(page.body).focus();
+  assert.equal(page.live.textContent, "");
+
+  replied.resolve({ status: 200, body: REPLY });
+  await shown;
+  const heading = page.focused();
+  assert.equal(heading.tagName, "h2");
+  assert.equal(heading.textContent, "Coach notes");
+  assert.equal(heading.getAttribute("tabindex"), "-1", "focusable, never a Tab stop");
+  assert.ok(page.body.children.includes(heading), "the heading the third draw put in the body");
+  assert.equal(page.live.textContent, "Coach notes ready.");
+});
+
+test("focus outside the body stays put, and the notes are announced all the same", async () => {
+  // The router leaves focus on the h1 after a screen change; a page just opened has none.
+  for (const focusTitle of [true, false]) {
+    const replied = deferred();
+    const page = mount([EARLIER, CURRENT], () => replied.promise);
+    const shown = page.results.show({ id: "current" });
+    if (focusTitle) {
+      page.title.focus();
+    }
+    await flush();
+    replied.resolve({ status: 200, body: REPLY });
+    await shown;
+    assert.equal(page.focused(), focusTitle ? page.title : null);
+    assert.deepEqual(headingsOf(page.body), ["Transcript", "Coach notes"]);
+    assert.equal(page.live.textContent, "Coach notes ready.");
+  }
+});
+
+test("notes kept from an earlier visit are announced as they replace the tips", async () => {
+  const flags = [["coachNotes:current", REPLY]];
+  const page = mount([CURRENT], () => ({ status: 0, body: null }), { flags });
+  await page.results.show({ id: "current" });
+  assert.equal(page.live.textContent, "Coach notes ready.");
+});
+
+test("no notes, no announcement, and focus stays on its control", async () => {
+  const replied = deferred();
+  const page = mount([EARLIER, CURRENT], () => replied.promise);
+  const shown = page.results.show({ id: "current" });
+  await flush();
+  const button = historyButton(page.body);
+  button.focus();
+
+  replied.resolve({ status: 500, body: { detail: "down" } });
+  await shown;
+  assert.equal(page.focused(), button);
+  assert.ok(page.body.contains(button), "the tips' draw is still the one shown");
+  assert.equal(page.live.textContent, "");
+});
+
+test("notes that arrive after the speaker left Results draw nothing and say nothing", async () => {
+  const replied = deferred();
+  const page = mount([EARLIER, CURRENT], () => replied.promise);
+  const shown = page.results.show({ id: "current" });
+  await flush();
+  page.results.hide();
+
+  replied.resolve({ status: 200, body: REPLY });
+  await shown;
+  assert.equal(page.calls.draws, 2, "the hidden screen is not drawn again");
+  assert.deepEqual(headingsOf(page.body), ["Transcript", "Tips"]);
+  assert.equal(page.live.textContent, "", "nothing is announced over another screen");
+
+  await page.results.show({ id: "current" });
+  assert.equal(page.calls.requests.length, 1, "Claude's notes were kept while the speaker was away");
+  assert.deepEqual(headingsOf(page.body), ["Transcript", "Coach notes"]);
+  assert.equal(page.live.textContent, "Coach notes ready.");
 });
