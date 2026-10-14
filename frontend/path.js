@@ -1072,10 +1072,11 @@
   // - tier: a crown's next tier {number, seconds | wpm, maxRestarts?, record, earned}, or the top
   //   tier with earned true once every one is earned; null for other plays.
   // `options` is {baseline, cleared}. Two things depend on the baseline (baseline() or, for a
-  // speaker with none, measure() of take 1), and with a null one they say so rather than guess:
-  // Fillers level 1's target reads "8 or fewer, or halfway there from take 1", and Pace level
-  // 3's take 2 has null seconds until take 1 sets the baseline. A crown's tier reads `cleared`
-  // (app.store.listClearedLevels()). The play is frozen.
+  // speaker with none, measure() of the play's first take with speech), and with none they say
+  // so rather than guess: Fillers level 1's target reads "8 or fewer, or halfway there from take
+  // 1", and Pace level 3's take 2 has null seconds until a take with speech sets the baseline. A
+  // null baseline is none, and so is measure() of a take without speech. A crown's tier reads
+  // `cleared` (app.store.listClearedLevels()). The play is frozen.
   function playById(playId, options) {
     const given = options && typeof options === "object" ? options : {};
     const spec = specOf(playId);
@@ -1596,8 +1597,20 @@
     };
   }
 
-  // True for a baseline as baseline() or measure() gives one.
+  // True for a baseline as baseline() gives one, or as measure() gives one of a take with speech.
+  // A baseline comes from takes with speech: measure() of a take without any has every rate at 0
+  // and is none.
   function isBaseline(value) {
+    return isMeasured(value) && value.spoke !== false;
+  }
+
+  // True for measure() of a take without speech: what a play freezes as its baseline when a
+  // brand-new speaker's take 1 said nothing. The take being judged then stands in for it.
+  function isMeasuredSilence(value) {
+    return isMeasured(value) && value.spoke === false;
+  }
+
+  function isMeasured(value) {
     return Boolean(value) && typeof value === "object" && Boolean(value.otherPerMinute);
   }
 
@@ -1613,11 +1626,13 @@
   // How one take of a play went, from its app.delivery report: {scored, passed, value,
   // valueText, unitLabel, targetText, sentence, guards, fix, jumped, records, stage}.
   // - `play` is a play or its id; `takeIndex` 0 for take 1 (a loop's retries go on from there).
-  // - `context` is {baseline, cleared, earlier, fix, inRoom}: the play's frozen baseline (from
-  //   baseline(), or for a speaker with none, measure() of take 1; it may be null only on take
-  //   1, which then stands in for it), the cleared records, the results of the run's earlier
-  //   takes (Pace level 2 reads its pair's first read there), the fix the speaker chose, and
-  //   whether someone was listening (checkpoints).
+  // - `context` is {baseline, cleared, earlier, fix, inRoom}: the play's frozen baseline, the
+  //   cleared records, the results of the run's earlier takes (Pace level 2 reads its pair's
+  //   first read there), the fix the speaker chose, and whether someone was listening
+  //   (checkpoints). The baseline is baseline()'s or, for a speaker with none, measure() of the
+  //   play's first take with speech. It may be null only on take 1. Until a take has had speech
+  //   (take 1 itself, or a later take after a take 1 whose measure() has none), the take being
+  //   judged stands in for it, its set seconds resolved against its own numbers.
   // - passed: true or false on a scored take, null on one that is not. A take without speech
   //   fails with "No speech was found in this take."
   // - value, valueText, unitLabel and targetText: the number the take is judged on and its words
@@ -1652,17 +1667,18 @@
   // A loop, check-back or checkpoint take, judged on its play's conditions and guards.
   function judgeRuleTake(spec, takeIndex, report, given) {
     const frozen = isBaseline(given.baseline) ? given.baseline : null;
-    if (frozen === null && takeIndex > 0) {
+    if (frozen === null && takeIndex > 0 && !isMeasuredSilence(given.baseline)) {
       throw new TypeError(
         "evaluate needs context.baseline after take 1: the play's frozen baseline, or " +
-          "measure() of take 1",
+          "measure() of its first take with speech",
       );
     }
-    // Take 1's set seconds never depend on the baseline, so a take 1 that stands in for a
-    // missing baseline can be measured first.
-    const measured = measure(report, takeOf(spec, takeIndex, frozen).seconds);
-    const usual = frozen || measured;
+    // A take that stands in for a missing baseline is its own usual, so its set seconds (Pace
+    // level 3's take 2 is shorter under the band) are resolved against its own numbers before
+    // it is measured against them.
+    const usual = frozen || measure(report, 0);
     const take = takeOf(spec, takeIndex, usual);
+    const measured = measure(report, take.seconds);
     const closes = take.scored && closesAttempt(spec, takeIndex);
     const result = { scored: take.scored, stage: checkbackStageOf(spec, given.cleared) };
     if (!measured.spoke) {
