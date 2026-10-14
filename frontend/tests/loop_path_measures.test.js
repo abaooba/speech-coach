@@ -234,7 +234,8 @@ test("baseline wpm and clean stretch are means weighted by speaking minutes", ()
   const usual = plain(PATH.baseline([slow, fast]));
   assert.equal(usual.wpm, 150);
   const stretches = [slow, fast].map((saved) => reportOf(saved).cleanStretch.seconds);
-  assert.equal(usual.cleanStretchSeconds, Math.round(((stretches[0] + 3 * stretches[1]) / 4) * 10) / 10);
+  const weighted = (stretches[0] + 3 * stretches[1]) / 4;
+  assert.equal(usual.cleanStretchSeconds, Math.round(weighted * 10) / 10);
 });
 
 test("the baseline reads the five latest takes with speech, in any order", () => {
