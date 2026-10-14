@@ -4,7 +4,7 @@ Pure functions, no I/O. The spoken words and the script words are normalized the
 the metrics (backend/metrics.py) and lined up with Needleman-Wunsch global alignment, which
 finds the cheapest way to turn one list into the other by reading, misreading, skipping and
 adding words. That is O(spoken x script) time and memory: a 3-minute take (~600 words)
-against a 600-word script is 360,000 cells.
+against a 600-word script is 360,000 cells. alignment_cells() counts them before any is filled.
 
 From the alignment come three lists: restarts (the speaker went back to script words already
 passed), skipped script words and misread ones. Fillers in speech ('um', 'like', 'you know')
@@ -126,6 +126,15 @@ def align(words: Sequence[Word], script: str) -> ScriptReport:
     script and start no restart. A script with no words reports nothing.
     """
     return _read(words, script)[0]
+
+
+def alignment_cells(words: Sequence[Word], script: str) -> int:
+    """How many cells align() fills for this take and script: spoken words times script words.
+
+    Each is counted as the alignment splits it, a dash-joined word ('bullying—the') as two, so a
+    caller can turn down a take and script too large to line up before a cell is filled.
+    """
+    return len(_spoken(words).tokens) * len(_script_words(script))
 
 
 def _read(words: Sequence[Word], script: str) -> tuple[ScriptReport, _ReadSpan | None]:
