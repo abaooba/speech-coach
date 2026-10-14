@@ -199,7 +199,7 @@ test("a page load keeps the request's own cache mode", async () => {
   ]);
 });
 
-test("a file outside SHELL is still fetched once in the default mode, then served cached", async () => {
+test("a file outside SHELL is fetched once in the default mode, then served cached", async () => {
   const worker = loadWorker();
   await install(worker);
   worker.network.requests.length = 0;

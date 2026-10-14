@@ -61,7 +61,8 @@ class FocusElement extends FakeElement {
       if (child.classList && child.classList.contains(wanted)) {
         return child;
       }
-      const deeper = typeof child.querySelector === "function" ? child.querySelector(selector) : null;
+      const canSearch = typeof child.querySelector === "function";
+      const deeper = canSearch ? child.querySelector(selector) : null;
       if (deeper) {
         return deeper;
       }
@@ -301,7 +302,7 @@ function leaveAndComeBack(t) {
   t.practice.show({});
 }
 
-test("coming back after a failed upload draws Upload failed again, take and clock kept", async () => {
+test("coming back after a failed upload draws Upload failed again, take and all", async () => {
   const t = setup();
   await recordTake(t, 8000);
   t.rejectUpload(apiError("network"));
@@ -409,7 +410,7 @@ test("a retry that fails again comes back with the newer message", async () => {
   assert.equal(blockText(t).body, MESSAGES.provider);
 });
 
-test("a retry the backend finds too short shows Too short, and a return opens in idle", async () => {
+test("a retry the backend finds too short shows Too short; a return opens in idle", async () => {
   const t = setup();
   await recordTake(t, 8000);
   t.rejectUpload(apiError("network"));

@@ -221,7 +221,7 @@ test("tips are chosen once for the take, though it is drawn twice", async () => 
   assert.equal(calls.tips, 1);
 });
 
-test("a first take is drawn once: the list finding nothing earlier leaves it as it is", async () => {
+test("a first take is drawn once: a list with nothing earlier leaves it as it is", async () => {
   const current = tallies("c", OCT_10);
   const later = tallies("n", OCT_11);
   const listed = deferred();

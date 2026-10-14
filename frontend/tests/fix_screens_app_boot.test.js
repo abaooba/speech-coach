@@ -111,7 +111,10 @@ function shown(log) {
 // True when every mount comes before the first show.
 function mountsFirst(log) {
   const firstShow = log.findIndex((entry) => entry.startsWith("show "));
-  const lastMount = log.reduce((last, entry, index) => (entry.startsWith("mount ") ? index : last), -1);
+  const lastMount = log.reduce(
+    (last, entry, index) => (entry.startsWith("mount ") ? index : last),
+    -1,
+  );
   return firstShow === -1 || lastMount < firstShow;
 }
 
@@ -126,7 +129,7 @@ test("a nav tap before the screens' scripts ran is shown once boot has mounted t
   assert.equal(page.log.filter((entry) => entry.startsWith("activate ")).pop(), "activate history");
 });
 
-test("a nav tap after the scripts ran but before boot never shows an unmounted screen", async () => {
+test("a tap after the scripts ran but before boot never shows an unmounted screen", async () => {
   const page = loadPage("#/practice");
   page.registerScreens();
   page.tapNav("#/progress");
@@ -138,7 +141,7 @@ test("a nav tap after the scripts ran but before boot never shows an unmounted s
   assert.ok(mountsFirst(page.log), page.log.join(", "));
 });
 
-test("the hashchange a tap queued before boot, arriving after it, shows nothing twice", async () => {
+test("a hashchange queued before boot and fired after it shows nothing twice", async () => {
   const page = loadPage("#/practice");
   page.registerScreens();
   page.location.hash = "#/history";
