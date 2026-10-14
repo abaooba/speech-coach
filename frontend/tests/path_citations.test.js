@@ -128,8 +128,8 @@ test("the why lines say only what their entries say", () => {
   );
   assert.equal(
     byUnit["long-pauses"],
-    "Retelling a talk in less time each round brought gains in speed and pausing that lasted " +
-      "on a later test.",
+    "Retelling a talk in less time on each repeat brought gains in speed and pausing that " +
+      "lasted on a later test.",
   );
   assert.match(entryOf("general-014").advice, /Shrinking the time limit across repetitions/);
   assert.match(entryOf("general-014").advice, /gains in speed and pausing that lasted on a later/);

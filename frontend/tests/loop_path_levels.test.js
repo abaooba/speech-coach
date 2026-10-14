@@ -151,11 +151,11 @@ test("each example and non-example is a line of parts with its slip marked", () 
   assert.deepEqual(marked(examples.restarts.bad), [["I kinda ner—", "restart"]]);
   assert.equal(
     text(examples["long-pauses"].good),
-    "Uniforms cost more. Here's why: families still buy weekend clothes.",
+    "I love this park. Here's why: it stays quiet all morning.",
   );
   assert.equal(
     text(examples["long-pauses"].bad),
-    "Uniforms cost more because… [6 s] …families still buy clothes.",
+    "I love this park because… [6 s] …it stays quiet.",
   );
   assert.deepEqual(marked(examples["long-pauses"].bad), [["[6 s]", "pause"]]);
   assert.equal(
