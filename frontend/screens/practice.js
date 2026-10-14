@@ -979,6 +979,18 @@
     }
   }
 
+  // Whether Practice still holds `request`: the request on screen, or the one a recorded take
+  // still answers (an upload in flight, or one that failed and waits for Retry). One it let go
+  // (handed back with its take, left, or dropped by hide() with no take held) is not held, and in
+  // normal mode nothing is. The Level screen keeps its run, and take 1's audio, on #/practice
+  // only while Practice holds one of the run's requests. It reads state and changes nothing.
+  function holdsLevelRequest(request) {
+    if (request === null || request === undefined) {
+      return false;
+    }
+    return levelRequest === request || (pendingTake !== null && pendingTake.request === request);
+  }
+
   // A request Practice can paint and record: its callbacks, and a material whose kind decides
   // the script (MODES lists the two) and whose band the card's target line reads.
   function isLevelRequest(request) {
@@ -1450,6 +1462,7 @@
     show,
     hide,
     startLevelTake,
+    holdsLevelRequest,
     STATES,
     viewFor,
     render,

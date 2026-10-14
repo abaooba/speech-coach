@@ -237,7 +237,8 @@
   }
 
   // Leaving stops the countdown and anything playing. The run lives on only while the route
-  // shows Practice (a take of this play is being recorded) or this same play.
+  // shows this same play, or Practice while it holds one of the run's requests (a take of this
+  // play is being recorded, uploaded or retried there).
   function hide() {
     visible = false;
     shownPlayId = null;
@@ -261,9 +262,23 @@
     if (!route) {
       return false;
     }
-    const samePlay = route.name === LEVEL_ROUTE && Boolean(route.params) &&
+    if (route.name === PRACTICE_ROUTE) {
+      return practiceHolds(target);
+    }
+    return route.name === LEVEL_ROUTE && Boolean(route.params) &&
       route.params.id === target.playId;
-    return route.name === PRACTICE_ROUTE || samePlay;
+  }
+
+  // Whether Practice still holds one of the run's requests. The nav's Practice item, tapped with
+  // none held, opens Practice in normal mode, which keeps nothing of this play, so the run ends
+  // there as on any other screen. A Practice that cannot say (one without holdsLevelRequest) is
+  // taken to hold it, so a take of this play is never cut off.
+  function practiceHolds(target) {
+    const practice = app.screens.practice;
+    if (!practice || typeof practice.holdsLevelRequest !== "function") {
+      return true;
+    }
+    return target.requests.some((request) => practice.holdsLevelRequest(request));
   }
 
   // --- The run ---------------------------------------------------------------------------------
@@ -306,8 +321,10 @@
       // The take recorded next, and the one the Result shows.
       takeIndex: 0,
       last: null,
-      // Whether the run has handed Practice a take to record yet (startTake).
+      // Whether the run has handed Practice a take to record yet, and every request it handed
+      // (startTake), which keep the run while Practice holds one (routeKeeps).
       requested: false,
+      requests: [],
       // The step last drawn, so a new step takes focus and is announced.
       drawn: null,
     };
@@ -383,8 +400,10 @@
     }
     stopPrep();
     stopPlayback(target.audio);
+    const request = requestFor(target, takeIndex);
     target.requested = true;
-    practice.startLevelTake(requestFor(target, takeIndex));
+    target.requests.push(request);
+    practice.startLevelTake(request);
   }
 
   // What Practice shows and calls back for one take.
