@@ -206,20 +206,29 @@ test("path.js assigns exactly app.path", () => {
   assert.deepEqual(Object.keys(APP).sort(), ["delivery", "passages", "path", "screens"]);
   assert.deepEqual(Object.keys(PATH).sort(), [
     "UNITS",
+    "addDays",
+    "attemptsLeft",
     "baseline",
+    "benchmarkState",
+    "checkbacks",
+    "checkpointState",
+    "crownState",
     "currentLevel",
     "evaluate",
     "isUnlocked",
     "levelById",
+    "localDay",
     "materialFor",
     "measure",
     "order",
     "pickColdRead",
     "pickTopic",
     "playById",
+    "ringOf",
     "statusOf",
     "takeAt",
     "topFillers",
+    "weekDays",
   ]);
 });
 

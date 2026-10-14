@@ -24,10 +24,18 @@
   // second, which turns the node gold.
   const CHECKBACK_RECORD = "_cb";
 
-  // A level on the path is cleared, current (open to play, not cleared yet) or locked.
+  // A level on the path is cleared, current (open to play, not cleared yet), locked, or resting:
+  // open, but its scored attempts for today are spent, so it reads "Back tomorrow".
   const CLEARED = "cleared";
   const CURRENT = "current";
   const LOCKED = "locked";
+  const RESTING = "resting";
+
+  // A cleared level's ring: none yet, half once its first check-back passes, gold ("Locked in")
+  // once its second does.
+  const NO_RING = "none";
+  const HALF_RING = "half";
+  const GOLD_RING = "gold";
 
   // What a play is said or read on (spec section 3). A loop keeps one material for every take;
   // a check-back, checkpoint or crown always starts on new material.
@@ -188,6 +196,32 @@
   const RECENT_TAKES = 5;
   // Fillers level 1 lists the speaker's most used fillers, this many.
   const TOP_FILLERS = 3;
+
+  // --- The schedule (spec sections 4 and 5) ----------------------------------------------------
+
+  // A loop allows this many scored attempts a local day: the first scored take, "Try take 3"
+  // and "Try take 4". After that it rests until tomorrow.
+  const ATTEMPTS_PER_DAY = 3;
+  // A cleared level's first check-back is due this many days after it was cleared, its second
+  // this many after, or this many after the first passed if that is later. A missed one is due
+  // again this many days after the miss.
+  const FIRST_CHECKBACK_DAYS = 2;
+  const SECOND_CHECKBACK_DAYS = 7;
+  const AFTER_FIRST_CHECKBACK_DAYS = 2;
+  const AFTER_A_MISS_DAYS = 2;
+  // A unit's crown opens once this level is cleared; its checkpoint once its last level is.
+  const CROWN_OPENS_AFTER_LEVEL = 3;
+  // The benchmark comes round this many days after its latest sitting. Its takes are saved with
+  // the ids of app.passages.benchmark()'s read and talk.
+  const BENCHMARK_EVERY_DAYS = 14;
+  const BENCHMARK_READ_ID = "benchmark-read";
+  const BENCHMARK_TALK_ID = "benchmark-talk";
+  // The week's goal: practice on this many of its days, Monday to Sunday.
+  const WEEK_GOAL_DAYS = 4;
+  const DAYS_PER_WEEK = 7;
+  // A local calendar day as the schedule writes it, "2026-10-14".
+  const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
   // --- Citations (spec "Unit cards and tips") --------------------------------------------------
 
@@ -2341,12 +2375,23 @@
     return before === null || clearedIds(cleared).has(before.id);
   }
 
-  // "cleared", "current" (unlocked, not cleared yet) or "locked".
-  function statusOf(level, cleared) {
-    if (clearedIds(cleared).has(level.id)) {
+  // "cleared", "current" (unlocked, not cleared yet), "locked", or "resting": unlocked and not
+  // cleared, but out of attempts on the local day `today` ("YYYY-MM-DD"), read from the saved
+  // takes in `history` (attemptsLeft). Without a day nothing rests. `level` is a level or its id.
+  function statusOf(level, cleared, history, today) {
+    const id = level && typeof level === "object" ? level.id : level;
+    const known = levelById(id);
+    if (known === null) {
+      throw new Error("Unknown path level: " + id);
+    }
+    if (clearedIds(cleared).has(known.id)) {
       return CLEARED;
     }
-    return isUnlocked(level, cleared) ? CURRENT : LOCKED;
+    if (!isUnlocked(known, cleared)) {
+      return LOCKED;
+    }
+    const day = localDay(today);
+    return day !== null && attemptsLeft(known.id, history, day) === 0 ? RESTING : CURRENT;
   }
 
   // The unit's first level not cleared yet, which is always unlocked, or null once all are.
@@ -2362,6 +2407,326 @@
       throw new Error("Unknown path level: " + (level ? level.id : level));
     }
     return known.number === 1 ? null : levelById(known.unit + "-" + (known.number - 1));
+  }
+
+  // --- Rest days and check-backs (spec sections 4 and 5) -------------------------------------
+
+  // How many scored attempts the loop `levelId` has left on the local day `today`, from
+  // ATTEMPTS_PER_DAY down to 0. Only today's misses use one up: saved takes in `history` whose
+  // `path` is {kind: "loop", play: levelId, scored: true, passed: false} and that end an attempt
+  // (Pace level 2's pair ends on its second read; a take saved without its number ends one).
+  function attemptsLeft(levelId, history, today) {
+    const spec = specOf(levelId);
+    if (spec === null || spec.kind !== LOOP) {
+      throw new Error("Unknown path level: " + levelId);
+    }
+    const day = localDay(today);
+    const misses = ownTakes(history).filter((take) => {
+      const saved = pathOf(take);
+      return (
+        saved !== null &&
+        saved.kind === LOOP &&
+        saved.play === levelId &&
+        saved.scored === true &&
+        saved.passed === false &&
+        localDay(take.createdAt) === day &&
+        endsAttempt(spec, saved.take)
+      );
+    });
+    return Math.max(0, ATTEMPTS_PER_DAY - misses.length);
+  }
+
+  // Whether take number `takeNumber` (1 for take 1) of a loop ends an attempt.
+  function endsAttempt(spec, takeNumber) {
+    const numbered = Number.isInteger(takeNumber) && takeNumber >= 1;
+    return !numbered || closesAttempt(spec, takeNumber - 1);
+  }
+
+  // A saved take's Path fields ({play, kind, take, scored, passed, stage, inRoom}), or null for
+  // a plain take.
+  function pathOf(take) {
+    const saved = take.path;
+    return saved && typeof saved === "object" && typeof saved.play === "string" ? saved : null;
+  }
+
+  // A cleared level's ring: "none", "half" once its first check-back has passed, or "gold"
+  // ("Locked in") once its second has.
+  function ringOf(levelId, cleared) {
+    const ids = clearedIds(cleared);
+    if (ids.has(levelId + CHECKBACK_RECORD + 2)) {
+      return GOLD_RING;
+    }
+    return ids.has(levelId + CHECKBACK_RECORD + 1) ? HALF_RING : NO_RING;
+  }
+
+  // Every cleared level not yet gold, with its next check-back: [{levelId, stage, dueOn, due}].
+  // Stage 1 is due FIRST_CHECKBACK_DAYS after the level was cleared; stage 2, once stage 1 has
+  // passed, SECOND_CHECKBACK_DAYS after, or AFTER_FIRST_CHECKBACK_DAYS after stage 1's pass if
+  // that is later. A miss (a saved take whose `path` is {kind: "checkback", play:
+  // "<level>_checkback", stage, passed: false}) makes its stage due again AFTER_A_MISS_DAYS
+  // after it; nothing ever locks. `due` says whether `dueOn` has come on the local day `today`.
+  // Due ones come first, by date, then by unit and level order; then the rest, the same way.
+  function checkbacks(cleared, history, today) {
+    const day = localDay(today);
+    const clearedOn = clearedDays(cleared);
+    const misses = checkbackMisses(history);
+    const list = [];
+    UNITS.forEach((pathUnit, unitIndex) => {
+      pathUnit.levels.forEach((level) => {
+        const levelOn = clearedOn.get(level.id);
+        if (levelOn === undefined || clearedOn.has(level.id + CHECKBACK_RECORD + 2)) {
+          return;
+        }
+        const firstPassedOn = clearedOn.get(level.id + CHECKBACK_RECORD + 1);
+        const stage = firstPassedOn === undefined ? 1 : 2;
+        let dueOn =
+          stage === 1
+            ? addDays(levelOn, FIRST_CHECKBACK_DAYS)
+            : laterDay(
+                addDays(levelOn, SECOND_CHECKBACK_DAYS),
+                addDays(firstPassedOn, AFTER_FIRST_CHECKBACK_DAYS),
+              );
+        const missedOn = misses.get(level.id + CHECKBACK_SUFFIX + "/" + stage);
+        if (missedOn !== undefined) {
+          dueOn = laterDay(dueOn, addDays(missedOn, AFTER_A_MISS_DAYS));
+        }
+        list.push({
+          entry: { levelId: level.id, stage, dueOn, due: day !== null && dueOn <= day },
+          order: [unitIndex, level.number],
+        });
+      });
+    });
+    list.sort(
+      (a, b) =>
+        Number(b.entry.due) - Number(a.entry.due) ||
+        compareText(a.entry.dueOn, b.entry.dueOn) ||
+        a.order[0] - b.order[0] ||
+        a.order[1] - b.order[1],
+    );
+    return list.map((item) => item.entry);
+  }
+
+  // The local day each readable cleared record was kept on, by record id.
+  function clearedDays(cleared) {
+    const days = new Map();
+    listOf(cleared).forEach((entry) => {
+      const day = entry && typeof entry.levelId === "string" ? localDay(entry.clearedAt) : null;
+      if (day !== null) {
+        days.set(entry.levelId, day);
+      }
+    });
+    return days;
+  }
+
+  // The latest local day each check-back stage was missed, by "<play>/<stage>".
+  function checkbackMisses(history) {
+    const latest = new Map();
+    ownTakes(history).forEach((take) => {
+      const saved = pathOf(take);
+      const day = localDay(take.createdAt);
+      if (saved === null || saved.kind !== CHECKBACK || saved.passed !== false || day === null) {
+        return;
+      }
+      const key = saved.play + "/" + saved.stage;
+      if (!latest.has(key) || latest.get(key) < day) {
+        latest.set(key, day);
+      }
+    });
+    return latest;
+  }
+
+  // --- Crowns, checkpoints, the benchmark and the week ----------------------------------------
+
+  // The crown beside a unit's level 3, or null for a unit without one: {id, unit, label, open,
+  // tiers, earned, complete, next}. `open` once level 3 is cleared; `tiers` each with `earned`;
+  // `earned` how many are; `complete` when all are; `next` the first tier not yet earned, or
+  // null.
+  function crownState(unitId, cleared) {
+    const pathUnit = UNITS.find((entry) => entry.id === unitId);
+    if (!pathUnit || !pathUnit.crown) {
+      return null;
+    }
+    const ids = clearedIds(cleared);
+    const tiers = pathUnit.crown.tiers.map((tier) =>
+      Object.assign({}, tier, { earned: ids.has(tier.record) }),
+    );
+    const earned = tiers.filter((tier) => tier.earned).length;
+    return deepFreeze({
+      id: pathUnit.crown.id,
+      unit: pathUnit.id,
+      label: pathUnit.crown.label,
+      open: ids.has(pathUnit.id + "-" + CROWN_OPENS_AFTER_LEVEL),
+      tiers,
+      earned,
+      complete: earned === tiers.length,
+      next: tiers.find((tier) => !tier.earned) || null,
+    });
+  }
+
+  // The checkpoint after a unit's level 5, or null for an unknown unit: {id, unit, label, open,
+  // cleared, inRoom}. `open` once level 5 is cleared; `inRoom` once it was cleared with someone
+  // listening.
+  function checkpointState(unitId, cleared) {
+    const pathUnit = UNITS.find((entry) => entry.id === unitId);
+    if (!pathUnit) {
+      return null;
+    }
+    const ids = clearedIds(cleared);
+    const checkpoint = pathUnit.checkpoint;
+    return deepFreeze({
+      id: checkpoint.id,
+      unit: pathUnit.id,
+      label: checkpoint.label,
+      open: ids.has(pathUnit.levels[pathUnit.levels.length - 1].id),
+      cleared: ids.has(checkpoint.id),
+      inRoom: ids.has(checkpoint.id + IN_THE_ROOM_SUFFIX),
+    });
+  }
+
+  // The benchmark's sittings and when the next is due: {due, nextOn, sittings: [{on, readSlips,
+  // readWpm, fillersPerMinute, weightedPerMinute, wpm}]}. A sitting is the benchmark takes saved
+  // on one local day (their `path.kind` "benchmark"): the read's slips (null when it did not
+  // read the passage through) and pace, and the talk's fillers, weighted slips and pace, each
+  // null when that take is missing; the latest of each counts. Sittings come oldest first. The
+  // benchmark is due with no sitting yet, or BENCHMARK_EVERY_DAYS after the latest; `nextOn` is
+  // that day, or `today` before the first sitting. A benchmark never clears or locks anything.
+  function benchmarkState(history, today) {
+    const day = localDay(today);
+    const byDay = new Map();
+    ownTakes(history)
+      .filter((take) => {
+        const saved = pathOf(take);
+        return saved !== null && saved.kind === BENCHMARK && localDay(take.createdAt) !== null;
+      })
+      .sort((a, b) => newestFirst(b, a))
+      .forEach((take) => {
+        const on = localDay(take.createdAt);
+        const takes = byDay.get(on) || {};
+        if (take.passageId === BENCHMARK_READ_ID) {
+          takes.read = take;
+        } else if (take.passageId === BENCHMARK_TALK_ID) {
+          takes.talk = take;
+        }
+        byDay.set(on, takes);
+      });
+    const sittings = Array.from(byDay.keys())
+      .sort(compareText)
+      .map((on) => sittingOf(on, byDay.get(on)));
+    if (sittings.length === 0) {
+      return { due: true, nextOn: day, sittings };
+    }
+    const nextOn = addDays(sittings[sittings.length - 1].on, BENCHMARK_EVERY_DAYS);
+    return { due: day !== null && day >= nextOn, nextOn, sittings };
+  }
+
+  function sittingOf(on, takes) {
+    const measuredOf = (take, seconds) =>
+      take ? measure(app.delivery.analyze(take.transcript, take.metrics), seconds) : null;
+    const read = measuredOf(takes.read, COLD_READ_SECONDS);
+    const talked = measuredOf(takes.talk, BENCHMARK_TALK_SECONDS);
+    const readSpoke = read !== null && read.spoke;
+    const talkSpoke = talked !== null && talked.spoke;
+    const readThrough =
+      readSpoke && read.followedScript && read.unreadRun <= MAX_SKIPPED_IN_ONE_PLACE;
+    return {
+      on,
+      readSlips: readThrough ? read.readSlips : null,
+      readWpm: readSpoke ? read.wpm : null,
+      fillersPerMinute: talkSpoke ? talked.fillersPerMinute : null,
+      weightedPerMinute: talkSpoke ? talked.weightedPerMinute : null,
+      wpm: talkSpoke ? talked.wpm : null,
+    };
+  }
+
+  // This week's practice: {days, goal}, `days` the local days, Monday to Sunday of the week of
+  // `today`, with at least one own take, and `goal` WEEK_GOAL_DAYS.
+  function weekDays(history, today) {
+    const day = localDay(today);
+    if (day === null) {
+      return { days: 0, goal: WEEK_GOAL_DAYS };
+    }
+    const monday = addDays(day, -((weekdayOf(day) + DAYS_PER_WEEK - 1) % DAYS_PER_WEEK));
+    const sunday = addDays(monday, DAYS_PER_WEEK - 1);
+    const days = new Set(
+      ownTakes(history)
+        .map((take) => localDay(take.createdAt))
+        .filter((on) => on !== null && on >= monday && on <= sunday),
+    );
+    return { days: days.size, goal: WEEK_GOAL_DAYS };
+  }
+
+  // --- Days -----------------------------------------------------------------------------------
+
+  // The local calendar day ("2026-10-14") of a time: an ISO string or a Date, on this device's
+  // clock face, so a take at 23:50 counts for its own day. A day string comes back as it is.
+  // Null for anything that is not a real time or day.
+  function localDay(value) {
+    if (typeof value === "string" && DAY_PATTERN.test(value)) {
+      return dayNumberOf(value) === null ? null : value;
+    }
+    const isDate = Object.prototype.toString.call(value) === "[object Date]";
+    let date = null;
+    if (typeof value === "string" && value !== "") {
+      date = new Date(value);
+    } else if (isDate) {
+      date = value;
+    }
+    if (date === null || Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return dayText(date.getFullYear(), date.getMonth() + 1, date.getDate());
+  }
+
+  // The local day `days` after `day` (before it for a negative count), or null for a day that is
+  // not one or a count that is not whole.
+  function addDays(day, days) {
+    const number = typeof day === "string" ? dayNumberOf(day) : null;
+    if (number === null || !Number.isInteger(days)) {
+      return null;
+    }
+    const date = new Date((number + days) * MS_PER_DAY);
+    return dayText(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+  }
+
+  // A day as a count of days since 1970-01-01 (a calendar count, free of time zones), or null
+  // for text that is not a real day ("2026-02-30").
+  function dayNumberOf(day) {
+    const match = DAY_PATTERN.exec(day);
+    if (match === null) {
+      return null;
+    }
+    const [year, month, date] = match.slice(1).map(Number);
+    const utc = Date.UTC(year, month - 1, date);
+    const back = new Date(utc);
+    const real =
+      back.getUTCFullYear() === year &&
+      back.getUTCMonth() === month - 1 &&
+      back.getUTCDate() === date;
+    return real ? utc / MS_PER_DAY : null;
+  }
+
+  // 0 for a Sunday to 6 for a Saturday.
+  function weekdayOf(day) {
+    return new Date(dayNumberOf(day) * MS_PER_DAY).getUTCDay();
+  }
+
+  function dayText(year, month, date) {
+    return (
+      String(year).padStart(4, "0") + "-" + String(month).padStart(2, "0") + "-" +
+      String(date).padStart(2, "0")
+    );
+  }
+
+  // The later of two days ("YYYY-MM-DD" order as text).
+  function laterDay(a, b) {
+    return a >= b ? a : b;
+  }
+
+  function compareText(a, b) {
+    if (a === b) {
+      return 0;
+    }
+    return a < b ? -1 : 1;
   }
 
   // --- Material -------------------------------------------------------------------------------
@@ -2626,9 +2991,18 @@
     isUnlocked,
     statusOf,
     currentLevel,
+    ringOf,
+    attemptsLeft,
+    checkbacks,
+    crownState,
+    checkpointState,
+    benchmarkState,
+    weekDays,
     materialFor,
     pickTopic,
     pickColdRead,
     topFillers,
+    localDay,
+    addDays,
   };
 })();
