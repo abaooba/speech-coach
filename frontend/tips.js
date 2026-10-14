@@ -1,7 +1,8 @@
-/* tips.js: app.tips, the coaching tips shown under the Results transcript. select(report,
-   options) reads one take's app.delivery report and the passage's target range and returns at
-   most two {id, text} tips in priority order. A tip names the moments it is about and one thing
-   to try on the next take. Pure: no DOM, no store, no I/O. */
+/* tips.js: app.tips, the coaching shown under the Results transcript. select(report, options)
+   reads one take's app.delivery report and the passage's target range and returns at most two
+   {id, text} rule tips in priority order; pure. coachNotes(session, report, targetWpm, tier) is
+   the one request to POST /api/advice (docs/PLAN.md T41): cited notes written for the take, kept
+   in app.store flags so a take is asked about once. adviceRequest and parseCoachNotes are pure. */
 (function () {
   "use strict";
 
@@ -29,6 +30,30 @@
   // The fillers tip lists this many moments, then "and N more".
   const MAX_TIMES_LISTED = 3;
   const SECONDS_PER_MINUTE = 60;
+
+  // --- coach notes (docs/PLAN.md T41) ---
+  const ADVICE_URL = "/api/advice";
+  const OK = 200;
+  // The backend caps the excerpt at 1,500 characters (backend/advice/coach.py MAX_EXCERPT_CHARACTERS).
+  const MAX_EXCERPT_CHARACTERS = 1500;
+  // A guest's request may list at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
+  const MAX_SHOWN_IDS = 2000;
+  // A speaker with no rank yet is coached as a Novice (backend/advice/select.py DEFAULT_TIER).
+  const DEFAULT_TIER = "Novice";
+  // The server writes 2 or 3 notes (coach.py MAX_TIPS); more would be a reply to distrust.
+  const MAX_NOTES = 3;
+  // Only web links are drawn; any other url is left out and the label stands alone.
+  const WEB_URL = /^https?:\/\//i;
+  // Who wrote the notes, as the reply's `source` says: Claude, or the library's own words.
+  const SOURCES = ["ai", "library"];
+  // A high surrogate, the first half of an emoji in UTF-16: an excerpt never ends on one.
+  const HIGH_SURROGATE_FIRST = 0xd800;
+  const HIGH_SURROGATE_LAST = 0xdbff;
+  // The flags that keep the notes: one per take (the server's reply, word for word, under
+  // NOTES_FLAG_PREFIX + the take's id) and one list of the entry ids shown here, oldest first,
+  // which the request sends so a guest is not shown an entry twice while new ones are left.
+  const NOTES_FLAG_PREFIX = "coachNotes:";
+  const SHOWN_FLAG = "coachNotesShown";
 
   const RULES = [
     {
@@ -173,5 +198,178 @@
     return Math.round(value * 10) / 10;
   }
 
-  app.tips = { select };
+  // --- coach notes ---
+
+  // The JSON body of POST /api/advice (backend/advice/coach.py AdviceRequest) for one take: the
+  // numbers the Results cards show, read from its app.delivery report, the start of what was
+  // said, the speaker's tier and the entries already shown. Every number is finite and 0 or more
+  // and every count whole, as the server requires; the band goes only when it is a real [lo, hi].
+  // Pure: a fresh object, and no input is changed.
+  function adviceRequest(session, report, targetWpm, tier, shownIds) {
+    const given = report && typeof report === "object" ? report : {};
+    const summary = {
+      duration_seconds: nonNegative(given.speakingSeconds),
+      words_per_minute: nonNegative(given.wordsPerMinute),
+      filler_count: wholeCount(given.fillerCount),
+      restart_count: wholeCount(given.repeatCount),
+      mid_sentence_pause_count: wholeCount(given.midSentencePauseCount),
+      long_pause_count: wholeCount(given.longPauseCount),
+    };
+    const band = paceBand(targetWpm);
+    if (band !== null) {
+      summary.target_wpm = band;
+    }
+    summary.transcript_excerpt = excerptOf(session && session.transcript);
+    return {
+      session_id: String(session && session.id),
+      summary,
+      tier: isNonBlankString(tier) ? tier : DEFAULT_TIER,
+      shown_ids: stringsOf(shownIds).slice(-MAX_SHOWN_IDS),
+    };
+  }
+
+  function nonNegative(value) {
+    return Math.max(0, numberOr0(value));
+  }
+
+  function wholeCount(value) {
+    return Math.max(0, Math.round(numberOr0(value)));
+  }
+
+  // [lo, hi] when `targetWpm` is a pair of finite numbers running low to high, else null: the
+  // server refuses a band that does not (coach.py band_runs_low_to_high).
+  function paceBand(targetWpm) {
+    if (!Array.isArray(targetWpm) || targetWpm.length !== 2) {
+      return null;
+    }
+    const [lo, hi] = targetWpm.map(Number);
+    return Number.isFinite(lo) && Number.isFinite(hi) && lo < hi ? [lo, hi] : null;
+  }
+
+  // The transcript's words, space-joined, up to MAX_EXCERPT_CHARACTERS. A cut that would leave
+  // half an emoji drops that half too, so the server never reads a lone surrogate.
+  function excerptOf(transcript) {
+    if (!Array.isArray(transcript)) {
+      return "";
+    }
+    const text = transcript.map((word) => String((word && word.text) || "")).join(" ");
+    const excerpt = text.slice(0, MAX_EXCERPT_CHARACTERS);
+    const last = excerpt.charCodeAt(excerpt.length - 1);
+    const endsOnHalfAnEmoji = last >= HIGH_SURROGATE_FIRST && last <= HIGH_SURROGATE_LAST;
+    return endsOnHalfAnEmoji ? excerpt.slice(0, -1) : excerpt;
+  }
+
+  function stringsOf(list) {
+    return Array.isArray(list) ? list.filter((item) => typeof item === "string") : [];
+  }
+
+  function isNonBlankString(value) {
+    return typeof value === "string" && value.trim() !== "";
+  }
+
+  // The server's reply (coach.py Advice), checked and put in the shape Results draws:
+  // {tips: [{entryId, text, drill, citation: {label, url, type}}], source}, or null for a reply
+  // that is not one, so a broken answer leaves the rule tips in place. At most MAX_NOTES tips are
+  // kept; a tip without an id, a text or a cited label fails the whole reply, since a note with
+  // no source is the one thing the screen must never show. Pure: fresh objects.
+  function parseCoachNotes(reply) {
+    if (reply === null || typeof reply !== "object" || !SOURCES.includes(reply.source)) {
+      return null;
+    }
+    if (!Array.isArray(reply.tips) || reply.tips.length === 0) {
+      return null;
+    }
+    const tips = reply.tips.slice(0, MAX_NOTES).map(parseNote);
+    if (tips.some((tip) => tip === null)) {
+      return null;
+    }
+    return { tips, source: reply.source };
+  }
+
+  function parseNote(tip) {
+    if (tip === null || typeof tip !== "object") {
+      return null;
+    }
+    const citation = parseCitation(tip.citation);
+    if (!isNonBlankString(tip.entry_id) || !isNonBlankString(tip.text) || citation === null) {
+      return null;
+    }
+    return {
+      entryId: tip.entry_id,
+      text: tip.text.trim(),
+      drill: typeof tip.drill === "string" ? tip.drill.trim() : "",
+      citation,
+    };
+  }
+
+  function parseCitation(citation) {
+    if (citation === null || typeof citation !== "object" || !isNonBlankString(citation.label)) {
+      return null;
+    }
+    const url = typeof citation.url === "string" && WEB_URL.test(citation.url) ? citation.url : null;
+    return {
+      label: citation.label.trim(),
+      url,
+      type: typeof citation.type === "string" ? citation.type : "",
+    };
+  }
+
+  // The coach notes for one take, or null when there are none to show. The notes kept here from
+  // the take's first visit come back without a request; otherwise the server is asked once,
+  // through app.auth.request so a signed-in speaker's cookie goes along and the server keeps
+  // their shown ids itself, and its reply is kept for the next visit along with the entry ids
+  // it showed. A reply that is not notes, no reply, or a store that cannot be read gives null
+  // and keeps nothing; notes the store cannot keep are still returned. Never rejects.
+  async function coachNotes(session, report, targetWpm, tier) {
+    const id = session && session.id;
+    if (!id || !canAskForNotes()) {
+      return null;
+    }
+    try {
+      const kept = parseCoachNotes(await app.store.getFlag(NOTES_FLAG_PREFIX + id));
+      if (kept !== null) {
+        return kept;
+      }
+      const shown = stringsOf(await app.store.getFlag(SHOWN_FLAG));
+      const body = adviceRequest(session, report, targetWpm, tier, shown);
+      const reply = await app.auth.request("POST", ADVICE_URL, body);
+      const notes = reply && reply.status === OK ? parseCoachNotes(reply.body) : null;
+      if (notes !== null) {
+        await keepNotes(id, reply.body, notes, shown);
+      }
+      return notes;
+    } catch {
+      return null;
+    }
+  }
+
+  // The store to keep the notes in and the account's request to ask with: both load before this
+  // file in index.html. A context without them (a test that stubs app) simply has no notes.
+  function canAskForNotes() {
+    const store = app.store;
+    const auth = app.auth;
+    return Boolean(
+      store &&
+        typeof store.getFlag === "function" &&
+        typeof store.setFlag === "function" &&
+        auth &&
+        typeof auth.request === "function",
+    );
+  }
+
+  // Keeps the reply under the take's flag and moves its entry ids to the end of the shown list,
+  // the most recently shown last, which is the order the server takes them in. A store that
+  // fails here costs nothing but a repeat request on the next visit.
+  async function keepNotes(id, replyBody, notes, shown) {
+    const ids = notes.tips.map((tip) => tip.entryId);
+    const next = shown.filter((entryId) => !ids.includes(entryId)).concat(ids);
+    try {
+      await app.store.setFlag(NOTES_FLAG_PREFIX + id, replyBody);
+      await app.store.setFlag(SHOWN_FLAG, next.slice(-MAX_SHOWN_IDS));
+    } catch {
+      // The notes are shown all the same.
+    }
+  }
+
+  app.tips = { select, adviceRequest, parseCoachNotes, coachNotes };
 })();
