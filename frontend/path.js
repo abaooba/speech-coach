@@ -102,12 +102,15 @@
     [READ_THROUGH]: "Read every word, as written",
   });
 
-  // The guards each kind of take checks. A rule that already holds every weighted slip at or
-  // under the baseline (the checkpoints and Pace level 5) needs no steadyOtherSlips, and the
-  // Pace unit, which trains speed itself, has no minWpm.
+  // The guards each kind of take checks. Where the spec's tables list a play's guards, that list
+  // is all it checks: Pace levels 1 and 2 are ladder reads checked for readThrough alone, so the
+  // 2 restarts Pace level 2 allows on a read of under a minute never fail as "other slips". A
+  // rule that already holds every weighted slip at or under the baseline (the checkpoints and
+  // Pace level 5) needs no steadyOtherSlips, and the Pace unit, which trains speed itself, has
+  // no minWpm.
   const TALK_GUARDS = [TALK_SHARE, MIN_WPM, STEADY_OTHER_SLIPS];
   const READ_GUARDS = [READ_THROUGH, MIN_WPM, STEADY_OTHER_SLIPS];
-  const PACE_READ_GUARDS = [READ_THROUGH, STEADY_OTHER_SLIPS];
+  const PACE_READ_GUARDS = [READ_THROUGH];
   const PACE_TALK_GUARDS = [TALK_SHARE, STEADY_OTHER_SLIPS];
   const ALL_SLIPS_TALK_GUARDS = [TALK_SHARE, MIN_WPM];
   const ALL_SLIPS_PACE_GUARDS = [TALK_SHARE];

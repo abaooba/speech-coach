@@ -357,7 +357,7 @@ test("each play checks only its own guards", () => {
     "minWpm",
     "steadyOtherSlips",
   ]);
-  assert.deepEqual(ids("pace-1", 1, read), ["readThrough", "steadyOtherSlips"]);
+  assert.deepEqual(ids("pace-1", 1, read), ["readThrough"]);
   assert.deepEqual(ids("pace-4", 1, talk), ["talkShare", "steadyOtherSlips"]);
   assert.deepEqual(ids("pace-5", 1, talk), ["talkShare"]);
   assert.deepEqual(ids("fillers_checkpoint", 0, talk), ["talkShare", "minWpm"]);

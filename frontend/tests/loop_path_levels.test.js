@@ -34,7 +34,7 @@ const PATH = APP.path;
 const UNIT_IDS = ["restarts", "fillers", "long-pauses", "pace"];
 const TALK_GUARDS = ["talkShare", "minWpm", "steadyOtherSlips"];
 const READ_GUARDS = ["readThrough", "minWpm", "steadyOtherSlips"];
-const PACE_READ_GUARDS = ["readThrough", "steadyOtherSlips"];
+const PACE_READ_GUARDS = ["readThrough"];
 const PACE_TALK_GUARDS = ["talkShare", "steadyOtherSlips"];
 const LADDER_WORDS = 109;
 
