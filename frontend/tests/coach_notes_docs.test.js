@@ -1,6 +1,7 @@
 // Tests that the coach notes (docs/PLAN.md T41) are explained where a reader looks: how.html
-// says who writes them and what is sent to Anthropic, in short sentences; styles.css styles
-// every class results.js draws them with, from tokens only; frontend/README.md names them.
+// says who writes them, what the model is told and what is sent to Anthropic, and that the tips
+// show first, in short sentences; styles.css styles every class results.js draws them with,
+// from tokens only; frontend/README.md names them.
 "use strict";
 
 const test = require("node:test");
@@ -38,10 +39,33 @@ function ruleFor(css, selector) {
   return match[1];
 }
 
+// The paragraphs of how.html's "The tips" section, as a reader sees them; its table is left out.
+function tipsSectionParagraphs() {
+  const html = read("how.html");
+  const start = html.indexOf("<h2>6. The tips</h2>");
+  const end = html.indexOf("<h2>7. ", start);
+  assert.ok(start !== -1 && end !== -1, "how.html has a section 6 'The tips' before section 7");
+  return [...html.slice(start, end).matchAll(/<p>([\s\S]*?)<\/p>/g)].map((match) =>
+    match[1].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+  );
+}
+
+function assertShortSentences(text) {
+  assert.ok(!text.includes("!"));
+  text
+    .split(/(?<=[.?])\s+/)
+    .filter((sentence) => sentence.trim() !== "")
+    .forEach((sentence) => {
+      const words = sentence.trim().split(" ").length;
+      assert.ok(words < MAX_SENTENCE_WORDS, words + " words: " + sentence);
+    });
+}
+
 test("how.html's Coach notes section says who writes the notes and what is sent", () => {
   const text = coachNotesSection();
   [
     "Claude, an AI model from Anthropic, writes the notes.",
+    "It is told to use only the entries and your numbers.",
     "Your take’s numbers, and the first 1,500 characters of your transcript.",
     "It never sends audio.",
     "It never sends your email.",
@@ -51,18 +75,21 @@ test("how.html's Coach notes section says who writes the notes and what is sent"
     "Tap a source to read it. The link opens in a new tab.",
   ].forEach((sentence) => assert.ok(text.includes(sentence), sentence));
   assert.ok(text.includes("482"), "names the size of the library");
+  assert.ok(
+    !text.includes("It adds no facts of its own."),
+    "the model is told what to use; nothing checks that it added nothing",
+  );
 });
 
 test("every sentence of the Coach notes section is under 15 words, with no exclamation", () => {
-  const text = coachNotesSection();
-  assert.ok(!text.includes("!"));
-  text
-    .split(/(?<=[.?])\s+/)
-    .filter((sentence) => sentence.trim() !== "")
-    .forEach((sentence) => {
-      const words = sentence.trim().split(" ").length;
-      assert.ok(words < MAX_SENTENCE_WORDS, words + " words: " + sentence);
-    });
+  assertShortSentences(coachNotesSection());
+});
+
+test("how.html's tips section says the tips show first and the notes take their place", () => {
+  const prose = tipsSectionParagraphs().join(" ");
+  assert.ok(prose.includes("The tips show first."));
+  assert.ok(prose.includes("Coach notes take their place when they arrive."));
+  assertShortSentences(prose);
 });
 
 test("how.html keeps one numbered section per rule, 1 to 8, in order", () => {
@@ -70,37 +97,73 @@ test("how.html keeps one numbered section per rule, 1 to 8, in order", () => {
   assert.deepEqual(headings, [1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
-test("styles.css styles each coach notes class from tokens only", () => {
+test("styles.css draws the notes as one card, split by dividers, from tokens only", () => {
   const css = read("styles.css");
   const lead = ruleFor(css, ".coach-notes__lead");
   assert.match(lead, /font-size: var\(--fs-small\)/);
   assert.match(lead, /color: var\(--muted\)/);
 
-  assert.match(ruleFor(css, ".tip-card__text"), /margin: 0/);
-  assert.match(ruleFor(css, ".tip-card__drill"), /font-size: var\(--fs-small\)/);
-  assert.match(ruleFor(css, ".tip-card__drill-label"), /font-weight: 600/);
+  // One surface card, as the headline is: the list it is loses its bullets and indent.
+  const card = ruleFor(css, ".coach-notes");
+  assert.match(card, /background: var\(--surface\)/);
+  assert.match(card, /border: 1px solid var\(--border\)/);
+  assert.match(card, /border-radius: var\(--r-card\)/);
+  assert.match(card, /list-style: none/);
+  assert.match(card, /padding: 0/);
+  assert.match(card, /overflow-wrap: anywhere/, "a long title stays inside 320px");
+  assert.match(ruleFor(css, ".coach-notes__note"), /padding: var\(--s-4\)/);
+  assert.match(
+    ruleFor(css, ".coach-notes__note + .coach-notes__note"),
+    /border-top: 1px solid var\(--border\)/,
+    "a 1px divider between two notes, none along the card's edge",
+  );
 
-  const source = ruleFor(css, ".tip-card__source");
+  assert.match(ruleFor(css, ".coach-notes__text"), /margin: 0/);
+  assert.match(ruleFor(css, ".coach-notes__drill"), /font-size: var\(--fs-small\)/);
+  assert.match(ruleFor(css, ".coach-notes__drill-label"), /font-weight: 600/);
+
+  // "Source:" and the link run on as text: no flex row that drops the link below the label.
+  const source = ruleFor(css, ".coach-notes__source");
   assert.match(source, /font-size: var\(--fs-micro\)/);
   assert.match(source, /color: var\(--muted\)/);
-  assert.match(source, /flex-wrap: wrap/);
+  assert.doesNotMatch(source, /display:/);
 
-  const link = ruleFor(css, ".tip-card__link");
-  assert.match(link, /min-height: 44px/, "a 44px tap target");
-  assert.match(link, /margin: calc\(-1 \* var\(--s-3\)\) 0/);
-  assert.match(link, /padding: var\(--s-3\) 0/);
+  // An inline link whose padding makes a 44px tap target: 12px of text and 16px above and below.
+  // The source line sits as far under the line above, so that target never covers the drill.
+  const link = ruleFor(css, ".coach-notes__link");
+  assert.doesNotMatch(link, /display:/, "inline, so it wraps like the words around it");
+  assert.match(link, /padding: var\(--s-4\) 0/);
   assert.match(link, /color: var\(--accent\)/);
-  assert.match(link, /overflow-wrap: anywhere/);
+  assert.match(source, /margin: var\(--s-4\) 0 0/);
 
-  const badge = ruleFor(css, ".tip-card__badge");
+  const badge = ruleFor(css, ".coach-notes__badge");
   assert.match(badge, /background: var\(--ok-bg\)/);
   assert.match(badge, /color: var\(--ok\)/);
   assert.match(badge, /border-radius: var\(--r-chip\)/);
   assert.match(badge, /font-size: var\(--fs-micro\)/);
+  assert.match(badge, /white-space: nowrap/);
 
-  [lead, source, link, badge].forEach((rule) => {
+  [lead, card, source, link, badge].forEach((rule) => {
     assert.doesNotMatch(rule, /#[0-9a-f]{3,8}\b/i, "no raw hex color");
   });
+  assert.ok(!/\.tip-card__/.test(css), "the notes no longer borrow the tip card's parts");
+});
+
+test("focus moved to the Coach notes heading scrolls clear of the action bar and the nav", () => {
+  const css = read("styles.css");
+  assert.match(
+    ruleFor(css, ".coach-notes__heading"),
+    /scroll-margin-bottom: calc\(var\(--nav-h\) \+ var\(--s-7\) \+ var\(--s-6\) \+ env\(safe-area-inset-bottom\)\)/,
+    "the room every link and button above the stuck bar asks for",
+  );
+  const short = css.slice(css.indexOf("@media (max-height: 480px), (max-width: 319px)"));
+  const where = /\n {2}\.coach-notes__heading \{([^}]*)\}/.exec(short);
+  assert.ok(where, "the short or zoomed window, where the bar sits at the end of the page");
+  assert.match(
+    where[1],
+    /scroll-margin-bottom: calc\(var\(--nav-h\) \+ var\(--s-2\) \+ env\(safe-area-inset-bottom\)\)/,
+    "there it clears only the nav, as every link and button does",
+  );
 });
 
 test("frontend/README.md names the coach notes and their source links", () => {

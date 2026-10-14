@@ -1,8 +1,8 @@
 // Tests for the coach notes on Results (docs/PLAN.md T41): the rule tips are drawn at once, the
 // cited notes from POST /api/advice take their place when they arrive, a failed request keeps
-// the tips, a slow reply never paints over a newer take, and the request names the speaker's
-// tier. ui.js, delivery.js, tips.js and results.js run for real; app.store, app.auth and the
-// document are fakes.
+// the tips, a slow reply never paints over a newer take, the request names the speaker's tier,
+// and the notes' arrival keeps keyboard focus and is announced. ui.js, delivery.js, tips.js and
+// results.js run for real; app.store, app.auth and the document are fakes.
 "use strict";
 
 const test = require("node:test");
@@ -11,7 +11,42 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const { FakeElement, fakeDocument, byClass } = require("./fake-dom");
+const { FakeElement, FakeTextNode, byClass } = require("./fake-dom");
+
+// The shared fake element, extended here as practice_revamp.test.js extends it: it takes
+// focus(), logging it, and answers contains() for itself and anything below it.
+class FocusElement extends FakeElement {
+  constructor(tagName, namespaceURI, focusLog) {
+    super(tagName, namespaceURI);
+    this.focusLog = focusLog;
+  }
+
+  focus() {
+    this.focusLog.push(this);
+  }
+
+  contains(node) {
+    return (
+      node === this ||
+      this.children.some((child) => typeof child.contains === "function" && child.contains(node))
+    );
+  }
+}
+
+// The document of the shared fake DOM with focus: its activeElement is the element focused
+// last (null before any focus() call), and getElementById finds the #live region that
+// app.ui.announce writes.
+function focusDocument(focusLog, live) {
+  return {
+    get activeElement() {
+      return focusLog.length > 0 ? focusLog[focusLog.length - 1] : null;
+    },
+    createElement: (tagName) => new FocusElement(tagName, null, focusLog),
+    createElementNS: (namespaceURI, tagName) => new FocusElement(tagName, namespaceURI, focusLog),
+    createTextNode: (text) => new FakeTextNode(text),
+    getElementById: (id) => (id === "live" ? live : null),
+  };
+}
 
 const FRONTEND_DIR = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
@@ -87,11 +122,17 @@ function flush() {
 
 // Mounts Results against the fakes. store.get serves `sessions` by id, store.list returns them
 // newest first and counts its calls, flags live in a Map, and auth.request hands each call to
-// `reply(call)` for its {status, body}. `withRank` loads rank.js too.
+// `reply(call)` for its {status, body}. `withRank` loads rank.js too. `calls.draws` counts the
+// times the take is drawn: every draw empties the body and starts again with the meta line.
+// The section holds the screen's h1 above the body, as index.html does; `focused()` reads the
+// document's activeElement and `live` is the live region.
 function mount(sessions, reply, options) {
   const settings = options || {};
-  const calls = { lists: 0, requests: [] };
+  const calls = { lists: 0, requests: [], draws: 0 };
   const flags = new Map(settings.flags || []);
+  const focusLog = [];
+  const live = new FakeElement("div");
+  const document = focusDocument(focusLog, live);
   const byId = Object.fromEntries(sessions.map((session) => [session.id, session]));
   const newestFirst = [...sessions].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
   const context = {
@@ -119,19 +160,30 @@ function mount(sessions, reply, options) {
       },
       router: { go() {} },
     },
-    document: fakeDocument(),
+    document,
   };
   SOURCES.forEach(([file, source]) => vm.runInNewContext(source, context, { filename: file }));
   if (settings.withRank) {
     vm.runInNewContext(RANK_SOURCE, context, { filename: "rank.js" });
   }
-  const root = new FakeElement("section");
-  const body = new FakeElement("div");
+  const root = new FocusElement("section", null, focusLog);
+  const title = new FocusElement("h1", null, focusLog);
+  title.textContent = "Results";
+  root.appendChild(title);
+  const body = new FocusElement("div", null, focusLog);
   body.className = "screen__body";
+  const append = body.appendChild.bind(body);
+  body.appendChild = (child) => {
+    if (child.classList && child.classList.contains("results__meta")) {
+      calls.draws += 1;
+    }
+    return append(child);
+  };
   root.appendChild(body);
   const results = context.app.screens.results;
   results.mount(root);
-  return { results, body, calls, flags, app: context.app };
+  const focused = () => document.activeElement;
+  return { results, title, body, calls, flags, app: context.app, focused, live };
 }
 
 function fullText(node) {
@@ -144,8 +196,22 @@ function headingsOf(body) {
   return body.children.filter((node) => node.tagName === "h2").map((node) => node.textContent);
 }
 
+// The rule tips' cards: one each.
 function cardsOf(body) {
   return body.children.filter((node) => node.classList.contains("tip-card"));
+}
+
+// The one Coach notes card in the body, or undefined while the tips show.
+function notesCardOf(body) {
+  const cards = body.children.filter((node) => node.classList.contains("coach-notes"));
+  assert.ok(cards.length <= 1, "never more than one Coach notes card");
+  return cards[0];
+}
+
+// The notes in that card, or [] while the tips show.
+function notesOf(body) {
+  const card = notesCardOf(body);
+  return card ? card.children : [];
 }
 
 const CURRENT = takeOf("current", OCT(10, "10"), 40, [2, 5, 9]);
@@ -171,39 +237,63 @@ test("the tips are drawn at once and the coach notes take their place on arrival
   assert.equal(calls.requests[0].method, "POST");
   assert.equal(calls.requests[0].url, "/api/advice");
 
-  const cards = cardsOf(body);
-  assert.equal(cards.length, 3);
+  assert.deepEqual(cardsOf(body), [], "no tip card is left");
+  const card = notesCardOf(body);
+  assert.equal(card.tagName, "ul", "one card holds every note");
+  assert.equal(card.getAttribute("role"), "list", "Safari drops a list's role with its style");
+  const notes = notesOf(body);
+  assert.equal(notes.length, 3);
+  notes.forEach((note) => {
+    assert.equal(note.tagName, "li");
+    assert.equal(note.className, "coach-notes__note");
+  });
   assert.deepEqual(
-    cards.map((card) => byClass(card, "tip-card__text").textContent),
+    notes.map((note) => byClass(note, "coach-notes__text").textContent),
     REPLY.tips.map((tip) => tip.text),
   );
-  assert.ok(byClass(cards[0], "tip-card__text").tagName === "p");
+  assert.equal(byClass(notes[0], "coach-notes__text").tagName, "p");
 
-  const drill = byClass(cards[0], "tip-card__drill");
+  const drill = byClass(notes[0], "coach-notes__drill");
   assert.equal(fullText(drill), "Drill: Read one paragraph aloud and pause at each comma.");
-  assert.equal(byClass(drill, "tip-card__drill-label").textContent, "Drill:");
-  assert.equal(byClass(cards[1], "tip-card__drill"), undefined, "no drill line without a drill");
+  assert.equal(byClass(drill, "coach-notes__drill-label").textContent, "Drill:");
+  assert.equal(byClass(notes[1], "coach-notes__drill"), undefined, "no drill line without one");
 
-  const source = byClass(cards[0], "tip-card__source");
-  assert.equal(source.children[0].textContent, "Source:");
-  const link = byClass(source, "tip-card__link");
+  // "Source:" and the citation run on as one line of text, wrapping like words.
+  const source = byClass(notes[0], "coach-notes__source");
+  assert.equal(source.tagName, "p");
+  assert.equal(
+    fullText(source),
+    "Source: Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab",
+  );
+  assert.equal(source.children[0].textContent, "Source: ", "the label, then a space");
+  const link = byClass(source, "coach-notes__link");
+  assert.equal(source.children[1], link, "the link right after the label");
   assert.equal(link.tagName, "a");
   assert.equal(link.getAttribute("href"), "https://example.org/um");
   assert.equal(link.getAttribute("target"), "_blank");
   assert.equal(link.getAttribute("rel"), "noopener");
   assert.equal(link.textContent, "Lisa B. Marshall, Um, How Do I Stop (2017)");
-  assert.equal(fullText(link), "Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab");
-  assert.equal(byClass(source, "tip-card__badge"), undefined, "no badge for an organization");
+  // The hidden new-tab note sits inside the <a>, so it is part of the link's accessible name.
+  assert.equal(
+    fullText(link),
+    "Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab",
+    "the new-tab note is inside the link",
+  );
+  assert.equal(byClass(source, "coach-notes__badge"), undefined, "no pill for an organization");
 
-  const reviewed = byClass(cards[1], "tip-card__source");
-  assert.equal(byClass(reviewed, "tip-card__badge").textContent, "Peer reviewed");
-  assert.equal(byClass(reviewed, "tip-card__link").getAttribute("href"), "https://example.org/p");
+  const reviewed = byClass(notes[1], "coach-notes__source");
+  assert.equal(
+    fullText(reviewed),
+    "Source: Smith and Lee, Pausing (2019), opens in a new tab Peer reviewed",
+    "the pill comes after the link",
+  );
+  assert.equal(byClass(reviewed, "coach-notes__badge").textContent, "Peer reviewed");
+  assert.equal(byClass(reviewed, "coach-notes__link").getAttribute("href"), "https://example.org/p");
 
-  const unlinked = byClass(cards[2], "tip-card__source");
-  assert.equal(byClass(unlinked, "tip-card__link"), undefined, "an ftp url is not a link");
-  assert.equal(unlinked.children[1].tagName, "span");
-  assert.equal(unlinked.children[1].textContent, "A Debate Coach, Openings (n.d.)");
-  assert.equal(byClass(unlinked, "tip-card__badge"), undefined);
+  const unlinked = byClass(notes[2], "coach-notes__source");
+  assert.equal(byClass(unlinked, "coach-notes__link"), undefined, "an ftp url is not a link");
+  assert.equal(fullText(unlinked), "Source: A Debate Coach, Openings (n.d.)");
+  assert.equal(byClass(unlinked, "coach-notes__badge"), undefined);
 
   const last = body.children[body.children.length - 1];
   assert.ok(last.classList.contains("results__actions"), "the action bar still ends the page");
@@ -276,7 +366,18 @@ test("a failed or empty request keeps the tips and draws the take twice at most"
     assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
     assert.equal(byClass(body, "coach-notes__lead"), undefined);
     assert.ok(byClass(body, "metric-grid__note"), "the comparison with the last take still drew");
+    assert.equal(calls.draws, 2, "the take at once, then with the comparison; no third draw");
   }
+});
+
+test("notes that arrive draw the take a third time, after the comparison", async () => {
+  const { results, calls } = mount([EARLIER, CURRENT], () => ({ status: 200, body: REPLY }));
+  await results.show({ id: "current" });
+  assert.equal(calls.draws, 3);
+
+  const alone = mount([CURRENT], () => ({ status: 200, body: REPLY }));
+  await alone.results.show({ id: "current" });
+  assert.equal(alone.calls.draws, 2, "with no last take there is no comparison draw");
 });
 
 test("notes kept from an earlier visit show without a request", async () => {
@@ -285,7 +386,7 @@ test("notes kept from an earlier visit show without a request", async () => {
   await results.show({ id: "current" });
   assert.equal(calls.requests.length, 0);
   assert.deepEqual(headingsOf(body), ["Transcript", "Coach notes"]);
-  assert.equal(cardsOf(body).length, 3);
+  assert.equal(notesOf(body).length, 3);
 });
 
 test("the reply is kept and the ids shown are recorded for the next take", async () => {
@@ -297,6 +398,26 @@ test("the reply is kept and the ids shown are recorded for the next take", async
     "pause-002",
     "general-003",
   ]);
+});
+
+test("the library's own words are not kept: reopening the take asks again", async () => {
+  const library = { ...REPLY, source: "library" };
+  const { results, body, calls, flags } = mount([CURRENT], () => ({
+    status: 200,
+    body: library,
+  }));
+  await results.show({ id: "current" });
+  assert.deepEqual(headingsOf(body), ["Transcript", "Coach notes"]);
+  assert.equal(flags.get("coachNotes:current"), undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(flags.get("coachNotesShown"))), [
+    "filler-001",
+    "pause-002",
+    "general-003",
+  ]);
+
+  await results.show({ id: "current" });
+  assert.equal(calls.requests.length, 2);
+  assert.deepEqual(calls.requests[1].body.shown_ids, ["filler-001", "pause-002", "general-003"]);
 });
 
 test("a slow reply from an earlier visit never draws over a newer take", async () => {
@@ -350,4 +471,86 @@ test("without tips.js's coachNotes, or without auth, the screen keeps the tips",
   await guestless.results.show({ id: "current" });
   assert.deepEqual(headingsOf(guestless.body), ["Transcript", "Tips"]);
   assert.equal(guestless.calls.requests.length, 0);
+});
+
+// The History button of the action bar now in the body: a control the third draw replaces.
+function historyButton(body) {
+  return byClass(body, "results__actions").children[0];
+}
+
+test("focus in the body moves to the Coach notes heading, and the notes are announced", async () => {
+  const replied = deferred();
+  const page = mount([EARLIER, CURRENT], () => replied.promise);
+  const shown = page.results.show({ id: "current" });
+  await flush();
+  historyButton(page.body).focus();
+  assert.equal(page.live.textContent, "");
+
+  replied.resolve({ status: 200, body: REPLY });
+  await shown;
+  const heading = page.focused();
+  assert.equal(heading.tagName, "h2");
+  assert.equal(heading.textContent, "Coach notes");
+  assert.equal(heading.getAttribute("tabindex"), "-1", "focusable, never a Tab stop");
+  assert.ok(page.body.children.includes(heading), "the heading the third draw put in the body");
+  assert.equal(page.live.textContent, "Coach notes ready.");
+});
+
+test("focus outside the body stays put, and the notes are announced all the same", async () => {
+  // The router leaves focus on the h1 after a screen change; a page just opened has none.
+  for (const focusTitle of [true, false]) {
+    const replied = deferred();
+    const page = mount([EARLIER, CURRENT], () => replied.promise);
+    const shown = page.results.show({ id: "current" });
+    if (focusTitle) {
+      page.title.focus();
+    }
+    await flush();
+    replied.resolve({ status: 200, body: REPLY });
+    await shown;
+    assert.equal(page.focused(), focusTitle ? page.title : null);
+    assert.deepEqual(headingsOf(page.body), ["Transcript", "Coach notes"]);
+    assert.equal(page.live.textContent, "Coach notes ready.");
+  }
+});
+
+test("notes kept from an earlier visit are announced as they replace the tips", async () => {
+  const flags = [["coachNotes:current", REPLY]];
+  const page = mount([CURRENT], () => ({ status: 0, body: null }), { flags });
+  await page.results.show({ id: "current" });
+  assert.equal(page.live.textContent, "Coach notes ready.");
+});
+
+test("no notes, no announcement, and focus stays on its control", async () => {
+  const replied = deferred();
+  const page = mount([EARLIER, CURRENT], () => replied.promise);
+  const shown = page.results.show({ id: "current" });
+  await flush();
+  const button = historyButton(page.body);
+  button.focus();
+
+  replied.resolve({ status: 500, body: { detail: "down" } });
+  await shown;
+  assert.equal(page.focused(), button);
+  assert.ok(page.body.contains(button), "the tips' draw is still the one shown");
+  assert.equal(page.live.textContent, "");
+});
+
+test("notes that arrive after the speaker left Results draw nothing and say nothing", async () => {
+  const replied = deferred();
+  const page = mount([EARLIER, CURRENT], () => replied.promise);
+  const shown = page.results.show({ id: "current" });
+  await flush();
+  page.results.hide();
+
+  replied.resolve({ status: 200, body: REPLY });
+  await shown;
+  assert.equal(page.calls.draws, 2, "the hidden screen is not drawn again");
+  assert.deepEqual(headingsOf(page.body), ["Transcript", "Tips"]);
+  assert.equal(page.live.textContent, "", "nothing is announced over another screen");
+
+  await page.results.show({ id: "current" });
+  assert.equal(page.calls.requests.length, 1, "Claude's notes were kept while the speaker was away");
+  assert.deepEqual(headingsOf(page.body), ["Transcript", "Coach notes"]);
+  assert.equal(page.live.textContent, "Coach notes ready.");
 });

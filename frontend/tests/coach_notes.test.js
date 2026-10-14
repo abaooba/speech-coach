@@ -42,10 +42,30 @@ function fakeAuth(reply) {
   };
 }
 
+// A fake app.auth whose requests stay open until the test answers them: answer(index, reply)
+// settles the index-th request with its {status, body}.
+function heldAuth() {
+  const calls = [];
+  const settle = [];
+  return {
+    calls,
+    request: (method, url, body) => {
+      calls.push({ method, url, body: JSON.parse(JSON.stringify(body)) });
+      return new Promise((resolve) => settle.push(resolve));
+    },
+    answer: (index, reply) => settle[index](reply),
+  };
+}
+
 function load(extras) {
   const app = { ...(extras || {}) };
   vm.runInNewContext(TIPS_SOURCE, { app }, { filename: "tips.js" });
   return app.tips;
+}
+
+// Lets every pending store read and request start before the test goes on.
+function flush() {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 // The module runs in another realm: compare through JSON so plain objects match.
@@ -110,6 +130,11 @@ const REPLY = {
   ],
   source: "ai",
 };
+// A reply of the server's shape whose notes draw on the entries `ids`.
+function replyWith(ids, source) {
+  return { tips: ids.map((id) => ({ ...VALID_TIP, entry_id: id })), source: source || "ai" };
+}
+
 const NOTES = {
   tips: [
     {
@@ -340,6 +365,36 @@ test("coachNotes asks the server once, keeps the reply and records the ids shown
   );
 });
 
+test("the library's own words are shown, not kept, and the next visit asks again", async () => {
+  const store = fakeStore(false);
+  store.flags.set("coachNotesShown", ["old-1"]);
+  const library = replyWith(["lib-1", "lib-2"], "library");
+  const auth = fakeAuth({ status: 200, body: library });
+  const tips = load({ store, auth });
+
+  const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Novice");
+  assert.equal(notes.source, "library");
+  assert.deepEqual(plain(notes.tips.map((tip) => tip.entryId)), ["lib-1", "lib-2"]);
+  assert.ok(!store.flags.has("coachNotes:take-1"), "no key, a timeout or a spent budget");
+  assert.deepEqual(store.flags.get("coachNotesShown"), ["old-1", "lib-1", "lib-2"]);
+
+  await tips.coachNotes(SESSION, REPORT, [140, 160], "Novice");
+  assert.equal(auth.calls.length, 2, "a later visit asks again, when Claude may answer");
+  assert.deepEqual(auth.calls[1].body.shown_ids, ["old-1", "lib-1", "lib-2"]);
+});
+
+test("only Claude's notes come back from the flag; anything else there is asked again", async () => {
+  const store = fakeStore(false);
+  store.flags.set("coachNotes:take-1", { ...REPLY, source: "library" });
+  const auth = fakeAuth({ status: 200, body: REPLY });
+  const tips = load({ store, auth });
+
+  const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
+  assert.equal(auth.calls.length, 1);
+  assert.deepEqual(plain(notes), NOTES);
+  assert.deepEqual(store.flags.get("coachNotes:take-1"), REPLY, "Claude's reply replaces it");
+});
+
 test("coachNotes answers from the kept reply without a request", async () => {
   const store = fakeStore(false);
   store.flags.set("coachNotes:take-1", REPLY);
@@ -410,4 +465,69 @@ test("the shown list is capped at 2,000 ids, dropping the oldest", async () => {
   assert.equal(shown.length, 2000);
   assert.equal(shown[0], "id-2");
   assert.deepEqual(shown.slice(-2), ["filler-001", "pause-002"]);
+});
+
+test("two takes asked about at once both land in the shown list", async () => {
+  // The replies land one after the other, then both in the same moment: either way each write
+  // adds to the list as it stands then, not as it stood when its request went out.
+  for (const together of [false, true]) {
+    const store = fakeStore(false);
+    store.flags.set("coachNotesShown", ["old-1"]);
+    const auth = heldAuth();
+    const tips = load({ store, auth });
+    const first = tips.coachNotes({ ...SESSION, id: "take-1" }, REPORT);
+    const second = tips.coachNotes({ ...SESSION, id: "take-2" }, REPORT);
+    await flush();
+    assert.deepEqual(
+      auth.calls.map((call) => call.body.shown_ids),
+      [["old-1"], ["old-1"]],
+      "both requests went out before either reply landed",
+    );
+
+    auth.answer(0, { status: 200, body: replyWith(["a-1", "a-2"]) });
+    if (!together) {
+      await first;
+    }
+    auth.answer(1, { status: 200, body: replyWith(["b-1", "b-2"]) });
+    await Promise.all([first, second]);
+    assert.deepEqual(
+      store.flags.get("coachNotesShown"),
+      ["old-1", "a-1", "a-2", "b-1", "b-2"],
+      together ? "replies landing together" : "replies landing one after the other",
+    );
+  }
+});
+
+test("a take asked about again before its reply lands shares the one request", async () => {
+  const store = fakeStore(false);
+  const auth = heldAuth();
+  const tips = load({ store, auth });
+  const first = tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
+  const again = tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
+  assert.equal(again, first, "the second call gets the request still open");
+  await flush();
+  assert.equal(auth.calls.length, 1, "one request, so one AI call");
+
+  auth.answer(0, { status: 200, body: REPLY });
+  assert.deepEqual(plain(await first), NOTES);
+  const later = tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
+  assert.notEqual(later, first, "a request that has landed is not shared");
+  assert.deepEqual(plain(await later), NOTES, "Claude's notes come back from the store");
+  assert.equal(auth.calls.length, 1);
+});
+
+test("a request that failed is not shared: the next visit asks again", async () => {
+  const store = fakeStore(false);
+  const auth = heldAuth();
+  const tips = load({ store, auth });
+  const first = tips.coachNotes(SESSION, REPORT);
+  await flush();
+  auth.answer(0, { status: 500, body: { detail: "down" } });
+  assert.equal(await first, null);
+
+  const next = tips.coachNotes(SESSION, REPORT);
+  await flush();
+  assert.equal(auth.calls.length, 2);
+  auth.answer(1, { status: 200, body: REPLY });
+  assert.deepEqual(plain(await next), NOTES);
 });

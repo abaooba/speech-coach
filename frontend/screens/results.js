@@ -167,10 +167,10 @@
   const TIPS_TITLE = "Tips";
 
   // Coach notes (docs/PLAN.md T41): the cited notes from POST /api/advice take the Tips section's
-  // place once they arrive. The lead names who wrote them, by the reply's `source` (tips.js
-  // SOURCES): Claude for this take, or the library's own words while the AI is off or its hourly
-  // budget is spent. A note's source is a link that opens in a new tab, and a peer-reviewed
-  // source carries a badge, so the evidence behind each note is one tap away.
+  // place once they arrive, together in one card. The lead names who wrote them, by the reply's
+  // `source` (tips.js SOURCES): Claude for this take, or the library's own words while the AI is
+  // off or its hourly budget is spent. A note's source is a link that opens in a new tab, and a
+  // peer-reviewed source carries a badge, so the evidence behind each note is one tap away.
   const COACH_NOTES_TITLE = "Coach notes";
   const NOTES_LEAD = Object.freeze({
     ai: "Written for this take by Claude, from the research library.",
@@ -182,6 +182,8 @@
   const PEER_REVIEWED_BADGE = "Peer reviewed";
   // Read after the link's text, so a screen reader hears where the link goes.
   const NEW_TAB_NOTE = ", opens in a new tab";
+  // Said in the live region when the notes take the tips' place, a swap nothing else would say.
+  const NOTES_READY_ANNOUNCEMENT = "Coach notes ready.";
   // The tier the request names while rank.js is not loaded: the server's own default
   // (backend/advice/select.py DEFAULT_TIER). rank.js joins index.html with the rank badge (T37);
   // until then every speaker is coached at the beginner level.
@@ -603,7 +605,7 @@
   // drawn again with the comparison. The same list gives the speaker's tier for the coach notes,
   // which are asked for last and, when they come, take the tips' place in a third draw. A ticket
   // check before each draw means a slow earlier visit can never paint over a newer one, whichever
-  // read is the slow one, and a take the speaker has left asks for no notes.
+  // read is the slow one, and a take the speaker has left (hide) asks for no notes and draws none.
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
@@ -627,7 +629,38 @@
     const notes = await loadCoachNotes(session, view.summary, sessions);
     if (notes !== null && ticket === showCount) {
       view.notes = notes;
-      renderSession(session, view, previous);
+      drawNotes(session, view, previous);
+    }
+  }
+
+  // The third draw, with the coach notes in the tips' place. Like every draw it rebuilds the
+  // body, so a link or button the speaker was on inside it is gone: focus then moves to the
+  // Coach notes heading, where the next Tab carries on, instead of falling to the page. Focus
+  // anywhere else (the h1, the nav) stays put. Either way the live region says the notes are
+  // ready, since the tips change under the speaker without a sound.
+  function drawNotes(session, view, previous) {
+    const focusWasInBody = holdsFocus(body);
+    const heading = renderSession(session, view, previous);
+    if (focusWasInBody) {
+      focusIfPossible(heading);
+    }
+    app.ui.announce(NOTES_READY_ANNOUNCEMENT);
+  }
+
+  // True when keyboard focus sits on `node` or inside it. Some test fakes have no activeElement,
+  // and some have no contains().
+  function holdsFocus(node) {
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    if (!active || !node || typeof node.contains !== "function") {
+      return false;
+    }
+    return node.contains(active);
+  }
+
+  // Moves keyboard focus when the node can take it; the test fakes may have no focus().
+  function focusIfPossible(node) {
+    if (node && typeof node.focus === "function") {
+      node.focus();
     }
   }
 
@@ -722,8 +755,12 @@
     }
   }
 
-  // Nothing to release: show() rebuilds the body from the stored session every time.
-  function hide() {}
+  // Leaving the screen ends the visit: a draw still on its way (the comparison, the coach notes)
+  // is dropped, so a hidden screen is never redrawn and never announces over another one.
+  // Nothing else to release: show() rebuilds the body from the stored session every time.
+  function hide() {
+    showCount += 1;
+  }
 
   function renderNotFound() {
     app.ui.renderState(body, {
@@ -763,11 +800,13 @@
   // transcript (both skipped when the session has no words; pause markers alone would mean
   // nothing), the coach notes once they have arrived or else the tips (skipped when there are
   // none), the two actions. `previous` is the last take, or null while there is none to compare
-  // with; it is summarized for the comparison only, so no tips are chosen for it.
+  // with; it is summarized for the comparison only, so no tips are chosen for it. Returns the
+  // Coach notes heading, or null when the notes are not drawn.
   function renderSession(session, view, previous) {
     const { summary, plan, hasTranscript, segments, tips, notes } = view;
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
+    let notesHeading = null;
 
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
@@ -785,15 +824,17 @@
       body.appendChild(buildTranscript(plan));
     }
     if (notes) {
-      body.appendChild(sectionTitle(COACH_NOTES_TITLE));
+      notesHeading = buildNotesHeading();
+      body.appendChild(notesHeading);
       const lead = NOTES_LEAD[notes.source];
       body.appendChild(app.ui.el("p", { class: "coach-notes__lead", text: lead }));
-      notes.tips.forEach((note) => body.appendChild(buildNoteCard(note)));
+      body.appendChild(buildNotesCard(notes.tips));
     } else if (tips.length > 0) {
       body.appendChild(sectionTitle(TIPS_TITLE));
       tips.forEach((tip) => body.appendChild(buildTipCard(tip)));
     }
     body.appendChild(buildActions());
+    return notesHeading;
   }
 
   // The pauses the pauses card counts (mid-sentence, or 5 s+ anywhere), as [at, length] pairs
@@ -843,6 +884,16 @@
 
   function sectionTitle(text) {
     return app.ui.el("h2", { class: "results__heading", text });
+  }
+
+  // The section title over the coach notes. Focus moves to it when the notes replace the control
+  // the speaker was on (drawNotes), so script can focus it (tabindex="-1"), but Tab never stops.
+  function buildNotesHeading() {
+    return app.ui.el("h2", {
+      class: "results__heading coach-notes__heading",
+      tabindex: "-1",
+      text: COACH_NOTES_TITLE,
+    });
   }
 
   // Every item is followed by a space text node, so the words keep their breaks when the
@@ -936,33 +987,41 @@
     return app.ui.el("div", { class: "tip-card", text: tip.text });
   }
 
-  // One coach note in the tip card: the note, its drill when the entry has one, then its source.
-  function buildNoteCard(note) {
-    const parts = [app.ui.el("p", { class: "tip-card__text", text: note.text })];
+  // The one Coach notes card, every note in it with a divider between two. It is a list, so a
+  // screen reader says how many notes it holds; Safari drops that role with the list style, so
+  // the role is set, as on History's session list.
+  function buildNotesCard(notes) {
+    return app.ui.el("ul", { class: "coach-notes", role: "list" }, notes.map(buildNote));
+  }
+
+  // One note in the card: the note, its drill when the entry has one, then its source.
+  function buildNote(note) {
+    const parts = [app.ui.el("p", { class: "coach-notes__text", text: note.text })];
     if (note.drill) {
       parts.push(
-        app.ui.el("p", { class: "tip-card__drill" }, [
-          app.ui.el("span", { class: "tip-card__drill-label", text: DRILL_LABEL }),
+        app.ui.el("p", { class: "coach-notes__drill" }, [
+          app.ui.el("span", { class: "coach-notes__drill-label", text: DRILL_LABEL }),
           TOKEN_SEPARATOR + note.drill,
         ]),
       );
     }
     parts.push(buildSourceLine(note.citation));
-    return app.ui.el("div", { class: "tip-card" }, parts);
+    return app.ui.el("li", { class: "coach-notes__note" }, parts);
   }
 
-  // "Source:" then the citation, as a link to the source when it has a web url (tips.js keeps
-  // only those) and as plain text otherwise, then the badge for a peer-reviewed source. The link
+  // "Source: " and the citation as one run of text, so the two share a line when they fit and
+  // wrap like any words when they do not: a link to the source when it has a web url (tips.js
+  // keeps only those), plain text otherwise, then the badge for a peer-reviewed source. The link
   // opens in a new tab, since the speaker is mid-review of a take, with rel="noopener" so the
   // page it opens gets no handle on this one.
   function buildSourceLine(citation) {
-    const parts = [SOURCE_LABEL];
+    const parts = [SOURCE_LABEL + TOKEN_SEPARATOR];
     if (citation.url) {
       parts.push(
         app.ui.el(
           "a",
           {
-            class: "tip-card__link",
+            class: "coach-notes__link",
             href: citation.url,
             target: "_blank",
             rel: "noopener",
@@ -972,12 +1031,15 @@
         ),
       );
     } else {
-      parts.push(app.ui.el("span", { text: citation.label }));
+      parts.push(citation.label);
     }
     if (citation.type === PEER_REVIEWED_TYPE) {
-      parts.push(app.ui.el("span", { class: "tip-card__badge", text: PEER_REVIEWED_BADGE }));
+      parts.push(
+        TOKEN_SEPARATOR,
+        app.ui.el("span", { class: "coach-notes__badge", text: PEER_REVIEWED_BADGE }),
+      );
     }
-    return app.ui.el("p", { class: "tip-card__source" }, parts);
+    return app.ui.el("p", { class: "coach-notes__source" }, parts);
   }
 
   // "Gettysburg Address, opening · Oct 10, 10:30 AM", plus " · 2:41 of 3:00" for a timed
