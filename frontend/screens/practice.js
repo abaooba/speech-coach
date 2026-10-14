@@ -130,6 +130,10 @@
   // Its material and its seconds stand in for the selected entry and that entry's time limit.
   let levelRequest = null;
 
+  // True from the router's show() until its hide(): Practice is the screen on show. A request
+  // that comes meanwhile is painted at once, since the router has nothing new to show for it.
+  let shown = false;
+
   // The clock's seconds, to a tenth, at each "Heard one" tap during the take recording now.
   let liveTaps = [];
 
@@ -847,6 +851,16 @@
     return active === node || (typeof node.contains === "function" && node.contains(active));
   }
 
+  // True when keyboard focus sits on no control: on <body>, where the browser leaves it when the
+  // focused node leaves the page, or on nothing in the test fakes.
+  function focusIsLost() {
+    if (typeof document === "undefined") {
+      return false;
+    }
+    const active = document.activeElement;
+    return !active || active === document.body;
+  }
+
   // Moves keyboard focus when the node can take it; the test fakes have no focus().
   function focusIfPossible(node) {
     if (node && typeof node.focus === "function") {
@@ -886,6 +900,7 @@
   // failed upload still holds its take: then its Upload failed block is drawn again, clock and
   // all, whether the upload failed before the speaker left or while they were away.
   function show() {
+    shown = true;
     if (state === "recording" || state === "uploading") {
       return;
     }
@@ -903,6 +918,7 @@
   // it: the Level screen asks again when the speaker goes back to it, and a later visit to
   // Practice is a normal one.
   function hide() {
+    shown = false;
     capture.awaitingMic = false;
     if (pendingTake === null) {
       levelRequest = null;
@@ -917,7 +933,9 @@
   // The Level screen's way in (spec section 7): hold the request and go to #/practice, where
   // show() paints it. A take still held from before (a failed upload) is let go, since the
   // request asks for a new take; an upload already in flight still answers the request it was
-  // recorded under, while Practice holds the new one.
+  // recorded under, while Practice holds the new one. When Practice is already on show (the
+  // request comes from onSaved or onLeave, say), going to #/practice changes no hash and the
+  // router calls no show(), so the request is painted here.
   function startLevelTake(request) {
     if (!isLevelRequest(request)) {
       throw new TypeError(
@@ -929,7 +947,33 @@
     if (failedUpload !== null) {
       letTakeGo();
     }
+    if (shown) {
+      paintRequestInPlace();
+    }
     app.router.go(PRACTICE_ROUTE);
+  }
+
+  // Paints a request that came while Practice is on show, as show() would: a fresh take at 0:00
+  // under the banner. A take that records or uploads is left as it is, as show() leaves it; the
+  // banner shows with the next state the screen draws. Focus that the repaint would strand, on a
+  // part the banner hides (the switch, the chips, New topic, the hint row), in a block it clears
+  // or already on nothing, moves to the banner's title, as a screen change moves it to the new h1
+  // (tabindex -1, never a Tab stop); focus anywhere else stays where it is.
+  function paintRequestInPlace() {
+    if (state === "recording" || state === "uploading") {
+      return;
+    }
+    const stranded =
+      focusIsLost() ||
+      [nodes.modeSwitch, nodes.chipRow, nodes.newTopic, nodes.hint, nodes.stateBlock].some(
+        holdsFocus,
+      );
+    resetClock();
+    render("idle");
+    if (stranded) {
+      nodes.bannerTitle.setAttribute("tabindex", "-1");
+      focusIfPossible(nodes.bannerTitle);
+    }
   }
 
   // A request Practice can paint and record: its callbacks, and a material whose kind decides
