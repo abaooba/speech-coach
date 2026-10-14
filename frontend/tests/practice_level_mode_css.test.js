@@ -164,23 +164,31 @@ test("Leave level is a small text button on a 44px target, its words in line wit
   assert.equal(valueFor(leave, "font-weight"), "500");
 });
 
-test("on short screens the banner tightens and Leave level moves up beside the eyebrow", () => {
+test("on short screens the banner tightens and Leave level moves up beside the title", () => {
   const banner = ".practice__banner";
   assert.equal(valueFor(banner, "display", SHORT_SCREENS), "grid");
   assert.equal(valueFor(banner, "grid-template-columns", SHORT_SCREENS), "minmax(0, 1fr) auto");
   assert.equal(valueFor(banner, "padding", SHORT_SCREENS), "var(--s-3)");
-  for (const part of [".practice__banner-title", ".practice__banner-body"]) {
+  // The eyebrow has the banner's whole width, so it never wraps; the body runs under the title.
+  for (const part of [".practice__banner-eyebrow", ".practice__banner-body"]) {
     assert.equal(valueFor(part, "grid-column", SHORT_SCREENS), "1 / -1", part);
   }
+  assert.equal(valueFor(".practice__banner-eyebrow", "grid-row", SHORT_SCREENS), "1");
+  assert.equal(valueFor(".practice__banner-body", "grid-row", SHORT_SCREENS), "3");
+  const title = ".practice__banner-title";
+  assert.equal(valueFor(title, "grid-column", SHORT_SCREENS), "1");
+  assert.equal(valueFor(title, "grid-row", SHORT_SCREENS), "2");
   const leave = ".practice__banner-leave";
   assert.equal(valueFor(leave, "grid-column", SHORT_SCREENS), "2");
-  assert.equal(valueFor(leave, "grid-row", SHORT_SCREENS), "1");
+  assert.equal(valueFor(leave, "grid-row", SHORT_SCREENS), "2");
   assert.equal(
     valueFor(leave, "margin-block", SHORT_SCREENS),
     "calc(-1 * var(--s-3))",
-    "its 44px target overlaps the row, which stays as tall as the eyebrow",
+    "its 44px target overlaps the row, which stays as tall as the title",
   );
-  assert.equal(valueFor(".practice__banner-eyebrow", "grid-row", SHORT_SCREENS), "1");
+  for (const part of [title, leave]) {
+    assert.equal(valueFor(part, "align-self", SHORT_SCREENS), "baseline", "one baseline");
+  }
 });
 
 test("the live tap keeps its button centered, the count beside it, as the timer does", () => {
