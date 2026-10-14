@@ -1978,6 +1978,310 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-6);
 }
 
+/* 10b. Rank card ("ladder and lens", docs/PLAN.md T37) on Progress and Results. The stats sit
+   beside a ladder of all seven tiers: the tier, on Results the change this take made, the
+   rating, a 0 to 100 ruler at true scale whose wedge zooms the speaker's slice into the bar,
+   the bar's ends and the points to the next tier. A Master's gate and the foot run full width
+   under both columns. Nothing in it animates, and colour is never its only cue. */
+.rank-card {
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress: the first thing under the h1, a section gap above the metric switch (or above
+   "Need two sessions"). Results: under the headline, a section gap above the metric grid. */
+#screen-progress .rank-card {
+  margin-bottom: var(--s-6);
+}
+
+#screen-results .rank-card {
+  margin-top: var(--s-5);
+}
+
+/* The ladder's column is as wide as its widest row; the stats take the rest. */
+.rank-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--s-4);
+  align-items: start;
+}
+
+.rank-card__stats {
+  min-width: 0;
+}
+
+/* Plain text, never a chip: chips are buttons in this app. */
+.rank-card__tier {
+  margin: 0;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* "Up 3.1, now Contender": --ok when up, muted otherwise. The line wraps, never truncates. */
+.rank-card__change {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1);
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.rank-card__change--up {
+  color: var(--ok);
+}
+
+/* The 12px triangle or dash sits --s-1 down, centred on the first line. */
+.rank-card__change svg {
+  flex: none;
+  margin-top: var(--s-1);
+}
+
+.rank-card__rating {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-metric);
+  line-height: 1;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* The ruler: one slice per tier at its true place, 2px apart (styled inline from the model),
+   so the top tiers shrink toward the right end. The speaker's slice is thick and accent. */
+.rank-card__scale {
+  margin-top: var(--s-3);
+}
+
+.rank-card__ruler {
+  position: relative;
+  height: 4px;
+}
+
+.rank-card__slice {
+  position: absolute;
+  top: 1px;
+  height: 2px;
+  min-width: 2px;
+  border-radius: var(--r-chip);
+  background: var(--muted);
+}
+
+.rank-card__slice--current {
+  top: 0;
+  height: 4px;
+  background: var(--accent);
+}
+
+/* The wedge: from the speaker's slice above to the bar's full width below. */
+.rank-card__zoom {
+  display: block;
+  width: 100%;
+  height: 12px;
+}
+
+.rank-card__zoom polygon {
+  fill: var(--accent-soft);
+}
+
+/* The speaker's tier from floor to ceiling, filled to the rating. */
+.rank-card__bar {
+  position: relative;
+  height: 8px;
+  border-radius: var(--r-chip);
+  background: var(--grid);
+}
+
+.rank-card__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  min-width: 4px;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+}
+
+/* Results only: a tick where the rating stood before this take, centred on its place and
+   standing 4px clear of the bar above and below. */
+.rank-card__notch {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--text);
+  transform: translateX(-50%);
+}
+
+.rank-card__ends {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* "18.8 to Varsity", the number in the text colour. */
+.rank-card__next {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.rank-card__next strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The ladder, best tier first, with no rail between the marks. Every tier below the speaker's
+   is passed (a filled mark, the name in the text colour), theirs sits on an accent-soft pill in
+   accent at 600, and every tier above is ahead (a hollow mark, muted). */
+.rank-ladder {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rank-ladder__tier {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  column-gap: var(--s-2);
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.rank-ladder__mark {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--muted);
+  border-radius: 50%;
+}
+
+.rank-ladder__floor {
+  padding-left: var(--s-1);
+  text-align: right;
+}
+
+.rank-ladder__tier--passed .rank-ladder__name {
+  color: var(--text);
+}
+
+.rank-ladder__tier--passed .rank-ladder__mark {
+  background: var(--muted);
+}
+
+.rank-ladder__tier--current {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.rank-ladder__tier--current .rank-ladder__mark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The top tier's mark is a diamond, in its row's colours. */
+.rank-ladder__tier--top .rank-ladder__mark {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+
+/* Master and Flawless: ten pills for the last ten takes, oldest first, filled --ok for each
+   take that passes, then the sentence that says it in words. */
+.rank-card__gate {
+  margin-top: var(--s-3);
+}
+
+.rank-card__pills {
+  display: flex;
+  gap: var(--s-1);
+}
+
+.rank-card__pill {
+  flex: 1 1 0;
+  height: 8px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+}
+
+.rank-card__pill--pass {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.rank-card__gate-text {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The streak after its flame on Progress; this take's sentences on Results. */
+.rank-card__foot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The 16px flame sits 2px down, centred on the first line. */
+.rank-card__foot svg {
+  flex: none;
+  position: relative;
+  top: 2px;
+}
+
+@media (max-width: 359px) {
+  .rank-card__rating {
+    font-size: var(--fs-metric-narrow);
+  }
+}
+
+/* 200% zoom on a phone leaves a 160 to 187px window: the ladder goes under the stats, and
+   under 200px the marks give their room to the names. */
+@media (max-width: 319px) {
+  .rank-card__body {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--s-3);
+  }
+}
+
+@media (max-width: 199px) {
+  .rank-ladder__tier {
+    grid-template-columns: 1fr auto;
+    column-gap: var(--s-1);
+    padding: 0 var(--s-1);
+  }
+
+  .rank-ladder__mark {
+    display: none;
+  }
+}
+
 /* 11. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spinner,

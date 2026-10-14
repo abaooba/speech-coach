@@ -1,7 +1,8 @@
 /* screens/progress.js: app.screens.progress, the Progress screen (DESIGN.md sections 1 and 6).
-   show() charts one metric over the speaker's own takes; the pure helpers series, scale and
-   summaryFor do the maths without the DOM. The sample a visitor opens from Practice never counts
-   (app.screens.results.isSample), and the SVG chart is drawn by hand: no chart library. */
+   show() draws the rank card (app.rankCard) and charts one metric over the speaker's own takes;
+   the pure helpers series, scale and summaryFor do the maths without the DOM. The sample a
+   visitor opens from Practice never counts (app.screens.results.isSample), and the SVG chart is
+   drawn by hand: no chart library. */
 (function () {
   "use strict";
 
@@ -176,6 +177,9 @@
   const FALL_ICON = "triangle-down";
   const SAME_ICON = "dash";
   const CHANGE_ICON_SIZE = 12;
+
+  // The rank card (docs/PLAN.md T37) is built for this screen: its foot is the streak.
+  const RANK_SCREEN = "progress";
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -364,19 +368,37 @@
     return String(Math.round(value * COORD_SCALE) / COORD_SCALE);
   }
 
-  // Draws a segmented control, the metric's full name, a summary row and a hand-rolled SVG line
-  // chart (a target band for fillers, a ring on the best take, short dates under the points)
-  // with a screen-reader table. Tapping an option redraws everything under the control.
+  // Draws the rank card first, then a segmented control, the metric's full name, a summary row
+  // and a hand-rolled SVG line chart (a target band for fillers, a ring on the best take, short
+  // dates under the points) with a screen-reader table. Tapping an option redraws everything
+  // under the control. Under two takes the card, when there is one, sits above the empty state.
   async function show() {
     const ticket = ++showCount;
     const takes = ownTakes(await loadSessions());
     if (ticket !== showCount) {
       return;
     }
+    const rankCard = buildRankCard(takes);
     if (takes.length < MIN_SESSIONS) {
-      renderEmpty(takes.length);
+      renderEmpty(takes.length, rankCard);
     } else {
-      renderChart(takes);
+      renderChart(takes, rankCard);
+    }
+  }
+
+  // The rank card for the speaker's own takes, its streak counted to now, or null: with no rated
+  // take, or while rank.js or rankcard.js is not loaded, Progress draws as it did before the
+  // card. The card is extra to the chart, so one that cannot be built never stops the screen.
+  function buildRankCard(takes) {
+    const rankCard = app.rankCard;
+    if (!rankCard || typeof rankCard.model !== "function" || typeof rankCard.build !== "function") {
+      return null;
+    }
+    try {
+      const model = rankCard.model(takes, { screen: RANK_SCREEN, today: new Date() });
+      return model === null ? null : rankCard.build(model, { screen: RANK_SCREEN });
+    } catch {
+      return null;
     }
   }
 
@@ -394,9 +416,10 @@
   // Nothing to release: show() rebuilds the body from the store every time.
   function hide() {}
 
-  // `count` is how many takes there are, 0 or 1.
-  function renderEmpty(count) {
-    app.ui.renderState(body, {
+  // `count` is how many takes there are, 0 or 1. With one, the rank card goes above the block:
+  // renderState empties the body for the block, so the block moves back under the card.
+  function renderEmpty(count, rankCard) {
+    const block = app.ui.renderState(body, {
       kind: "empty",
       icon: EMPTY_ICON,
       title: EMPTY_TITLE,
@@ -404,12 +427,18 @@
       actionLabel: RECORD_LABEL,
       onAction: () => app.router.go("practice"),
     });
+    if (rankCard) {
+      body.removeChild(block);
+      body.appendChild(rankCard);
+      body.appendChild(block);
+    }
   }
 
-  // The segmented control is built once per show(); a tap only swaps what sits under it (the
-  // title, the summary, the chart, its legend and the table), so the tapped option keeps focus
-  // and never flickers. The sessions are summarized once here, not on every tap.
-  function renderChart(sessions) {
+  // The rank card, when there is one, and the segmented control are built once per show(); a tap
+  // only swaps what sits under the control (the title, the summary, the chart, its legend and
+  // the table), so the tapped option keeps focus and never flickers. The sessions are
+  // summarized once here, not on every tap.
+  function renderChart(sessions, rankCard) {
     const summaries = summariesOf(sessions);
     const measured = summaries.map(wasMeasured);
     const targets = summaries.map((summary) => summary.target);
@@ -419,6 +448,9 @@
 
     const control = { class: "segmented", role: "group", "aria-label": CONTROL_LABEL };
     app.ui.clear(body);
+    if (rankCard) {
+      body.appendChild(rankCard);
+    }
     body.appendChild(app.ui.el("div", control, options));
     draw();
 
