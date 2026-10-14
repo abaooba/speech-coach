@@ -34,9 +34,9 @@
   // --- coach notes (docs/PLAN.md T41) ---
   const ADVICE_URL = "/api/advice";
   const OK = 200;
-  // The backend caps the excerpt at 1,500 characters (backend/advice/coach.py MAX_EXCERPT_CHARACTERS).
+  // The backend caps the excerpt at 1,500 characters (coach.py MAX_EXCERPT_CHARACTERS).
   const MAX_EXCERPT_CHARACTERS = 1500;
-  // A guest's request may list at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
+  // A request may list at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
   const MAX_SHOWN_IDS = 2000;
   // A speaker with no rank yet is coached as a Novice (backend/advice/select.py DEFAULT_TIER).
   const DEFAULT_TIER = "Novice";
@@ -306,10 +306,10 @@
     if (citation === null || typeof citation !== "object" || !isNonBlankString(citation.label)) {
       return null;
     }
-    const url = typeof citation.url === "string" && WEB_URL.test(citation.url) ? citation.url : null;
+    const isWebLink = typeof citation.url === "string" && WEB_URL.test(citation.url);
     return {
       label: citation.label.trim(),
-      url,
+      url: isWebLink ? citation.url : null,
       type: typeof citation.type === "string" ? citation.type : "",
     };
   }

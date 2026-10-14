@@ -1,0 +1,111 @@
+// Tests that the coach notes (docs/PLAN.md T41) are explained where a reader looks: how.html
+// says who writes them and what is sent to Anthropic, in short sentences; styles.css styles
+// every class results.js draws them with, from tokens only; frontend/README.md names them.
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const FRONTEND_DIR = path.join(__dirname, "..");
+const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
+
+const MAX_SENTENCE_WORDS = 15;
+
+// how.html as a reader sees it: no tags, no comments, one space between words.
+function howText() {
+  return read("how.html")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+// The text of how.html's "Coach notes" section, between its heading and the next one.
+function coachNotesSection() {
+  const text = howText();
+  const start = text.indexOf("7. Coach notes");
+  const end = text.indexOf("8. ", start);
+  assert.ok(start !== -1 && end !== -1, "how.html has a section 7 'Coach notes' before section 8");
+  return text.slice(start + "7. Coach notes".length, end).trim();
+}
+
+// The declarations of one rule in styles.css, by its exact selector.
+function ruleFor(css, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp("(?:^|\\n)" + escaped + "\\s*\\{([^}]*)\\}").exec(css);
+  assert.ok(match, "styles.css has a rule for " + selector);
+  return match[1];
+}
+
+test("how.html's Coach notes section says who writes the notes and what is sent", () => {
+  const text = coachNotesSection();
+  [
+    "Claude, an AI model from Anthropic, writes the notes.",
+    "Your take’s numbers, and the first 1,500 characters of your transcript.",
+    "It never sends audio.",
+    "It never sends your email.",
+    "The app, not the model, attaches each source.",
+    "A peer-reviewed source carries a “Peer reviewed” badge.",
+    "When the AI is off, the library’s own words stand in, still cited.",
+    "Tap a source to read it. The link opens in a new tab.",
+  ].forEach((sentence) => assert.ok(text.includes(sentence), sentence));
+  assert.ok(text.includes("482"), "names the size of the library");
+});
+
+test("every sentence of the Coach notes section is under 15 words, with no exclamation", () => {
+  const text = coachNotesSection();
+  assert.ok(!text.includes("!"));
+  text
+    .split(/(?<=[.?])\s+/)
+    .filter((sentence) => sentence.trim() !== "")
+    .forEach((sentence) => {
+      const words = sentence.trim().split(" ").length;
+      assert.ok(words < MAX_SENTENCE_WORDS, words + " words: " + sentence);
+    });
+});
+
+test("how.html keeps one numbered section per rule, 1 to 8, in order", () => {
+  const headings = [...read("how.html").matchAll(/<h2>(\d+)\. /g)].map((match) => Number(match[1]));
+  assert.deepEqual(headings, [1, 2, 3, 4, 5, 6, 7, 8]);
+});
+
+test("styles.css styles each coach notes class from tokens only", () => {
+  const css = read("styles.css");
+  const lead = ruleFor(css, ".coach-notes__lead");
+  assert.match(lead, /font-size: var\(--fs-small\)/);
+  assert.match(lead, /color: var\(--muted\)/);
+
+  assert.match(ruleFor(css, ".tip-card__text"), /margin: 0/);
+  assert.match(ruleFor(css, ".tip-card__drill"), /font-size: var\(--fs-small\)/);
+  assert.match(ruleFor(css, ".tip-card__drill-label"), /font-weight: 600/);
+
+  const source = ruleFor(css, ".tip-card__source");
+  assert.match(source, /font-size: var\(--fs-micro\)/);
+  assert.match(source, /color: var\(--muted\)/);
+  assert.match(source, /flex-wrap: wrap/);
+
+  const link = ruleFor(css, ".tip-card__link");
+  assert.match(link, /min-height: 44px/, "a 44px tap target");
+  assert.match(link, /margin: calc\(-1 \* var\(--s-3\)\) 0/);
+  assert.match(link, /padding: var\(--s-3\) 0/);
+  assert.match(link, /color: var\(--accent\)/);
+  assert.match(link, /overflow-wrap: anywhere/);
+
+  const badge = ruleFor(css, ".tip-card__badge");
+  assert.match(badge, /background: var\(--ok-bg\)/);
+  assert.match(badge, /color: var\(--ok\)/);
+  assert.match(badge, /border-radius: var\(--r-chip\)/);
+  assert.match(badge, /font-size: var\(--fs-micro\)/);
+
+  [lead, source, link, badge].forEach((rule) => {
+    assert.doesNotMatch(rule, /#[0-9a-f]{3,8}\b/i, "no raw hex color");
+  });
+});
+
+test("frontend/README.md names the coach notes and their source links", () => {
+  const readme = read("README.md").replace(/\s+/g, " ");
+  assert.ok(readme.includes("Coach notes"));
+  assert.ok(readme.includes("coachNotes"));
+  assert.ok(readme.includes("Peer reviewed"));
+});

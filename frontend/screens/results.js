@@ -1,7 +1,8 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
    show({id}) reads the take and the speaker's take before it from app.store, never writing, and
    draws the meta line, headline, cards, timeline, transcript, tips and actions node by node,
-   never from markup. summarize, headlineFor and the other pure helpers touch no DOM or app.ui. */
+   never from markup; the cited coach notes (app.tips.coachNotes) take the tips' place when they
+   arrive. summarize, headlineFor and the other pure helpers touch no DOM or app.ui. */
 (function () {
   "use strict";
 
@@ -164,6 +165,29 @@
   // Section titles between the metric grid and the actions.
   const TRANSCRIPT_TITLE = "Transcript";
   const TIPS_TITLE = "Tips";
+
+  // Coach notes (docs/PLAN.md T41): the cited notes from POST /api/advice take the Tips section's
+  // place once they arrive. The lead names who wrote them, by the reply's `source` (tips.js
+  // SOURCES): Claude for this take, or the library's own words while the AI is off or its hourly
+  // budget is spent. A note's source is a link that opens in a new tab, and a peer-reviewed
+  // source carries a badge, so the evidence behind each note is one tap away.
+  const COACH_NOTES_TITLE = "Coach notes";
+  const NOTES_LEAD = Object.freeze({
+    ai: "Written for this take by Claude, from the research library.",
+    library: "The research library's own words, picked for this take.",
+  });
+  const DRILL_LABEL = "Drill:";
+  const SOURCE_LABEL = "Source:";
+  const PEER_REVIEWED_TYPE = "peer_reviewed";
+  const PEER_REVIEWED_BADGE = "Peer reviewed";
+  // Read after the link's text, so a screen reader hears where the link goes.
+  const NEW_TAB_NOTE = ", opens in a new tab";
+  // The tier the request names while rank.js is not loaded: the server's own default
+  // (backend/advice/select.py DEFAULT_TIER). rank.js joins index.html with the rank badge (T37);
+  // until then every speaker is coached at the beginner level.
+  const DEFAULT_TIER = "Novice";
+  // app.rank rates the newest 10 takes (rank.js RATED_TAKES); the list is newest first.
+  const RATED_TAKES = 10;
 
   // Punctuation at either end of a token, the same rule as backend.metrics.clean: "Um," and
   // "um" compare equal while "so-called" and "day's" stay whole words.
@@ -576,8 +600,10 @@
   // The take is drawn as soon as app.store.get() has it, with no comparison. Its last take, which
   // only the "vs last take" lines need, comes from app.store.list(), and a signed-in list can wait
   // a second for the server (20 on a device's first list); once that take is found, the screen is
-  // drawn again with the comparison. A ticket check before each draw means a slow earlier visit
-  // can never paint over a newer one, whichever read is the slow one.
+  // drawn again with the comparison. The same list gives the speaker's tier for the coach notes,
+  // which are asked for last and, when they come, take the tips' place in a third draw. A ticket
+  // check before each draw means a slow earlier visit can never paint over a newer one, whichever
+  // read is the slow one, and a take the speaker has left asks for no notes.
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
@@ -590,8 +616,17 @@
     }
     const view = viewOf(session);
     renderSession(session, view, null);
-    const previous = await loadPreviousSession(session);
-    if (previous !== null && ticket === showCount) {
+    const sessions = await loadSessions();
+    if (ticket !== showCount) {
+      return;
+    }
+    const previous = previousOf(session, sessions);
+    if (previous !== null) {
+      renderSession(session, view, previous);
+    }
+    const notes = await loadCoachNotes(session, view.summary, sessions);
+    if (notes !== null && ticket === showCount) {
+      view.notes = notes;
       renderSession(session, view, previous);
     }
   }
@@ -609,30 +644,82 @@
     }
   }
 
-  // The speaker's take saved just before this one, or null. app.store.list() is newest first, so
-  // that is the first listed session created earlier that is not a sample. A sample has no last
-  // take: it is compared with nothing. A store without list(), or one that cannot be read, means
-  // the cards show no comparison, never an error.
-  async function loadPreviousSession(session) {
-    if (isSample(session) || !app.store || typeof app.store.list !== "function") {
-      return null;
+  // Every take app.store.list() knows, newest first, or [] from a store without list() or one
+  // that cannot be read: then the cards show no comparison and the notes are asked for as a
+  // Novice's, never an error.
+  async function loadSessions() {
+    if (!app.store || typeof app.store.list !== "function") {
+      return [];
     }
     try {
       const sessions = await app.store.list();
-      return earlierSession(sessions, session);
+      return Array.isArray(sessions) ? sessions : [];
     } catch {
-      return null;
+      return [];
     }
   }
 
-  function earlierSession(sessions, session) {
-    if (!Array.isArray(sessions)) {
+  // The speaker's take saved just before this one, or null: the first listed session created
+  // earlier that is not a sample. A sample has no last take: it is compared with nothing.
+  function previousOf(session, sessions) {
+    if (isSample(session)) {
       return null;
     }
     const earlier = sessions.find(
       (other) => Boolean(other) && !isSample(other) && other.createdAt < session.createdAt,
     );
     return earlier || null;
+  }
+
+  // The coach notes for the take (tips.js coachNotes), or null: tips.js loads before this file,
+  // but a context without it, or without its notes, simply keeps the tips.
+  async function loadCoachNotes(session, summary, sessions) {
+    if (!app.tips || typeof app.tips.coachNotes !== "function") {
+      return null;
+    }
+    try {
+      const notes = await app.tips.coachNotes(
+        session,
+        summary.report,
+        summary.target,
+        tierFor(sessions),
+      );
+      return notes || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // The speaker's rank tier for the notes request, from app.rank over their newest takes (samples
+  // left out, each scored as rank.js scores one), or DEFAULT_TIER while rank.js is not loaded or
+  // a take cannot be scored.
+  function tierFor(sessions) {
+    const rank = app.rank;
+    const loaded =
+      rank &&
+      typeof rank.takeScore === "function" &&
+      typeof rank.rating === "function" &&
+      typeof rank.tier === "function";
+    if (!loaded) {
+      return DEFAULT_TIER;
+    }
+    try {
+      const history = sessions
+        .filter((take) => Boolean(take) && !isSample(take))
+        .slice(0, RATED_TAKES)
+        .map((take) => {
+          const summary = summarize(take);
+          return {
+            createdAt: take.createdAt,
+            score: rank.takeScore(summary.report, summary.target),
+            speakingSeconds: summary.report.speakingSeconds,
+            longPauseCount: summary.report.longPauseCount,
+          };
+        });
+      return rank.tier(rank.rating(history), history);
+    } catch {
+      return DEFAULT_TIER;
+    }
   }
 
   // Nothing to release: show() rebuilds the body from the stored session every time.
@@ -666,17 +753,19 @@
       hasTranscript,
       segments: hasTranscript ? timelineSegments(summary.report) : null,
       tips: selectTips(summary.report, summary.target),
+      // The coach notes, set by show() once they arrive.
+      notes: null,
     };
   }
 
   // Top to bottom: meta line, headline, the four cards (each with its "vs last take" line when
   // there is a last take, and then one note under the grid), the speech timeline and the
   // transcript (both skipped when the session has no words; pause markers alone would mean
-  // nothing), the tips (skipped when there are none), the two actions. `previous` is the last
-  // take, or null while there is none to compare with; it is summarized for the comparison only,
-  // so no tips are chosen for it.
+  // nothing), the coach notes once they have arrived or else the tips (skipped when there are
+  // none), the two actions. `previous` is the last take, or null while there is none to compare
+  // with; it is summarized for the comparison only, so no tips are chosen for it.
   function renderSession(session, view, previous) {
-    const { summary, plan, hasTranscript, segments, tips } = view;
+    const { summary, plan, hasTranscript, segments, tips, notes } = view;
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
 
@@ -695,7 +784,12 @@
       body.appendChild(buildLegend(summary.topHabit, plan));
       body.appendChild(buildTranscript(plan));
     }
-    if (tips.length > 0) {
+    if (notes) {
+      body.appendChild(sectionTitle(COACH_NOTES_TITLE));
+      const lead = NOTES_LEAD[notes.source];
+      body.appendChild(app.ui.el("p", { class: "coach-notes__lead", text: lead }));
+      notes.tips.forEach((note) => body.appendChild(buildNoteCard(note)));
+    } else if (tips.length > 0) {
       body.appendChild(sectionTitle(TIPS_TITLE));
       tips.forEach((tip) => body.appendChild(buildTipCard(tip)));
     }
@@ -840,6 +934,50 @@
 
   function buildTipCard(tip) {
     return app.ui.el("div", { class: "tip-card", text: tip.text });
+  }
+
+  // One coach note in the tip card: the note, its drill when the entry has one, then its source.
+  function buildNoteCard(note) {
+    const parts = [app.ui.el("p", { class: "tip-card__text", text: note.text })];
+    if (note.drill) {
+      parts.push(
+        app.ui.el("p", { class: "tip-card__drill" }, [
+          app.ui.el("span", { class: "tip-card__drill-label", text: DRILL_LABEL }),
+          TOKEN_SEPARATOR + note.drill,
+        ]),
+      );
+    }
+    parts.push(buildSourceLine(note.citation));
+    return app.ui.el("div", { class: "tip-card" }, parts);
+  }
+
+  // "Source:" then the citation, as a link to the source when it has a web url (tips.js keeps
+  // only those) and as plain text otherwise, then the badge for a peer-reviewed source. The link
+  // opens in a new tab, since the speaker is mid-review of a take, with rel="noopener" so the
+  // page it opens gets no handle on this one.
+  function buildSourceLine(citation) {
+    const parts = [SOURCE_LABEL];
+    if (citation.url) {
+      parts.push(
+        app.ui.el(
+          "a",
+          {
+            class: "tip-card__link",
+            href: citation.url,
+            target: "_blank",
+            rel: "noopener",
+            text: citation.label,
+          },
+          [app.ui.el("span", { class: "sr-only", text: NEW_TAB_NOTE })],
+        ),
+      );
+    } else {
+      parts.push(app.ui.el("span", { text: citation.label }));
+    }
+    if (citation.type === PEER_REVIEWED_TYPE) {
+      parts.push(app.ui.el("span", { class: "tip-card__badge", text: PEER_REVIEWED_BADGE }));
+    }
+    return app.ui.el("p", { class: "tip-card__source" }, parts);
   }
 
   // "Gettysburg Address, opening · Oct 10, 10:30 AM", plus " · 2:41 of 3:00" for a timed

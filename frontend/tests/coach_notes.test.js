@@ -182,7 +182,7 @@ test("the band is left out unless it is [lo, hi] with lo below hi", () => {
     assert.ok(!("target_wpm" in body.summary), "no band for " + JSON.stringify(targetWpm));
   }
   const strings = tips.adviceRequest(SESSION, REPORT, ["130", "150"], "Novice", []);
-  assert.deepEqual(plain(strings.summary.target_wpm), [130, 150], "numeric strings read as numbers");
+  assert.deepEqual(plain(strings.summary.target_wpm), [130, 150], "numeric strings are numbers");
 });
 
 test("the tier falls back to Novice, and shown ids are the last 2,000 strings", () => {
@@ -203,7 +203,7 @@ test("the tier falls back to Novice, and shown ids are the last 2,000 strings", 
   assert.equal(capped[1999], "id-2004");
 });
 
-test("the excerpt is the words joined by spaces, cut at 1,500 characters, never on half an emoji", () => {
+test("the excerpt is the words joined by spaces, cut at 1,500, never on half an emoji", () => {
   const tips = load();
   const long = { id: "x", transcript: Array.from({ length: 400 }, () => ({ text: "abcd" })) };
   const excerpt = tips.adviceRequest(long, REPORT, null, "Novice", []).summary.transcript_excerpt;
@@ -264,7 +264,10 @@ test("parseCoachNotes gives null for anything that is not notes", () => {
     { tips: [{ ...VALID_TIP, text: undefined }], source: "ai" },
     { tips: [{ ...VALID_TIP, citation: null }], source: "ai" },
     { tips: [{ ...VALID_TIP, citation: "Smith" }], source: "ai" },
-    { tips: [{ ...VALID_TIP, citation: { label: "", url: "https://x.org", type: "book" } }], source: "ai" },
+    {
+      tips: [{ ...VALID_TIP, citation: { label: "", url: "https://x.org", type: "book" } }],
+      source: "ai",
+    },
     { tips: [VALID_TIP, null], source: "library" },
     { tips: [VALID_TIP, { ...VALID_TIP, text: "" }], source: "library" },
   ];
@@ -348,7 +351,7 @@ test("coachNotes answers from the kept reply without a request", async () => {
   assert.equal(auth.calls.length, 0);
 });
 
-test("coachNotes gives null and keeps nothing when the server does not answer with notes", async () => {
+test("coachNotes gives null and keeps nothing when the server sends no notes", async () => {
   const replies = [
     { status: 0, body: null },
     { status: 500, body: { detail: "down" } },
@@ -382,7 +385,7 @@ test("coachNotes gives null without a store, without auth, or without a take id"
   assert.equal(good.auth.calls.length, 0);
 });
 
-test("a store that cannot be read means no request; one that cannot write still gives the notes", async () => {
+test("an unreadable store means no request; one that cannot write still gives notes", async () => {
   const blocked = fakeStore(true);
   const auth = fakeAuth({ status: 200, body: REPLY });
   assert.equal(await load({ store: blocked, auth }).coachNotes(SESSION, REPORT), null);
