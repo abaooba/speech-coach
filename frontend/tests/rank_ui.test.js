@@ -1,0 +1,581 @@
+// Tests for the rank card on screen (docs/PLAN.md T37, "ladder and lens"; the tier spec's
+// sections 1 to 6 and 10): app.rankCard.build in frontend/rankcard.js, the flame icon in ui.js
+// and the card's section of styles.css. ui.js, delivery.js, rank.js, rankcard.js and
+// screens/results.js run for real against the shared fake DOM, so every take is scored from its
+// words exactly as the app scores it.
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+const { fakeDocument } = require("./fake-dom");
+
+const FRONTEND_DIR = path.join(__dirname, "..");
+const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
+const UI_SOURCE = read("ui.js");
+const SOURCES = {
+  ui: UI_SOURCE,
+  delivery: read("delivery.js"),
+  rank: read("rank.js"),
+  rankCard: read("rankcard.js"),
+  results: read(path.join("screens", "results.js")),
+};
+const CSS = read("styles.css");
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const FLAME_PATH =
+  "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 " +
+  "6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z";
+const NBSP = " ";
+
+// One word every 0.4 s is 150 wpm, inside the default 140 to 160 band; with no filler, pause or
+// restart, rank.js scores the take 100.
+const WORD_SECONDS = 0.4;
+
+// A clean take of `seconds` saved at `createdAt`.
+function cleanTake(id, createdAt, seconds) {
+  const count = Math.round(seconds / WORD_SECONDS);
+  return {
+    id,
+    createdAt,
+    passageId: "free-talk",
+    passageTitle: "Your day",
+    durationSeconds: seconds,
+    metrics: { pauses: [], repeats: [], fillers: {}, pace_windows: [] },
+    transcript: Array.from({ length: count }, (_, index) => ({
+      text: "word",
+      start: index * WORD_SECONDS,
+      end: (index + 1) * WORD_SECONDS,
+    })),
+  };
+}
+
+// Three clean 2-minute takes a day apart rate 64.0 after the first, 74.3 (Varsity) after the
+// second and 80.0 (Elite) after the third.
+const DAY_1 = cleanTake("day-1", "2026-10-11T12:00:00", 120);
+const DAY_2 = cleanTake("day-2", "2026-10-12T12:00:00", 120);
+const DAY_3 = cleanTake("day-3", "2026-10-13T12:00:00", 120);
+const ELITE_TAKES = [DAY_1, DAY_2, DAY_3];
+const TODAY = "2026-10-13T18:00:00";
+
+// Nine clean 3-minute takes rate 97.9: a Master, with nine of the gate's ten slots passing. A
+// tenth makes 100 with every slot passing: Flawless.
+const MASTER_TAKES = Array.from({ length: 9 }, (_, index) =>
+  cleanTake("m" + index, "2026-10-0" + (index + 1) + "T12:00:00", 180),
+);
+const FLAWLESS_TAKES = [...MASTER_TAKES, cleanTake("m9", "2026-10-10T12:00:00", 180)];
+
+// ui.js, delivery.js, rank.js, rankcard.js and results.js in one context, in index.html's order.
+function load() {
+  const context = { app: { screens: {} }, document: fakeDocument() };
+  ["ui", "delivery", "rank", "rankCard", "results"].forEach((name) =>
+    vm.runInNewContext(SOURCES[name], context, { filename: name + ".js" }),
+  );
+  return context.app;
+}
+
+function progressCard(takes, today = TODAY) {
+  const app = load();
+  const model = app.rankCard.model(takes, { screen: "progress", today });
+  return app.rankCard.build(model, { screen: "progress" });
+}
+
+function resultsCard(takes, takeId) {
+  const app = load();
+  const model = app.rankCard.model(takes, { screen: "results", takeId });
+  return app.rankCard.build(model, { screen: "results" });
+}
+
+// The class of an element: an SVG element keeps it in the attribute, since its className is
+// read-only in browsers.
+function classOf(node) {
+  return node.className || (node.getAttribute ? node.getAttribute("class") : null) || "";
+}
+
+// Every class in the tree in document order, one entry per element that has one.
+function classOrder(node) {
+  if (!node.children) {
+    return [];
+  }
+  const own = classOf(node);
+  return [...(own ? [own] : []), ...node.children.flatMap(classOrder)];
+}
+
+// The first element in the tree whose class list holds `name`.
+function find(node, name) {
+  if (!node.children) {
+    return null;
+  }
+  if (classOf(node).split(" ").includes(name)) {
+    return node;
+  }
+  for (const child of node.children) {
+    const found = find(child, name);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+// What a screen reader hears from a node: its text and its children's, skipping aria-hidden.
+function spoken(node) {
+  if (node.getAttribute && node.getAttribute("aria-hidden") === "true") {
+    return "";
+  }
+  return (node.textContent || "") + (node.children || []).map(spoken).join("");
+}
+
+// What the eye reads: text outside .sr-only.
+function visible(node) {
+  if (classOf(node).split(" ").includes("sr-only")) {
+    return "";
+  }
+  return (node.textContent || "") + (node.children || []).map(visible).join("");
+}
+
+// The tier spec's parts, in order. `current` is the speaker's tier, lowest first from 0.
+const TIER_LINE = ["rank-card__tier", "sr-only"];
+const RATING_LINE = ["rank-card__rating", "sr-only", "sr-only"];
+const NEXT_LINE = ["rank-card__next", "sr-only", "sr-only"];
+
+function scaleParts(current) {
+  const slices = Array.from({ length: 7 }, (_, index) =>
+    index === current ? "rank-card__slice rank-card__slice--current" : "rank-card__slice",
+  );
+  return ["rank-card__scale", "rank-card__ruler", ...slices, "rank-card__zoom"];
+}
+
+function ladderParts(current) {
+  const rows = [6, 5, 4, 3, 2, 1, 0].flatMap((tier) => {
+    let state = "ahead";
+    if (tier < current) {
+      state = "passed";
+    } else if (tier === current) {
+      state = "current";
+    }
+    const top = tier === 6 ? " rank-ladder__tier--top" : "";
+    const hidden = tier === current ? ["sr-only", "sr-only"] : ["sr-only"];
+    return [
+      "rank-ladder__tier rank-ladder__tier--" + state + top,
+      "rank-ladder__mark",
+      "rank-ladder__name",
+      "rank-ladder__floor",
+      ...hidden,
+    ];
+  });
+  return ["rank-ladder", ...rows];
+}
+
+// The whole card: Results adds its change line under the tier and, in the same tier, the notch.
+function cardParts({ current, change = null, notch = false, gate = null }) {
+  return [
+    "rank-card",
+    "sr-only",
+    "rank-card__body",
+    "rank-card__stats",
+    ...TIER_LINE,
+    ...(change || []),
+    ...RATING_LINE,
+    ...scaleParts(current),
+    "rank-card__bar",
+    "rank-card__fill",
+    ...(notch ? ["rank-card__notch"] : []),
+    "rank-card__ends",
+    ...NEXT_LINE,
+    ...ladderParts(current),
+    ...(gate || []),
+    "rank-card__foot",
+  ];
+}
+
+const ELITE = 3;
+const VARSITY = 2;
+const MASTER = 5;
+const UP_LINE = ["rank-card__change rank-card__change--up", "sr-only", "sr-only"];
+
+test("ui.js draws a flame in the icons' 24-unit, 2-unit stroke style", () => {
+  const app = load();
+  const flame = app.ui.icon("flame", 16);
+  assert.equal(flame.namespaceURI, SVG_NS);
+  assert.equal(flame.getAttribute("data-icon"), "flame");
+  assert.equal(flame.getAttribute("viewBox"), "0 0 24 24");
+  assert.equal(flame.getAttribute("width"), "16");
+  assert.equal(flame.getAttribute("fill"), "none");
+  assert.equal(flame.getAttribute("stroke"), "currentColor");
+  assert.equal(flame.getAttribute("stroke-width"), "2");
+  assert.equal(flame.getAttribute("aria-hidden"), "true");
+  assert.deepEqual(
+    flame.children.map((child) => [child.tagName, child.attributes]),
+    [["path", { d: FLAME_PATH }]],
+  );
+});
+
+test("the flame sits right after contrast in ui.js's icon list", () => {
+  const names = [...UI_SOURCE.matchAll(/^ {4}"?([a-z-]+)"?: \[/gm)].map((match) => match[1]);
+  const contrast = names.indexOf("contrast");
+  assert.deepEqual(names.slice(contrast, contrast + 3), ["contrast", "flame", "moon"]);
+});
+
+test("the Progress card draws the tier spec's parts in order, with the streak foot", () => {
+  const card = progressCard(ELITE_TAKES);
+  assert.equal(card.tagName, "section");
+  assert.deepEqual(classOrder(card), cardParts({ current: ELITE }));
+  const foot = find(card, "rank-card__foot");
+  const [icon, words] = foot.children;
+  assert.equal(icon.getAttribute("data-icon"), "flame");
+  assert.equal(icon.getAttribute("width"), "16");
+  assert.equal(words.tagName, "span");
+  assert.equal(visible(foot), "Current streak 3 days, longest 3");
+});
+
+test("the Results card adds the change line under the tier and the take's sentences", () => {
+  const card = resultsCard(ELITE_TAKES, "day-3");
+  assert.deepEqual(classOrder(card), cardParts({ current: ELITE, change: UP_LINE }));
+  const change = find(card, "rank-card__change");
+  assert.equal(change.children[0].getAttribute("data-icon"), "triangle-up");
+  assert.equal(change.children[0].getAttribute("width"), "12");
+  assert.equal(visible(change), "Up 5.7, now Elite");
+  const foot = find(card, "rank-card__foot");
+  assert.equal(foot.children.length, 1, "no icon on Results");
+  assert.equal(
+    visible(foot),
+    "This take scored 100. At least 2 more takes to Champion, even perfect ones.",
+  );
+});
+
+test("in the same tier the Results card adds the notch where the rating stood before", () => {
+  // The second take moved Varsity's 64.0 to 74.3: the notch sits (64 - 60) / 15 along the bar.
+  const card = resultsCard(ELITE_TAKES, "day-2");
+  assert.deepEqual(
+    classOrder(card),
+    cardParts({ current: VARSITY, change: UP_LINE, notch: true }),
+  );
+  assert.equal(find(card, "rank-card__notch").getAttribute("style"), "left:26.67%");
+  assert.equal(visible(find(card, "rank-card__change")), "Up 10.3");
+});
+
+test("a first rated take's change line is its words alone", () => {
+  const card = resultsCard([DAY_1], "day-1");
+  const change = find(card, "rank-card__change");
+  assert.equal(classOf(change), "rank-card__change rank-card__change--first");
+  assert.equal(change.children.length, 1, "no icon");
+  assert.equal(spoken(change), "First rated take");
+});
+
+test("the ladder lists all 7 tiers best first, with exactly one aria-current", () => {
+  for (const card of [progressCard(ELITE_TAKES), resultsCard(ELITE_TAKES, "day-2")]) {
+    const ladder = find(card, "rank-ladder");
+    assert.equal(ladder.tagName, "ol");
+    assert.equal(ladder.getAttribute("role"), "list", "Safari drops a list's role with its style");
+    assert.equal(ladder.getAttribute("aria-label"), "All 7 tiers, top first");
+    assert.equal(ladder.children.length, 7);
+    ladder.children.forEach((row) => assert.equal(row.tagName, "li"));
+    const current = ladder.children.filter((row) => row.getAttribute("aria-current") !== null);
+    assert.equal(current.length, 1);
+    assert.equal(current[0].getAttribute("aria-current"), "true");
+    assert.ok(classOf(current[0]).includes("rank-ladder__tier--current"));
+  }
+  const rows = find(progressCard(ELITE_TAKES), "rank-ladder").children;
+  assert.deepEqual(rows.map(spoken), [
+    "Flawless, from 99",
+    "Master, from 96",
+    "Champion, from 88",
+    "Elite, from 75, your tier",
+    "Varsity, from 60",
+    "Contender, from 40",
+    "Novice, from 0",
+  ]);
+  assert.deepEqual(rows.map(visible), [
+    "Flawless99",
+    "Master96",
+    "Champion88",
+    "Elite75",
+    "Varsity60",
+    "Contender40",
+    "Novice0",
+  ]);
+  rows.forEach((row) => assert.equal(row.children[0].getAttribute("aria-hidden"), "true"));
+});
+
+test("screen readers hear the card in the tier spec's order; the drawings are hidden", () => {
+  const card = resultsCard(ELITE_TAKES, "day-3");
+  const [heading, body, foot] = card.children;
+  assert.equal(heading.tagName, "h2");
+  assert.equal(classOf(heading), "sr-only");
+  assert.equal(heading.textContent, "Your rank");
+  assert.equal(card.getAttribute("aria-labelledby"), heading.getAttribute("id"));
+  const lines = body.children[0].children.map(spoken).filter(Boolean);
+  assert.deepEqual(
+    lines.map((line) => line.replace(NBSP, " ")),
+    [
+      "Tier: Elite",
+      "Rating Up 5.7 with this take, now Elite",
+      "Rating 80.0 out of 100",
+      "8.0 points to Champion, which starts at 88",
+    ],
+  );
+  assert.equal(spoken(foot), visible(foot));
+  for (const hidden of ["rank-card__scale", "rank-card__bar", "rank-card__ends"]) {
+    assert.equal(find(card, hidden).getAttribute("aria-hidden"), "true", hidden);
+  }
+});
+
+test("the caption keeps its number and 'to' together, and the next floor is hidden text", () => {
+  const next = find(progressCard(ELITE_TAKES), "rank-card__next");
+  assert.equal(next.children[0].tagName, "strong");
+  assert.equal(next.children[0].textContent, "8.0");
+  assert.equal(visible(next), "8.0" + NBSP + "to Champion");
+  const top = find(progressCard(FLAWLESS_TAKES), "rank-card__next");
+  assert.equal(top.children.length, 1);
+  assert.equal(top.children[0].tagName, "strong");
+  assert.equal(spoken(top), "Top tier");
+});
+
+test("the bar, the ruler and the wedge sit at their true places", () => {
+  const card = progressCard(ELITE_TAKES);
+  // 80.0 is (80 - 75) / 13 of Elite's 75 to 88.
+  assert.equal(find(card, "rank-card__fill").getAttribute("style"), "width:38.46%");
+  const slices = find(card, "rank-card__ruler").children;
+  assert.deepEqual(
+    slices.map((slice) => slice.getAttribute("style")),
+    [
+      "left:0%;width:calc(40% - 2px)",
+      "left:40%;width:calc(20% - 2px)",
+      "left:60%;width:calc(15% - 2px)",
+      "left:75%;width:calc(13% - 2px)",
+      "left:88%;width:calc(8% - 2px)",
+      "left:96%;width:calc(3% - 2px)",
+      "right:0;width:calc(1% - 2px)",
+    ],
+    "the top slice hangs from the right end, so its 2px minimum never runs past 100",
+  );
+  const zoom = find(card, "rank-card__zoom");
+  assert.equal(zoom.namespaceURI, SVG_NS);
+  assert.equal(zoom.tagName, "svg");
+  assert.equal(zoom.getAttribute("viewBox"), "0 0 100 12");
+  assert.equal(zoom.getAttribute("preserveAspectRatio"), "none");
+  assert.equal(zoom.children.length, 1);
+  const wedge = zoom.children[0];
+  assert.equal(wedge.tagName, "polygon");
+  assert.equal(wedge.namespaceURI, SVG_NS);
+  assert.equal(wedge.getAttribute("points"), "75,0 88,0 100,12 0,12");
+  assert.deepEqual(
+    find(card, "rank-card__ends").children.map((end) => end.textContent),
+    ["75", "88"],
+  );
+});
+
+test("a Master's card adds the gate's ten pills and its sentence above the streak", () => {
+  const card = progressCard(MASTER_TAKES, "2026-10-09T18:00:00");
+  const gate = [
+    "rank-card__gate",
+    "rank-card__pills",
+    "rank-card__pill",
+    ...Array(9).fill("rank-card__pill rank-card__pill--pass"),
+    "rank-card__gate-text",
+  ];
+  assert.deepEqual(classOrder(card), cardParts({ current: MASTER, gate }));
+  assert.equal(find(card, "rank-card__pills").getAttribute("aria-hidden"), "true");
+  assert.equal(
+    find(card, "rank-card__gate-text").textContent,
+    "9 of your last 10 takes pass. Flawless needs all 10: 2 minutes or more, 97 or more, " +
+      "no long pause.",
+  );
+  assert.equal(visible(find(card, "rank-card__foot")), "Current streak 9 days, longest 9");
+});
+
+test("Progress and Results each label their card with a heading id of their own", () => {
+  const progress = progressCard(ELITE_TAKES);
+  const results = resultsCard(ELITE_TAKES, "day-3");
+  const progressId = progress.children[0].getAttribute("id");
+  const resultsId = results.children[0].getAttribute("id");
+  assert.ok(progressId && resultsId);
+  assert.notEqual(progressId, resultsId);
+  assert.equal(progress.getAttribute("aria-labelledby"), progressId);
+  assert.equal(results.getAttribute("aria-labelledby"), resultsId);
+});
+
+test("nothing in the card takes focus or a click", () => {
+  const card = resultsCard(ELITE_TAKES, "day-2");
+  const all = (node) => (node.children ? [node, ...node.children.flatMap(all)] : []);
+  for (const node of all(card)) {
+    assert.ok(!["button", "a", "input"].includes(node.tagName), node.tagName);
+    assert.equal(node.getAttribute("tabindex"), null);
+    assert.deepEqual(Object.keys(node.listeners || {}), []);
+  }
+});
+
+// styles.css section "10b. Rank card", right before section 11.
+const SECTION_START = "/* 10b. Rank card";
+const SECTION_END = "/* 11. Reduced motion";
+
+function sectionText() {
+  const start = CSS.indexOf(SECTION_START);
+  const end = CSS.indexOf(SECTION_END);
+  assert.ok(start !== -1, "styles.css has section 10b");
+  assert.ok(end > start, "section 10b comes before section 11");
+  return CSS.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+function squash(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+// The section's rules as { at, selectors, declarations }, `at` the enclosing @media or null.
+function rulesOf(text, at = null, rules = []) {
+  let cursor = 0;
+  while (cursor < text.length) {
+    const open = text.indexOf("{", cursor);
+    if (open === -1) {
+      break;
+    }
+    let depth = 0;
+    let close = open;
+    for (; close < text.length; close += 1) {
+      depth += text[close] === "{" ? 1 : text[close] === "}" ? -1 : 0;
+      if (depth === 0) {
+        break;
+      }
+    }
+    const prelude = squash(text.slice(cursor, open));
+    const body = text.slice(open + 1, close);
+    if (prelude.startsWith("@")) {
+      rulesOf(body, prelude, rules);
+    } else {
+      const declarations = {};
+      body.split(";").forEach((part) => {
+        const colon = part.indexOf(":");
+        if (colon !== -1) {
+          declarations[squash(part.slice(0, colon))] = squash(part.slice(colon + 1));
+        }
+      });
+      rules.push({ at, selectors: prelude.split(",").map(squash), declarations });
+    }
+    cursor = close + 1;
+  }
+  return rules;
+}
+
+// Parsed on first use, so a missing section fails each test that reads it, not the whole file.
+let parsedRules = null;
+function sectionRules() {
+  if (parsedRules === null) {
+    parsedRules = rulesOf(sectionText());
+  }
+  return parsedRules;
+}
+
+function declared(selector, at = null) {
+  return sectionRules()
+    .filter((rule) => rule.at === at && rule.selectors.includes(selector))
+    .reduce((all, rule) => Object.assign(all, rule.declarations), {});
+}
+
+test("styles.css gives the card its own section right before section 11", () => {
+  const start = CSS.indexOf(SECTION_START);
+  assert.ok(CSS.indexOf("/* Onboarding screen") < start, "after the screens' own rules");
+  const between = CSS.slice(start + SECTION_START.length, CSS.indexOf(SECTION_END));
+  assert.doesNotMatch(between, /\/\* \d+[a-z]?\. /, "no other numbered section in between");
+  assert.equal(CSS.split(SECTION_START).length, 2, "one section 10b");
+});
+
+test("the card's colours are the tier spec's tokens only: no hex and no opacity", () => {
+  const allowed = [
+    "--surface",
+    "--border",
+    "--text",
+    "--muted",
+    "--grid",
+    "--accent",
+    "--accent-soft",
+    "--ok",
+  ];
+  const colours = /^(color|background|background-color|border|border-color|fill)$/;
+  sectionRules().forEach((rule) => {
+    Object.entries(rule.declarations).forEach(([name, value]) => {
+      assert.doesNotMatch(value, /#[0-9a-f]{3,8}\b/i, `${rule.selectors} ${name}`);
+      assert.notEqual(name, "opacity", `${rule.selectors} uses opacity`);
+      if (colours.test(name)) {
+        const tokens = [...value.matchAll(/var\((--[a-z-]+)\)/g)].map((match) => match[1]);
+        tokens.forEach((token) => assert.ok(allowed.includes(token), `${name}: ${value}`));
+      }
+    });
+  });
+});
+
+test("the section spaces only with the --s scale", () => {
+  const spacing = /^(margin|padding|gap|row-gap|column-gap)(-(top|right|bottom|left))?$/;
+  const step = /^(0|auto|var\(--s-[1-7]\))$/;
+  sectionRules().forEach((rule) => {
+    Object.entries(rule.declarations)
+      .filter(([name]) => spacing.test(name))
+      .forEach(([name, value]) => {
+        value.split(" ").forEach((part) => {
+          assert.match(part, step, `${rule.selectors.join(", ")} ${name}: ${value}`);
+        });
+      });
+  });
+});
+
+test("the card is a bordered surface box with stats beside a ladder of 20px rows", () => {
+  const card = declared(".rank-card");
+  assert.equal(card.background, "var(--surface)");
+  assert.equal(card.border, "1px solid var(--border)");
+  assert.equal(card["border-radius"], "var(--r-card)");
+  assert.equal(card.padding, "var(--s-4)");
+  assert.equal(card["font-variant-numeric"], "tabular-nums");
+  assert.equal(card["box-shadow"], undefined);
+  const body = declared(".rank-card__body");
+  assert.equal(body.display, "grid");
+  assert.equal(body["grid-template-columns"], "minmax(0, 1fr) auto");
+  assert.equal(body["column-gap"], "var(--s-4)");
+  const row = declared(".rank-ladder__tier");
+  assert.equal(row["grid-template-columns"], "8px 1fr auto");
+  assert.equal(row.height, "20px");
+  assert.equal(row["border-radius"], "var(--r-chip)");
+  assert.equal(row["white-space"], "nowrap");
+  const ladder = declared(".rank-ladder");
+  assert.equal(ladder["list-style"], "none");
+});
+
+test("the speaker's tier is accent on accent-soft, and an Up line is --ok", () => {
+  const current = declared(".rank-ladder__tier--current");
+  assert.equal(current.background, "var(--accent-soft)");
+  assert.equal(current.color, "var(--accent)");
+  assert.equal(current["font-weight"], "600");
+  const mark = (state) => declared(".rank-ladder__tier--" + state + " .rank-ladder__mark");
+  assert.equal(mark("current").background, "var(--accent)");
+  assert.equal(mark("passed").background, "var(--muted)");
+  assert.equal(mark("ahead").background, undefined, "an ahead tier's mark is hollow");
+  assert.equal(declared(".rank-ladder__mark").border, "1.5px solid var(--muted)");
+  assert.equal(declared(".rank-card__slice--current").background, "var(--accent)");
+  assert.equal(declared(".rank-card__fill").background, "var(--accent)");
+  assert.equal(declared(".rank-card__bar").background, "var(--grid)");
+  assert.equal(declared(".rank-card__zoom polygon").fill, "var(--accent-soft)");
+  assert.equal(declared(".rank-card__notch").background, "var(--text)");
+  assert.equal(declared(".rank-card__change").color, "var(--muted)");
+  assert.equal(declared(".rank-card__change--up").color, "var(--ok)");
+  assert.equal(declared(".rank-card__pill--pass").background, "var(--ok)");
+  assert.equal(declared(".rank-card__next strong").color, "var(--text)");
+});
+
+test("the card sits 24px under the Results headline and 32px above Progress's switch", () => {
+  assert.equal(declared("#screen-results .rank-card")["margin-top"], "var(--s-5)");
+  assert.equal(declared("#screen-progress .rank-card")["margin-bottom"], "var(--s-6)");
+});
+
+test("narrow screens shrink the rating, then stack the ladder, then drop the marks", () => {
+  assert.equal(
+    declared(".rank-card__rating", "@media (max-width: 359px)")["font-size"],
+    "var(--fs-metric-narrow)",
+  );
+  assert.equal(declared(".rank-card__rating")["font-size"], "var(--fs-metric)");
+  const stacked = declared(".rank-card__body", "@media (max-width: 319px)");
+  assert.equal(stacked["grid-template-columns"], "minmax(0, 1fr)");
+  assert.equal(stacked["row-gap"], "var(--s-3)");
+  assert.equal(declared(".rank-ladder__mark", "@media (max-width: 199px)").display, "none");
+});

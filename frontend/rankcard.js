@@ -1,9 +1,12 @@
 /* rankcard.js: app.rankCard, the rank card "ladder and lens" on Progress and Results
    (docs/PLAN.md T37). model(takes, options) works out everything the card shows from the
-   speaker's takes, reading the rank only through app.rank (rank.js, owner-written). It is pure:
-   no clock, no DOM, no store. */
+   speaker's takes, reading the rank only through app.rank (rank.js, owner-written); it is pure:
+   no clock, no DOM, no store. build(model, {screen}) draws that model node by node with
+   app.ui.el, and the wedge with createElementNS. */
 (function () {
   "use strict";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
 
   // The two screens the card is drawn on. Progress shows the streak; Results shows what the take
   // on screen did to the rating.
@@ -49,8 +52,37 @@
   const SAME = "same";
   const FIRST = "first";
 
-  // The streak's icon on Progress.
+  // The icons: a 12px triangle or dash leads the change line, and a 16px flame the streak.
+  const CHANGE_ICONS = { [UP]: "triangle-up", [DOWN]: "triangle-down", [SAME]: "dash" };
+  const CHANGE_ICON_SIZE = 12;
   const FLAME_ICON = "flame";
+  const FOOT_ICON_SIZE = 16;
+
+  // The wedge under the ruler is drawn in a 100 x 12 box stretched to the column: its top edge
+  // spans the speaker's slice of the ruler and its bottom edge the whole bar, which zooms in on
+  // that slice.
+  const WEDGE_WIDTH = 100;
+  const WEDGE_HEIGHT = 12;
+
+  // Each card's hidden heading has an id of its own: Progress and Results both keep a card.
+  const TITLE_ID_PREFIX = "rank-card-title-";
+
+  // The words screen readers hear that the eye does not need (the tier spec, section 10). The
+  // caption keeps its number and "to" together with a no-break space.
+  const HIDDEN = Object.freeze({
+    title: "Your rank",
+    tier: "Tier: ",
+    rating: "Rating ",
+    outOf: " out of 100",
+    points: " points",
+    startsAt: ", which starts at ",
+    from: ", from ",
+    yourTier: ", your tier",
+    withThisTake: " with this take",
+    ladder: (count) => "All " + count + " tiers, top first",
+  });
+  const CHANGE_LEADS = { [UP]: "Rating ", [DOWN]: "Rating ", [SAME]: "Rating: " };
+  const UNBROKEN_TO = " to ";
 
   // Fixed copy (the tier spec, section 9).
   const COPY = Object.freeze({
@@ -407,5 +439,194 @@
     return Number.isFinite(number) ? number : 0;
   }
 
-  app.rankCard = { model };
+  // The card for a model, in reading order: the hidden heading, the stats beside the ladder,
+  // the gate for Master and Flawless, then the foot. `screen` ("progress" or "results") names
+  // the screen it sits on and keeps its heading's id unique. Nothing in it takes focus.
+  function build(card, options) {
+    const screen = options && options.screen === RESULTS ? RESULTS : PROGRESS;
+    const titleId = TITLE_ID_PREFIX + screen;
+    return app.ui.el("section", { class: "rank-card", "aria-labelledby": titleId }, [
+      app.ui.el("h2", { class: "sr-only", id: titleId, text: HIDDEN.title }),
+      app.ui.el("div", { class: "rank-card__body" }, [buildStats(card), buildLadder(card.ladder)]),
+      buildGate(card.gate),
+      buildFoot(card.foot),
+    ]);
+  }
+
+  // The stats column, top to bottom: tier, the change on Results, rating, ruler and wedge, bar,
+  // the bar's two ends and the caption.
+  function buildStats(card) {
+    const el = app.ui.el;
+    return el("div", { class: "rank-card__stats" }, [
+      el("p", { class: "rank-card__tier" }, [hidden(HIDDEN.tier), card.tier]),
+      buildChange(card.change),
+      el("p", { class: "rank-card__rating" }, [
+        hidden(HIDDEN.rating),
+        card.rating.toFixed(1),
+        hidden(HIDDEN.outOf),
+      ]),
+      buildScale(card),
+      buildBar(card),
+      el("p", { class: "rank-card__ends", "aria-hidden": "true" }, [
+        el("span", { text: String(card.floor) }),
+        el("span", { text: String(card.ceiling) }),
+      ]),
+      buildCaption(card.next),
+    ]);
+  }
+
+  // "Up 3.1, now Contender" after its triangle, read as "Rating up 3.1 with this take, now
+  // Contender". The words share one span, so a long line wraps beside the icon.
+  function buildChange(change) {
+    if (change === null) {
+      return null;
+    }
+    const className = "rank-card__change rank-card__change--" + change.direction;
+    if (change.direction === FIRST) {
+      return app.ui.el("p", { class: className }, [app.ui.el("span", { text: change.text })]);
+    }
+    return app.ui.el("p", { class: className }, [
+      app.ui.icon(CHANGE_ICONS[change.direction], CHANGE_ICON_SIZE),
+      app.ui.el("span", {}, [
+        hidden(CHANGE_LEADS[change.direction]),
+        change.words,
+        hidden(HIDDEN.withThisTake),
+        change.now === null ? null : COPY.now + change.now,
+      ]),
+    ]);
+  }
+
+  // The 0 to 100 ruler at true scale, one slice per tier 2px short of the next, and under it
+  // the wedge from the speaker's slice out to the bar's full width.
+  function buildScale(card) {
+    const last = card.slices.length - 1;
+    const slices = card.slices.map((slice, index) =>
+      app.ui.el("span", {
+        class: slice.current ? "rank-card__slice rank-card__slice--current" : "rank-card__slice",
+        style: sliceStyle(slice, index === last),
+      }),
+    );
+    const zoom = svgEl("svg", {
+      class: "rank-card__zoom",
+      viewBox: "0 0 " + WEDGE_WIDTH + " " + WEDGE_HEIGHT,
+      preserveAspectRatio: "none",
+    });
+    const corners = [
+      [card.floor, 0],
+      [card.ceiling, 0],
+      [WEDGE_WIDTH, WEDGE_HEIGHT],
+      [0, WEDGE_HEIGHT],
+    ];
+    zoom.appendChild(svgEl("polygon", { points: corners.map((pair) => pair.join(",")).join(" ") }));
+    return app.ui.el("div", { class: "rank-card__scale", "aria-hidden": "true" }, [
+      app.ui.el("div", { class: "rank-card__ruler" }, slices),
+      zoom,
+    ]);
+  }
+
+  // A tier's slice of the ruler at its true place. The top tier's slice hangs from the right
+  // end, so its 2px minimum width never runs past 100.
+  function sliceStyle(slice, last) {
+    const place = last ? "right:0" : "left:" + slice.floor + "%";
+    return place + ";width:calc(" + (slice.ceiling - slice.floor) + "% - 2px)";
+  }
+
+  // The speaker's tier from floor to ceiling, filled to the rating, with the notch on Results
+  // where the rating stood before this take.
+  function buildBar(card) {
+    const el = app.ui.el;
+    const parts = [el("span", { class: "rank-card__fill", style: "width:" + card.fill + "%" })];
+    if (card.notch !== null) {
+      parts.push(el("span", { class: "rank-card__notch", style: "left:" + card.notch + "%" }));
+    }
+    return el("div", { class: "rank-card__bar", "aria-hidden": "true" }, parts);
+  }
+
+  // "18.8 to Varsity", read as "18.8 points to Varsity, which starts at 60"; "99 reached" and
+  // "Top tier" have nothing to add.
+  function buildCaption(next) {
+    const el = app.ui.el;
+    const parts =
+      next.points === null
+        ? [el("strong", { text: next.text })]
+        : [
+            el("strong", { text: next.points }),
+            hidden(HIDDEN.points),
+            UNBROKEN_TO + next.name,
+            hidden(HIDDEN.startsAt + next.floor),
+          ];
+    return el("p", { class: "rank-card__next" }, parts);
+  }
+
+  // All seven tiers, best first, each "Flawless, from 99" to a screen reader; the speaker's row
+  // adds ", your tier" and carries aria-current.
+  function buildLadder(ladder) {
+    return app.ui.el(
+      "ol",
+      { class: "rank-ladder", role: "list", "aria-label": HIDDEN.ladder(ladder.length) },
+      ladder.map(buildLadderRow),
+    );
+  }
+
+  function buildLadderRow(row) {
+    const el = app.ui.el;
+    const current = row.state === CURRENT;
+    const classes = ["rank-ladder__tier", "rank-ladder__tier--" + row.state];
+    if (row.top) {
+      classes.push("rank-ladder__tier--top");
+    }
+    const attrs = { class: classes.join(" ") };
+    if (current) {
+      attrs["aria-current"] = "true";
+    }
+    return el("li", attrs, [
+      el("span", { class: "rank-ladder__mark", "aria-hidden": "true" }),
+      el("span", { class: "rank-ladder__name", text: row.name }),
+      el("span", { class: "rank-ladder__floor" }, [
+        hidden(HIDDEN.from),
+        String(row.floor),
+        current ? hidden(HIDDEN.yourTier) : null,
+      ]),
+    ]);
+  }
+
+  // Ten pills, oldest take first, filled for each take that passes, then the gate's sentence,
+  // which says in words what the pills show.
+  function buildGate(gate) {
+    if (gate === null) {
+      return null;
+    }
+    const pills = gate.pills.map((passes) =>
+      app.ui.el("span", {
+        class: passes ? "rank-card__pill rank-card__pill--pass" : "rank-card__pill",
+      }),
+    );
+    return app.ui.el("div", { class: "rank-card__gate" }, [
+      app.ui.el("div", { class: "rank-card__pills", "aria-hidden": "true" }, pills),
+      app.ui.el("p", { class: "rank-card__gate-text", text: gate.text }),
+    ]);
+  }
+
+  // The streak after its flame on Progress; this take's sentences on Results.
+  function buildFoot(foot) {
+    const icon = foot.icon === null ? null : app.ui.icon(foot.icon, FOOT_ICON_SIZE);
+    return app.ui.el("p", { class: "rank-card__foot" }, [
+      icon,
+      app.ui.el("span", { text: foot.text }),
+    ]);
+  }
+
+  function hidden(text) {
+    return app.ui.el("span", { class: "sr-only", text });
+  }
+
+  // SVG elements need their own namespace and take every attribute, class included, through
+  // setAttribute.
+  function svgEl(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs).forEach((key) => node.setAttribute(key, attrs[key]));
+    return node;
+  }
+
+  app.rankCard = { model, build };
 })();
