@@ -67,10 +67,11 @@ API_CACHE_CONTROL = "no-store"
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """On startup, create the account tables when DATABASE_URL is set (backend/db.py).
 
-    Without it accounts are off and nothing is created. A database that cannot be reached is
-    logged and passed over, because guests never need it: their takes stay in the browser.
-    Account routes then fail until it can be reached, and on a first deploy until the next start.
-    When the server stops, the database connections it holds are closed.
+    Without it, or with one no engine can be built from (db.configured_engine logs it), accounts
+    are off and nothing is created. A database that cannot be reached is logged and passed over,
+    because guests never need it: their takes stay in the browser. Account routes then fail
+    until it can be reached, and on a first deploy until the next start. When the server stops,
+    the database connections it holds are closed.
     """
     engine = db.configured_engine()
     if engine is not None:

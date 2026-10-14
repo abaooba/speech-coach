@@ -3,15 +3,16 @@
 Accounts are optional and guests come first: whatever a guest does stays in the browser
 (frontend/store.js). When DATABASE_URL is set, a signed-in speaker's takes, the advice they have
 been shown and their skill-path progress are kept here as well. In production that is Neon
-Postgres, reached through psycopg; the tests use SQLite in memory. With DATABASE_URL unset,
-accounts are off: the app serves guests as before and every account route answers 503
-(accounts_engine).
+Postgres, reached through psycopg; the tests use SQLite in memory. With DATABASE_URL unset, or
+set to a URL no engine can be built from (configured_engine), accounts are off: the app serves
+guests as before and every account route answers 503 (accounts_engine).
 
 Every table but users belongs to one account, and deleting the account deletes its rows (ON
 DELETE CASCADE). No table has a column for audio: recordings are never stored.
 """
 
 import json
+import logging
 import os
 from datetime import UTC, datetime
 from functools import cache
@@ -40,7 +41,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine.interfaces import DBAPIConnection
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.pool import ConnectionPoolEntry, StaticPool
+
+logger = logging.getLogger(__name__)
 
 # Where the server finds the database: the environment only (the Render dashboard, or .env
 # locally), never a file in the repo. The URL holds the database password, so it is never logged.
@@ -269,10 +273,22 @@ def insert_for(dialect: Dialect, table: Table) -> postgresql.Insert | sqlite.Ins
 def configured_engine() -> Engine | None:
     """The engine for DATABASE_URL, built on the first call; None when it is unset or blank.
 
-    The process keeps this one engine, so every request draws on the same connection pool.
+    The process keeps this one engine, so every request draws on the same connection pool. A
+    URL no engine can be built from (one that does not parse, a port that is not a number, a
+    driver that is not installed) gives None as well: accounts are off and guests are served,
+    as without one. It is logged once, by the error's class alone: the URL holds the password.
     """
     url = os.environ.get(DATABASE_URL_VARIABLE, "").strip()
-    return make_engine(url) if url else None
+    if not url:
+        return None
+    try:
+        return make_engine(url)
+    except (ArgumentError, ValueError, ImportError) as error:
+        logger.error(
+            "DATABASE_URL cannot be used (%s); accounts are off, guests are unaffected",
+            type(error).__name__,
+        )
+        return None
 
 
 def accounts_engine_or_none() -> Engine | None:
