@@ -139,9 +139,15 @@ test("a link runs from its node's centre as tall as its row, behind the nodes", 
   assert.equal(link.width, "100%");
   assert.equal(link["z-index"], "-1");
   assert.equal(link["pointer-events"], "none");
+  // The drop stretches down to the foot of the row's content; the turn spans the row's
+  // --s-6 foot and the next node's top half, below every card and crown in the row.
+  assert.equal(rule(".path-step__drop").top, "0");
+  assert.equal(rule(".path-step__drop").height, "calc(100% - var(--s-6) - 32px)");
+  assert.equal(rule(".path-step__turn").bottom, "0");
+  assert.equal(rule(".path-step__turn").height, "calc(var(--s-6) + 32px)");
   assert.equal(rule(".path-steps").isolation, "isolate");
   assert.equal(rule(".path-step").position, "relative");
-  assert.equal(rule(".path-step")["padding-bottom"], "var(--s-5)", "rows meet with no gap");
+  assert.equal(rule(".path-step")["padding-bottom"], "var(--s-6)", "rows meet with no gap");
   assert.equal(rule(".path-steps").gap, undefined);
   const circle = rule(".path-node__circle");
   assert.equal(circle.height, "64px");
@@ -163,6 +169,9 @@ test("a side node's centre sits at 25% of the row from its edge, as nodeX places
     "minmax(0, 1fr) 104px max(0px, calc(25% - 52px))",
   );
   assert.equal(rule(".path-step--center")["justify-items"], "center");
+  const steps = rule(".path-steps");
+  assert.equal(steps["max-width"], "440px", "a wide column keeps a phone-wide path");
+  assert.equal(steps.margin, "var(--s-5) auto 0", "centred under the unit card");
 });
 
 test("the due chip is a 44px chip whose words may wrap; the week is a plain pill", () => {

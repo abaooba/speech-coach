@@ -2,7 +2,8 @@
    docs/superpowers/specs/2026-10-14-loop-path.md section 9): this week's practice days, the
    check-backs due today and the benchmark, then one block per unit, weakest first, whose levels
    wind down the page as node buttons that each open a small card. app.path decides every state
-   and app.loop writes the dates; this file only draws them. nodeX and linkD lay out the path. */
+   and app.loop writes the dates; this file only draws them. nodeX, dropD and linkD lay out the
+   path. */
 (function () {
   "use strict";
 
@@ -15,8 +16,11 @@
   const LEFT_X = 25;
   const RIGHT_X = 75;
   const CENTER_X = 50;
-  // Each link is drawn in a 100 by 100 box that the stylesheet stretches from one node's centre
-  // down to the next one's, however tall the row between them grows. It bends at mid-height.
+  // A link runs from one node's centre to the next one's in two parts, each drawn in a 100 by
+  // 100 box the stylesheet stretches: a straight drop under the node to the foot of its row,
+  // however tall an open card makes the row, then a turn of one height across the gap between
+  // the rows into the next node, bending at mid-height. Turning only below a row's content, a
+  // link never runs through a card or the crown beside a node.
   const LINK_BOX = "0 0 100 100";
   const LINK_BEND_Y = 50;
   const LINK_END_Y = 100;
@@ -136,10 +140,16 @@
     return index % 2 === 0 ? LEFT_X : RIGHT_X;
   }
 
-  // The link from a node at `fromX` down to the next one at `toX`, as an SVG path's `d` in the
-  // 100 by 100 link box: x in percent of the row, y 0 at the first node's centre and 100 at the
-  // next one's. It leaves the first node straight down, bends at mid-height and meets the next
-  // node straight down, an S when the two sit on opposite sides.
+  // A link's drop under a node at `x`, as an SVG path's `d` in the 100 by 100 link box: x in
+  // percent of the row, y 0 at the node's centre and 100 at the foot of its row.
+  function dropD(x) {
+    return "M" + x + " 0 L" + x + " " + LINK_END_Y;
+  }
+
+  // A link's turn from a node at `fromX` into the next one at `toX`, as an SVG path's `d` in
+  // the 100 by 100 link box: y 0 at the foot of the first node's row and 100 at the next node's
+  // centre. It leaves straight down, bends at mid-height and meets the next node straight down,
+  // an S when the two sit on opposite sides.
   function linkD(fromX, toX) {
     const bend = " " + LINK_BEND_Y + " ";
     return "M" + fromX + " 0 C" + fromX + bend + toX + bend + toX + " " + LINK_END_Y;
@@ -771,20 +781,26 @@
     return { add };
   }
 
-  // The link from one node down to the next, behind both: in --ok once the first is cleared (the
-  // path walked so far), else in --grid. The stylesheet stretches it between their centres, and
-  // its stroke keeps its width however it is stretched.
+  // The link from one node down to the next, behind both: its drop, then its turn (see
+  // LINK_BOX), in --ok once the first node is cleared (the path walked so far), else in --grid.
   function buildLink(fromX, toX, walked) {
+    const className = "path-step__link" + (walked ? " path-step__link--walked" : "");
+    return app.ui.el("span", { class: className, "aria-hidden": "true" }, [
+      buildLinkPart("path-step__drop", dropD(fromX)),
+      buildLinkPart("path-step__turn", linkD(fromX, toX)),
+    ]);
+  }
+
+  // One part of a link: a path in the 100 by 100 box, stretched to the part's place by the
+  // stylesheet, its stroke keeping its width however it is stretched.
+  function buildLinkPart(className, d) {
     const svg = svgElement("svg", {
-      class: "path-step__link" + (walked ? " path-step__link--walked" : ""),
+      class: className,
       viewBox: LINK_BOX,
       preserveAspectRatio: "none",
-      "aria-hidden": "true",
       focusable: "false",
     });
-    svg.appendChild(
-      svgElement("path", { d: linkD(fromX, toX), "vector-effect": "non-scaling-stroke" }),
-    );
+    svg.appendChild(svgElement("path", { d, "vector-effect": "non-scaling-stroke" }));
     return svg;
   }
 
@@ -837,5 +853,5 @@
     return typeof value === "number" && Number.isFinite(value);
   }
 
-  app.screens.path = { mount, show, hide, nodeX, linkD };
+  app.screens.path = { mount, show, hide, nodeX, dropD, linkD };
 })();

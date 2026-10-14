@@ -2537,9 +2537,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    benchmark, then one block per unit, its card over its steps winding down the page. Each step
    is a grid row of three columns, the room before the node, the 104px node (its circle over its
    label) and the side that holds its card, so a node's centre sits at 25% or 75% of the row and
-   the checkpoint's at 50%, where screens/path.js nodeX places them. A link is an SVG stretched
-   from one node's centre to the next one's, so it follows a row however tall an open card makes
-   it. Cleared is --ok, current --accent, gold --warn. Nothing animates. */
+   the checkpoint's at 50%, where screens/path.js nodeX places them. A link drops from one node's
+   centre to the foot of its row, however tall an open card makes it, then turns into the next
+   node. Cleared is --ok, current --accent, gold --warn. Nothing animates. */
 .path__status {
   display: flex;
   flex-wrap: wrap;
@@ -2672,11 +2672,13 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* The steps stack with no gap between rows, so a link as tall as its row, starting at its
    node's centre, ends at the next node's centre. isolation keeps the links' z-index inside the
-   list, under every node and card. */
+   list, under every node and card. On a wide column the path keeps a phone's width, centred,
+   so its turns stay as steep as on a phone. */
 .path-steps {
   position: relative;
   isolation: isolate;
-  margin: var(--s-5) 0 0;
+  max-width: 440px;
+  margin: var(--s-5) auto 0;
   padding: 0;
   list-style: none;
 }
@@ -2685,7 +2687,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   position: relative;
   display: grid;
   align-items: start;
-  padding-bottom: var(--s-5);
+  padding-bottom: var(--s-6);
 }
 
 /* The room before a side node is a quarter of the row less half the node, so the node's centre
@@ -2754,8 +2756,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* A link runs from its node's centre, 32px down the row, as tall as the row, so it ends at the
-   next node's centre; its stroke keeps 3px however far it stretches. Walked is --ok, the rest
-   --grid. */
+   next node's centre: a drop to the foot of the row's content, then a turn across the row's
+   --s-6 foot and the next node's top half, below every card and crown in the row. Each part's
+   stroke keeps 3px however far it stretches. Walked is --ok, the rest --grid. */
 .path-step__link {
   position: absolute;
   z-index: -1;
@@ -2763,8 +2766,25 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   left: 0;
   width: 100%;
   height: 100%;
-  overflow: visible;
   pointer-events: none;
+}
+
+.path-step__drop,
+.path-step__turn {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  overflow: visible;
+}
+
+.path-step__drop {
+  top: 0;
+  height: calc(100% - var(--s-6) - 32px);
+}
+
+.path-step__turn {
+  bottom: 0;
+  height: calc(var(--s-6) + 32px);
 }
 
 .path-step__link path {
@@ -3015,5 +3035,20 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   .path-step__link,
   .path-card::before {
     display: none;
+  }
+
+  /* The cards give their words more room, as the metric cards do on a narrow screen, and
+     "Start benchmark" takes the card's width in small type, breaking a word sooner than
+     overflow it. */
+  .path-benchmark,
+  .path-unit__card {
+    padding: var(--s-3);
+  }
+
+  .path-benchmark__start {
+    width: 100%;
+    padding: 0 var(--s-2);
+    font-size: var(--fs-small);
+    overflow-wrap: anywhere;
   }
 }

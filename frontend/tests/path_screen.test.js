@@ -72,14 +72,35 @@ test("nodeX alternates the levels left and right of centre and centres the check
   );
 });
 
-test("linkD leaves a node straight down and meets the next one straight down", () => {
+test("dropD runs straight down under a node", () => {
+  const { screen } = mountPath();
+  assert.equal(screen.dropD(25), "M25 0 L25 100");
+  assert.equal(screen.dropD(75), "M75 0 L75 100");
+});
+
+test("linkD turns from one node's column into the next, straight down at both ends", () => {
   const { screen } = mountPath();
   assert.equal(screen.linkD(25, 75), "M25 0 C25 50 75 50 75 100");
   assert.equal(screen.linkD(75, 25), "M75 0 C75 50 25 50 25 100");
   assert.equal(screen.linkD(25, 50), "M25 0 C25 50 50 50 50 100");
 });
 
-test("each unit's steps wind left and right, joined by links from nodeX and linkD", async () => {
+// The two parts of a link: an SVG in the 100 by 100 box, stretched, drawing one path.
+function linkPart(svg, className) {
+  assert.equal(svg.tagName, "svg");
+  assert.equal(svg.namespaceURI, SVG_NS);
+  assert.equal(svg.getAttribute("class"), className);
+  assert.equal(svg.getAttribute("viewBox"), "0 0 100 100");
+  assert.equal(svg.getAttribute("preserveAspectRatio"), "none");
+  assert.equal(svg.children.length, 1);
+  const [line] = svg.children;
+  assert.equal(line.tagName, "path");
+  assert.equal(line.namespaceURI, SVG_NS);
+  assert.equal(line.getAttribute("vector-effect"), "non-scaling-stroke");
+  return line.getAttribute("d");
+}
+
+test("each unit's steps wind left and right, joined by dropD and linkD paths", async () => {
   const { screen, body } = await shown();
   for (const unit of unitsOf(body)) {
     const list = find(unit, "path-steps");
@@ -109,16 +130,11 @@ test("each unit's steps wind left and right, joined by links from nodeX and link
       assert.equal(links.length, 1);
       const [link] = links;
       assert.equal(step.children[0], link, "the link is drawn first, behind the node");
-      assert.equal(link.tagName, "svg");
-      assert.equal(link.namespaceURI, SVG_NS);
-      assert.equal(link.getAttribute("viewBox"), "0 0 100 100");
-      assert.equal(link.getAttribute("preserveAspectRatio"), "none");
       assert.equal(link.getAttribute("aria-hidden"), "true");
-      const [line] = link.children;
-      assert.equal(line.tagName, "path");
-      assert.equal(line.namespaceURI, SVG_NS);
-      assert.equal(line.getAttribute("d"), screen.linkD(xs[index], xs[index + 1]));
-      assert.equal(line.getAttribute("vector-effect"), "non-scaling-stroke");
+      assert.equal(link.children.length, 2, "a drop under the node, then a turn");
+      const [drop, turn] = link.children;
+      assert.equal(linkPart(drop, "path-step__drop"), screen.dropD(xs[index]));
+      assert.equal(linkPart(turn, "path-step__turn"), screen.linkD(xs[index], xs[index + 1]));
     });
   }
 });
