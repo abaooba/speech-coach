@@ -283,6 +283,8 @@
       history,
       material: app.path.materialFor(play, history, Math.random, 0),
       topFillers: play.listsTopFillers ? app.path.topFillers(history) : [],
+      // Whether the play's last run was cut off after take 1 today, its audio gone with it.
+      takeOneGone: takeOneCutOff(play, history),
       // By take index: {transcript, metrics, report, evaluation, liveTaps, session}.
       takes: [],
       // The run's saved sessions, newest first, and the records its passes kept, with the ids
@@ -309,6 +311,25 @@
       // The step last drawn, so a new step takes focus and is announced.
       drawn: null,
     };
+  }
+
+  // Whether a loop's last run ended after its take 1, today: the play's newest saved take is that
+  // take 1. The page was reloaded or the level was left before the review was done, and take 1's
+  // audio, kept only in memory while the level was open, went with that run. The new run starts
+  // at its Goal (spec section 8), which says so, since the review that would is gone too.
+  function takeOneCutOff(play, history) {
+    if (play.kind !== LOOP) {
+      return false;
+    }
+    const newest = history.find(
+      (session) => session && session.path && session.path.play === play.id,
+    );
+    return (
+      Boolean(newest) &&
+      newest.path.kind === LOOP &&
+      newest.path.take === 1 &&
+      app.path.localDay(newest.createdAt) === today()
+    );
   }
 
   // The run ends: its countdown stops and take 1's audio is released.
@@ -926,7 +947,8 @@
   // --- Goal ------------------------------------------------------------------------------------
 
   // The target card with the unit's why line, Fillers level 1's top fillers, the long-pause
-  // prep, a checkpoint's switch, then the button that starts take 1.
+  // prep, a checkpoint's switch, then the button that starts take 1. A run that follows one cut
+  // off after take 1 says, right above that button, that the earlier take 1's audio is gone.
   function buildGoal(target) {
     const play = target.play;
     const title = stepHeading(app.loop.stepsFor(play.id)[0].label);
@@ -939,6 +961,9 @@
     }
     if (play.inRoomSwitch) {
       parts.push(inRoomSwitch(target));
+    }
+    if (target.takeOneGone) {
+      parts.push(el("p", { class: "level-goal__gone", text: AUDIO_GONE }));
     }
     const start = primaryButton(goalAction(play), () => startTake(target, 0));
     if (prepView !== null) {

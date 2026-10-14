@@ -2186,14 +2186,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   gap: var(--s-1) var(--s-3);
 }
 
+/* "Take 1's audio is gone" reads the same in a review without audio and on the Goal of a run
+   that follows one cut off after take 1: a small muted line. */
 .level-review__about,
-.level-review__gone {
+.level-review__gone,
+.level-goal__gone {
   font-size: var(--fs-small);
   line-height: 1.4;
   color: var(--muted);
 }
 
-.level-review__gone {
+.level-review__gone,
+.level-goal__gone {
   margin: 0;
 }
 
