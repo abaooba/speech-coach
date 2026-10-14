@@ -96,7 +96,8 @@ class Night:
     report: str
     worktree: Path
 
-    def protected_line(self) -> str:
+    def protected_lines(self) -> str:
+        """The log lines naming the protected paths a task changed, joined."""
         lines = [line for line in self.output.splitlines() if "protected paths changed" in line]
         return "\n".join(lines)
 
@@ -271,9 +272,9 @@ def test_the_agent_gets_every_task_it_may_start(night: Night) -> None:
 def test_a_task_whose_commits_change_protected_paths_fails(night: Night) -> None:
     assert night.tasks["T4"]["status"] == "blocked", night.output
     assert "protected=1" in night.tasks["T4"]["notes"][-1]
-    line = night.protected_line()
-    assert "frontend/tests/practice.test.js" in line, night.output
-    assert "frontend/DESIGN.md" in line, night.output
+    lines = night.protected_lines()
+    assert "frontend/tests/practice.test.js" in lines, night.output
+    assert "frontend/DESIGN.md" in lines, night.output
 
 
 def test_a_failed_tasks_commits_are_left_out_of_the_branch(night: Night) -> None:
@@ -288,7 +289,7 @@ def test_new_test_files_are_fine(night: Night) -> None:
     assert night.committed("frontend/tests/t3.test.js") is not None
     assert night.committed("backend/tests/test_t5.py") == PASSING_TEST
     for added in ("frontend/tests/t3.test.js", "backend/tests/test_t3.py", "test_t5.py"):
-        assert added not in night.protected_line()
+        assert added not in night.protected_lines()
 
 
 def test_a_failed_tasks_dependents_wait_as_todo(night: Night) -> None:
