@@ -4,10 +4,17 @@ Every provider turns raw audio into the same list of timed words so the
 metrics code never has to know which service produced them.
 """
 
+import math
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, TypeIs
 
 import httpx
+
+# What reading a reply of the wrong shape raises: not JSON (ValueError), a field missing
+# (KeyError, IndexError) or one of the wrong type (TypeError, AttributeError, ValueError).
+UNREADABLE_REPLY_ERRORS = (ValueError, LookupError, TypeError, AttributeError)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,3 +45,35 @@ def raise_for_status(response: httpx.Response, provider_name: str) -> None:
     raise ProviderError(
         f"{provider_name} returned HTTP {response.status_code}: {response.text[:200]}"
     )
+
+
+@contextmanager
+def reading_reply(provider_name: str) -> Iterator[None]:
+    """Turn a 2xx reply that is not the shape the provider documents into a ProviderError.
+
+    Reading one raises one of UNREADABLE_REPLY_ERRORS, which /api/analyze does not catch, and
+    the speaker would get a 500 instead of the provider message. The error is named by its class
+    alone: the reply can hold the speaker's words.
+    """
+    try:
+        yield
+    except UNREADABLE_REPLY_ERRORS as error:
+        raise ProviderError(
+            f"{provider_name} sent a reply that could not be read ({type(error).__name__})"
+        ) from error
+
+
+def checked_word(text: object, start: object, end: object) -> Word:
+    """A Word from the fields of a reply: its text must be a string, its times finite numbers.
+
+    Otherwise ValueError. A word with no text, or a time that is text or not finite, would get
+    past the provider and break the metrics or the answer; inside reading_reply it is a
+    ProviderError instead.
+    """
+    if isinstance(text, str) and _is_finite_number(start) and _is_finite_number(end):
+        return Word(text=text, start=start, end=end)
+    raise ValueError("a word needs its text as a string and its times as finite numbers")
+
+
+def _is_finite_number(value: object) -> TypeIs[int | float]:
+    return isinstance(value, int | float) and math.isfinite(value)

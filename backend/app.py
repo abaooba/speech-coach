@@ -28,7 +28,7 @@ from backend.advice.budget import ADVICE_CALL_BUDGET, AICallBudget
 from backend.limits import RequestBodyLimit
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
-from backend.script_align import analyze_reading
+from backend.script_align import alignment_cells, analyze_reading
 
 load_dotenv()
 
@@ -42,6 +42,10 @@ DEFAULT_CONTENT_TYPE = "application/octet-stream"
 # times spoken words; at this length against a 4-minute take it takes under a second and
 # about 10 MB, and it runs off the event loop as the transcription does.
 MAX_SCRIPT_CHARACTERS = 20_000
+# Lining a take up against its script fills a 4-byte cell for each spoken word and script word
+# pair (backend/script_align.py). 25 million is about 115 MB, a safe share of the 512 MB on
+# Render's free plan, and over ten times a 4-minute take against the longest script.
+MAX_ALIGNMENT_CELLS = 25_000_000
 
 EMPTY_UPLOAD_MESSAGE = "The upload was empty. Record again and resend."
 TOO_SHORT_MESSAGE = "That recording had under 5 seconds of speech. Try again."
@@ -63,10 +67,11 @@ API_CACHE_CONTROL = "no-store"
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """On startup, create the account tables when DATABASE_URL is set (backend/db.py).
 
-    Without it accounts are off and nothing is created. A database that cannot be reached is
-    logged and passed over, because guests never need it: their takes stay in the browser.
-    Account routes then fail until it can be reached, and on a first deploy until the next start.
-    When the server stops, the database connections it holds are closed.
+    Without it, or with one no engine can be built from (db.configured_engine logs it), accounts
+    are off and nothing is created. A database that cannot be reached is logged and passed over,
+    because guests never need it: their takes stay in the browser. Account routes then fail
+    until it can be reached, and on a first deploy until the next start. When the server stops,
+    the database connections it holds are closed.
     """
     engine = db.configured_engine()
     if engine is not None:
@@ -137,7 +142,9 @@ async def analyze(
 
     `script` is the text the take was read from, if any: the metrics then gain a `script`
     block and its restarts stand in for the repeats (backend/script_align.py). A script over
-    MAX_SCRIPT_CHARACTERS is turned down before the provider is called.
+    MAX_SCRIPT_CHARACTERS is turned down before the provider is called. A take and script too
+    large to line up against each other (MAX_ALIGNMENT_CELLS) are scored as free talk instead,
+    with no script block.
 
     The audio bytes are held in memory for this request only and handed straight to
     the speech-to-text provider; nothing is written by this code. Starlette spools
@@ -161,7 +168,7 @@ async def analyze(
         raise HTTPException(status_code=502, detail=PROVIDER_FAILED_MESSAGE) from exc
     if speech_end_seconds(words) < MIN_RECORDING_SECONDS:
         raise HTTPException(status_code=400, detail=TOO_SHORT_MESSAGE)
-    if script:
+    if script and alignment_cells(words, script) <= MAX_ALIGNMENT_CELLS:
         take_metrics = await run_in_threadpool(analyze_reading, words, script)
     else:
         take_metrics = metrics.analyze(words)
