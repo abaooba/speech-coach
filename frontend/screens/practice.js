@@ -921,7 +921,8 @@
   function startLevelTake(request) {
     if (!isLevelRequest(request)) {
       throw new TypeError(
-        "startLevelTake needs a request with a material and judge, onSaved and onLeave",
+        "startLevelTake needs a material {kind, id, title, text, targetWpm} and judge, " +
+          "onSaved and onLeave",
       );
     }
     levelRequest = request;
@@ -931,12 +932,20 @@
     app.router.go(PRACTICE_ROUTE);
   }
 
+  // A request Practice can paint and record: its callbacks, and a material whose kind decides
+  // the script (MODES lists the two) and whose band the card's target line reads.
   function isLevelRequest(request) {
+    if (request === null || typeof request !== "object") {
+      return false;
+    }
+    const material = request.material;
     return (
-      request !== null &&
-      typeof request === "object" &&
-      request.material !== null &&
-      typeof request.material === "object" &&
+      material !== null &&
+      typeof material === "object" &&
+      MODES.some((mode) => mode.kind === material.kind) &&
+      ["id", "title", "text"].every((field) => typeof material[field] === "string") &&
+      Array.isArray(material.targetWpm) &&
+      material.targetWpm.length === 2 &&
       LEVEL_CALLBACKS.every((name) => typeof request[name] === "function")
     );
   }

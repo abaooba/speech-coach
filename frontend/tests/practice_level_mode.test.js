@@ -191,13 +191,21 @@ test("a Leave level tap while the take records changes nothing", async () => {
   assert.ok(parts(t).banner, "the request is still held");
 });
 
-test("startLevelTake refuses a request without a material or its three callbacks", () => {
+test("startLevelTake refuses a request without a whole material or its three callbacks", () => {
   const t = setup();
   const { request } = levelRequest();
+  const material = request.material;
   const broken = [
     null,
     "fillers-3",
     { ...request, material: null },
+    { ...request, material: { ...material, kind: "video" } },
+    { ...request, material: { ...material, kind: undefined } },
+    { ...request, material: { ...material, id: undefined } },
+    { ...request, material: { ...material, title: 42 } },
+    { ...request, material: { ...material, text: null } },
+    { ...request, material: { ...material, targetWpm: undefined } },
+    { ...request, material: { ...material, targetWpm: [140] } },
     { ...request, judge: undefined },
     { ...request, onSaved: "go back" },
     { ...request, onLeave: undefined },
@@ -291,6 +299,59 @@ test("the limit comes from request.seconds: '/ 1:30' and a bar that fills toward
   t.clock.advance(45000);
   assert.ok(p.limitBar.classList.contains("practice__limit-bar--over"), "over at 1:30");
   assert.equal(t.practice.state, "recording", "the limit never stops a take");
+});
+
+// The core the Level screen builds its requests from: passages.js, delivery.js and path.js in a
+// vm of their own, in index.html's order.
+function loadCore() {
+  const context = { app: { screens: {} } };
+  for (const file of ["passages.js", "delivery.js", "path.js"]) {
+    const source = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+    vm.runInNewContext(source, context, { filename: file });
+  }
+  return context.app;
+}
+
+test("every kind of material app.path.materialFor gives is painted, sent and saved", async () => {
+  const core = loadCore();
+  const takes = [
+    ["fillers-1", 0, "free-talk"],
+    ["fillers-3", 0, "impromptu"],
+    ["restarts-1", 0, null],
+    ["pace-2", 0, "rebuttal-uniforms"],
+    ["pace-2", 1, "rebuttal-uniforms"],
+    ["benchmark", 0, "benchmark-read"],
+    ["benchmark", 1, "benchmark-talk"],
+  ];
+  for (const [playId, takeIndex, expectedId] of takes) {
+    const material = core.path.materialFor(playId, [], () => 0, takeIndex);
+    const label = `${playId} take ${takeIndex + 1}`;
+    if (expectedId !== null) {
+      assert.equal(material.id, expectedId, label);
+    }
+    const t = setup();
+    const { request } = levelRequest({ material });
+    t.startLevel(request);
+    const p = parts(t);
+    const [lo, hi] = material.targetWpm;
+    assert.equal(p.cardTitle.textContent, material.title, label);
+    assert.equal(p.cardText.textContent, material.text, label);
+    assert.equal(p.cardTarget.textContent, `Target ${lo} to ${hi} wpm`, label);
+
+    await t.recordTake(12000);
+    const script = material.kind === "passage" ? material.text : "";
+    assert.equal(t.calls.analyze[0].script, script, `${label} script`);
+    t.resolveUpload(ANALYSIS);
+    await flush();
+    const session = t.calls.save[0];
+    assert.equal(session.passageId, material.id, label);
+    assert.equal(session.passageTitle, material.title, label);
+    if (material.kind === "prompt") {
+      assert.equal(session.topic, material.topic, `${label} topic`);
+    } else {
+      assert.ok(!("topic" in session), `${label} saves no topic`);
+    }
+  }
 });
 
 test("a read on a passage with no limit of its own still takes the request's seconds", () => {
