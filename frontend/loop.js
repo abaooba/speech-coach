@@ -137,17 +137,19 @@
       return null;
     }
     const key = level.conditions[0].measure;
-    const earlier = latestEarlier(key, given);
+    const take = app.path.takeAt(known.id, takeIndex) || {};
+    const earlier = latestEarlier(key, take.read === true || key === "readSlips", given);
     if (earlier === null) {
       return null;
     }
     const when = whenText(app.path.localDay(earlier.take.createdAt), today);
-    const band = (app.path.takeAt(known.id, takeIndex) || {}).band;
-    return changeLine(key, value, earlier.value, when, band);
+    return changeLine(key, value, earlier.value, when, take.band);
   }
 
-  // The latest own take before this one with a number for `key`, as {take, value}, or null.
-  function latestEarlier(key, given) {
+  // The latest own take before this one with a number for `key`, as {take, value}, or null. A
+  // read (`read`, its slips or its pace alike) compares only with a take that followed a script,
+  // since a talk's slips and pace are not a read's.
+  function latestEarlier(key, read, given) {
     const before = typeof given.at === "string" ? given.at : null;
     const takes = app.path
       .ownTakes(given.history)
@@ -156,7 +158,7 @@
       .sort((a, b) => compareText(String(b.createdAt || ""), String(a.createdAt || "")));
     for (const take of takes) {
       const measured = app.path.measure(app.delivery.analyze(take.transcript, take.metrics), 0);
-      const hasIt = measured.spoke && (key !== "readSlips" || measured.followedScript);
+      const hasIt = measured.spoke && (!read || measured.followedScript);
       if (hasIt) {
         return { take, value: measured[key] };
       }
