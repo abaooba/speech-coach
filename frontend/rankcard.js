@@ -82,7 +82,7 @@
     ladder: (count) => "All " + count + " tiers, top first",
   });
   const CHANGE_LEADS = { [UP]: "Rating ", [DOWN]: "Rating ", [SAME]: "Rating: " };
-  const UNBROKEN_TO = " to ";
+  const UNBROKEN_TO = "\u00a0to ";
 
   // Fixed copy (the tier spec, section 9).
   const COPY = Object.freeze({
@@ -102,7 +102,7 @@
     threeMinute: (score, tier) =>
       "One 3-minute take scoring " + score + " or more reaches " + tier + ".",
     gateRule: "2 minutes or more, 97 or more, no long pause.",
-    gateNeeds: (top) => " " + top + " needs all " + RATED_TAKES + ": ",
+    gateNeeds: (top) => " " + top + " needs all 10: ",
     gateKept: " Each new take must too: ",
     allPass: "All of your last 10 takes pass.",
     nonePass: "None of your last 10 takes pass.",
