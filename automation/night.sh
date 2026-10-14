@@ -22,6 +22,10 @@ echo "=== night.sh start $(date) repo=$REPO max_tasks=$MAX_TASKS effort=$EFFORT 
 Q() { python3 "$REPO/automation/queue.py" "$@"; }
 LOCK="$REPO/.night.lock"
 cleanup() { Q reset-doing "run ended while task was in progress"; rmdir "$LOCK" 2>/dev/null; }
+# Where a task may add files but never change, delete or rename one: the test folders, the
+# frontend spec, the human-owned pauses.js, docs, rules, queue and automation. hooks/protect.sh
+# stops Edit and Write there; checking each task's commits also catches a Bash edit or a git rm.
+PROTECTED_PATHS=(backend/tests frontend/tests frontend/DESIGN.md frontend/pauses.js docs CLAUDE.md tasks automation .claude)
 
 if [ -f "$REPO/STOP" ]; then echo "STOP file present; exiting"; exit 0; fi
 if ! mkdir "$LOCK" 2>/dev/null; then echo "another night.sh is running (remove $LOCK if stale); exiting"; exit 0; fi
@@ -95,12 +99,20 @@ PY
   dirty="$(git -C "$WT" status --porcelain | grep -vE '^\?\? (nights/|\.venv)' | wc -l | tr -d ' ')"
   (cd "$WT" && .venv/bin/pytest -q > "$NIGHT_DIR/$TID.pytest.log" 2>&1); t_rc=$?
   (cd "$WT" && .venv/bin/ruff check . > "$NIGHT_DIR/$TID.ruff.log" 2>&1); r_rc=$?
+  # M changed, D deleted, R renamed, T turned into a link or back; a file the task added (A) is fine.
+  protected="$(git -C "$WT" diff --name-only --diff-filter=MDRT "$base_sha" HEAD -- "${PROTECTED_PATHS[@]}")" \
+    || protected="(git diff failed)"
+  p_rc=0
+  if [ -n "$protected" ]; then
+    p_rc=1
+    echo "protected paths changed: $(printf '%s' "$protected" | tr '\n' ' ')"
+  fi
   [ -f "$WT/nights/$TID.md" ] && mv "$WT/nights/$TID.md" "$NIGHT_DIR/$TID.md"
-  echo "rc=$rc subtype=$subtype elapsed=${elapsed}s turns=$turns cost=\$$cost commits=$commits dirty=$dirty pytest=$t_rc ruff=$r_rc"
+  echo "rc=$rc subtype=$subtype elapsed=${elapsed}s turns=$turns cost=\$$cost commits=$commits dirty=$dirty pytest=$t_rc ruff=$r_rc protected=$p_rc"
 
   # Uncommitted leftovers but passing checks: discard the leftovers and re-verify the committed state.
   # (rc is deliberately ignored: a timeout or budget stop still keeps committed, verified work.)
-  if [ "$commits" -gt 0 ] && [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && [ "$dirty" -gt 0 ]; then
+  if [ "$commits" -gt 0 ] && [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && [ "$p_rc" -eq 0 ] && [ "$dirty" -gt 0 ]; then
     git -C "$WT" status --porcelain > "$NIGHT_DIR/$TID.leftovers.txt"
     git -C "$WT" checkout -q -- . ; git -C "$WT" clean -qfd -e nights
     (cd "$WT" && .venv/bin/pytest -q > "$NIGHT_DIR/$TID.pytest.log" 2>&1); t_rc=$?
@@ -108,13 +120,13 @@ PY
     echo "discarded $dirty uncommitted paths; re-verify pytest=$t_rc ruff=$r_rc"
     [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && dirty=0
   fi
-  if [ "$commits" -gt 0 ] && [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && [ "$dirty" -eq 0 ]; then
+  if [ "$commits" -gt 0 ] && [ "$t_rc" -eq 0 ] && [ "$r_rc" -eq 0 ] && [ "$p_rc" -eq 0 ] && [ "$dirty" -eq 0 ]; then
     status_word=done; [ "$rc" -ne 0 ] && status_word="partial ($subtype)"
     Q set "$TID" done "run $RUN: $commits commits, $turns turns, \$$cost, rc=$rc $status_word"
     done_ids+=("$TID"); consecutive_fail=0
     summary_rows+="| $TID | $status_word | $commits | $turns | \$$cost | ${elapsed}s |\n"
   else
-    reason="rc=$rc subtype=$subtype commits=$commits pytest=$t_rc ruff=$r_rc dirty=$dirty"
+    reason="rc=$rc subtype=$subtype commits=$commits pytest=$t_rc ruff=$r_rc protected=$p_rc dirty=$dirty"
     git -C "$WT" diff "$base_sha" > "$NIGHT_DIR/$TID.failed.patch"
     git -C "$WT" reset -q --hard "$base_sha"; git -C "$WT" clean -qfd -e nights
     Q set "$TID" blocked "run $RUN failed: $reason"
