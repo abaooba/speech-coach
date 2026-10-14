@@ -107,7 +107,17 @@ test("how.html names every rule word and every source", () => {
   ["like", "so", "you know", "actually", "basically"].forEach((word) => {
     assert.ok(text.includes("“" + word + "”"), "rule word: " + word);
   });
-  ["Zoom", "tl;dv", "Microsoft", "Gong", "NSDA", "DebateDrills", "Wisniewski"].forEach((name) => {
+  [
+    "Zoom",
+    "tl;dv",
+    "Microsoft",
+    "Gong",
+    "Graveline",
+    "Trouvain",
+    "Houghton",
+    "Bosker",
+    "Wisniewski",
+  ].forEach((name) => {
     assert.ok(text.includes(name), "source: " + name);
   });
 });

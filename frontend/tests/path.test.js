@@ -20,7 +20,7 @@ const FIXTURES_DIR = path.join(FRONTEND_DIR, "..", "backend", "tests", "fixtures
 
 const UNIT_IDS = ["restarts", "fillers", "long-pauses", "pace"];
 const NO_SPEECH = "No speech was found in this take.";
-const LADDER_PASSAGE_ID = "rebuttal-uniforms";
+const LADDER_PASSAGE_ID = "explainer-rainbows";
 // A cold read is read at the slow edge of its band at worst (passages.js gives 140 to 160).
 const SLOW_EDGE_WPM = 140;
 
@@ -377,7 +377,7 @@ test("cold reads allow 4, 3, 2, then 1 restart or misread, then a talk at 1 a mi
   });
 });
 
-test("clean stretches grow from DebateDrills' 15 beginner seconds to a full minute", () => {
+test("clean stretches grow from the 15 s beginners' practice target to a full minute", () => {
   assert.deepEqual(
     Array.from(unit("long-pauses").levels, (entry) => entry.conditions[0].min),
     [15, 20, 30, 45, 60],

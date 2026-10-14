@@ -47,14 +47,15 @@
   const BENCHMARK_MATERIAL = "benchmark"; // app.passages.benchmark(): one read, then one talk
   const YOUR_DAY_PROMPT_ID = "free-talk";
   const IMPROMPTU_PROMPT_ID = "impromptu";
-  const LADDER_PASSAGE_ID = "rebuttal-uniforms";
+  const LADDER_PASSAGE_ID = "explainer-rainbows";
 
   const SECONDS_PER_MINUTE = 60;
   // Word times are in seconds to the millisecond; two times closer than this are the same moment.
   const MILLISECOND = 0.001;
 
-  // A cold read lasts a minute and a half: the longest (192 words) takes 82 s at 140 wpm, the
-  // slow edge of the cold reads' band. The benchmark read is held to the same time.
+  // A cold read lasts a minute and a half: the longest (164 words) takes 70 s at 140 wpm, the
+  // slow edge of the cold reads' band, and any up to 200 words would fit. The benchmark read is
+  // held to the same time.
   const COLD_READ_SECONDS = 90;
   // A check-back on a new topic lasts a minute and a half (Fillers levels 1 and 2 excepted).
   const NEW_TOPIC_CHECKBACK_SECONDS = 90;
@@ -337,16 +338,17 @@
         "down until the passage comes out clean, then bring the speed back up a little at a " +
         "time.",
     },
-    "restart-060": {
-      author: "David M. Cheshier",
-      title: "",
-      publisher: "Rostrum",
-      year: null,
-      url: "https://www.uvm.edu/~debate/NFL/rostrumlib/cxCheshier0402.pdf",
+    "pause-035": {
+      author: "Heini Kallio, Mikko Kuronen, Liisa Koivusalo",
+      title: "The role of pause location in perceived fluency and proficiency in L2 Finnish",
+      publisher: "ISAPh 2022: Proceedings of the 4th International Symposium on Applied Phonetics",
+      year: 2022,
+      url: "https://jyx.jyu.fi/bitstreams/d563390e-87ed-43bf-a231-ce1e3e1327f2/download",
       advice:
-        "When reading quickly from a page, guide your eyes with a fingertip kept a word or two " +
-        "ahead of what you are saying. This keeps your place and cuts down on stumbles from " +
-        "skipping or misreading.",
+        "In a study of second-language Finnish, the pauses that hurt ratings most were silences " +
+        "or fillers inside a short phrase and pauses right after a word you cut off halfway. A " +
+        "pause between two phrases, even inside a longer clause, did little harm, so keep each " +
+        "small phrase intact.",
     },
     "restart-009": {
       author: "Herbert H. Clark, Thomas Wasow",
@@ -433,16 +435,17 @@
         "study, repeated recall greatly improved later memory, while extra rereading added " +
         "nothing.",
     },
-    "long-045": {
-      author: "",
-      title: "Impromptu Starter Kit",
-      publisher: "National Speech & Debate Association",
-      year: null,
-      url: "https://www.speechanddebate.org/wp-content/uploads/Impromptu-Starter-Kit.pdf",
+    "long-075": {
+      author: "Nivja H. De Jong",
+      title: "Fluency in Second Language Testing: Insights From Different Disciplines",
+      publisher: "Language Assessment Quarterly",
+      year: 2018,
+      url: "https://scholarlypublications.universiteitleiden.nl/access/item%3A2952897/download",
       advice:
-        "Practice starting to speak immediately on a prompt you haven't planned, and work your " +
-        "way toward a thesis as you talk. This trains you out of freezing while you wait for a " +
-        "perfect opening.",
+        "Hesitations that fall between sentences or clauses are mostly about working out what to " +
+        "say next (conceptualizing), while those inside a clause or phrase are more about " +
+        "finding the words. So if your recordings show long gaps between sentences, work on " +
+        "knowing your next idea through a clearer structure and outline.",
     },
     "pace-087": {
       author: "Denise Graveline",
@@ -455,15 +458,19 @@
         "presenting rate (about 140-160 words per minute in this article) than many people use " +
         "when chatting.",
     },
-    "pace-028": {
-      author: "",
-      title: "Strategy: \"Interping\" Extemp",
-      publisher: "Extemp Central",
-      year: null,
-      url: "https://extemp.com/interping-extemp/",
+    "pace-057": {
+      author: "Jürgen Trouvain",
+      title:
+        "Tempo Variation in Speech Production: Implications for Speech Synthesis (Ch. 2, Sources " +
+        "of Tempo Variation)",
+      publisher: "Universität des Saarlandes",
+      year: 2003,
+      url: "https://www.coli.uni-saarland.de/~trouvain/Phonus8/02_chapter2.pdf",
       advice:
-        "Change speed on purpose. Speed up through a list of facts to show momentum, and slow " +
-        "right down, even softening your voice, for your biggest moment.",
+        "Non-native speakers are often told to slow down, but research summarized here found " +
+        "native listeners judged slightly faster second-language speech as more understandable " +
+        "and less accented than the speaker's natural or slowed tempo. Only clearly too-fast " +
+        "speech was penalized. Slowing down a lot is not automatically a clarity fix.",
     },
     "pause-022": {
       author: "Gavin Bui, Mohammad Javad Ahmadian, Ann-Marie Hunter",
@@ -690,7 +697,7 @@
       },
       levels: [
         coldReadLevel("Read it 3 times", 3, 4, "restart-056"),
-        coldReadLevel("Read it 3 times", 3, 3, "restart-060"),
+        coldReadLevel("Read it 3 times", 3, 3, "pause-035"),
         coldReadLevel("Read it twice", 2, 2, "restart-009"),
         coldReadLevel("Read it twice", 2, 1, "restart-025"),
         {
@@ -804,7 +811,7 @@
       subtitle: "Plan, tell, then tell again",
       why: whyOf(
         "general-014",
-        "Retelling a talk in less time each round brought gains in speed and pausing that " +
+        "Retelling a talk in less time on each repeat brought gains in speed and pausing that " +
           "lasted on a later test.",
       ),
       fixes: [
@@ -814,11 +821,11 @@
         "Slow the first 3 words",
       ],
       example: {
-        good: [unmarked("Uniforms cost more. Here's why: families still buy weekend clothes.")],
+        good: [unmarked("I love this park. Here's why: it stays quiet all morning.")],
         bad: [
-          unmarked("Uniforms cost more because… "),
+          unmarked("I love this park because… "),
           marked("[6 s]", PAUSE_MARK),
-          unmarked(" …families still buy clothes."),
+          unmarked(" …it stays quiet."),
         ],
       },
       levels: [
@@ -866,7 +873,7 @@
           seconds: [120, 120],
           stretch: 60,
           maxLong: 0,
-          tip: "long-045",
+          tip: "long-075",
         }),
       ],
       crown: null,
@@ -913,7 +920,7 @@
           scoredInPairs: true,
           conditions: [inTakeBand(), atMost("restarts", 2)],
           guards: PACE_READ_GUARDS,
-          tip: "pace-028",
+          tip: "pace-057",
           goal: {
             headline: "140, then 160",
             unitLabel: "wpm, give or take 10, at most 2 restarts each",
@@ -2356,11 +2363,15 @@
     };
   }
 
-  // The pace band of the take's passage, the one Results judges it against, or
-  // DEFAULT_TARGET_WPM for a passage that is gone or a band that is not two numbers, low first.
+  // The pace band of the take's passage, the one Results judges it against: a Practice entry's,
+  // a cold read's, or a retired id's (app.passages.retired(), the band an old take was recorded
+  // under); DEFAULT_TARGET_WPM for a passage that is gone or a band that is not two numbers,
+  // low first.
   function paceBandOf(passageId) {
     const passages = Array.isArray(app.passages) ? app.passages : [];
-    const passage = passages.concat(coldReadPassages()).find((entry) => entry.id === passageId);
+    const passage = passages
+      .concat(coldReadPassages(), retiredPassages())
+      .find((entry) => entry.id === passageId);
     const band = passage ? passage.targetWpm : null;
     const valid =
       Array.isArray(band) && band.length === 2 && band.every(isFiniteNumber) && band[0] < band[1];
@@ -2926,6 +2937,12 @@
   function coldReadPassages() {
     const passages = app.passages;
     return passages && typeof passages.coldReads === "function" ? passages.coldReads() : [];
+  }
+
+  // The ids old takes still carry after they left Practice, each with its band (passages.js).
+  function retiredPassages() {
+    const passages = app.passages;
+    return passages && typeof passages.retired === "function" ? passages.retired() : [];
   }
 
   function passageById(id) {

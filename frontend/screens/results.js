@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  // Used when the session's passage is no longer in app.passages.
+  // Used when the session's passage is neither in app.passages nor one of its retired ids.
   const DEFAULT_TARGET_WPM = [140, 160];
 
   // Practice's "See a sample result" saves the bundled take (sample-session.json) under a title
@@ -51,8 +51,8 @@
   const BAND_UNBROKEN = "$1" + UNBROKEN_JOINER + "$2";
 
   // The headline's thresholds beyond the cards' own: a fillers drop counts from half a filler a
-  // minute, and a clean stretch under 15 seconds has room to grow (DebateDrills gives beginners
-  // 15 clean seconds; see how.html).
+  // minute, and a clean stretch under 15 seconds has room to grow (15 clean seconds is the
+  // beginners' practice target how.html names).
   const MIN_FILLER_DROP = 0.5;
   const CLEAN_STRETCH_GOAL_SECONDS = 15;
 
@@ -278,10 +278,19 @@
     return Number.isFinite(number) ? number : 0;
   }
 
+  // The entry a take was recorded on: a Practice entry, or a retired id an old take still
+  // carries (app.passages.retired(): its band and time limit only), so an old take keeps the
+  // band and limit it was recorded under. Null for an id that is neither.
+  function passageFor(passageId) {
+    const passages = app.passages || [];
+    const retired = typeof passages.retired === "function" ? passages.retired() : [];
+    const known = Array.from(passages).concat(Array.from(retired));
+    return known.find((entry) => entry.id === passageId) || null;
+  }
+
   // A copy of the passage's [lo, hi] target, or the default when the passage is unknown.
   function targetFor(passageId) {
-    const passages = app.passages || [];
-    const passage = passages.find((entry) => entry.id === passageId);
+    const passage = passageFor(passageId);
     const known = passage && Array.isArray(passage.targetWpm);
     const range = known ? passage.targetWpm : DEFAULT_TARGET_WPM;
     return [range[0], range[1]];
@@ -296,8 +305,7 @@
   // {seconds, limitSeconds} for a preset with a time limit, else null. Seconds, not clock text,
   // so summarize never needs app.ui; the meta line prints it as "2:41 of 3:00".
   function timeUsedFor(passageId, speakingSeconds) {
-    const passages = app.passages || [];
-    const passage = passages.find((entry) => entry.id === passageId);
+    const passage = passageFor(passageId);
     if (!passage || !Number.isFinite(passage.timeLimitSeconds)) {
       return null;
     }

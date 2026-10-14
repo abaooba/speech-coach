@@ -44,7 +44,7 @@ const CLIP_METRICS = {
 };
 const PASSAGES = [
   { id: "gettysburg-opening", targetWpm: [130, 150] },
-  { id: "congress-speech", targetWpm: [130, 160], timeLimitSeconds: 180 },
+  { id: "explain-something", targetWpm: [130, 160], timeLimitSeconds: 120 },
 ];
 
 function plain(value) {

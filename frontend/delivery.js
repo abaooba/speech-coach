@@ -35,7 +35,7 @@
 
   // A pause this long right before "like" marks a filler (Zufferey and Popescu-Belis, 2004).
   const SET_OFF_PAUSE_SECONDS = 0.25;
-  // Debaters pause briefly after a connective "so"; only a longer hang counts as a stall.
+  // Speakers pause briefly after a connective "so"; only a longer hang counts as a stall.
   const SO_HANG_SECONDS = 0.5;
   // A silence this long is a freeze, not a breath: it counts wherever it falls, even after a
   // full stop, where a shorter pause lets the point land.

@@ -2,8 +2,8 @@
 // docs/superpowers/specs/2026-10-14-loop-path.md section 5): app.passages.benchmark() hands out
 // one held-out passage to read and one held-out prompt to talk on, the same at every sitting,
 // and listed nowhere else, so no other take ever practises them. The read keeps the cold reads'
-// rules: original, debate-style, no digits, symbols, quotation marks or habit words. Modules load
-// with vm.runInNewContext.
+// rules: original everyday prose, no digits, symbols, quotation marks or habit words. Modules
+// load with vm.runInNewContext.
 "use strict";
 
 const test = require("node:test");

@@ -72,7 +72,7 @@ function ladderRead(wpm, day, hour = 10) {
   return take({
     transcript: wordsAt(109, wpm),
     script: { restarts: [], skipped: [], misread: [] },
-    passageId: "rebuttal-uniforms",
+    passageId: "explainer-rainbows",
     createdAt: at(day, hour),
   });
 }

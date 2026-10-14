@@ -151,11 +151,11 @@ test("each example and non-example is a line of parts with its slip marked", () 
   assert.deepEqual(marked(examples.restarts.bad), [["I kinda ner—", "restart"]]);
   assert.equal(
     text(examples["long-pauses"].good),
-    "Uniforms cost more. Here's why: families still buy weekend clothes.",
+    "I love this park. Here's why: it stays quiet all morning.",
   );
   assert.equal(
     text(examples["long-pauses"].bad),
-    "Uniforms cost more because… [6 s] …families still buy clothes.",
+    "I love this park because… [6 s] …it stays quiet.",
   );
   assert.deepEqual(marked(examples["long-pauses"].bad), [["[6 s]", "pause"]]);
   assert.equal(
@@ -282,7 +282,7 @@ test("reading levels read, talk levels talk, and takes are labelled in order", (
 });
 
 test("the crown's ladder read lasts as long as the passage takes at 180 wpm, rounded up", () => {
-  const passage = APP.passages.find((entry) => entry.id === "rebuttal-uniforms");
+  const passage = APP.passages.find((entry) => entry.id === "explainer-rainbows");
   assert.equal(passage.text.trim().split(/\s+/).length, LADDER_WORDS);
   assert.deepEqual(plain(play("pace_crown").takes), [
     {
@@ -909,11 +909,11 @@ test("a cold read's material is the passage pickColdRead picks, with the same dr
 });
 
 test("a ladder read's material is the ladder passage held to the read's own band", () => {
-  const passage = APP.passages.find((entry) => entry.id === "rebuttal-uniforms");
+  const passage = APP.passages.find((entry) => entry.id === "explainer-rainbows");
   const ladder = (id, index) => plain(PATH.materialFor(id, [], () => 0, index));
   assert.deepEqual(ladder("pace-1", 0), {
     kind: "passage",
-    id: "rebuttal-uniforms",
+    id: "explainer-rainbows",
     title: passage.title,
     text: passage.text,
     targetWpm: [140, 160],
@@ -959,7 +959,17 @@ test("pickTopic passes over an excluded topic while another is left", () => {
 
 test("pickTopic needs a random source and a prompt with topics", () => {
   assert.throws(() => PATH.pickTopic([], "impromptu"), /random/);
-  assert.equal(PATH.pickTopic([], "congress-speech", () => 0), null);
+  // Every Practice prompt holds topics; a timed prompt without them gives null.
+  const app = loadApp();
+  app.passages.push({
+    id: "timed-talk",
+    kind: "prompt",
+    title: "Timed talk",
+    text: "Talk for three minutes on a subject you know well.",
+    targetWpm: [140, 160],
+    timeLimitSeconds: 180,
+  });
+  assert.equal(app.path.pickTopic([], "timed-talk", () => 0), null);
   assert.equal(PATH.pickTopic([], "nothing", () => 0), null);
   assert.equal(PATH.pickTopic([], "impromptu", () => Number.NaN), topicsOf("impromptu")[0]);
 });
