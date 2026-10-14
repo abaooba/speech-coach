@@ -505,7 +505,7 @@
     const slots = skippedBySlot.map(skipItems);
     pauseList.forEach((pause) => {
       const [at, length] = Array.isArray(pause) ? pause : [];
-      const slot = app.delivery.wordBeforePause(wordList, numberOr0(at)) + 1;
+      const slot = app.delivery.wordBeforePause(wordList, numberOr0(at), numberOr0(length)) + 1;
       slots[slot].push({ type: PAUSE_ITEM, length: numberOr0(length) });
     });
 

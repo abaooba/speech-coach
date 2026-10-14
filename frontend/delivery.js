@@ -218,8 +218,8 @@
     const classified = pauses.map(([at, length]) => ({
       at,
       length,
-      midSentence: isMidSentence(list, at),
-      long: isLongPause(length) && isInsideSpeech(list, at),
+      midSentence: isMidSentence(list, at, length),
+      long: isLongPause(length) && isInsideSpeech(list, at, length),
     }));
     const breaks = classified.filter(isCountedPause);
     const restarts = restartsOf(list, repeats);
@@ -350,26 +350,35 @@
   }
 
   // A pause is mid-sentence unless the word right before it ends a sentence.
-  function isMidSentence(list, at) {
-    return isInsideSpeech(list, at) && !SENTENCE_END.test(list[wordBefore(list, at)].text);
+  function isMidSentence(list, at, length) {
+    return (
+      isInsideSpeech(list, at, length) &&
+      !SENTENCE_END.test(list[wordBefore(list, at, length)].text)
+    );
   }
 
   // True when the pause follows a word and another word comes after that one. Silence before
   // the first word or after the last is not a pause (backend/metrics.py), though pauses.js can
   // report one.
-  function isInsideSpeech(list, at) {
-    const before = wordBefore(list, at);
+  function isInsideSpeech(list, at, length) {
+    const before = wordBefore(list, at, length);
     return before !== -1 && before !== list.length - 1;
   }
 
-  // The index of the word a pause starting at `at` follows, or -1: the last word that has ended
-  // by `at` or is still going then. A pause pauses.js adds starts when the voice went quiet,
-  // which can fall inside the transcript's time for the word just said ("sad." runs to 35.738,
-  // quiet from 35.4): that word, not the one before it, decides whether the pause counts.
-  function wordBefore(list, at) {
+  // The index of the word a pause of `length` seconds starting at `at` follows, or -1: the last
+  // word that has ended by `at`, or that is still going then but ends before the quiet does. A
+  // pause pauses.js adds starts when the voice went quiet, which can fall inside the
+  // transcript's time for the word just said ("sad." runs to 35.738, quiet from 35.4 to 37.2):
+  // that word decides whether the pause counts. When the quiet ends first, the transcript has
+  // pulled the next word back over the silence ("Sadly" from 35.55, quiet 35.6 to 37.6, the
+  // word ends 37.9), so the word before it decides.
+  function wordBefore(list, at, length) {
+    const quietEnd = at + Math.max(0, numberOr0(length));
     let before = -1;
     list.forEach((word, index) => {
-      if (word.start < at - MILLISECOND || word.end <= at + MILLISECOND) {
+      const ended = word.end <= at + MILLISECOND;
+      const endsInTheQuiet = word.start < at - MILLISECOND && word.end <= quietEnd + MILLISECOND;
+      if (ended || endsInTheQuiet) {
         before = index;
       }
     });
@@ -378,8 +387,8 @@
 
   // wordBefore for a stored transcript, so Results draws each pause marker right after the word
   // that decided whether the pause counts.
-  function wordBeforePause(words, at) {
-    return wordBefore(toWords(words), at);
+  function wordBeforePause(words, at, length) {
+    return wordBefore(toWords(words), at, length);
   }
 
   // The longest stretch of speech with no filler, no counted pause (mid-sentence, or 5 s+

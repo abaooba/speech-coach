@@ -326,3 +326,41 @@ test("a skip still goes after the word it follows when the next word overlaps it
     "left.",
   ]);
 });
+
+// ---- The quiet ends inside the next word ------------------------------------------------
+// The transcript can also pull the next sentence's first word back over the silence: "over."
+// ends at 35.5 and "Sadly" runs from 35.55 to 37.9, while the mic is quiet from 35.6 to 37.6.
+// The quiet ends before "Sadly" does, so "Sadly" was said after it: the pause follows "over.",
+// comes after a full stop and does not count.
+const OVER_THEN_SADLY = [
+  { text: "It", start: 33.0, end: 33.2 },
+  { text: "is", start: 33.3, end: 33.6 },
+  { text: "over.", start: 34.0, end: 35.5 },
+  { text: "Sadly", start: 35.55, end: 37.9 },
+  { text: "we", start: 38.0, end: 38.2 },
+  { text: "lost.", start: 38.3, end: 38.7 },
+];
+const QUIET_INSIDE_SADLY = [35.6, 2.0];
+
+test("a quiet that ends inside the next word follows the word before it: after 'over.'", () => {
+  const report = analyze(OVER_THEN_SADLY, [QUIET_INSIDE_SADLY]);
+  assert.deepEqual(plain(report.pauses), [
+    { at: 35.6, length: 2.0, midSentence: false, long: false },
+  ]);
+  assert.equal(report.pauseCount, 0);
+  assert.equal(report.midSentencePauseCount, 0);
+});
+
+test("buildTranscriptPlan puts that pause after 'over.', before 'Sadly'", () => {
+  const plan = loadPure().buildTranscriptPlan(OVER_THEN_SADLY, [QUIET_INSIDE_SADLY]);
+  assert.deepEqual(planShape(plan), ["It", "is", "over.", ["pause", 2], "Sadly", "we", "lost."]);
+});
+
+test("the same quiet after a mid-sentence word still counts as mid-sentence", () => {
+  const words = OVER_THEN_SADLY.map((word) =>
+    word.text === "over." ? { ...word, text: "over" } : word,
+  );
+  const report = analyze(words, [QUIET_INSIDE_SADLY]);
+  assert.equal(report.pauses[0].midSentence, true);
+  assert.equal(report.pauseCount, 1);
+});
