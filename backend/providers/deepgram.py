@@ -2,7 +2,7 @@
 
 import httpx
 
-from backend.providers.base import Word, raise_for_status
+from backend.providers.base import Word, checked_word, raise_for_status, reading_reply
 
 LISTEN_URL = "https://api.deepgram.com/v1/listen"
 REQUEST_TIMEOUT_SECONDS = 120.0
@@ -17,7 +17,11 @@ class DeepgramProvider:
         self._api_key = api_key
 
     def transcribe(self, audio_bytes: bytes, content_type: str) -> list[Word]:
-        """Post the clip in one request and return its words; raise ProviderError on non-2xx."""
+        """Post the clip in one request and return its words.
+
+        Raises ProviderError on a non-2xx answer, or on a reply that is not the shape Deepgram
+        documents.
+        """
         response = self._client.post(
             LISTEN_URL,
             params=LISTEN_PARAMS,
@@ -25,10 +29,14 @@ class DeepgramProvider:
             content=audio_bytes,
         )
         raise_for_status(response, "Deepgram")
-        alternative = response.json()["results"]["channels"][0]["alternatives"][0]
-        return [to_word(w) for w in alternative["words"]]
+        with reading_reply("Deepgram"):
+            alternative = response.json()["results"]["channels"][0]["alternatives"][0]
+            return [to_word(w) for w in alternative["words"]]
 
 
 def to_word(raw: dict) -> Word:
-    """Map one Deepgram word (times already in seconds) to a Word, keeping punctuation."""
-    return Word(text=raw.get("punctuated_word", raw["word"]), start=raw["start"], end=raw["end"])
+    """Map one Deepgram word (times already in seconds) to a Word, keeping punctuation.
+
+    Raises KeyError, AttributeError or ValueError for a word of another shape (checked_word).
+    """
+    return checked_word(raw.get("punctuated_word", raw["word"]), raw["start"], raw["end"])

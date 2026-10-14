@@ -9,7 +9,13 @@ from collections.abc import Callable
 
 import httpx
 
-from backend.providers.base import ProviderError, Word, raise_for_status
+from backend.providers.base import (
+    ProviderError,
+    Word,
+    checked_word,
+    raise_for_status,
+    reading_reply,
+)
 
 BASE_URL = "https://api.assemblyai.com/v2"
 DEFAULT_POLL_INTERVAL_SECONDS = 2.0
@@ -45,16 +51,17 @@ class AssemblyAIProvider:
     def transcribe(self, audio_bytes: bytes, content_type: str) -> list[Word]:
         """Upload, start the job, wait for it, return its words; content_type is unused here.
 
-        Raises ProviderError when any request fails, the job ends in status "error", or the job
-        is still unfinished TRANSCRIBE_DEADLINE_SECONDS after the upload began. Each request's
-        timeout is the time left, REQUEST_TIMEOUT_SECONDS at most, and no wait between polls
-        runs past the deadline.
+        Raises ProviderError when any request fails, a reply is not the shape AssemblyAI
+        documents, the job ends in status "error", or the job is still unfinished
+        TRANSCRIBE_DEADLINE_SECONDS after the upload began. Each request's timeout is the time
+        left, REQUEST_TIMEOUT_SECONDS at most, and no wait between polls runs past the deadline.
         """
         deadline = self._clock() + TRANSCRIBE_DEADLINE_SECONDS
         audio_url = self._upload(audio_bytes, deadline)
         transcript_id = self._create_transcript(audio_url, deadline)
         completed = self._wait_for_completion(transcript_id, deadline)
-        return [to_word(w) for w in completed["words"]]
+        with reading_reply("AssemblyAI poll"):
+            return [to_word(w) for w in completed["words"]]
 
     def _upload(self, audio_bytes: bytes, deadline: float) -> str:
         response = self._client.post(
@@ -64,7 +71,8 @@ class AssemblyAIProvider:
             timeout=self._time_left(deadline),
         )
         raise_for_status(response, "AssemblyAI upload")
-        return response.json()["upload_url"]
+        with reading_reply("AssemblyAI upload"):
+            return response.json()["upload_url"]
 
     def _create_transcript(self, audio_url: str, deadline: float) -> str:
         response = self._client.post(
@@ -74,7 +82,8 @@ class AssemblyAIProvider:
             timeout=self._time_left(deadline),
         )
         raise_for_status(response, "AssemblyAI transcript")
-        return response.json()["id"]
+        with reading_reply("AssemblyAI transcript"):
+            return response.json()["id"]
 
     def _wait_for_completion(self, transcript_id: str, deadline: float) -> dict:
         while True:
@@ -84,8 +93,9 @@ class AssemblyAIProvider:
                 timeout=self._time_left(deadline),
             )
             raise_for_status(response, "AssemblyAI poll")
-            transcript = response.json()
-            status = transcript["status"]
+            with reading_reply("AssemblyAI poll"):
+                transcript = response.json()
+                status = transcript["status"]
             if status == "completed":
                 return transcript
             if status == "error":
@@ -103,5 +113,8 @@ class AssemblyAIProvider:
 
 
 def to_word(raw: dict) -> Word:
-    """Map one AssemblyAI word (times in ms) to a Word (times in seconds)."""
-    return Word(text=raw["text"], start=raw["start"] / 1000, end=raw["end"] / 1000)
+    """Map one AssemblyAI word (times in ms) to a Word (times in seconds).
+
+    Raises KeyError, TypeError or ValueError for a word of another shape (checked_word).
+    """
+    return checked_word(raw["text"], raw["start"] / 1000, raw["end"] / 1000)
