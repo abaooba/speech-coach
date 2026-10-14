@@ -314,17 +314,40 @@
     };
   }
 
+  // The requests for notes still waiting for their reply, by take id. A take shown again before
+  // its notes arrive (the speaker went back and forth) gets the request already open, so it
+  // costs no second request and no second AI call.
+  const openRequests = new Map();
+
+  // The last write of the shown list, which the next one waits for (keepShown). Each write reads
+  // the list, adds its ids and writes it back; two at once would both read the same list, and
+  // the later write would drop the earlier one's ids.
+  let shownListWritten = Promise.resolve();
+
   // The coach notes for one take, or null when there are none to show. The notes kept here from
   // the take's first visit come back without a request; otherwise the server is asked once,
   // through app.auth.request so a signed-in speaker's cookie goes along and the server keeps
   // their shown ids itself, and its reply is kept for the next visit along with the entry ids
-  // it showed. A reply that is not notes, no reply, or a store that cannot be read gives null
-  // and keeps nothing; notes the store cannot keep are still returned. Never rejects.
-  async function coachNotes(session, report, targetWpm, tier) {
+  // it showed. While that request is open, another call for the take gets the same promise. A
+  // reply that is not notes, no reply, or a store that cannot be read gives null and keeps
+  // nothing; notes the store cannot keep are still returned. Never rejects.
+  function coachNotes(session, report, targetWpm, tier) {
     const id = session && session.id;
     if (!id || !canAskForNotes()) {
-      return null;
+      return Promise.resolve(null);
     }
+    const key = String(id);
+    if (!openRequests.has(key)) {
+      const asked = askForNotes(id, session, report, targetWpm, tier);
+      const forget = () => openRequests.delete(key);
+      openRequests.set(key, asked);
+      asked.then(forget, forget);
+    }
+    return openRequests.get(key);
+  }
+
+  // The one request behind coachNotes: the notes kept for the take, or else the server's.
+  async function askForNotes(id, session, report, targetWpm, tier) {
     try {
       const kept = parseCoachNotes(await app.store.getFlag(NOTES_FLAG_PREFIX + id));
       if (kept !== null) {
@@ -335,7 +358,7 @@
       const reply = await app.auth.request("POST", ADVICE_URL, body);
       const notes = reply && reply.status === OK ? parseCoachNotes(reply.body) : null;
       if (notes !== null) {
-        await keepNotes(id, reply.body, notes, shown);
+        await keepNotes(id, reply.body, notes);
       }
       return notes;
     } catch {
@@ -357,18 +380,30 @@
     );
   }
 
-  // Keeps the reply under the take's flag and moves its entry ids to the end of the shown list,
-  // the most recently shown last, which is the order the server takes them in. A store that
+  // Keeps the reply under the take's flag and adds its entry ids to the shown list. A store that
   // fails here costs nothing but a repeat request on the next visit.
-  async function keepNotes(id, replyBody, notes, shown) {
-    const ids = notes.tips.map((tip) => tip.entryId);
-    const next = shown.filter((entryId) => !ids.includes(entryId)).concat(ids);
+  async function keepNotes(id, replyBody, notes) {
     try {
       await app.store.setFlag(NOTES_FLAG_PREFIX + id, replyBody);
-      await app.store.setFlag(SHOWN_FLAG, next.slice(-MAX_SHOWN_IDS));
+      await keepShown(notes.tips.map((tip) => tip.entryId));
     } catch {
       // The notes are shown all the same.
     }
+  }
+
+  // Moves `ids` to the end of the shown list, the most recently shown last, which is the order
+  // the server takes them in, and keeps the newest MAX_SHOWN_IDS. The list is read again here,
+  // once the reply has landed, not taken from when the request went out, and each write waits
+  // for the one before it, so replies for two takes that land together keep both takes' ids.
+  function keepShown(ids) {
+    const written = shownListWritten.then(async () => {
+      const shown = stringsOf(await app.store.getFlag(SHOWN_FLAG));
+      const next = shown.filter((entryId) => !ids.includes(entryId)).concat(ids);
+      await app.store.setFlag(SHOWN_FLAG, next.slice(-MAX_SHOWN_IDS));
+    });
+    // A write that failed must not stop the next one, which reads the list afresh.
+    shownListWritten = written.catch(() => {});
+    return written;
   }
 
   app.tips = { select, adviceRequest, parseCoachNotes, coachNotes };
