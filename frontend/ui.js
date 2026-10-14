@@ -74,6 +74,62 @@
       ["path", { d: "m6.34 17.66-1.41 1.41" }],
       ["path", { d: "m19.07 4.93-1.41 1.41" }],
     ],
+    // The Loop Path's screens: route is the nav's Path item, two dots joined by an S curve.
+    route: [
+      ["circle", { cx: "6", cy: "19", r: "3" }],
+      ["path", { d: "M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" }],
+      ["circle", { cx: "18", cy: "5", r: "3" }],
+    ],
+    lock: [
+      ["rect", { x: "3", y: "11", width: "18", height: "11", rx: "2" }],
+      ["path", { d: "M7 11V7a5 5 0 0 1 10 0v4" }],
+    ],
+    flag: [
+      ["path", { d: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" }],
+      ["line", { x1: "4", y1: "22", x2: "4", y2: "15" }],
+    ],
+    crown: [
+      ["path", { d: "M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z" }],
+      ["path", { d: "M5 20h14" }],
+    ],
+    clock: [
+      ["circle", { cx: "12", cy: "12", r: "10" }],
+      ["polyline", { points: "12 6 12 12 16 14" }],
+    ],
+    play: [["polygon", { points: "6 3 20 12 6 21 6 3" }]],
+    stop: [["rect", { x: "6", y: "6", width: "12", height: "12", rx: "2" }]],
+    lightbulb: [
+      [
+        "path",
+        {
+          d:
+            "M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5" +
+            ".7.7 1.3 1.5 1.5 2.5",
+        },
+      ],
+      ["path", { d: "M9 18h6" }],
+      ["path", { d: "M10 22h4" }],
+    ],
+    "external-link": [
+      ["path", { d: "M15 3h6v6" }],
+      ["path", { d: "M10 14 21 3" }],
+      ["path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" }],
+    ],
+    "chevron-left": [["path", { d: "m15 18-6-6 6-6" }]],
+    calendar: [
+      ["rect", { x: "3", y: "4", width: "18", height: "18", rx: "2" }],
+      ["path", { d: "M16 2v4" }],
+      ["path", { d: "M8 2v4" }],
+      ["path", { d: "M3 10h18" }],
+    ],
+    close: [
+      ["path", { d: "M18 6 6 18" }],
+      ["path", { d: "m6 6 12 12" }],
+    ],
+    user: [
+      ["circle", { cx: "12", cy: "7", r: "4" }],
+      ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }],
+    ],
   });
 
   // The theme is the one setting kept in localStorage, because it must apply before the first
