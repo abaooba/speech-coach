@@ -718,7 +718,7 @@ Fillers level 1, whose card is open from the start.
    fewer" and "fillers a minute". The "Take 1" card shows "12.0", "fillers a minute" and
    "target 10", then "Three moments to look at": take 1's first three fillers, each its time
    and the two words either side, the filler highlighted, such as "0:12" and "so the, um, the
-   plan". A speaker with an earlier take also gets a change line, such as "1.0 fewer than
+   plan". A speaker with an earlier talk also gets a change line, such as "1.0 fewer than
    yesterday", green after a down triangle when better, muted when not. Then the level's tip
    card, a lightbulb before the research library's advice and "Source:" with its link, and
    the primary "Review 3 moments (30 s)" ("Go to take 2" when take 1 had no filler).
