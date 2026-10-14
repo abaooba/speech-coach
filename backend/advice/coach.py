@@ -191,8 +191,11 @@ class TakeSummary(BaseModel):
     The numbers have ReportSummary's keys and meanings (select.py): the frontend reads them from
     the take's app.delivery report (frontend/delivery.js). Each is finite, 0 or more and within
     its bound (MAX_COUNT, MAX_SECONDS, MAX_WORDS_PER_MINUTE). The excerpt is the first
-    MAX_EXCERPT_CHARACTERS of the transcript at most, and holds no NUL.
+    MAX_EXCERPT_CHARACTERS of the transcript at most, and holds no NUL. A field it does not name,
+    such as a passage's format, is dropped, as in AdviceRequest.
     """
+
+    model_config = ConfigDict(extra="ignore")
 
     duration_seconds: Seconds
     words_per_minute: WordsPerMinute
@@ -234,7 +237,14 @@ class TakeSummary(BaseModel):
 
 
 class AdviceRequest(BaseModel):
-    """The JSON body of POST /api/advice. None of its texts may hold NUL (422)."""
+    """The JSON body of POST /api/advice. None of its texts may hold NUL (422).
+
+    A field it does not name is dropped, not refused: nothing else a body carries, such as a
+    passage's title or its format (which could name a debate format), reaches the prompt, which
+    is written from the take's numbers, its pace band and the excerpt of what was said alone.
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     # The take's id (frontend/store.js). It seeds the order of the candidates (select.py).
     session_id: TakeId

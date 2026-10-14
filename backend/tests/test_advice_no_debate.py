@@ -428,6 +428,40 @@ def test_a_reply_drawing_on_debate_entries_is_refused_for_the_library_tips() -> 
     assert [tip.entry_id for tip in advice.tips if is_debate_specific(BY_ID[tip.entry_id])] == []
 
 
+def test_a_passage_format_sent_with_the_request_never_reaches_the_model(
+    client: TestClient,
+) -> None:
+    # frontend/tips.js sends no passage, title or format: only the take's numbers, its pace band
+    # and what was said. A body that adds them, hand-made or from a later frontend, is still
+    # answered, and every field the request does not name is dropped before the prompt is made.
+    added = {
+        "format": "Congress",
+        "title": "PF constructive",
+        "passage": {"title": "Rebuttal: school uniforms", "format": "Lincoln-Douglas"},
+    }
+    body = {
+        "session_id": TAKE_ID,
+        "summary": {**take_weakest_in("filler", (130.0, 160.0)), "format": "Public Forum"},
+        "tier": "Novice",
+        "shown_ids": [],
+        **added,
+    }
+    fake, budget = RecordingClient(), AICallBudget()
+    app_module.app.dependency_overrides[app_module.advice_client] = lambda: fake
+    app_module.app.dependency_overrides[app_module.advice_call_budget] = lambda: budget
+
+    response = client.post("/api/advice", json=body)
+
+    assert response.status_code == 200, response.text
+    [request] = fake.messages.requests
+    sent = request["system"] + "\n" + request["messages"][0]["content"]
+    words_added = ("Congress", "PF constructive", "Rebuttal", "Lincoln-Douglas", "Public Forum")
+    assert [words for words in words_added if words in sent] == []
+    kept = coach.AdviceRequest.model_validate(body)
+    assert set(kept.model_dump()) == {"session_id", "summary", "tier", "shown_ids"}
+    assert "format" not in kept.summary.model_dump()
+
+
 def test_the_api_gives_no_debate_entry_when_only_debate_entries_are_new(
     client: TestClient,
 ) -> None:
