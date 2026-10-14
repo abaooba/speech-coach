@@ -17,7 +17,7 @@ opens with a short comment, four to eight lines, saying what it owns and what it
 | `auth.js` | `app.auth` | The optional account (docs/PLAN.md T49). `signUp(email, password)` and `logIn(email, password)` resolve the account's email and sign this device in; `logOut()`, `deleteAccount()` and `me()` (the email, or null for a guest) talk to `/api/auth/*` and `/api/me`. A failure rejects with an `Error` whose `.kind` names it and whose `.message` is the matching sentence in `messages`: one uniform "Email or password is wrong.", "Too many tries. Wait 15 minutes, then try again." for a 429 and "Accounts are not available right now." for a 503. `request(method, url, body)` is the one way the account's routes are called: the session cookie goes along (same origin) and every change is sent as JSON. It reads as no reply when the server says nothing for 20 seconds, but a reply whose body keeps arriving is read whole, and a request that sends a big body (an import batch is up to 1.9 MB) gets a millisecond more for every 8 bytes, a 64 kbit/s uplink. `logOut()` sends the queued writes first, waiting 10 seconds at most; the rest wait for the account's next sign in on this device. A log out the server could not record (a 503 while accounts are off) still signs the device out, and `me()` later ends that session rather than sign the account back in from its cookie, until someone logs in here. `guestImportOffer()`, `importGuestTakes()` and `declineGuestImport()` ask an account once about each guest take on this device. `syncStatus()` resolves `{endedSession, takesNotKept}` for the account screen and History: `endedSession` is `{email, takesHere}` once the server has ended this device's session (any 401) and until someone signs in, and `takesNotKept` counts the signed-in account's takes the server refused. `keepEndedTakesHere()` lets that ended account go, for a speaker who cannot log in again. It loads before `store.js`, which connects its sync here (`connectStore`). |
 | `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`; `markLevelCleared(levelId, clearedAt)` and `listClearedLevels()` keep the Loop Path's records (a level such as `fillers-3`, a passed check-back `fillers-3_cb1`, a crown tier `fillers_crown-2`, a checkpoint `fillers_checkpoint`), each at its first clearing, `clearedAt` now unless given. A session holds metrics and transcript, the `topic` it was said on when it had one and, for a Path take, `path` (`{play, kind, take, scored, passed, stage, inRoom}`), from which the Path reads attempts, misses and benchmark sittings; never audio: `save` refuses a session carrying `blob` or `audio`. For a guest nothing else happens and nothing is sent. Signed in through `auth.js`, the same eight functions also sync with the server (backend/sessions_api.py): saves (with their `topic` and `path`), deletes and cleared levels go through to it, with IndexedDB as the offline copy; `list()`, `get(id)` and `listClearedLevels()` merge the server's, and fall back to the device's own with no reply; a write the server misses waits in a queue (in the flags store) and goes up on the next load or when the device is back online. Each account's copies on the device, and the levels it clears, show to that account alone, never to a guest or another account; a take the server refuses (409 once the account is full) stays the account's, on this device only. Signing out keeps them for the next sign in. When the server ends the session (a 401: 30 days have passed, `SESSION_SECRET` changed, or the account was deleted elsewhere) the device is a guest's and sends nothing, but the account's takes still show until someone signs in, so a take recorded just before still opens; guest takes recorded meanwhile are offered to the account when it logs back in. The first list after a log in may come from an account made again under the same email, so when that list holds none of the takes recorded here, the ones it leaves out stay, as the device's own; otherwise they were deleted on another device, and go. Deleting the account keeps the takes recorded here (sent or not) and its levels as the device's own, and removes the copies of takes from other devices. Signed in, `list()` waits at most a second for the server's list (20 seconds on a device that has never listed the account) and otherwise answers with the device's copy, which the server's list updates for the next one. |
 | `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType, script)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`; a `script` with words goes along as the form field `script`, and `metrics.script` then lists restarts, skipped and misread script words (the backend drops a script the take does not follow and scores it as free talk). A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
-| `passages.js` | `app.passages` | The fixed practice material, `[{id, kind, title, text, targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). `coldReads()` returns a new list of the cold reads (`coldRead: true`), original passages that the Path's Restarts levels 1 to 4 and their check-backs read and no tab lists. `benchmark()` returns new `{read, talk}` objects, the Path's benchmark: the passage "Benchmark read" and the 90-second prompt "Benchmark talk", which no tab lists and no other take practices. No DOM. |
+| `passages.js` | `app.passages` | The fixed practice material, everyday only (no debate), `[{id, kind, title, text, targetWpm: [lo, hi], source?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). `coldReads()` returns a new list of the cold reads (`coldRead: true`), original everyday passages that the Path's Restarts levels 1 to 4 and their check-backs read and no tab lists. `benchmark()` returns new `{read, talk}` objects, the Path's benchmark: the passage "Benchmark read" and the 90-second prompt "Benchmark talk", which no tab lists and no other take practices. `retired()` returns new `{id, kind, targetWpm, timeLimitSeconds?}` objects for the ids old takes still carry after the debate entries left Practice on 2026-10-14, so an old take keeps its band and time limit; nothing shows them. No DOM. |
 | `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
 | `rank.js` | `app.rank` | Owner-written (docs/PLAN.md T36). `takeScore(report, targetWpm)` scores one take from 0 to 100 from its `app.delivery` report and pace band; `rating(history)` averages the newest 10 takes, weighted by length and pulled toward 40; `tier(rating, history)` names it from `TIERS` (Novice, Contender 40, Varsity 60, Elite 75, Champion 88, Master 96, and Flawless 99, which also needs each of the last 10 takes to run 2 minutes or more, score 97 or more and hold no long pause); `streak(history, today)` gives `{current, longest}`, the days in a row with a take. Pure: no DOM, no store. Results and the rank card read it; the Path and the Level screen never do. |
 | `rankcard.js` | `app.rankCard` | The rank card, "ladder and lens" (docs/PLAN.md T37), on Progress and Results only. `model(takes, options)` works out everything it shows, reading the rank only through `app.rank` and scoring each take with `app.screens.results.summarize` against its own band; it is pure (no clock, DOM or store). Samples and undated takes never count, and it returns null with no rated take, without rank.js or results.js, or on Results for a sample. Progress passes `{screen: "progress", today}` and gets the streak foot; Results passes `{screen: "results", takeId}` and gets the card as it stood after that take, with the change line, the notch and the take's foot sentences. `build(model, {screen})` draws it node by node, the wedge with `createElementNS`; nothing in it takes focus. |
@@ -193,7 +193,7 @@ reload.
    app.passages.length
    ```
 
-   It prints `10`: four timed prompts, then six passages. `app.passages.coldReads().length`
+   It prints `11`: five timed prompts, then six passages. `app.passages.coldReads().length`
    prints `15`, the cold reads, which no tab lists, and `app.passages.benchmark().read.title`
    prints `'Benchmark read'`, the Path's benchmark passage, which no tab lists either.
 
@@ -325,10 +325,12 @@ keyboard.
 **Practice (about one minute).** Start the server as under Manual checks.
 
 1. Talk and Read: Practice opens on the Talk tab with "Your day 1:00" selected. The chips
-   read "Your day 1:00", "Impromptu 2:00", "Congress speech 3:00" and "PF constructive 4:00",
-   and the card shows "Talk about the best part of your day and why it stood out." Tap "New
-   topic" at the card's top right: the next topic shows, and after the eighth the first comes
-   back. Tap "Read": the chips become the six passages (no times), the card shows the passage
+   read "Your day 1:00", "Impromptu 2:00", "Interview answer 1:30", "Explain something 2:00"
+   and "Tell a story 2:00", and the card shows "Talk about the best part of your day and why it
+   stood out." Tap "New topic" at the card's top right: the next topic shows, and after the
+   eighth the first comes back. Every prompt has eight topics. Tap "Read": the chips become the
+   six passages (no times), starting with "Explainer: how rainbows form" and "Story: the wrong
+   train", and the card shows the passage
    and New topic is gone. Tap "Talk": "Your day" is still selected, on the topic you left.
    Under the clock a timed chip shows "/ 1:00" and an empty bar; a passage shows neither.
 
@@ -377,10 +379,11 @@ keyboard.
 
 **Results (about two minutes).** Needs one saved session, so run the Practice happy path
 first; the hash is then `#/results/<id>`. Without a microphone, Practice in idle shows "See a
-sample result", which opens a real sample take on this screen.
+sample result", which opens a sample take on this screen: "Sample: Explain something", a short
+explanation of making coffee.
 
 1. Under the "Results" heading: a muted line with the passage title and the date (for a timed
-   preset such as Congress speech it ends with "· m:ss of 3:00"). Then a headline card with
+   prompt such as Explain something it ends with "· m:ss of 2:00"). Then a headline card with
    two sentences: a green check before one strength and a blue arrow before one focus, such
    as "Your longest clean stretch is 4.9 seconds." and "Next take, cut fillers under 3 a
    minute." Then the rank card (step 8) and exactly four cards, two per row, in this order:
@@ -388,10 +391,11 @@ sample result", which opens a real sample take on this screen.
    words. The Pace hint reads "Target lo to hi" in green with a check when the pace is inside
    the passage's range, or "Slow down" / "Speed up" in rust with a warning triangle outside
    it; the numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to
-   150, the rebuttal 150 to 170, Your day 140 to 160). The Fillers card shows "/min" and its
-   hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in rust above. The
-   pauses card has no hint. The clean stretch card shows seconds and has no hint. No nav item
-   is highlighted.
+   150, the explainer and the story 150 to 170, Explain something 130 to 160, Your day 140 to
+   160). An old take saved on a retired debate entry keeps the band it was recorded under. The
+   Fillers card shows "/min" and its hint reads "Target under 3" in green at 3 or less and "Aim
+   for under 3" in rust above. The pauses card has no hint. The clean stretch card shows
+   seconds and has no hint. No nav item is highlighted.
 
 2. Compare with the last take: record a second take (the Practice happy path again), or run
    the Progress seed snippet and open the newest row in History. Every card ends with a small

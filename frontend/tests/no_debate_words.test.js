@@ -1,10 +1,11 @@
 // Tests that nothing a speaker sees steers toward debate (the owner's rule of 2026-10-14, in
 // CLAUDE.md's Project paragraph): Speech Coach is for non-native speakers and anyone who wants
 // to speak more fluidly. No debate format, case, rebuttal, resolution, side, cross-examination,
-// round, judge or ballot appears on the Loop Path or the How we measure page, and no Path tip
-// or "why this works" line cites a debate source. passages.js, delivery.js and path.js load
-// into a vm in index.html's order; the research library is read from
-// backend/advice/library.json and how.html as text.
+// round, judge or ballot appears in a passage, prompt, topic, cold read or the benchmark, on the
+// Loop Path, in the rule tips, on the first-launch screen, in the app shell or on the How we
+// measure page, and no Path tip or "why this works" line cites a debate source. The frontend
+// modules load into a vm in index.html's order; the research library is read from
+// backend/advice/library.json, and index.html and how.html as text.
 "use strict";
 
 const test = require("node:test");
@@ -73,9 +74,10 @@ function stringsIn(value, where) {
 }
 
 function loadApp() {
-  const app = { screens: {} };
+  const app = { screens: {}, ui: {}, store: {}, router: {} };
   const context = { app };
-  ["passages.js", "delivery.js", "path.js"].forEach((file) => {
+  const files = ["passages.js", "delivery.js", "path.js", "tips.js", "screens/onboarding.js"];
+  files.forEach((file) => {
     const source = fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
     vm.runInNewContext(source, context, { filename: file });
   });
@@ -116,6 +118,85 @@ test("the debate words are caught, and everyday words are not", () => {
     [],
     "judged and judgment are everyday words",
   );
+});
+
+test("no Practice passage, prompt or topic holds a debate word", () => {
+  const passages = Array.from(APP.passages);
+  assert.equal(passages.length, 11, "every Practice entry is read");
+  for (const entry of passages) {
+    stringsIn(JSON.parse(JSON.stringify(entry)), entry.id).forEach(([where, text]) =>
+      assertNoDebateWords(where, text),
+    );
+  }
+});
+
+test("no cold read and neither benchmark text holds a debate word", () => {
+  const coldReads = Array.from(APP.passages.coldReads());
+  assert.equal(coldReads.length, 15, "every cold read is read");
+  for (const entry of coldReads) {
+    stringsIn(JSON.parse(JSON.stringify(entry)), entry.id).forEach(([where, text]) =>
+      assertNoDebateWords(where, text),
+    );
+  }
+  const benchmark = JSON.parse(JSON.stringify(APP.passages.benchmark()));
+  stringsIn(benchmark, "benchmark").forEach(([where, text]) => assertNoDebateWords(where, text));
+});
+
+// A report that fires the rules named, for tips.select.
+function reportFiring(rules) {
+  const fires = (rule) => rules.includes(rule);
+  const wpm = fires("pace-fast") ? 200 : fires("pace-slow") ? 100 : 150;
+  return {
+    wordsPerMinute: wpm,
+    fillersPerMinute: fires("fillers") ? 5 : 0,
+    fillers: fires("fillers") ? [{ start: 2 }, { start: 5 }, { start: 9 }, { start: 14 }] : [],
+    topHabit: fires("habit") ? { text: "so", count: 4 } : null,
+    longestMidSentencePause: fires("break-long") ? 4 : 0,
+    pauses: fires("freeze") ? [{ at: 10, length: 6, long: true, midSentence: false }] : [],
+    repeatCount: fires("repeats") ? 3 : 0,
+  };
+}
+
+test("no rule tip and no line of the first-launch screen holds a debate word", () => {
+  const firing = [
+    ["pace-fast", "fillers"],
+    ["pace-slow", "habit"],
+    ["break-long", "freeze"],
+    ["repeats"],
+    [],
+  ];
+  const ids = [];
+  for (const rules of firing) {
+    for (const tip of Array.from(APP.tips.select(reportFiring(rules), {}))) {
+      ids.push(tip.id);
+      assertNoDebateWords(`tip ${tip.id}`, tip.text);
+    }
+  }
+  assert.deepEqual(ids, [
+    "pace-fast",
+    "fillers",
+    "pace-slow",
+    "habit",
+    "break-long",
+    "freeze",
+    "repeats",
+    "clean",
+  ]);
+  stringsIn(JSON.parse(JSON.stringify(APP.screens.onboarding.COPY)), "onboarding").forEach(
+    ([where, text]) => assertNoDebateWords(where, text),
+  );
+});
+
+test("the app shell holds no debate word", () => {
+  const html = fs.readFileSync(path.join(FRONTEND_DIR, "index.html"), "utf8");
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]*>/g, " ");
+  const labels = [...html.matchAll(/(?:aria-label|title|content)="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(text.includes("Practice"), "the shell's text was read");
+  assertNoDebateWords("index.html", text);
+  labels.forEach((label) => assertNoDebateWords("index.html label", label));
 });
 
 test("no unit, level or play on the Path holds a debate word", () => {
