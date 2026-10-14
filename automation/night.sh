@@ -24,7 +24,7 @@ LOCK="$REPO/.night.lock"
 cleanup() { Q reset-doing "run ended while task was in progress"; rmdir "$LOCK" 2>/dev/null; }
 # Where a task may add files but never change, delete or rename one: the test folders, the
 # frontend spec, the human-owned pauses.js, docs, rules, queue and automation. hooks/protect.sh
-# stops Edit and Write there; checking each task's commits also catches a Bash edit or a git rm.
+# stops the file tools there; checking each task's commits also catches a Bash edit or a git rm.
 PROTECTED_PATHS=(backend/tests frontend/tests frontend/DESIGN.md frontend/pauses.js docs CLAUDE.md tasks automation .claude)
 
 if [ -f "$REPO/STOP" ]; then echo "STOP file present; exiting"; exit 0; fi

@@ -1,7 +1,8 @@
 #!/bin/bash
 # PreToolUse hook: block edits to human-owned paths and to existing test files.
 # Exit 2 = block the tool call and show the message to the agent.
-# It sees only Edit and Write; night.sh fails a task whose commits change these paths any other way.
+# It sees only the file tools (Edit, Write, MultiEdit, NotebookEdit); night.sh fails a task whose
+# commits change these paths any other way, such as a Bash edit or a git rm.
 set -u
 # Only enforce for the unattended night agent; interactive sessions are the human.
 [ "${NIGHT_RUN:-}" = "1" ] || exit 0

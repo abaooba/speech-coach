@@ -1,9 +1,10 @@
 """automation/hooks/protect.sh, the night agent's PreToolUse hook, run against a scratch repo.
 
 The hook reads the tool call as JSON on stdin and exits 2 to refuse it. During a night run
-(NIGHT_RUN=1) it refuses Edit and Write on human-owned paths, on frontend/DESIGN.md and
-frontend/pauses.js, and on every file under backend/tests or frontend/tests that the task's base
-commit (NIGHT_BASE_SHA) already holds; a new test file is allowed. The scratch repo stands in for
+(NIGHT_RUN=1) it refuses a file tool's edit (Edit, Write, MultiEdit, NotebookEdit) of a
+human-owned path, of frontend/DESIGN.md or frontend/pauses.js, and of every file under
+backend/tests or frontend/tests that the task's base commit (NIGHT_BASE_SHA) already holds; a new
+test file is allowed. The scratch repo stands in for
 the night worktree, so the real repo is never touched.
 """
 
