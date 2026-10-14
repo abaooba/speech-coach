@@ -40,7 +40,9 @@
   const SHORT_TAKE_SECONDS = 30;
   const SHORT_TAKE_DISCOUNT = 0.25;
   // A new speaker starts at 40: up to 3 imaginary 40-point, 1-minute takes fill the empty slots
-  // of the 10, so one lucky take cannot jump tiers, and they fade out as real takes arrive.
+  // of the 10, so one lucky take cannot jump tiers, and they fade out as real takes arrive. They
+  // also make up whatever minutes the rated takes fall short of 3, whichever is more, so ten
+  // quick tries cannot push them out.
   const PRIOR_SCORE = 40;
   const PRIOR_TAKES = 3;
   const PRIOR_TAKE_MINUTES = 1;
@@ -82,15 +84,23 @@
 
   function rating(history) {
     const rated = newestTakes(history);
-    const priorTakes = Math.min(PRIOR_TAKES, RATED_TAKES - rated.length);
-    let total = PRIOR_SCORE * PRIOR_TAKE_MINUTES * priorTakes;
-    let weight = PRIOR_TAKE_MINUTES * priorTakes;
-    rated.forEach((entry) => {
-      const takeWeight = weightOf(entry.speakingSeconds);
-      total += clamp(numberOr0(entry.score), 0, MAX_SCORE) * takeWeight;
-      weight += takeWeight;
+    const ratedWeights = rated.map((entry) => weightOf(entry.speakingSeconds));
+    const ratedMinutes = ratedWeights.reduce((sum, takeWeight) => sum + takeWeight, 0);
+    const priorWeight = priorMinutes(rated.length, ratedMinutes);
+    let total = PRIOR_SCORE * priorWeight;
+    rated.forEach((entry, i) => {
+      total += clamp(numberOr0(entry.score), 0, MAX_SCORE) * ratedWeights[i];
     });
+    const weight = priorWeight + ratedMinutes;
     return weight > 0 ? total / weight : PRIOR_SCORE;
+  }
+
+  // The minutes the imaginary takes weigh: one per empty slot of the 10, up to 3, or the minutes
+  // the rated takes fall short of 3, whichever is more.
+  function priorMinutes(ratedCount, ratedMinutes) {
+    const emptySlots = Math.min(PRIOR_TAKES, RATED_TAKES - ratedCount);
+    const missingMinutes = PRIOR_TAKES * PRIOR_TAKE_MINUTES - ratedMinutes;
+    return Math.max(PRIOR_TAKE_MINUTES * emptySlots, missingMinutes);
   }
 
   function tier(value, history) {
