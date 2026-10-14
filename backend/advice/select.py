@@ -3,17 +3,21 @@
 weakest_skills() ranks the six skills a take is measured on by how far the take is from each
 target. candidates() then picks the library entries for the two weakest: at the speaker's level,
 never shown to the speaker before while new ones are left, in an order seeded by the take's id.
-/api/advice (T40) hands the candidates to the model to write 2-3 tips from, and shows the first
-ones word for word when it cannot. The caller passes everything in (the library from
-load_library(), the take's numbers, the speaker's tier and the ids already shown), so nothing
-here reads a file, the clock or the network.
+Advice written for competitive debate is never picked (is_debate_specific): Speech Coach coaches
+everyday speech. /api/advice (T40) hands the candidates to the model to write 2-3 tips from, and
+shows the first ones word for word when it cannot. The caller passes everything in (the library
+from load_library(), the take's numbers, the speaker's tier and the ids already shown), so
+nothing here reads a file, the clock or the network.
 """
 
 import hashlib
 import math
+import re
 from collections.abc import Sequence
+from functools import cache
 from itertools import zip_longest
 from typing import NotRequired, TypedDict
+from urllib.parse import unquote
 
 from backend.advice import AdviceEntry
 
@@ -27,7 +31,7 @@ MEASURED_SKILLS = ("restart", "filler", "mid_pause", "long_pause", "pace_fast", 
 # The targets. A take right on one is at distance 0 from it (see distances_from_target).
 # Under 3 fillers a minute: the line on the Results card, Progress chart and tips (progress.js).
 FILLERS_PER_MINUTE_TARGET = 3.0
-# 1 restart a minute, our choice, a third of the fillers' line: the judge hears each phrase twice.
+# 1 restart a minute, our choice, a third of the fillers' line: a listener hears each phrase twice.
 RESTARTS_PER_MINUTE_TARGET = 1.0
 # 1 mid-sentence pause a minute, our choice: pauses belong at the ends of sentences (how.html).
 MID_SENTENCE_PAUSES_PER_MINUTE_TARGET = 1.0
@@ -55,6 +59,39 @@ OTHER_LEVEL = {BEGINNER: ADVANCED, ADVANCED: BEGINNER}
 SKILLS_ADVISED = 2
 # Room for the model to choose 2-3 tips that fit the take, in a prompt that stays short.
 DEFAULT_CANDIDATE_LIMIT = 25
+
+# Speech Coach is for non-native speakers and anyone who wants to speak more fluidly and sound
+# more articulate; it is not a debate tool (the owner's rule, 2026-10-14). These words and
+# phrases mark advice written for competitive debate (is_debate_specific). Each matches as whole
+# words, ignoring case, and a space inside a phrase also matches a hyphen or a line break, so
+# "lincoln douglas" finds "Lincoln-Douglas".
+DEBATE_WORDS = (
+    # Debate itself, its events and the bodies that run them. The National Speech & Debate
+    # Association's web address runs its name together, so it is listed as written there.
+    "debate", "debates", "debater", "debaters", "debating",
+    "nsda", "speechanddebate", "forensics", "forensic league",
+    "public forum", "lincoln douglas", "student congress",
+    # The parts of a debate: its speeches, the resolution it argues, its two sides, its ballots.
+    "rebuttal", "rebuttals", "cross ex", "cross exam", "cross examination", "cross examine",
+    "resolution", "resolutions", "affirm", "affirmative", "negate",
+    "opponent", "opponents", "ballot", "ballots",
+    # Everyday words that count only in their debate phrases: a Congress (debate event) speech,
+    # not the Congress of Phonetic Sciences; a constructive speech, not constructive feedback.
+    "congress speech", "congress speeches",
+    "constructive speech", "constructive speeches", "constructives",
+    # A contest's judge or round. "Judge your progress", the judges who rated speakers in a
+    # study and "the next round" of a drill are everyday English, so only these phrases count.
+    "a judge", "your judge", "some judges", "lay judge", "lay judges", "parent judge",
+    "parent judges", "adult judges", "practice judge", "recitation judges",
+    "in front of judges", "for judges", "or judge",
+    "your round", "in a round",
+)
+_DEBATE_WORDS_PATTERN = re.compile(
+    r"(?<!\w)(?:"
+    + "|".join(r"[\s-]+".join(map(re.escape, words.split())) for words in DEBATE_WORDS)
+    + r")(?!\w)",
+    re.IGNORECASE,
+)
 
 
 class ReportSummary(TypedDict):
@@ -177,6 +214,34 @@ def level_for(tier: str | None) -> str:
     return ADVANCED if TIERS.index(name) >= TIERS.index(FIRST_ADVANCED_TIER) else BEGINNER
 
 
+def mentions_debate(text: str) -> bool:
+    """True when `text` holds one of DEBATE_WORDS, as whole words and ignoring case."""
+    return _DEBATE_WORDS_PATTERN.search(text) is not None
+
+
+@cache
+def is_debate_specific(entry: AdviceEntry) -> bool:
+    """True when the entry is advice written for competitive debate, which is never offered.
+
+    Every text of the entry is read with mentions_debate(): its advice and drill (the speaker
+    sees the drill word for word, and the model reads both), its quote, and its source's author,
+    credentials, title, publisher and URL. The URL is read with its escapes decoded, so
+    "%7Edebate" is "~debate". Entries are frozen, so each one is read once.
+    """
+    source = entry.source
+    texts = (
+        entry.advice,
+        entry.quote,
+        entry.drill,
+        source.author,
+        source.credentials,
+        source.title,
+        source.publisher,
+        unquote(source.url),
+    )
+    return any(mentions_debate(text) for text in texts)
+
+
 def candidates(
     library: Sequence[AdviceEntry],
     weak_tags: Sequence[str],
@@ -188,9 +253,10 @@ def candidates(
 ) -> list[AdviceEntry]:
     """The library entries a take's advice may draw on, best first, at most `limit` of them.
 
-    `weak_tags` is in weakest_skills() order. The first SKILLS_ADVISED different tags are used,
-    and their entries take turns, the weakest skill's first; an entry for both is listed once.
-    A tag's entries are those found by the first of these rules that finds any:
+    An entry written for competitive debate (is_debate_specific) is never one of them, under any
+    rule below. `weak_tags` is in weakest_skills() order. The first SKILLS_ADVISED different tags
+    are used, and their entries take turns, the weakest skill's first; an entry for both is
+    listed once. A tag's entries are those found by the first of these rules that finds any:
     1. never shown to the speaker, at the speaker's level (level_for(tier));
     2. never shown, at the other level;
     3. every one, as the speaker has been shown them all: least recently shown first.
@@ -198,16 +264,18 @@ def candidates(
     seeded shuffle: the same take gets the same list every time, the next take a new one.
 
     `shown_ids` lists the ids of the entries the speaker has been shown, oldest first; an id
-    listed twice counts as last shown at its later place. Ids not in the library are ignored.
+    listed twice counts as last shown at its later place. Ids not in the library, and those of
+    entries written for debate, are ignored.
     """
     if limit < 0:
         raise ValueError(f"limit must be 0 or more, not {limit}")
     level = level_for(tier)
     last_shown = {entry_id: place for place, entry_id in enumerate(shown_ids)}
+    advisable = [entry for entry in library if not is_debate_specific(entry)]
     # dict.fromkeys keeps the first copy of each tag, in order.
     advised_tags = list(dict.fromkeys(weak_tags))[:SKILLS_ADVISED]
     per_tag = [
-        _entries_for_tag(library, tag, level, last_shown, session_id) for tag in advised_tags
+        _entries_for_tag(advisable, tag, level, last_shown, session_id) for tag in advised_tags
     ]
     return _taking_turns(per_tag)[:limit]
 
