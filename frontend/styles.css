@@ -2581,18 +2581,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-variant-numeric: tabular-nums;
 }
 
-/* Each chip's icon follows its words and is drawn first. */
+/* Each chip's icon follows its words and is drawn first, in --muted: the week's flame, as the
+   rank card's streak flame, and the due clock. Neither is a warning, so neither is --warn. */
 .path__week svg,
 .path__due svg {
   flex: none;
   order: -1;
-}
-
-.path__week svg {
-  color: var(--warn);
-}
-
-.path__due svg {
   color: var(--muted);
 }
 
