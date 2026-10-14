@@ -1,8 +1,9 @@
 # Speech Coach (working title)
 
-A practice tool for debaters and speech students. Record a short practice
-speech on your phone or laptop, get back words per minute, long pauses,
-filler words and repeated words, and watch those numbers improve over days.
+A practice tool for speaking more fluently, for non-native speakers and
+anyone who wants to sound more articulate. Record yourself talking or reading
+aloud on your phone or laptop, get back words per minute, long pauses, filler
+words and repeated words, and watch those numbers improve over days.
 Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 
 ## Screenshots

@@ -1,6 +1,6 @@
 # Speech Coach frontend design spec
 
-Every screen is built from this file. Angle: **drill-first**. A debater runs timed reps between rounds: one thumb, one glance, next rep. Numbers are big, chrome is minimal, nothing moves unless it carries information. Two agents building two screens without talking must produce siblings. If something is missing, use the closest existing token or class; never invent a parallel one or edit this file in a task.
+Every screen is built from this file. Angle: **drill-first**. A speaker who wants to sound more fluent runs short timed reps in spare minutes: one thumb, one glance, next rep. Numbers are big, chrome is minimal, nothing moves unless it carries information. Two agents building two screens without talking must produce siblings. If something is missing, use the closest existing token or class; never invent a parallel one or edit this file in a task.
 
 ## 1. Screens and navigation
 

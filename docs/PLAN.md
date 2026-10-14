@@ -6,6 +6,12 @@ Research library: /Users/arescajas/Downloads/speech_advice_all.json (482 entries
 > Owner note, 2026-10-11: this plan replaces the previous PLAN.md, including its
 > "Out of scope" list. T36 is written by the owner with Claude pairing live; agents skip it.
 
+> Owner note, 2026-10-14: Speech Coach is for non-native speakers and anyone who wants to speak
+> more fluidly and sound more articulate. It is not a debate tool. Every feature, prompt,
+> passage, tip and doc is about everyday fluency (talking, explaining, telling a story, an
+> interview answer, a presentation). Never add debate formats, rounds, cases, rebuttals,
+> resolutions or judges' ballots; wherever this plan or older docs say "debate", that is out of date.
+
 ## Read first (repo rules that override everything here)
 
 - CLAUDE.md: one task per session, test first, run `.venv/bin/pytest -q`, `.venv/bin/ruff check .`
@@ -277,7 +283,7 @@ mode/passage/time. Results shows pass/fail for a path take. Each level shows one
 works" line, picked from the library for that unit. Nav becomes Practice · Path · Calendar ·
 Progress · History. New frontend/tests/path_screen.test.js.
 
-**T44 Cold-read passages**: add at least 12 new debate-style passages (120-200 words each, original
+**T44 Cold-read passages**: add at least 12 new everyday passages (120-200 words each, original
 text) to passages.js with a `coldRead: true` flag. New frontend/tests/passages_cold.test.js
 checks the count and word lengths.
 

@@ -11,12 +11,13 @@ Keep this updated while building. It feeds the written answers and the video.
 
 ## One-sentence purpose (draft)
 
-Speech Coach helps debaters and speech students practice speaking by
-measuring pace, pauses and filler words and showing progress over time.
+Speech Coach helps non-native speakers and anyone who wants to sound more
+articulate speak more fluently, by measuring pace, pauses and filler words
+and showing progress over time.
 
 ## Target audience
 
-High school debaters and speech students, starting with my own team.
+Non-native speakers, and anyone who wants to speak more fluidly and sound more articulate.
 
 ## Technical difficulties log
 

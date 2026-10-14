@@ -1,5 +1,8 @@
 # Speech Coach Next-Level Implementation Plan
 
+> **Audience changed 2026-10-14.** Speech Coach is for non-native speakers and anyone who wants
+> to speak more fluently. It is not a debate tool; this plan's debate framing is out of date.
+
 > **Changed since 2026-10-10.** docs/PLAN.md T31 made mhm, uh-huh and mm-hmm count as
 > hesitations, and T32 made a pause of 5 s or more count anywhere, even after a period. Where
 > this plan says otherwise, it records the earlier rules; frontend/how.html has the current ones.
