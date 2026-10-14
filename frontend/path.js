@@ -1596,7 +1596,9 @@
     return Boolean(value) && typeof value === "object" && Boolean(value.otherPerMinute);
   }
 
-  // The speaker's own takes in `history`: objects, the bundled sample left out.
+  // The speaker's own takes in `history` (as app.store.list() resolves them): objects, the
+  // bundled sample a visitor opens from Practice left out (app.screens.results.isSample), as
+  // the baseline, order() and the schedule leave it out.
   function ownTakes(history) {
     return listOf(history).filter((take) => take && typeof take === "object" && isOwnTake(take));
   }
@@ -2987,6 +2989,7 @@
     order,
     measure,
     baseline,
+    ownTakes,
     evaluate,
     isUnlocked,
     statusOf,

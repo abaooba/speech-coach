@@ -221,6 +221,7 @@ test("path.js assigns exactly app.path", () => {
     "materialFor",
     "measure",
     "order",
+    "ownTakes",
     "pickColdRead",
     "pickTopic",
     "playById",
