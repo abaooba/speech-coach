@@ -102,10 +102,11 @@
   // valueText, unitLabel, targetText, change, caught}. The number, its words and the target
   // come from app.path.evaluate against `context.baseline`. `change` is the change line,
   // {text, direction, trend} or null: against the latest earlier own take in `context.history`
-  // that has this number (for a read, the latest that followed a script), leaving out the take
-  // itself (`context.takeId`) and any take after `context.at`; `direction` is "better", "worse"
-  // or "same" for the skill, `trend` "down", "up" or "flat" for the number, and the text says
-  // when, from the local day `context.today` ("1.4 fewer than Tuesday", "Same as yesterday").
+  // that has this number (for a read, the latest that followed a script; for a talk, the latest
+  // that did not), leaving out the take itself (`context.takeId`) and any take after
+  // `context.at`; `direction` is "better", "worse" or "same" for the skill, `trend` "down", "up"
+  // or "flat" for the number, and the text says when, from the local day `context.today` ("1.4
+  // fewer than Tuesday", "Same as yesterday").
   // `caught`, on a play with the live tap given `context.liveTaps` (the seconds tapped), is
   // {caught, total, text}: "You caught 3 of 5 live."
   function feedbackFor(play, report, context) {
@@ -146,9 +147,10 @@
     return changeLine(key, value, earlier.value, when, take.band);
   }
 
-  // The latest own take before this one with a number for `key`, as {take, value}, or null. A
-  // read (`read`, its slips or its pace alike) compares only with a take that followed a script,
-  // since a talk's slips and pace are not a read's.
+  // The latest own take before this one with a number for `key`, as {take, value}, or null. Like
+  // compares with like: a read (`read`, its slips or its pace alike) only with a take that
+  // followed a script, and a talk only with one that did not, since a read's fillers, slips,
+  // pace and clean stretch are not a talk's.
   function latestEarlier(key, read, given) {
     const before = typeof given.at === "string" ? given.at : null;
     const takes = app.path
@@ -158,7 +160,7 @@
       .sort((a, b) => compareText(String(b.createdAt || ""), String(a.createdAt || "")));
     for (const take of takes) {
       const measured = app.path.measure(app.delivery.analyze(take.transcript, take.metrics), 0);
-      const hasIt = measured.spoke && (!read || measured.followedScript);
+      const hasIt = measured.spoke && measured.followedScript === read;
       if (hasIt) {
         return { take, value: measured[key] };
       }

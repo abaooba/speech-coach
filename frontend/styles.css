@@ -1092,6 +1092,32 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: none;
 }
 
+/* While the banner shows, Practice's header row steps aside for the eye, and so does the hint:
+   the banner's eyebrow names the level and its body says what to do. Every play's banner then
+   fits one screen, the card at its floor or above and Record's label --s-5 above the nav. The
+   wordmark and the theme toggle hide; the h1 stays for screen readers, hidden as .sr-only hides
+   text (its margin stays the header's 0, on the spacing scale), so the screen keeps its name and
+   the router still moves focus to it. Only level mode puts the banner in the body, so normal
+   mode keeps its header row and its hint. */
+#screen-practice:has(.practice__banner) .screen__header {
+  margin-bottom: 0;
+}
+
+#screen-practice:has(.practice__banner) .screen__header h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+#screen-practice:has(.practice__banner) .wordmark,
+#screen-practice:has(.practice__banner) .theme-toggle,
+#screen-practice:has(.practice__banner) .practice__hint {
+  display: none;
+}
+
 /* The banner: an accent-soft card with the level as its eyebrow, the take as its title, what to
    do, and Leave level. The card under it keeps its own --s-3 top margin. */
 .practice__banner {
@@ -1182,9 +1208,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* Short screens (320 x 568, landscape phones): the banner keeps every line but tightens, with
-   --s-3 padding and Leave level beside the eyebrow, its 44px target overlapping that row as New
-   topic's does in the card, so the card keeps its two-line floor and Record stays above the nav.
-   Heard one drops to the standard 48px. */
+   --s-3 padding and Leave level at the end of the title's row, its words on the title's baseline
+   and its 44px target overlapping that row as New topic's does in the card. The eyebrow keeps
+   the banner's whole width, so it never wraps ("Path: Long pauses, level 4 check-back"); the
+   card keeps its two-line floor and Record stays above the nav. Heard one drops to the standard
+   48px. */
 @media (max-height: 600px) {
   .practice__banner {
     display: grid;
@@ -1193,20 +1221,25 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 
   .practice__banner-eyebrow {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 1;
-    align-self: center;
   }
 
-  .practice__banner-title,
+  .practice__banner-title {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: baseline;
+  }
+
   .practice__banner-body {
     grid-column: 1 / -1;
+    grid-row: 3;
   }
 
   .practice__banner-leave {
     grid-column: 2;
-    grid-row: 1;
-    align-self: center;
+    grid-row: 2;
+    align-self: baseline;
     margin-block: calc(-1 * var(--s-3));
     margin-left: var(--s-2);
     margin-right: calc(-1 * var(--s-2));
@@ -1220,7 +1253,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 /* Small phones (320 x 568), where section 7 also drops the hint, take one step more: the
    banner's title and body drop a type step, and the card sits --s-2 under the banner, as the
    record zone's gaps tighten. Level mode then fits one screen as normal mode does, the card at
-   its two-line floor and Record's label --s-5 above the nav. */
+   its two-line floor or above and Record's label --s-5 above the nav. */
 @media (max-height: 600px) and (max-width: 479px) {
   .practice__banner-title {
     font-size: var(--fs-body);
