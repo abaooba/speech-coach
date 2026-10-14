@@ -45,7 +45,7 @@
   const SENTENCE_END = /[.?!]["')\]]*$/;
   const EDGE_PUNCTUATION = /^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu;
   const SECONDS_PER_MINUTE = 60;
-  // Word ends and pause starts are millisecond values; allow for float error when comparing.
+  // Word times and pause starts are millisecond values; allow for float error when comparing.
   const MILLISECOND = 0.001;
 
   // How the backend reads a repeat (backend/metrics.py find_repeats, backend/script_align.py),
@@ -354,23 +354,32 @@
     return isInsideSpeech(list, at) && !SENTENCE_END.test(list[wordBefore(list, at)].text);
   }
 
-  // True when a word has ended by `at` and another follows it. Silence before the first word
-  // or after the last is not a pause (backend/metrics.py), though pauses.js can report one.
+  // True when the pause follows a word and another word comes after that one. Silence before
+  // the first word or after the last is not a pause (backend/metrics.py), though pauses.js can
+  // report one.
   function isInsideSpeech(list, at) {
     const before = wordBefore(list, at);
     return before !== -1 && before !== list.length - 1;
   }
 
-  // The index of the last word ending by `at`, or -1: the rule Results uses to place the pause
-  // marker.
+  // The index of the word a pause starting at `at` follows, or -1: the last word that has ended
+  // by `at` or is still going then. A pause pauses.js adds starts when the voice went quiet,
+  // which can fall inside the transcript's time for the word just said ("sad." runs to 35.738,
+  // quiet from 35.4): that word, not the one before it, decides whether the pause counts.
   function wordBefore(list, at) {
     let before = -1;
     list.forEach((word, index) => {
-      if (word.end <= at + MILLISECOND) {
+      if (word.start < at - MILLISECOND || word.end <= at + MILLISECOND) {
         before = index;
       }
     });
     return before;
+  }
+
+  // wordBefore for a stored transcript, so Results draws each pause marker right after the word
+  // that decided whether the pause counts.
+  function wordBeforePause(words, at) {
+    return wordBefore(toWords(words), at);
   }
 
   // The longest stretch of speech with no filler, no counted pause (mid-sentence, or 5 s+
@@ -680,6 +689,7 @@
     isHesitation,
     isCountedPause,
     isLongPause,
+    wordBeforePause,
     HESITATION,
     HABIT,
     HABIT_WORDS,
