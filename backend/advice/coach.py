@@ -2,11 +2,11 @@
 
 POST /api/advice (backend/app.py) hands advise() the take's numbers, an excerpt of its
 transcript, the speaker's tier and the ids of the advice the speaker has already been shown.
-candidates() (select.py) picks the library entries the notes may draw on, and Claude Haiku
-rewrites 2-3 of them for this speaker: in the second person, about this take, with nothing
-added to what the entries and the numbers say. Its reply is used only when it keeps every rule
-in checked_tips(). The drill and the citation of each tip are copied here from its library
-entry, never taken from the model.
+candidates() (select.py) picks the library entries the notes may draw on, never one written for
+debate, and Claude Haiku rewrites 2-3 of them for this speaker, coaching everyday speech: in the
+second person, about this take, with nothing added to what the entries and the numbers say. Its
+reply is used only when it keeps every rule in checked_tips(). The drill and the citation of
+each tip are copied here from its library entry, never taken from the model.
 
 When the model cannot be used (no API key, the hour's budget of calls spent (budget.py), no
 reply within 8 s, an API error, a refusal, or a reply that is not a message or breaks a rule),
@@ -144,9 +144,14 @@ TIPS_SCHEMA: dict[str, object] = {
     "additionalProperties": False,
 }
 
+# Who the model coaches (the owner's rule, 2026-10-14): people building fluent, articulate
+# everyday speech, many of them non-native speakers. It names no debate word in any sense.
 SYSTEM_PROMPT = """\
-You are a debate coach. A speaker has just recorded a practice speech, and you write their \
-coach notes: 2 or 3 short tips, each one drawn from one of the library entries you are given.
+You are a speaking coach for people building fluent, articulate everyday speech: talking with \
+others, explaining an idea, telling a story, answering an interview question or giving a \
+presentation. Many of them are non-native speakers, so write in plain, everyday English. A \
+speaker has just recorded themselves talking or reading aloud, and you write their coach notes: \
+2 or 3 short tips, each one drawn from one of the library entries you are given.
 
 Rules for every tip:
 - Make it personal: speak to the speaker as "you", and tie the entry's advice to their \
