@@ -14,20 +14,16 @@ case "$path" in
   /*) rel="${path#"$root"/}" ;;
   *)  rel="$path" ;;
 esac
-protected='^(docs/PLAN\.md|docs/challenge-notes\.md|CLAUDE\.md|tasks/queue\.json|\.env.*|automation/.*|\.claude/.*|docs/superpowers/.*)$'
+# frontend/DESIGN.md is the spec every screen is built from; frontend/pauses.js is human-owned (T08).
+protected='^(docs/PLAN\.md|docs/challenge-notes\.md|CLAUDE\.md|tasks/queue\.json|\.env.*|automation/.*|\.claude/.*|docs/superpowers/.*|frontend/DESIGN\.md|frontend/pauses\.js)$'
 if printf '%s' "$rel" | grep -Eq "$protected"; then
   echo "Blocked: $rel is human-owned. Do not edit it; note what you wanted in your report." >&2
   exit 2
 fi
-if printf '%s' "$rel" | grep -Eq '^backend/tests/.*\.py$'; then
+# Every existing file under either tests folder: test files, helpers such as fake-dom.js, fixtures.
+if printf '%s' "$rel" | grep -Eq '^(backend|frontend)/tests/'; then
   if git -C "$root" cat-file -e "$base:$rel" 2>/dev/null; then
     echo "Blocked: $rel is an existing test file. Existing tests are read-only; add a new test file instead." >&2
-    exit 2
-  fi
-fi
-if printf '%s' "$rel" | grep -Eq '^backend/tests/fixtures/'; then
-  if git -C "$root" cat-file -e "$base:$rel" 2>/dev/null; then
-    echo "Blocked: $rel is an existing fixture and is read-only." >&2
     exit 2
   fi
 fi
