@@ -1034,6 +1034,162 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* 7b. Practice level mode (docs/superpowers/specs/2026-10-14-loop-path.md section 7). While the
+   Level screen's request is held, its banner stands in for the switch and the chips right above
+   the card, and on a level with the live tap "Heard one" sits under the record button's label
+   while a take records. Nothing here animates. */
+
+/* The parts level mode hides have display rules of their own, which would beat [hidden]. */
+#screen-practice .segmented[hidden],
+#screen-practice .chip-row[hidden],
+#screen-practice .practice__sample[hidden] {
+  display: none;
+}
+
+/* The banner: an accent-soft card with the level as its eyebrow, the take as its title, what to
+   do, and Leave level. The card under it keeps its own --s-3 top margin. */
+.practice__banner {
+  padding: var(--s-4);
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.practice__banner-eyebrow {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.practice__banner-title {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.practice__banner-body {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+/* Leave level: a small text button on a 44px target. Its --s-2 side padding is pulled back on
+   the left, so its words line up with the text above them. It hides while a take records or
+   uploads, as the nav does. */
+.practice__banner-leave {
+  min-height: 44px;
+  margin: var(--s-1) 0 0 calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.practice__banner-leave[hidden] {
+  display: none;
+}
+
+/* While a take records or uploads, Leave level hides as the nav does, but keeps its box: the
+   banner keeps its height, so the card under it, and the passage a read level starts reading at
+   the Record tap, stay where they were. visibility still takes it out of the tab order and the
+   accessibility tree, and the id outranks the [hidden] rule above. A level with the live tap
+   lets the box go, as before: "Heard one" needs that room under the record button at 375 x 667. */
+#screen-practice:is([data-state="recording"],
+  [data-state="uploading"]):not(:has(.practice__live-tap)) .practice__banner-leave[hidden] {
+  display: inline-flex;
+  visibility: hidden;
+}
+
+/* The live tap: a three-column grid keeps "Heard one" centered, as the timer keeps its clock,
+   with the count in the right column, so a growing count never moves the button under the
+   thumb. 160px leaves each side column room for "12 heard" at 320px wide. */
+.practice__live-tap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.practice__live-tap[hidden] {
+  display: none;
+}
+
+.practice__live-tap-button {
+  grid-column: 2;
+  min-width: 160px;
+  min-height: 56px;
+}
+
+.practice__live-tap-count {
+  grid-column: 3;
+  justify-self: start;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Short screens (320 x 568, landscape phones): the banner keeps every line but tightens, with
+   --s-3 padding and Leave level beside the eyebrow, its 44px target overlapping that row as New
+   topic's does in the card, so the card keeps its two-line floor and Record stays above the nav.
+   Heard one drops to the standard 48px. */
+@media (max-height: 600px) {
+  .practice__banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--s-3);
+  }
+
+  .practice__banner-eyebrow {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .practice__banner-title,
+  .practice__banner-body {
+    grid-column: 1 / -1;
+  }
+
+  .practice__banner-leave {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    margin-block: calc(-1 * var(--s-3));
+    margin-left: var(--s-2);
+    margin-right: calc(-1 * var(--s-2));
+  }
+
+  .practice__live-tap-button {
+    min-height: 48px;
+  }
+}
+
+/* Small phones (320 x 568), where section 7 also drops the hint, take one step more: the
+   banner's title and body drop a type step, and the card sits --s-2 under the banner, as the
+   record zone's gaps tighten. Level mode then fits one screen as normal mode does, the card at
+   its two-line floor and Record's label --s-5 above the nav. */
+@media (max-height: 600px) and (max-width: 479px) {
+  .practice__banner-title {
+    font-size: var(--fs-body);
+  }
+
+  .practice__banner-body {
+    font-size: var(--fs-small);
+    line-height: 1.4;
+  }
+
+  #screen-practice .practice__banner + .passage-card {
+    margin-top: var(--s-2);
+  }
+}
+
 /* 8. Results screen: meta line, headline, metric cards, timeline, transcript, tips, actions */
 /* Every figure on the screen, in hints, headline, legend and tips too, uses tabular numbers. */
 #screen-results {
