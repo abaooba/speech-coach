@@ -127,15 +127,16 @@ test("the copy is the brief's wording", () => {
   );
   assert.equal(
     COPY.privacy,
-    "Audio is deleted right after analysis. Transcripts stay on this device.",
+    "Audio is deleted right after analysis. " +
+      "Coach notes send the first 1,500 characters of your transcript to Anthropic.",
   );
   assert.equal(COPY.button, "Start practicing");
 });
 
-test("the privacy line says audio is deleted and transcripts stay on the device", () => {
+test("the privacy line says audio is deleted and the transcript goes to Anthropic", () => {
   const { COPY } = loadBare();
   assert.match(COPY.privacy, /deleted/);
-  assert.match(COPY.privacy, /device/);
+  assert.match(COPY.privacy, /transcript to Anthropic/);
 });
 
 test("every sentence in every COPY string is under 15 words", () => {

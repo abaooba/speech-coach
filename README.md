@@ -200,8 +200,14 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
 - The audio is forwarded once to the speech-to-text provider you configure
   (Deepgram or AssemblyAI) and is subject to that provider's retention
   policy.
-- Transcripts and metrics are returned to the browser and stored only in
-  IndexedDB on the device.
+- Transcripts and metrics are returned to the browser and stored in
+  IndexedDB on the device. For the coach notes on Results, the browser also
+  sends the take's numbers and the first 1,500 characters of its transcript
+  to `POST /api/advice`. While `ANTHROPIC_API_KEY` is set and the server's
+  hourly budget of AI calls lasts, the server passes both to Anthropic so
+  Claude Haiku can write the notes, and what it sends is subject to
+  Anthropic's retention policy. Otherwise nothing goes to Anthropic. The
+  server never logs the excerpt.
 
 ## AI disclosure
 

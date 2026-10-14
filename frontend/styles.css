@@ -1443,6 +1443,96 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-radius: var(--r-card);
 }
 
+/* Coach notes (docs/PLAN.md T41) take the tips' place: one small muted line under the heading
+   says who wrote them, then one card holds every note. Focus moves to the heading when the
+   notes replace the control it was on (tabindex="-1"), so it asks for the same room under it as
+   every link and button above the stuck action bar, and the browser never scrolls it in under
+   the bar. */
+.coach-notes__heading {
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom));
+}
+
+.coach-notes__lead {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The card is a surface card, as the headline is, and a list (role="list"), so it drops the
+   list's bullets and indent; each note brings its own --s-4 padding. Anywhere-wrapping keeps a
+   long title inside the column at 320px. */
+.coach-notes {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  overflow-wrap: anywhere;
+}
+
+.coach-notes__note {
+  padding: var(--s-4);
+}
+
+/* A 1px divider between two notes: it sits on each note after the first, so none runs along
+   the card's own edge. */
+.coach-notes__note + .coach-notes__note {
+  border-top: 1px solid var(--border);
+}
+
+/* The note keeps body size; pretty wrapping spares a one-word last line. */
+.coach-notes__text {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* The drill is a step down from the note, so the advice reads first and the exercise second. */
+.coach-notes__drill {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.coach-notes__drill-label {
+  font-weight: 600;
+}
+
+/* The source line is running text: "Source:", the link and the pill share a line when they fit
+   and wrap like words when they do not. It sits --s-4 under the line above, as far as the
+   link's tap target reaches above its words, so a tap on the drill never opens the source. */
+.coach-notes__source {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The link stays inline, so a long citation carries on after "Source:" instead of dropping
+   below it. Its padding makes the tap target at least 44px tall (12px of text and --s-4 above
+   and below) without moving a line, since an inline box's padding never does; the focus ring
+   circles that padding, as it does round "How we count". */
+.coach-notes__link {
+  padding: var(--s-4) 0;
+  color: var(--accent);
+}
+
+/* The "Peer reviewed" pill after the link: the ok pair, which reads at 4.5:1 in both themes
+   (DESIGN.md 4). It never breaks inside, so when it does not fit it moves down whole. */
+.coach-notes__badge {
+  display: inline-block;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
 /* The action bar stays stuck above the nav while the page scrolls under it: one row, a ghost
    History and the primary Record again, which caps at 320px on wide screens. There History's
    auto left margin takes the spare room and parks the pair at the column's end. Unlike end
@@ -1484,7 +1574,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    covered two thirds of a 160 x 284 window. There the bar stays in the page at its end, where
    main's bottom padding keeps it clear of the nav (at 200% zoom it wraps onto two rows).
    A focused link or button, the bar's own included, then only has to clear the nav, as on
-   History. */
+   History, and so does the Coach notes heading. */
 @media (max-height: 480px), (max-width: 319px) {
   #screen-results .results__actions {
     position: static;
@@ -1493,6 +1583,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
   #screen-results :is(a, button):not(.results__actions *),
   #screen-results .results__actions button {
+    scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+  }
+
+  .coach-notes__heading {
     scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
   }
 }
