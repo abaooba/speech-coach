@@ -147,7 +147,8 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
     up to RESTART_MAX_ABANDONED_WORDS abandoned words, when something shows the speaker gave up:
     um/uh/hmm/mhm between the copies or a cut-off mark on an abandoned word ('day—'). Without
     that sign, parallel phrasing ('we need to protect, we need to defend') is deliberate,
-    not a restart; nor is a new sentence that opens like the last one.
+    not a restart; nor is a new sentence that opens like the last one, whether the full stop
+    is on a word or on a hesitation ('students, um. This plan').
     A cut-off restart is a phrase ending in a cut-off word ('I kinda ner—') that the speaker
     starts again within CUTOFF_LOOKAHEAD_WORDS words ('I'm kinda nervous'); its text is the
     abandoned phrase up to the fragment.
@@ -157,22 +158,28 @@ def find_repeats(words: Sequence[Word]) -> list[Repeat]:
     """
     spoken: list[Word] = []
     hesitation_before: list[bool] = []
-    hesitated = False
+    stop_before: list[bool] = []
+    hesitated = stopped = False
     for word in words:
         token = normalize(word.text)
         if is_repeat_skip(token):
             hesitated = True
+            # The hesitation is skipped, but not the sentence end written on it ('um.').
+            stopped = stopped or _SENTENCE_END.search(word.text) is not None
         elif token:
             spoken.append(word)
             hesitation_before.append(hesitated)
-            hesitated = False
+            stop_before.append(stopped)
+            hesitated = stopped = False
     tokens = [normalize(w.text) for w in spoken]
     repeats: list[Repeat] = []
     index = 0
     while index < len(tokens):
         length, abandoned = _repeated_phrase_length(tokens, index), 0
         if length == 0:
-            length, abandoned = _restarted_phrase(spoken, tokens, hesitation_before, index)
+            length, abandoned = _restarted_phrase(
+                spoken, tokens, hesitation_before, stop_before, index
+            )
         if length == 0:
             length, abandoned = _cut_off_phrase(spoken, tokens, index)
         if length == 0:
@@ -197,13 +204,17 @@ def _repeated_phrase_length(tokens: list[str], index: int) -> int:
 
 
 def _restarted_phrase(
-    spoken: list[Word], tokens: list[str], hesitation_before: list[bool], index: int
+    spoken: list[Word],
+    tokens: list[str],
+    hesitation_before: list[bool],
+    stop_before: list[bool],
+    index: int,
 ) -> tuple[int, int]:
     """(phrase length, abandoned words) of the longest restart at `index`, else (0, 0).
 
-    `tokens[i]` is the normalized text of `spoken[i]`, and `hesitation_before[i]` says
-    whether um/uh/hmm/mhm came just before it. Among equally long phrases the one with the
-    fewest abandoned words wins.
+    `tokens[i]` is the normalized text of `spoken[i]`, `hesitation_before[i]` says whether
+    um/uh/hmm/mhm came just before it, and `stop_before[i]` whether one of those ended a
+    sentence ('um.'). Among equally long phrases the one with the fewest abandoned words wins.
     """
     for length in range(MAX_REPEAT_PHRASE_WORDS, 1, -1):
         first = tokens[index : index + length]
@@ -212,9 +223,11 @@ def _restarted_phrase(
             second = tokens[second_start : second_start + length]
             if first != second:
                 continue
-            # The last word of the first copy, then the abandoned words.
+            # The last word of the first copy, then the abandoned words; a sentence that ends
+            # on a hesitation between the copies ends there just the same.
             between = spoken[index + length - 1 : second_start]
-            if any(_SENTENCE_END.search(word.text) for word in between):
+            stopped = any(stop_before[index + length : second_start + 1])
+            if stopped or any(_SENTENCE_END.search(word.text) for word in between):
                 continue
             hesitated = any(hesitation_before[index + length : second_start + 1])
             cut_off = any(word.text.endswith(CUTOFF_MARKS) for word in between[1:])
