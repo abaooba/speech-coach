@@ -38,6 +38,14 @@ const API_PATH_PREFIX = "/api/";
 const INDEX_PAGE = "index.html";
 const SHELL_URLS = new Set(SHELL.map((path) => new URL(path, self.location.href).href));
 
+// The server lets the browser keep scripts, styles and icons for an hour (max-age=3600), so in
+// the browser's default cache mode a fetch could pair a new index.html with files from before a
+// deploy. A shell file the page asks for goes out with "no-cache": the browser checks with the
+// server every time, and an unchanged file costs a 304. Install uses "reload", which skips the
+// HTTP cache, so a new version never pre-caches a copy kept from before it.
+const SHELL_FILE_CACHE_MODE = "no-cache";
+const INSTALL_CACHE_MODE = "reload";
+
 // Stores a copy of a good GET response under its request, without holding up the page. Error
 // responses are never stored, nor are redirected ones, which browsers refuse as a page load.
 function keepCopy(event, response) {
@@ -49,10 +57,10 @@ function keepCopy(event, response) {
 }
 
 // The network's answer when there is one; offline, the cached copy of this request, else the
-// cached `fallbackUrl` when one is given.
-async function networkFirst(event, fallbackUrl) {
+// cached `fallbackUrl` when one is given. `init`, when given, goes to fetch with the request.
+async function networkFirst(event, fallbackUrl, init) {
   try {
-    const response = await fetch(event.request);
+    const response = await fetch(event.request, init);
     keepCopy(event, response);
     return response;
   } catch (error) {
@@ -76,11 +84,17 @@ async function cacheFirst(event) {
   return response;
 }
 
+// The request install pre-caches for one SHELL path, fetched past the HTTP cache. The test fakes
+// have no Request and get the bare path.
+function installRequest(path) {
+  return typeof Request === "function" ? new Request(path, { cache: INSTALL_CACHE_MODE }) : path;
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL))
+      .then((cache) => cache.addAll(SHELL.map(installRequest)))
       .then(() => self.skipWaiting()),
   );
 });
@@ -107,7 +121,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(event, INDEX_PAGE));
   } else if (SHELL_URLS.has(url.href)) {
-    event.respondWith(networkFirst(event, null));
+    event.respondWith(networkFirst(event, null, { cache: SHELL_FILE_CACHE_MODE }));
   } else {
     event.respondWith(cacheFirst(event));
   }
