@@ -440,8 +440,9 @@
   //   the speaker said yes to that are still to go up.
   // - listed: a list from the server has been folded in here at least once.
   // - firstListSinceLogIn: set by a log in. The account behind the email may have been deleted
-  //   and made again since this device last listed it, so the next list keeps a take recorded
-  //   here that it leaves out, as this device's own, rather than delete it (foldInto).
+  //   and made again since this device last listed it. When the next list looks so (it holds
+  //   none of the takes recorded here), it keeps a take recorded here that it leaves out, as
+  //   this device's own, rather than delete it (foldInto, looksMadeAgain).
   // - sessionEnded: the server ended this device's session for the account (a 401).
   // - loggedOutHere: the speaker logged out of the account on this device, and no one has logged
   //   in to it here since. The server may not have recorded that log out (accounts were off), so
@@ -709,15 +710,18 @@
   // The decisions of foldServerList, changing `accountSync` in place: which server takes to
   // cache here, and which copies here to drop. `here` maps id to this device's session. A copy
   // the server took that its list leaves out was deleted on another device, and goes; a take
-  // the server refused is not on its list and stays. On the first list since a log in, a take
-  // recorded here that the list leaves out stays too, as this device's own: the account behind
-  // the email may be a new one, made after the one this device synced with was deleted.
+  // the server refused is not on its list and stays. On the first list since a log in, the
+  // account behind the email may be a new one, made after the one this device synced with was
+  // deleted (looksMadeAgain): then a take recorded here that the list leaves out stays too, as
+  // this device's own.
   function foldInto(accountSync, fromServer, here, confirmed) {
     const owned = new Set(accountSync.takeIds);
     const cached = new Set(accountSync.cachedIds);
     const notKept = new Set(accountSync.notKeptIds);
     const deletedHere = new Set(accountSync.deletedIds);
     const onServer = new Set(fromServer.map((session) => session.id));
+    const madeAgain =
+      accountSync.firstListSinceLogIn && looksMadeAgain(confirmed, cached, onServer);
     const toCache = [];
     fromServer.forEach((session) => {
       const waiting = accountSync.pending[session.id];
@@ -747,7 +751,7 @@
       owned.delete(id);
       const recordedHere = !cached.has(id);
       cached.delete(id);
-      const keptAsOwn = accountSync.firstListSinceLogIn && recordedHere;
+      const keptAsOwn = madeAgain && recordedHere;
       if (!keptAsOwn && here.has(id)) {
         toDrop.push(id);
       }
@@ -760,6 +764,18 @@
     accountSync.firstListSinceLogIn = false;
     accountSync.listed = true;
     return { toCache, toDrop };
+  }
+
+  // Whether the account's list looks like one made again under the same email: it holds none of
+  // the takes recorded here that the server had confirmed (`confirmed` less the copies in
+  // `cached`). Only this device could add those to a new account, and none has been sent since
+  // (no write waits for them), so one of them on the list shows the account is the same: a take
+  // recorded here that the list leaves out was deleted on another device. A copy of a take from
+  // another device shows nothing, as that device may have added it to the new account. When
+  // every take recorded here was deleted elsewhere, the two look alike, and those takes stay as
+  // this device's own.
+  function looksMadeAgain(confirmed, cached, onServer) {
+    return ![...confirmed].some((id) => !cached.has(id) && onServer.has(id));
   }
 
   function sameSession(a, b) {
