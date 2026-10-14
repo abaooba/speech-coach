@@ -18,11 +18,14 @@
   const CENTER_X = 50;
   // A link runs from one node's centre to the next one's in two parts, each drawn in a 100 by
   // 100 box the stylesheet stretches: a straight drop under the node to the foot of its row,
-  // however tall an open card makes the row, then a turn of one height across the gap between
-  // the rows into the next node, bending at mid-height. Turning only below a row's content, a
-  // link never runs through a card or the crown beside a node.
+  // however tall an open card makes the row, then a turn whose box spans the row's --s-6 foot
+  // and the next node's top half. --s-6 is 32px, a level's half height, so the foot is the box's
+  // top half: the turn crosses to the next node's column there, in the gap between the rows, and
+  // drops straight into the node. Crossing only in that gap, a link never runs through a card or
+  // the crown beside a node, nor behind the next node's card, which starts at the top of its row.
   const LINK_BOX = "0 0 100 100";
-  const LINK_BEND_Y = 50;
+  const LINK_FOOT_MIDDLE_Y = 25;
+  const LINK_FOOT_END_Y = 50;
   const LINK_END_Y = 100;
   // A row's class for the side its node sits on, and how the node's card points at it: a card
   // beside a left node points left, beside a right node right, and under its node (the
@@ -147,12 +150,14 @@
   }
 
   // A link's turn from a node at `fromX` into the next one at `toX`, as an SVG path's `d` in
-  // the 100 by 100 link box: y 0 at the foot of the first node's row and 100 at the next node's
-  // centre. It leaves straight down, bends at mid-height and meets the next node straight down,
-  // an S when the two sit on opposite sides.
+  // the 100 by 100 link box: y 0 at the top of the first node's row foot, 50 at the foot's end
+  // (the top of the next row) and 100 at the next node's centre. It leaves straight down and
+  // crosses inside the foot, an S when the two sit on opposite sides, then drops straight into
+  // the next node.
   function linkD(fromX, toX) {
-    const bend = " " + LINK_BEND_Y + " ";
-    return "M" + fromX + " 0 C" + fromX + bend + toX + bend + toX + " " + LINK_END_Y;
+    const middle = " " + LINK_FOOT_MIDDLE_Y + " ";
+    const crossing = "C" + fromX + middle + toX + middle + toX + " " + LINK_FOOT_END_Y;
+    return "M" + fromX + " 0 " + crossing + " L" + toX + " " + LINK_END_Y;
   }
 
   // --- Drawing ---------------------------------------------------------------------------------

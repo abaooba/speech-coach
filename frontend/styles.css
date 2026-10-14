@@ -2538,8 +2538,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    is a grid row of three columns, the room before the node, the 104px node (its circle over its
    label) and the side that holds its card, so a node's centre sits at 25% or 75% of the row and
    the checkpoint's at 50%, where screens/path.js nodeX places them. A link drops from one node's
-   centre to the foot of its row, however tall an open card makes it, then turns into the next
-   node. Cleared is --ok, current --accent, gold --warn. Nothing animates. */
+   centre to the foot of its row, however tall an open card makes it, crosses in the gap below
+   the row and drops into the next node. Cleared is --ok, current --accent, gold --warn. Nothing
+   animates. */
 .path__status {
   display: flex;
   flex-wrap: wrap;
@@ -2756,9 +2757,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* A link runs from its node's centre, 32px down the row, as tall as the row, so it ends at the
-   next node's centre: a drop to the foot of the row's content, then a turn across the row's
-   --s-6 foot and the next node's top half, below every card and crown in the row. Each part's
-   stroke keeps 3px however far it stretches. Walked is --ok, the rest --grid. */
+   next node's centre: a drop to the foot of the row's content, then a turn whose box spans the
+   row's --s-6 foot and the next node's top half. The turn crosses inside the foot, below every
+   card and crown in the row and above the next row's cards, then drops straight into the node
+   (screens/path.js linkD). Each part's stroke keeps 3px however far it stretches. Walked is
+   --ok, the rest --grid. */
 .path-step__link {
   position: absolute;
   z-index: -1;

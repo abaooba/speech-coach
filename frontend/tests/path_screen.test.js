@@ -80,9 +80,9 @@ test("dropD runs straight down under a node", () => {
 
 test("linkD turns from one node's column into the next, straight down at both ends", () => {
   const { screen } = mountPath();
-  assert.equal(screen.linkD(25, 75), "M25 0 C25 50 75 50 75 100");
-  assert.equal(screen.linkD(75, 25), "M75 0 C75 50 25 50 25 100");
-  assert.equal(screen.linkD(25, 50), "M25 0 C25 50 50 50 50 100");
+  assert.equal(screen.linkD(25, 75), "M25 0 C25 25 75 25 75 50 L75 100");
+  assert.equal(screen.linkD(75, 25), "M75 0 C75 25 25 25 25 50 L25 100");
+  assert.equal(screen.linkD(25, 50), "M25 0 C25 25 50 25 50 50 L50 100");
 });
 
 // The two parts of a link: an SVG in the 100 by 100 box, stretched, drawing one path.
