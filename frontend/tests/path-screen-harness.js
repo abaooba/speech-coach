@@ -1,9 +1,12 @@
-// The Path screen's test harness, shared by path_screen.test.js and
-// path_screen_states.test.js. It loads ui.js, passages.js, delivery.js, path.js, loop.js and
-// screens/path.js into one vm context, in index.html's order, with the shared fake DOM, a fake
-// store and router, and a clock fixed at a known local time, so the screen's "today" is the same
-// in every run and every time zone. Elements it makes also record focus() calls, which
-// fake-dom.js does not have. The take and record builders date everything in local time.
+// The Path screen's test harness, shared by path_screen.test.js, path_screen_states.test.js and
+// the fix_path_screen_* tests. It loads ui.js, passages.js, delivery.js, rank.js, rankcard.js,
+// path.js, loop.js and screens/path.js into one vm context, in index.html's order, with the
+// shared fake DOM, a fake store and router, and a clock fixed at a known local time, so the
+// screen's "today" is the same in every run and every time zone. rank.js and rankcard.js are
+// loaded because index.html loads them before the screen: the rank is there for the Path to
+// reach, as in the app, and every call into app.rank or app.rankCard is recorded, so a test can
+// show the Path never makes one. Elements it makes also record focus() calls, which fake-dom.js
+// does not have. The take and record builders date everything in local time.
 "use strict";
 
 const fs = require("node:fs");
@@ -17,10 +20,16 @@ const FILES = [
   "ui.js",
   "passages.js",
   "delivery.js",
+  "rank.js",
+  "rankcard.js",
   "path.js",
   "loop.js",
   path.join("screens", "path.js"),
 ];
+// Once this file has run, app.rank and app.rankCard exist; their calls are recorded from then on,
+// before path.js, loop.js or the screen can keep a reference to them.
+const RANK_LOADED_AFTER = "rankcard.js";
+const RANK_NAMESPACES = ["rank", "rankCard"];
 const SOURCES = FILES.map((file) => ({
   file,
   source: fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8"),
@@ -59,11 +68,30 @@ function focusRecordingDocument(focusLog, byId) {
   };
 }
 
+// Swaps each function of app.rank and app.rankCard for one that first logs its name in `calls`
+// ("rank.rating", "rankCard.model"), then runs the real one.
+function recordRankCalls(app, calls) {
+  RANK_NAMESPACES.forEach((namespace) => {
+    const functions = app[namespace];
+    Object.keys(functions).forEach((key) => {
+      const real = functions[key];
+      if (typeof real !== "function") {
+        return;
+      }
+      functions[key] = function recorded(...args) {
+        calls.push(namespace + "." + key);
+        return real.apply(this, args);
+      };
+    });
+  });
+}
+
 // Mounts the Path screen on a section built as index.html will build it: <h1>Path</h1>, then
 // div.screen__body. The store lists `sessions` (the takes) and `cleared` (the cleared records),
 // both changeable between shows through `store`. `store.fail` set to "list" or "cleared" makes
 // that call reject; `store.hold` set to true keeps both calls waiting until store.release().
-// The router records every go() as {name, id}.
+// The router records every go() as {name, id}; `rankCalls` lists every call into app.rank and
+// app.rankCard, in order.
 function mountPath(options = {}) {
   const focusLog = [];
   const live = new FakeElement("div");
@@ -107,7 +135,13 @@ function mountPath(options = {}) {
     },
   };
   const context = { app, document, Date: fixedClock(options.now || WEDNESDAY) };
-  SOURCES.forEach(({ file, source }) => vm.runInNewContext(source, context, { filename: file }));
+  const rankCalls = [];
+  SOURCES.forEach(({ file, source }) => {
+    vm.runInNewContext(source, context, { filename: file });
+    if (file === RANK_LOADED_AFTER) {
+      recordRankCalls(app, rankCalls);
+    }
+  });
 
   const root = new FakeElement("section");
   root.setAttribute("id", "screen-path");
@@ -119,7 +153,7 @@ function mountPath(options = {}) {
   root.appendChild(body);
   const screen = app.screens.path;
   screen.mount(root);
-  return { app, screen, root, heading, body, store, routes, focusLog, live };
+  return { app, screen, root, heading, body, store, routes, focusLog, live, rankCalls };
 }
 
 // Lets a click handler's promise chain run to the end.
