@@ -1,7 +1,7 @@
 /* passages.js: app.passages, Practice's fixed material. Each entry is {id, kind, title, text,
    targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}: a "prompt" is a timed topic
    (the Talk tab), a "passage" is read word for word (the Read tab), and prompts come first, as
-   Practice opens on the first entry. app.passages.coldReads() lists the cold reads. No DOM. */
+   Practice opens on the first entry. coldReads() and benchmark() hold the Path's own. No DOM. */
 (function () {
   "use strict";
 
@@ -425,5 +425,53 @@
   // caller can filter or shuffle it without changing what the next caller gets.
   app.passages.coldReads = function coldReads() {
     return COLD_READS.slice();
+  };
+
+  // The benchmark (docs/superpowers/specs/2026-10-14-loop-path.md section 5): one passage to read
+  // and one prompt to talk on, held out from everything else, so the same two at every sitting
+  // show real progress outside the path. Neither is an entry of app.passages or a cold read, so
+  // no other take ever practises them. The read keeps the cold reads' rules: original and
+  // debate-style, 140 to 180 words, with no digit, symbol, quotation mark or habit word.
+  const BENCHMARK_TARGET_WPM = [140, 160];
+  const BENCHMARK_TALK_SECONDS = 90;
+
+  const BENCHMARK_READ = [
+    "We affirm that every city should plant and protect trees along its streets. Start with",
+    "heat. Pavement and rooftops soak up sunlight all afternoon and release it long after",
+    "dark, and blocks without shade can feel far hotter than leafy ones nearby. A row of",
+    "mature trees cools the sidewalk, the homes behind it, and the people waiting for the bus.",
+    "Next, consider health. Trees filter dust from the air, soften the noise of traffic, and",
+    "invite neighbors to walk instead of drive. Finally, weigh fairness. Wealthy districts",
+    "tend to have the most shade, while crowded blocks with the least green space bear the",
+    "worst of every heat wave. The opposition will argue that trees cost money to plant and",
+    "maintain. They do, but a healthy tree repays that cost for decades, in lower cooling",
+    "bills, fewer flooded streets, and healthier neighbors. Plant the shade where it is needed",
+    "most, and the whole city benefits.",
+  ].join(" ");
+
+  const BENCHMARK_TALK_TOPIC =
+    "Describe a skill you want to learn this year, and how you would start.";
+
+  // {read, talk}: the benchmark passage and prompt, shaped like the entries above. Each call
+  // returns new objects, so a caller can change its copy without changing the next caller's.
+  app.passages.benchmark = function benchmark() {
+    return {
+      read: {
+        id: "benchmark-read",
+        kind: "passage",
+        title: "Benchmark read",
+        text: BENCHMARK_READ,
+        targetWpm: BENCHMARK_TARGET_WPM.slice(),
+      },
+      talk: {
+        id: "benchmark-talk",
+        kind: "prompt",
+        title: "Benchmark talk",
+        text: BENCHMARK_TALK_TOPIC,
+        targetWpm: BENCHMARK_TARGET_WPM.slice(),
+        timeLimitSeconds: BENCHMARK_TALK_SECONDS,
+        topics: [BENCHMARK_TALK_TOPIC],
+      },
+    };
   };
 })();

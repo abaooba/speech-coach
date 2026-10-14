@@ -1,11 +1,12 @@
-// Tests for frontend/path.js (app.path), the skill path's data and rules (docs/PLAN.md T42).
-// Four units (Restarts, Fillers, Long pauses, Pace) of five levels, each level a challenge
-// mode: suddenDeath, speedLadder, coldRead or cleanStretch. evaluate() passes or fails a take
-// from its app.delivery report, order() puts the weakest unit first by the advice ranking of
-// backend/advice/select.py, a level unlocks once the one before it is cleared, and
-// pickColdRead() hands out a cold read the speaker has never read. passages.js, delivery.js and
-// path.js load into a vm in index.html's order; every report here comes from the real
-// app.delivery.analyze.
+// Tests for frontend/path.js (app.path), the Loop Path's data and rules
+// (docs/superpowers/specs/2026-10-14-loop-path.md, which replaced docs/PLAN.md T42's challenge
+// modes). Four units (Restarts, Fillers, Long pauses, Pace) of five levels, each level a loop
+// whose scored take must meet its conditions and guards; sudden death and the speed ladder judge
+// the Fillers and Pace crowns. evaluate() passes or fails a take from its app.delivery report,
+// order() puts the weakest unit first by the advice ranking of backend/advice/select.py, a level
+// unlocks once the one before it is cleared, and pickColdRead() hands out a cold read the speaker
+// has never read. passages.js, delivery.js and path.js load into a vm in index.html's order;
+// every report here comes from the real app.delivery.analyze.
 "use strict";
 
 const test = require("node:test");
@@ -18,7 +19,7 @@ const FRONTEND_DIR = path.join(__dirname, "..");
 const FIXTURES_DIR = path.join(FRONTEND_DIR, "..", "backend", "tests", "fixtures");
 
 const UNIT_IDS = ["restarts", "fillers", "long-pauses", "pace"];
-const NO_SPEECH = "No speech was found in this take. Try the level again.";
+const NO_SPEECH = "No speech was found in this take.";
 const LADDER_PASSAGE_ID = "rebuttal-uniforms";
 // A cold read is read at the slow edge of its band at worst (passages.js gives 140 to 160).
 const SLOW_EDGE_WPM = 140;
@@ -57,6 +58,10 @@ function level(id) {
   return found;
 }
 
+function unit(id) {
+  return PATH.UNITS.find((entry) => entry.id === id);
+}
+
 // A real 2026-10-11 take from backend/tests/fixtures, in clip seconds.
 function realWords(file) {
   return JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, file), "utf8")).words.map((word) => ({
@@ -86,6 +91,16 @@ function wordsAt(count, wpm, start = 1) {
   return words({ count, start, step: ((60 / wpm) * count) / (count - 0.2) });
 }
 
+// Talk at 0.25 s a word, each word 0.15 s long, from `start`: 300 words speak for 74.9 s, and a
+// stretch from the first word to a filler at index i lasts exactly i / 4 seconds.
+function quickTalk({ count = 300, say = {}, start = 1 } = {}) {
+  return Array.from({ length: count }, (_, index) => ({
+    text: say[index] || "word" + index,
+    start: start + index * 0.25,
+    end: start + index * 0.25 + 0.15,
+  }));
+}
+
 // A stored session as app.store.list() hands it back.
 function session({
   transcript,
@@ -108,8 +123,34 @@ function reportOf(take) {
   return APP.delivery.analyze(take.transcript, take.metrics);
 }
 
-function evaluate(levelId, take) {
-  return plain(PATH.evaluate(level(levelId), reportOf(take)));
+// A speaker's usual numbers from one clean minute at 150 wpm: no slips of any kind.
+const STEADY = PATH.baseline([session({ transcript: words({ count: 150, step: 60 / 149.8 }) })]);
+
+// How take `takeIndex` (0 for take 1) of a play went, against the steady baseline unless
+// `context` gives another.
+function judge(playId, takeIndex, take, context = { baseline: STEADY }) {
+  return plain(PATH.evaluate(playId, takeIndex, reportOf(take), context));
+}
+
+// The verdict a crown gives a take at its tier `tier` (1 for the first), the tiers below it
+// already earned.
+function crownVerdict(take, tier = 1) {
+  const earned = Array.from({ length: tier - 1 }, (_, index) => ({
+    levelId: "fillers_crown-" + (index + 1),
+    clearedAt: "2026-10-12T10:00:00.000Z",
+  }));
+  const result = judge("fillers_crown", 0, take, { cleared: earned });
+  return { passed: result.passed, detail: result.sentence };
+}
+
+// A result's verdict and its sentence.
+function pick(result) {
+  return [result.passed, result.sentence];
+}
+
+function ladderVerdict(take) {
+  const result = judge("pace_crown", 0, take, {});
+  return { passed: result.passed, detail: result.sentence };
 }
 
 // A take read from a script: a script restart starting at each word index in `restartsAt`, a
@@ -164,15 +205,31 @@ test("the service worker caches path.js under a new cache name", () => {
 test("path.js assigns exactly app.path", () => {
   assert.deepEqual(Object.keys(APP).sort(), ["delivery", "passages", "path", "screens"]);
   assert.deepEqual(Object.keys(PATH).sort(), [
-    "MODE_TITLES",
     "UNITS",
+    "addDays",
+    "attemptsLeft",
+    "baseline",
+    "benchmarkState",
+    "checkbacks",
+    "checkpointState",
+    "crownState",
     "currentLevel",
     "evaluate",
     "isUnlocked",
     "levelById",
+    "localDay",
+    "materialFor",
+    "measure",
     "order",
+    "ownTakes",
     "pickColdRead",
+    "pickTopic",
+    "playById",
+    "ringOf",
     "statusOf",
+    "takeAt",
+    "topFillers",
+    "weekDays",
   ]);
 });
 
@@ -200,152 +257,225 @@ test("the path is four units of five levels, in the advice ranking's order of sk
   });
 });
 
-test("every level has the plan's fields: id, unit, mode, prompt, durationSeconds, pass", () => {
+test("every level has the Loop Path's fields: a title, its material, takes and a rule", () => {
   PATH.UNITS.forEach((unit) => {
     unit.levels.forEach((entry) => {
       assert.deepEqual(Object.keys(entry).sort(), [
-        "durationSeconds",
+        "checkback",
+        "conditions",
+        "guards",
         "id",
-        "mode",
+        "listsTopFillers",
+        "liveTap",
+        "material",
         "number",
-        "pass",
-        "passageId",
-        "prompt",
+        "prepSeconds",
+        "scoredInPairs",
+        "spotIt",
+        "takes",
+        "tip",
+        "title",
         "unit",
       ]);
-      assert.equal(typeof entry.prompt, "string");
-      assert.ok(entry.prompt.length > 20, entry.id);
-      assert.ok(Number.isInteger(entry.durationSeconds) && entry.durationSeconds > 0, entry.id);
-      assert.equal(typeof PATH.MODE_TITLES[entry.mode], "string", entry.id);
+      assert.equal(typeof entry.title, "string");
+      assert.ok(entry.title.length >= 6, entry.id);
+      assert.ok(entry.takes.length >= 2, entry.id);
+      entry.takes.forEach((take) => {
+        assert.ok(Number.isInteger(take.seconds) && take.seconds > 0, entry.id);
+      });
+      assert.ok(entry.conditions.length >= 1, entry.id);
+      assert.ok(entry.guards.length >= 1, entry.id);
+      assert.ok(
+        ["your-day", "impromptu", "new-topic", "cold-read", "ladder"].includes(entry.material),
+        entry.id,
+      );
     });
   });
-  assert.deepEqual(plain(PATH.MODE_TITLES), {
-    suddenDeath: "Sudden death",
-    speedLadder: "Speed ladder",
-    coldRead: "Cold read",
-    cleanStretch: "Clean stretch",
-  });
 });
 
-test("each unit trains its skill with one mode", () => {
-  const modes = Object.fromEntries(
-    Array.from(PATH.UNITS, (unit) => [unit.id, [...new Set(unit.levels.map((l) => l.mode))]]),
+test("each unit trains its skill on reads, talks or both", () => {
+  const kinds = Object.fromEntries(
+    Array.from(PATH.UNITS, (unit) => [
+      unit.id,
+      Array.from(unit.levels, (entry) =>
+        entry.takes.every((take) => take.read) ? "read" : "talk",
+      ),
+    ]),
   );
-  assert.deepEqual(plain(modes), {
-    restarts: ["coldRead"],
-    fillers: ["suddenDeath"],
-    "long-pauses": ["cleanStretch"],
-    pace: ["speedLadder"],
+  assert.deepEqual(plain(kinds), {
+    restarts: ["read", "read", "read", "read", "talk"],
+    fillers: ["talk", "talk", "talk", "talk", "talk"],
+    "long-pauses": ["talk", "talk", "talk", "talk", "talk"],
+    pace: ["read", "read", "talk", "talk", "talk"],
   });
 });
 
-test("sudden death asks for runs of 30, 45, 60, 90 and 120 seconds", () => {
-  const unit = PATH.UNITS[1];
+test("sudden death, the Fillers crown, asks for runs of 30, 45, 60, 90 and 120 seconds", () => {
+  const crown = unit("fillers").crown;
   assert.deepEqual(
-    Array.from(unit.levels, (entry) => entry.pass.runSeconds),
+    Array.from(crown.tiers, (tier) => tier.seconds),
     [30, 45, 60, 90, 120],
   );
-  assert.equal(level("fillers-1").prompt, "Keep talking for 0:30 without a filler or restart. " +
-    "The first one ends your run.");
-  assert.equal(level("fillers-5").prompt, "Keep talking for 2:00 without a filler or restart. " +
-    "The first one ends your run.");
-});
-
-test("the speed ladder climbs 140, 160 and 180 wpm within 10, then cuts the restarts", () => {
-  const rungs = Array.from(PATH.UNITS[3].levels, (entry) => plain(entry.pass));
-  assert.deepEqual(rungs, [
-    { wpm: 140, toleranceWpm: 10, maxRestarts: 2 },
-    { wpm: 160, toleranceWpm: 10, maxRestarts: 2 },
-    { wpm: 180, toleranceWpm: 10, maxRestarts: 2 },
-    { wpm: 180, toleranceWpm: 10, maxRestarts: 1 },
-    { wpm: 180, toleranceWpm: 10, maxRestarts: 0 },
-  ]);
-  assert.equal(level("pace-1").prompt, "Read the passage at 140 wpm, give or take 10, " +
-    "with at most 2 restarts.");
-  assert.equal(level("pace-4").prompt, "Read the passage at 180 wpm, give or take 10, " +
-    "with at most 1 restart.");
-  assert.equal(level("pace-5").prompt, "Read the passage at 180 wpm, give or take 10, " +
-    "without a restart.");
-});
-
-test("cold reads allow 4, 3, 2, 1 and then no restarts and misreads in all", () => {
+  const first = PATH.playById("fillers_crown");
   assert.deepEqual(
-    Array.from(PATH.UNITS[0].levels, (entry) => entry.pass.maxSlips),
-    [4, 3, 2, 1, 0],
+    [first.goal.headline, first.goal.unitLabel],
+    ["0:30", "without a filler or restart"],
   );
-  assert.equal(level("restarts-1").prompt, "Read a passage you have never seen with at most " +
-    "4 restarts and misreads in all.");
-  assert.equal(level("restarts-5").prompt, "Read a passage you have never seen without a " +
-    "restart or misread.");
+  const last = PATH.playById("fillers_crown", {
+    cleared: [1, 2, 3, 4].map((n) => ({ levelId: "fillers_crown-" + n, clearedAt: "x" })),
+  });
+  assert.deepEqual(
+    [last.goal.headline, last.goal.unitLabel],
+    ["2:00", "without a filler or restart"],
+  );
+});
+
+test("the ladder reads 150 within 10, then 140 and 160, and crowns at 180, 1 restart", () => {
+  const bands = (id) => plain(Array.from(level(id).takes, (take) => take.band));
+  assert.deepEqual(bands("pace-1"), [
+    [140, 160],
+    [140, 160],
+  ]);
+  assert.deepEqual(bands("pace-2"), [
+    [130, 150],
+    [150, 170],
+  ]);
+  assert.deepEqual(plain(level("pace-2").conditions[1]), { measure: "restarts", max: 2 });
+  assert.deepEqual(plain(unit("pace").crown.tiers), [
+    { number: 1, wpm: 180, maxRestarts: 1, record: "pace_crown-1" },
+  ]);
+  assert.deepEqual(plain(PATH.playById("pace_crown").takes[0].band), [170, 190]);
+  assert.equal(PATH.playById("pace_crown").goal.unitLabel, "wpm, at most 1 restart");
+  assert.equal(
+    PATH.playById("pace-2").goal.unitLabel,
+    "wpm, give or take 10, at most 2 restarts each",
+  );
+});
+
+test("cold reads allow 4, 3, 2, then 1 restart or misread, then a talk at 1 a minute", () => {
+  assert.deepEqual(
+    plain(Array.from(unit("restarts").levels, (entry) => entry.conditions[0])),
+    [
+      { measure: "readSlips", max: 4 },
+      { measure: "readSlips", max: 3 },
+      { measure: "readSlips", max: 2 },
+      { measure: "readSlips", max: 1 },
+      { measure: "restartsPerMinute", max: 1 },
+    ],
+  );
+  assert.deepEqual(plain(PATH.playById("restarts-1").goal), {
+    headline: "4 or fewer",
+    unitLabel: "slips on read 3: restarts and misreads",
+    length: "3 reads of a new passage",
+    short: "4 slips or fewer",
+  });
+  assert.deepEqual(plain(PATH.playById("restarts-4").goal), {
+    headline: "1 or fewer",
+    unitLabel: "slips on read 2: restarts and misreads",
+    length: "2 reads of a new passage",
+    short: "1 slip or fewer",
+  });
 });
 
 test("clean stretches grow from DebateDrills' 15 beginner seconds to a full minute", () => {
   assert.deepEqual(
-    Array.from(PATH.UNITS[2].levels, (entry) => entry.pass.stretchSeconds),
+    Array.from(unit("long-pauses").levels, (entry) => entry.conditions[0].min),
     [15, 20, 30, 45, 60],
   );
-  assert.equal(level("long-pauses-1").prompt, "Talk on the topic and hold one clean stretch " +
-    "of 15 seconds: no filler, restart, mid-sentence pause or pause of 5 seconds or more.");
-});
-
-test("every level asks for more than the level before it", () => {
-  const harder = {
-    coldRead: (before, after) => after.maxSlips < before.maxSlips,
-    suddenDeath: (before, after) => after.runSeconds > before.runSeconds,
-    cleanStretch: (before, after) => after.stretchSeconds > before.stretchSeconds,
-    speedLadder: (before, after) =>
-      (after.wpm > before.wpm && after.maxRestarts <= before.maxRestarts) ||
-      (after.wpm === before.wpm && after.maxRestarts < before.maxRestarts),
-  };
-  PATH.UNITS.forEach((unit) => {
-    unit.levels.slice(1).forEach((entry, index) => {
-      const before = unit.levels[index];
-      assert.ok(harder[entry.mode](before.pass, entry.pass), entry.id);
-    });
+  assert.deepEqual(plain(PATH.playById("long-pauses-1").goal), {
+    headline: "15 s",
+    unitLabel: "clean stretch, at most 1 long pause",
+    length: "90 s, two takes",
+    short: "15 s clean",
   });
 });
 
-test("a talk level runs past its target, so the take has room to reach it", () => {
-  PATH.UNITS[1].levels.forEach((entry) => {
-    assert.equal(entry.durationSeconds, entry.pass.runSeconds + 15, entry.id);
+test("every level asks for no less than the level before it", () => {
+  const main = (entry) => entry.conditions[0];
+  unit("fillers").levels.slice(1).forEach((entry, index) => {
+    assert.ok(main(entry).max <= main(unit("fillers").levels[index]).max, entry.id);
   });
+  unit("restarts").levels.slice(1, 4).forEach((entry, index) => {
+    assert.ok(main(entry).max < main(unit("restarts").levels[index]).max, entry.id);
+  });
+  unit("long-pauses").levels.slice(1).forEach((entry, index) => {
+    const before = unit("long-pauses").levels[index];
+    assert.ok(main(entry).min > main(before).min, entry.id);
+    assert.ok(entry.conditions[1].max <= before.conditions[1].max, entry.id);
+    assert.ok(entry.prepSeconds <= before.prepSeconds, entry.id);
+  });
+  // Pace holds the same band, on talks that grow longer, then on a new topic with every slip
+  // held to the speaker's usual.
+  const pace = unit("pace").levels;
+  assert.ok(pace[3].takes[1].seconds > pace[2].takes[1].seconds);
+  assert.equal(pace[4].material, "new-topic");
+  assert.equal(pace[4].conditions.length, pace[3].conditions.length + 1);
+});
+
+test("a talk runs past its target, so the take has room to reach it", () => {
   assert.deepEqual(
-    Array.from(PATH.UNITS[2].levels, (entry) => entry.durationSeconds),
-    [60, 60, 60, 90, 120],
+    Array.from(unit("fillers").crown.tiers, (tier) => {
+      const cleared = Array.from({ length: tier.number - 1 }, (_, n) => ({
+        levelId: "fillers_crown-" + (n + 1),
+        clearedAt: "x",
+      }));
+      return PATH.playById("fillers_crown", { cleared }).takes[0].seconds - tier.seconds;
+    }),
+    [15, 15, 15, 15, 15],
   );
-  PATH.UNITS[2].levels.forEach((entry) => {
-    assert.ok(entry.durationSeconds >= 2 * entry.pass.stretchSeconds, entry.id);
+  unit("long-pauses").levels.forEach((entry) => {
+    entry.takes.forEach((take) => {
+      assert.ok(take.seconds >= entry.conditions[0].min + 15, entry.id);
+    });
+    assert.ok(entry.checkback.take.seconds >= entry.conditions[0].min + 15, entry.id);
   });
 });
 
-test("a ladder rung lasts as long as the passage takes at that rung's pace", () => {
+test("a ladder read lasts as long as the passage takes at its pace, rounded up", () => {
   const passage = APP.passages.find((entry) => entry.id === LADDER_PASSAGE_ID);
   const passageWords = passage.text.trim().split(/\s+/).length;
-  PATH.UNITS[3].levels.forEach((entry) => {
-    assert.equal(entry.passageId, LADDER_PASSAGE_ID, entry.id);
-    assert.equal(entry.durationSeconds, Math.round((passageWords * 60) / entry.pass.wpm), entry.id);
+  ["pace-1", "pace-2"].forEach((id) => {
+    assert.equal(level(id).material, "ladder", id);
+    level(id).takes.forEach((take) => {
+      const target = (take.band[0] + take.band[1]) / 2;
+      assert.equal(take.seconds, Math.ceil((passageWords * 60) / target), id);
+    });
   });
   assert.deepEqual(
-    Array.from(PATH.UNITS[3].levels, (entry) => entry.durationSeconds),
-    [47, 41, 36, 36, 36],
+    [...level("pace-1").takes, ...level("pace-2").takes].map((take) => take.seconds),
+    [44, 44, 47, 41],
   );
+  assert.equal(PATH.playById("pace_crown").takes[0].seconds, 37);
 });
 
 test("every cold read fits in a cold-read level even at the slow edge of its band", () => {
   const longest = Math.max(
     ...APP.passages.coldReads().map((passage) => passage.text.trim().split(/\s+/).length),
   );
-  PATH.UNITS[0].levels.forEach((entry) => {
-    assert.equal(entry.passageId, null, "a cold read is picked per take");
-    assert.ok(entry.durationSeconds >= (longest * 60) / SLOW_EDGE_WPM, entry.id);
+  unit("restarts").levels.slice(0, 4).forEach((entry) => {
+    assert.equal(entry.material, "cold-read", "a cold read is picked per take");
+    assert.equal(entry.checkback.material, "cold-read", entry.id);
+    entry.takes.forEach((take) => {
+      assert.ok(take.seconds >= (longest * 60) / SLOW_EDGE_WPM, entry.id);
+    });
+    assert.ok(entry.checkback.take.seconds >= (longest * 60) / SLOW_EDGE_WPM, entry.id);
   });
 });
 
 test("talk levels open on Practice prompts that exist: Your day and Impromptu", () => {
   const prompts = APP.passages.filter((entry) => entry.kind === "prompt").map((entry) => entry.id);
-  PATH.UNITS[1].levels.forEach((entry) => assert.equal(entry.passageId, "free-talk", entry.id));
-  PATH.UNITS[2].levels.forEach((entry) => assert.equal(entry.passageId, "impromptu", entry.id));
   assert.ok(prompts.includes("free-talk") && prompts.includes("impromptu"));
+  PATH.UNITS.forEach((unit) => {
+    unit.levels.forEach((entry) => {
+      const material = PATH.materialFor(entry.id, [], () => 0);
+      if (entry.material === "your-day") {
+        assert.equal(material.id, "free-talk", entry.id);
+      } else if (entry.material === "impromptu" || entry.material === "new-topic") {
+        assert.equal(material.id, "impromptu", entry.id);
+      }
+      assert.ok(prompts.includes(material.id) || material.kind === "passage", entry.id);
+    });
+  });
   const ladder = APP.passages.find((entry) => entry.id === LADDER_PASSAGE_ID);
   assert.equal(ladder.kind, "passage", "the ladder is read on the Read tab");
 });
@@ -356,8 +486,10 @@ test("the path data cannot be changed by a caller", () => {
   assert.ok(Object.isFrozen(PATH.UNITS[0]));
   assert.ok(Object.isFrozen(PATH.UNITS[0].levels));
   assert.ok(Object.isFrozen(first));
-  assert.ok(Object.isFrozen(first.pass));
-  assert.ok(Object.isFrozen(PATH.MODE_TITLES));
+  assert.ok(Object.isFrozen(first.conditions));
+  assert.ok(Object.isFrozen(first.conditions[0]));
+  assert.ok(Object.isFrozen(first.takes[0]));
+  assert.ok(Object.isFrozen(PATH.UNITS[1].crown.tiers[0]));
 });
 
 test("levelById finds every level and returns null for anything else", () => {
@@ -369,73 +501,81 @@ test("levelById finds every level and returns null for anything else", () => {
   }
 });
 
-// --- evaluate: no speech, unknown modes ------------------------------------------------------
+// --- evaluate: no speech, unknown plays ------------------------------------------------------
 
-test("a take with no words fails every level, whatever the mode", () => {
+test("a take with no words fails every scored take, whatever the play", () => {
   const silent = APP.delivery.analyze([], {});
   PATH.UNITS.forEach((unit) => {
     unit.levels.forEach((entry) => {
-      assert.deepEqual(plain(PATH.evaluate(entry, silent)), { passed: false, detail: NO_SPEECH });
+      const scoredIndex = entry.takes.length - 1;
+      for (const [id, index] of [[entry.id, scoredIndex], [entry.id + "_checkback", 0]]) {
+        const result = plain(PATH.evaluate(id, index, silent, { baseline: STEADY }));
+        assert.deepEqual([result.passed, result.sentence], [false, NO_SPEECH], id);
+      }
     });
   });
-  assert.deepEqual(plain(PATH.evaluate(level("restarts-5"), undefined)), {
-    passed: false,
-    detail: NO_SPEECH,
-  });
+  for (const id of ["fillers_crown", "pace_crown", "pace_checkpoint"]) {
+    const result = plain(PATH.evaluate(id, 0, silent, { baseline: STEADY }));
+    assert.deepEqual([result.passed, result.sentence], [false, NO_SPEECH], id);
+  }
+  assert.deepEqual(
+    plain(PATH.evaluate("restarts-4", 1, undefined, { baseline: STEADY })).sentence,
+    NO_SPEECH,
+  );
 });
 
-test("evaluate refuses a level whose mode the path does not know", () => {
+test("evaluate refuses a play the path does not know", () => {
   const report = reportOf(session({ transcript: words({ count: 10 }) }));
-  assert.throws(() => PATH.evaluate({ ...plain(level("fillers-1")), mode: "freestyle" }, report), {
-    message: /freestyle/,
+  assert.throws(() => PATH.evaluate("fillers-freestyle", 0, report, {}), {
+    message: /fillers-freestyle/,
   });
-  assert.throws(() => PATH.evaluate(undefined, report), /mode/);
+  assert.throws(() => PATH.evaluate(undefined, 0, report, {}), /play/);
 });
 
-// --- evaluate: suddenDeath ---------------------------------------------------------------------
+// --- evaluate: sudden death, the Fillers crown --------------------------------------------------
 
 test("sudden death passes when the run before the first filler reaches the target", () => {
   // From 2 s, a word every half second: the um at index 94 starts 47 s after the first word.
   const take = session({ transcript: words({ count: 120, start: 2, say: { 94: "um" } }) });
-  assert.deepEqual(evaluate("fillers-2", take), {
+  assert.deepEqual(crownVerdict(take, 2), {
     passed: true,
-    detail: "Your run lasted 0:47 before “um”. Level cleared: the target was 0:45.",
+    detail: "Your run lasted 0:47 before “um”. Crown earned: the target was 0:45.",
   });
 });
 
 test("sudden death fails when a filler ends the run short of the target", () => {
   const take = session({ transcript: words({ count: 120, start: 2, say: { 94: "um" } }) });
-  assert.deepEqual(evaluate("fillers-3", take), {
+  assert.deepEqual(crownVerdict(take, 3), {
     passed: false,
-    detail: "Your run lasted 0:47 before “um”. Reach 1:00 to clear this level.",
+    detail: "Your run lasted 0:47 before “um”. Reach 1:00 to earn this crown.",
   });
 });
 
 test("a verbal habit ends the run as an um does", () => {
   // "like," set off by a comma is a habit (delivery.js); index 40 is 20 s in.
   const take = session({ transcript: words({ count: 80, say: { 40: "like," } }) });
-  assert.deepEqual(evaluate("fillers-1", take), {
+  assert.deepEqual(crownVerdict(take), {
     passed: false,
-    detail: "Your run lasted 0:20 before “like”. Reach 0:30 to clear this level.",
+    detail: "Your run lasted 0:20 before “like”. Reach 0:30 to earn this crown.",
   });
 });
 
 test("the run starts at the first word, not when the recording starts", () => {
   // Ten silent seconds, then an um 25 s after the first word, at 0:35 on the recording.
   const take = session({ transcript: words({ count: 80, start: 10, say: { 50: "um" } }) });
-  assert.deepEqual(evaluate("fillers-1", take), {
+  assert.deepEqual(crownVerdict(take), {
     passed: false,
-    detail: "Your run lasted 0:25 before “um”. Reach 0:30 to clear this level.",
+    detail: "Your run lasted 0:25 before “um”. Reach 0:30 to earn this crown.",
   });
 });
 
 test("a restart ends the run: the real nervous take restarts before its first um", () => {
   // "I kinda ner— I'm kinda nervous" at 27.4 s; the first um is at 31.6 s; speech starts at 0.9.
   const take = session({ transcript: NERVOUS_WORDS, repeats: NERVOUS_REPEATS });
-  assert.deepEqual(evaluate("fillers-1", take), {
+  assert.deepEqual(crownVerdict(take), {
     passed: false,
     detail: "Your run lasted 0:26 before you restarted “I kinda ner”. " +
-      "Reach 0:30 to clear this level.",
+      "Reach 0:30 to earn this crown.",
   });
 });
 
@@ -445,84 +585,84 @@ test("the real uniforms take's run ends on its first uh, 13.7 s in", () => {
     repeats: UNIFORMS_REPEATS,
     passageId: LADDER_PASSAGE_ID,
   });
-  assert.deepEqual(evaluate("fillers-1", take), {
+  assert.deepEqual(crownVerdict(take), {
     passed: false,
-    detail: "Your run lasted 0:13 before “uh”. Reach 0:30 to clear this level.",
+    detail: "Your run lasted 0:13 before “uh”. Reach 0:30 to earn this crown.",
   });
 });
 
 test("a take with no filler or restart runs to its last word", () => {
   // 100 words from 1 s: the last ends at 50.9 s, 49.9 s after the first began.
   const take = session({ transcript: words({ count: 100 }) });
-  assert.deepEqual(evaluate("fillers-2", take), {
+  assert.deepEqual(crownVerdict(take, 2), {
     passed: true,
-    detail: "No filler or restart in 0:49 of speech. Level cleared: the target was 0:45.",
+    detail: "No filler or restart in 0:49 of speech. Crown earned: the target was 0:45.",
   });
-  assert.deepEqual(evaluate("fillers-3", take), {
+  assert.deepEqual(crownVerdict(take, 3), {
     passed: false,
     detail: "No filler or restart, but you spoke for only 0:49. " +
-      "Keep going to 1:00 to clear this level.",
+      "Keep going to 1:00 to earn this crown.",
   });
 });
 
 test("a run that reaches the target to the tenth of a second passes", () => {
   // The um starts exactly 30 s after the first word.
   const take = session({ transcript: words({ count: 80, say: { 60: "um" } }) });
-  assert.equal(evaluate("fillers-1", take).passed, true);
+  assert.equal(crownVerdict(take).passed, true);
   const short = session({ transcript: words({ count: 80, say: { 59: "um" } }) });
-  assert.equal(evaluate("fillers-1", short).passed, false);
+  assert.equal(crownVerdict(short).passed, false);
 });
 
-// --- evaluate: speedLadder ---------------------------------------------------------------------
+// --- evaluate: the speed ladder, the Pace crown --------------------------------------------------
 
 test("the speed ladder passes on pace with few enough restarts", () => {
-  const transcript = wordsAt(109, 145);
-  const take = readTake({ transcript, restartsAt: [10, 50], passageId: LADDER_PASSAGE_ID });
-  assert.deepEqual(evaluate("pace-1", take), {
+  const transcript = wordsAt(109, 185);
+  const take = readTake({ transcript, restartsAt: [50], passageId: LADDER_PASSAGE_ID });
+  assert.deepEqual(ladderVerdict(take), {
     passed: true,
-    detail: "You read at 145 wpm with 2 restarts. Level cleared: the target was 130 to 150 wpm.",
+    detail: "You read at 185 wpm with 1 restart. Crown earned: the target was 170 to 190 wpm.",
   });
 });
 
 test("the speed ladder's window includes both its edges", () => {
-  for (const wpm of [130, 150]) {
+  for (const wpm of [170, 190]) {
     const take = readTake({ transcript: wordsAt(109, wpm), passageId: LADDER_PASSAGE_ID });
-    assert.equal(evaluate("pace-1", take).passed, true, String(wpm));
+    assert.equal(ladderVerdict(take).passed, true, String(wpm));
   }
 });
 
-test("reading too fast or too slow fails the rung with the way back to it", () => {
-  const fast = readTake({ transcript: wordsAt(109, 151), passageId: LADDER_PASSAGE_ID });
-  assert.deepEqual(evaluate("pace-1", fast), {
+test("reading too fast or too slow fails the crown with the way back to it", () => {
+  const fast = readTake({ transcript: wordsAt(109, 191), passageId: LADDER_PASSAGE_ID });
+  assert.deepEqual(ladderVerdict(fast), {
     passed: false,
-    detail: "You read at 151 wpm with no restarts. " +
-      "Slow down to 130 to 150 wpm to clear this level.",
+    detail: "You read at 191 wpm with no restarts. " +
+      "Slow down to 170 to 190 wpm to earn this crown.",
   });
-  const slow = readTake({ transcript: wordsAt(109, 148), passageId: LADDER_PASSAGE_ID });
-  assert.deepEqual(evaluate("pace-2", slow), {
+  const slow = readTake({ transcript: wordsAt(109, 169), passageId: LADDER_PASSAGE_ID });
+  assert.deepEqual(ladderVerdict(slow), {
     passed: false,
-    detail: "You read at 148 wpm with no restarts. Speed up to 150 to 170 wpm to clear this level.",
+    detail: "You read at 169 wpm with no restarts. Speed up to 170 to 190 wpm to earn this crown.",
   });
 });
 
-test("too many restarts fail the rung even on pace", () => {
+test("too many restarts fail the crown even on pace", () => {
   const take = readTake({
-    transcript: wordsAt(109, 140),
-    restartsAt: [10, 30, 50],
+    transcript: wordsAt(109, 180),
+    restartsAt: [10, 50],
     passageId: LADDER_PASSAGE_ID,
   });
-  assert.deepEqual(evaluate("pace-1", take), {
+  assert.deepEqual(ladderVerdict(take), {
     passed: false,
-    detail: "You read at 140 wpm with 3 restarts. Keep restarts to 2 or fewer to clear this level.",
+    detail: "You read at 180 wpm with 2 restarts. Keep restarts to 1 or fewer to earn this crown.",
   });
   const one = readTake({
     transcript: wordsAt(109, 175),
     restartsAt: [30],
     passageId: LADDER_PASSAGE_ID,
   });
-  assert.deepEqual(evaluate("pace-5", one), {
-    passed: false,
-    detail: "You read at 175 wpm with 1 restart. Read it without a restart to clear this level.",
+  assert.deepEqual(ladderVerdict(one), {
+    passed: true,
+    detail: "You read at 175 wpm with 1 restart. Crown earned: the target was 170 to 190 wpm.",
   });
 });
 
@@ -532,14 +672,14 @@ test("off pace with too many restarts names both fixes", () => {
     restartsAt: [10, 30, 50],
     passageId: LADDER_PASSAGE_ID,
   });
-  assert.deepEqual(evaluate("pace-1", take), {
+  assert.deepEqual(ladderVerdict(take), {
     passed: false,
     detail: "You read at 200 wpm with 3 restarts. " +
-      "Slow down to 130 to 150 wpm and keep restarts to 2 or fewer to clear this level.",
+      "Slow down to 170 to 190 wpm and keep restarts to 1 or fewer to earn this crown.",
   });
 });
 
-// --- evaluate: coldRead ------------------------------------------------------------------------
+// --- evaluate: cold reads, the Restarts levels ----------------------------------------------
 
 test("a cold read passes with restarts and misreads in all at the level's limit", () => {
   const take = readTake({
@@ -547,10 +687,11 @@ test("a cold read passes with restarts and misreads in all at the level's limit"
     restartsAt: [5, 60],
     misreadAt: [20, 90],
   });
-  assert.deepEqual(evaluate("restarts-1", take), {
-    passed: true,
-    detail: "You read it with 2 restarts and 2 misreads. Level cleared: the limit was 4 in all.",
-  });
+  const result = judge("restarts-1", 2, take);
+  assert.deepEqual([result.passed, result.sentence], [
+    true,
+    "4 slips (2 restarts and 2 misreads) on read 3. The target was 4.",
+  ]);
 });
 
 test("a cold read fails once restarts and misreads together pass the limit", () => {
@@ -559,93 +700,113 @@ test("a cold read fails once restarts and misreads together pass the limit", () 
     restartsAt: [5, 60, 120],
     misreadAt: [20, 90],
   });
-  assert.deepEqual(evaluate("restarts-1", take), {
-    passed: false,
-    detail: "You read it with 3 restarts and 2 misreads. " +
-      "Keep restarts and misreads to 4 or fewer in all to clear this level.",
-  });
+  const result = judge("restarts-1", 2, take);
+  assert.deepEqual([result.passed, result.sentence], [
+    false,
+    "5 slips (3 restarts and 2 misreads) on read 3. The target is 4.",
+  ]);
 });
 
-test("the last cold-read level allows no slip at all", () => {
+test("the last cold-read level allows one slip, a restart or a misread", () => {
   const clean = readTake({ transcript: wordsAt(170, 150) });
-  assert.deepEqual(evaluate("restarts-5", clean), {
-    passed: true,
-    detail: "You read it with no restarts or misreads. Level cleared.",
-  });
-  const misread = readTake({ transcript: wordsAt(170, 150), misreadAt: [40] });
-  assert.deepEqual(evaluate("restarts-5", misread), {
-    passed: false,
-    detail: "You read it with no restarts and 1 misread. " +
-      "Read a new passage without a restart or misread to clear this level.",
-  });
-  const restart = readTake({ transcript: wordsAt(170, 150), restartsAt: [40] });
+  assert.deepEqual(
+    [judge("restarts-4", 1, clean).passed, judge("restarts-4", 1, clean).sentence],
+    [true, "No slips on read 2. The target was 1."],
+  );
+  const misreads = readTake({ transcript: wordsAt(170, 150), misreadAt: [40, 80] });
+  assert.deepEqual(
+    [judge("restarts-4", 1, misreads).passed, judge("restarts-4", 1, misreads).sentence],
+    [false, "2 slips (no restarts and 2 misreads) on read 2. The target is 1."],
+  );
+  const restarts = readTake({ transcript: wordsAt(170, 150), restartsAt: [40, 80] });
   assert.equal(
-    evaluate("restarts-5", restart).detail,
-    "You read it with 1 restart and no misreads. " +
-      "Read a new passage without a restart or misread to clear this level.",
+    judge("restarts-4", 1, restarts).sentence,
+    "2 slips (2 restarts and no misreads) on read 2. The target is 1.",
   );
 });
 
 test("a skipped word here and there is not a cold-read slip", () => {
   const take = readTake({ transcript: wordsAt(170, 150), skipped: [[10, 1], [50, 2], [100, 1]] });
-  assert.equal(evaluate("restarts-5", take).passed, true);
+  assert.equal(judge("restarts-4", 1, take).passed, true);
+  assert.equal(judge("restarts-4", 1, take).value, 0);
 });
 
 test("a reading level fails a take that leaves out more than 8 words in one place", () => {
   // Stopping early or starting partway in leaves a long run of the passage unread.
   const stoppedEarly = readTake({ transcript: wordsAt(150, 150), skipped: [[149, 25]] });
-  assert.deepEqual(evaluate("restarts-1", stoppedEarly), {
-    passed: false,
-    detail: "You left out 25 words of the passage in one place. " +
-      "Read all of it to clear this level.",
-  });
+  assert.deepEqual(
+    [judge("restarts-1", 2, stoppedEarly).passed, judge("restarts-1", 2, stoppedEarly).sentence],
+    [
+      false,
+      "You left out 25 words of the passage in one place. Read all of it to clear this level.",
+    ],
+  );
   const ladder = readTake({
-    transcript: wordsAt(100, 140),
+    transcript: wordsAt(100, 150),
     skipped: [[50, 9]],
     passageId: LADDER_PASSAGE_ID,
   });
-  assert.equal(evaluate("pace-1", ladder).passed, false);
+  assert.equal(judge("pace-1", 1, ladder).passed, false);
   const eight = readTake({
-    transcript: wordsAt(100, 140),
+    transcript: wordsAt(100, 150),
     skipped: [[50, 8]],
     passageId: LADDER_PASSAGE_ID,
   });
-  assert.equal(evaluate("pace-1", eight).passed, true, "a skipped line of 8 words is a slip");
+  assert.equal(judge("pace-1", 1, eight).passed, true, "a skipped line of 8 words is a slip");
 });
 
-// --- evaluate: cleanStretch --------------------------------------------------------------------
+// --- evaluate: clean stretches, the Long pauses levels --------------------------------------
 
 test("a clean stretch passes at the target and fails short of it", () => {
-  // From 1 s, an um at index 35 (18.5 s): 17.5 clean seconds before it, 7 after.
-  const transcript = words({ count: 50, say: { 35: "um" } });
-  const take = session({ transcript, passageId: "impromptu" });
-  assert.deepEqual(evaluate("long-pauses-1", take), {
-    passed: true,
-    detail: "Your longest clean stretch was 17.5 seconds. " +
-      "Level cleared: the target was 15 seconds.",
+  // An um at index 70 (18.5 s): 17.5 clean seconds before it, and an um every 70 words after.
+  const take = session({
+    transcript: quickTalk({ say: { 70: "um", 140: "um", 210: "um", 280: "um" } }),
+    passageId: "impromptu",
   });
-  assert.deepEqual(evaluate("long-pauses-2", take), {
-    passed: false,
-    detail: "Your longest clean stretch was 17.5 seconds. " +
-      "Hold one for 20 seconds to clear this level.",
-  });
+  const context = { baseline: PATH.measure(reportOf(take), 90) };
+  assert.deepEqual(
+    pick(judge("long-pauses-1", 1, take, context)),
+    [
+      true,
+      "17.5 seconds clean and no long pauses on take 2. The target was 15 seconds clean, with " +
+        "at most 1 long pause.",
+    ],
+  );
+  assert.deepEqual(
+    pick(judge("long-pauses-2", 1, take, context)),
+    [
+      false,
+      "17.5 seconds clean and no long pauses on take 2. The target is 20 seconds clean, with " +
+        "no long pause.",
+    ],
+  );
 });
 
 test("a long pause breaks the clean stretch, even after a full stop", () => {
-  // "end." ends at 15.4 s, then a 6 s freeze: 14.4 clean seconds before it and 14.5 after.
-  const transcript = words({ count: 58, say: { 28: "end." } });
-  transcript.slice(29).forEach((word) => {
+  // "end." ends at 14.9 s, then a 6 s freeze: 13.9 clean seconds before it, an um every 56
+  // words after it.
+  const say = { 55: "end.", 111: "um", 167: "um", 223: "um", 279: "um" };
+  const transcript = quickTalk({ say });
+  transcript.slice(56).forEach((word) => {
     word.start += 6;
     word.end += 6;
   });
-  const frozen = session({ transcript, pauses: [[15.4, 6]], passageId: "impromptu" });
-  assert.deepEqual(evaluate("long-pauses-1", frozen), {
-    passed: false,
-    detail: "Your longest clean stretch was 14.5 seconds. " +
-      "Hold one for 15 seconds to clear this level.",
-  });
+  const frozen = session({ transcript, pauses: [[14.9, 6]], passageId: "impromptu" });
   const unbroken = session({ transcript, passageId: "impromptu" });
-  assert.equal(evaluate("long-pauses-1", unbroken).passed, true, "the same words, no freeze");
+  const context = { baseline: PATH.measure(reportOf(unbroken), 90) };
+  assert.deepEqual(
+    pick(judge("long-pauses-1", 1, frozen, context)),
+    [
+      false,
+      "13.9 seconds clean and 1 long pause on take 2. The target is 15 seconds clean, with at " +
+        "most 1 long pause.",
+    ],
+  );
+  assert.equal(
+    judge("long-pauses-1", 1, unbroken, context).passed,
+    true,
+    "the same words, no freeze",
+  );
 });
 
 // --- unlocking ---------------------------------------------------------------------------------

@@ -15,7 +15,10 @@
   const READ = "readonly";
   const WRITE = "readwrite";
 
-  // The only fields a stored session may carry (DESIGN.md section 2).
+  // The only fields a stored session may carry (DESIGN.md section 2). The Loop Path adds two
+  // (docs/superpowers/specs/2026-10-14-loop-path.md section 6): `topic`, the Talk topic on screen
+  // when the take was recorded, or null; and `path`, a Path take's {play, kind, take, scored,
+  // passed, stage, inRoom}, which a plain take does not have.
   const SESSION_FIELDS = [
     "id",
     "createdAt",
@@ -24,6 +27,8 @@
     "durationSeconds",
     "metrics",
     "transcript",
+    "topic",
+    "path",
   ];
 
   // Audio never reaches the database; a session carrying one of these is a programming error.
@@ -48,7 +53,14 @@
   const SESSIONS_URL = "/api/sessions";
   const IMPORT_URL = "/api/sessions/import";
   const PROGRESS_URL = "/api/progress";
-  const REPORT_FIELDS = ["passageId", "passageTitle", "durationSeconds", "metrics"];
+  const REPORT_FIELDS = [
+    "passageId",
+    "passageTitle",
+    "durationSeconds",
+    "metrics",
+    "topic",
+    "path",
+  ];
 
   // backend/sessions_api.py: one import holds at most 500 takes and 2,000,000 bytes of reports
   // and transcripts, and one take at most 1,000,000. Batches and takes stay 5% under the byte
@@ -218,10 +230,14 @@
     });
   }
 
+  // The session's own fields, each one it has; a field it lacks (a plain take's `path`) stays
+  // absent rather than kept as undefined.
   function pickSessionFields(session) {
     const record = {};
     SESSION_FIELDS.forEach((field) => {
-      record[field] = session[field];
+      if (session[field] !== undefined) {
+        record[field] = session[field];
+      }
     });
     return record;
   }
