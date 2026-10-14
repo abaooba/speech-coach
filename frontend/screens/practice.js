@@ -154,6 +154,11 @@
   // The finished take, kept through uploading and error so Retry re-sends the same blob.
   let pendingTake = null;
 
+  // The Upload failed block's detail, kept with its take. The block says the recording is still
+  // here and the nav shows beside it, so the speaker may leave; show() then draws it again
+  // instead of idle. letTakeGo() clears it with the take, so it is null whenever none is held.
+  let failedUpload = null;
+
   // The seconds on the clock: the live take's, held through uploading. A take that is let go
   // (saved, dropped, turned down by the backend as too short, or left behind by leaving the
   // screen) goes back to 0:00 through resetClock(). After a Stop under 5 seconds the clock
@@ -718,16 +723,24 @@
     nodes.themeToggle.setAttribute("aria-label", look.label);
   }
 
-  // Coming back to the screen starts a fresh take at 0:00 unless one is already in flight.
+  // Coming back to the screen starts a fresh take at 0:00 unless one is already in flight, or a
+  // failed upload still holds its take: then its Upload failed block is drawn again, clock and
+  // all, whether the upload failed before the speaker left or while they were away.
   function show() {
-    if (state !== "recording" && state !== "uploading") {
-      resetClock();
-      render("idle");
+    if (state === "recording" || state === "uploading") {
+      return;
     }
+    if (state === "error" && failedUpload !== null) {
+      render("error", failedUpload);
+      return;
+    }
+    resetClock();
+    render("idle");
   }
 
   // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer and pause
-  // sampler go and drop the take. An upload in flight keeps going; show() will find it.
+  // sampler go and drop the take. An upload in flight keeps going, and a failed upload keeps its
+  // take; show() will find either.
   function hide() {
     capture.awaitingMic = false;
     if (state === "recording") {
@@ -775,7 +788,7 @@
   }
 
   function beginTake(stream) {
-    pendingTake = null;
+    letTakeGo();
     capture.stream = stream;
     if (app.pauses) {
       app.pauses.start(stream);
@@ -926,7 +939,7 @@
         metrics,
         transcript: result.transcript,
       });
-      pendingTake = null;
+      letTakeGo();
       app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
       resetClock();
       render("idle");
@@ -937,27 +950,35 @@
         // every tap, so the take goes, as after "Record a new take", and Retry is never offered.
         // Its clock goes back to 0:00 too: the take ran at least 5 seconds, and idle showing
         // that after Record again would contradict the block's "under 5 seconds".
-        pendingTake = null;
+        letTakeGo();
         resetClock();
         showTooShort();
         return;
       }
-      render("error", {
+      failedUpload = {
         title: UPLOAD_FAILED_TITLE,
         body: error.message,
         actionLabel: UPLOAD_FAILED_ACTION,
         onAction: upload,
         secondaryLabel: NEW_TAKE_ACTION,
         onSecondary: dropTake,
-      });
+      };
+      render("error", failedUpload);
     }
   }
 
   // "Record a new take" after a failed upload: let the held take go and start over in idle.
   function dropTake() {
-    pendingTake = null;
+    letTakeGo();
     resetClock();
     backToIdle(nodes.recordButton);
+  }
+
+  // Forgets the held take, and with it the Upload failed block that offered it: the take was
+  // saved, dropped, turned down as too short, or replaced by a new one.
+  function letTakeGo() {
+    pendingTake = null;
+    failedUpload = null;
   }
 
   // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, and announces

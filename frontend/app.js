@@ -1,7 +1,8 @@
 /* app.js: creates window.app, the only global, and owns the hash router (app.router.go, current).
    Screens register as app.screens[name] = { mount(root), show(params), hide() }; on
    DOMContentLoaded each is mounted once, then the hash is routed (to Onboarding on a first launch,
-   no "onboarded" flag in app.store). It never builds what goes inside a screen's section. */
+   no "onboarded" flag in app.store). No hash change is routed before that mount. It never builds
+   what goes inside a screen's section. */
 (function () {
   "use strict";
 
@@ -189,6 +190,10 @@
         screen.mount(root);
       }
     });
+    // Hash changes route only from here on, with every screen mounted. The nav shows while the
+    // scripts load, and a tap then would reach a screen before its mount(); it only changes the
+    // hash, which the route below shows.
+    window.addEventListener("hashchange", route);
     // A first launch opens Onboarding, whatever the hash. Without a store there is no flag to
     // read, so nothing waits and nothing is gated.
     let onboarded = true;
@@ -210,5 +215,4 @@
   }
 
   document.addEventListener("DOMContentLoaded", boot);
-  window.addEventListener("hashchange", route);
 })();

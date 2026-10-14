@@ -573,19 +573,26 @@
     return String((word && word.text) || "");
   }
 
-  // Both reads finish before the one ticket check, so a slow earlier visit can never paint over
-  // a newer one, whichever read is the slow one.
+  // The take is drawn as soon as app.store.get() has it, with no comparison. Its last take, which
+  // only the "vs last take" lines need, comes from app.store.list(), and a signed-in list can wait
+  // a second for the server (20 on a device's first list); once that take is found, the screen is
+  // drawn again with the comparison. A ticket check before each draw means a slow earlier visit
+  // can never paint over a newer one, whichever read is the slow one.
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
-    const previous = session === undefined ? null : await loadPreviousSession(session);
     if (ticket !== showCount) {
       return;
     }
     if (session === undefined) {
       renderNotFound();
-    } else {
-      renderSession(session, previous);
+      return;
+    }
+    const view = viewOf(session);
+    renderSession(session, view, null);
+    const previous = await loadPreviousSession(session);
+    if (previous !== null && ticket === showCount) {
+      renderSession(session, view, previous);
     }
   }
 
@@ -642,15 +649,10 @@
     });
   }
 
-  // Top to bottom: meta line, headline, the four cards (each with its "vs last take" line when
-  // there is a last take, and then one note under the grid), the speech timeline and the
-  // transcript (both skipped when the session has no words; pause markers alone would mean
-  // nothing), the tips (skipped when there are none), the two actions. The last take is
-  // summarized for the comparison only: no tips are chosen for it.
-  function renderSession(session, previous) {
+  // What the screen draws for one take, worked out once per show() however often the take is
+  // drawn: its summary, transcript plan, timeline (null without words) and tips.
+  function viewOf(session) {
     const summary = summarize(session);
-    const previousSummary = previous ? summarize(previous) : null;
-    const deltas = compareWithPrevious(summary, previousSummary);
     const plan = buildTranscriptPlan(
       session.transcript,
       countedPauses(summary.report),
@@ -658,8 +660,25 @@
       { misreads: summary.report.misreads, skips: summary.report.skips },
     );
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
-    const segments = hasTranscript ? timelineSegments(summary.report) : null;
-    const tips = selectTips(summary.report, summary.target);
+    return {
+      summary,
+      plan,
+      hasTranscript,
+      segments: hasTranscript ? timelineSegments(summary.report) : null,
+      tips: selectTips(summary.report, summary.target),
+    };
+  }
+
+  // Top to bottom: meta line, headline, the four cards (each with its "vs last take" line when
+  // there is a last take, and then one note under the grid), the speech timeline and the
+  // transcript (both skipped when the session has no words; pause markers alone would mean
+  // nothing), the tips (skipped when there are none), the two actions. `previous` is the last
+  // take, or null while there is none to compare with; it is summarized for the comparison only,
+  // so no tips are chosen for it.
+  function renderSession(session, view, previous) {
+    const { summary, plan, hasTranscript, segments, tips } = view;
+    const previousSummary = previous ? summarize(previous) : null;
+    const deltas = compareWithPrevious(summary, previousSummary);
 
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
