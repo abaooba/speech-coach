@@ -1,9 +1,11 @@
 """Tiny CLI over tasks/queue.json used by night.sh. Humans edit the file directly.
 
   queue.py next            -> prints id of first task with status todo and owner agent
+                              whose depends_on tasks are all done
   queue.py set ID STATUS [NOTE]
   queue.py get ID          -> prints the task as JSON
-  queue.py block-dependents ID -> todo tasks depending (transitively) on ID become blocked
+  queue.py note-dependents ID -> todo tasks depending (transitively) on ID get a note; they stay
+                                 todo, and next takes them once ID is done
   queue.py reset-doing NOTE -> any task left in 'doing' goes back to 'todo'
   queue.py show
 """
@@ -45,18 +47,22 @@ def main(argv: list[str]) -> None:
                 print(t["id"])
                 return
         return
-    if cmd == "block-dependents":
-        failed = {argv[1]}
+    if cmd == "note-dependents":
+        # The status stays todo: a blocked dependent was never set back, so the queue stalled
+        # once the failed task was fixed. next already holds each one back until then.
+        failed = argv[1]
+        waiting = {failed}
         today = datetime.now().astimezone().date().isoformat()
         changed = True
         while changed:
             changed = False
             for t in q["tasks"]:
-                hit = failed & set(t.get("depends_on", []))
-                if t["status"] == "todo" and hit and t["id"] not in failed:
-                    t["status"] = "blocked"
-                    t["notes"].append(f"{today}: blocked, depends on failed {sorted(hit)}")
-                    failed.add(t["id"])
+                hit = waiting & set(t.get("depends_on", []))
+                if t["status"] == "todo" and hit and t["id"] not in waiting:
+                    t.setdefault("notes", []).append(
+                        f"{today}: waiting: {failed} failed, and this task depends on it"
+                    )
+                    waiting.add(t["id"])
                     changed = True
         save(q)
         return

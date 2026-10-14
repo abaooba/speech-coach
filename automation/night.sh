@@ -117,7 +117,7 @@ PY
     git -C "$WT" diff "$base_sha" > "$NIGHT_DIR/$TID.failed.patch"
     git -C "$WT" reset -q --hard "$base_sha"; git -C "$WT" clean -qfd -e nights
     Q set "$TID" blocked "run $RUN failed: $reason"
-    Q block-dependents "$TID"
+    Q note-dependents "$TID"
     blocked_ids+=("$TID"); consecutive_fail=$((consecutive_fail+1))
     summary_rows+="| $TID | FAILED ($reason) | $commits | $turns | \$$cost | ${elapsed}s |\n"
   fi
