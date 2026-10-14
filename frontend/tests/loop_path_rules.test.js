@@ -755,7 +755,13 @@ test("a benchmark take is measured, never scored: the read's slips and the talk'
   assert.deepEqual([talk.value, talk.valueText, talk.unitLabel], [2.4, "2.4", "fillers a minute"]);
   assert.equal(talk.sentence, "2.4 fillers a minute at 148 wpm.");
   const strayed = judge("benchmark", 0, session({ transcript: wordsAt(150, 150) }));
-  assert.deepEqual([strayed.value, strayed.sentence], [null, NOT_FOLLOWED]);
+  assert.deepEqual(
+    [strayed.value, strayed.sentence],
+    [
+      null,
+      "This take did not follow the passage. Read it as written so your slips can be counted.",
+    ],
+  );
   assert.throws(() => PATH.evaluate("benchmark", 2, reportOf(read), {}), /two takes/);
 });
 

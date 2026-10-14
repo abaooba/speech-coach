@@ -120,10 +120,13 @@
   const NO_SPEECH = "No speech was found in this take.";
   // How a detail ends when it says what clears the level.
   const TO_CLEAR_THIS_LEVEL = " to clear this level.";
+  // How it ends on the benchmark read, which clears nothing: its slips are counted only on a
+  // read of the passage through.
+  const SO_SLIPS_ARE_COUNTED = " so your slips can be counted.";
   // A reading take the backend found does not follow its passage (talk, another text, or a few
   // lines read and then ad-libbed) reports no script slips, just as a flawless read does.
-  const NOT_FOLLOWED =
-    "This take did not follow the passage. Read it as written" + TO_CLEAR_THIS_LEVEL;
+  const NOT_FOLLOWED_START = "This take did not follow the passage. Read it as written";
+  const NOT_FOLLOWED = NOT_FOLLOWED_START + TO_CLEAR_THIS_LEVEL;
   // What a take shows in place of its number when it has none to show.
   const NO_VALUE = "—";
 
@@ -1900,7 +1903,7 @@
       return steadyLine(measured, usual, unitId);
     }
     if (id === READ_THROUGH) {
-      return readThroughLine(measured);
+      return readThroughLine(measured, TO_CLEAR_THIS_LEVEL);
     }
     throw new Error("Unknown path guard: " + id);
   }
@@ -1930,24 +1933,26 @@
   }
 
   // A reading take passes when the backend found it followed its passage and it left out no
-  // more than MAX_SKIPPED_IN_ONE_PLACE script words in one place.
-  function readThroughLine(measured) {
+  // more than MAX_SKIPPED_IN_ONE_PLACE script words in one place. A take that did not says why,
+  // ending with what reading it through is for (`ending`): TO_CLEAR_THIS_LEVEL on a level's
+  // read, SO_SLIPS_ARE_COUNTED on the benchmark's.
+  function readThroughLine(measured, ending) {
     let text = "Read the passage through";
     if (!measured.followedScript) {
-      text = NOT_FOLLOWED;
+      text = NOT_FOLLOWED_START + ending;
     } else if (measured.unreadRun > MAX_SKIPPED_IN_ONE_PLACE) {
-      text = notReadThrough(measured.unreadRun).detail;
+      text = notReadThrough(measured.unreadRun, ending).detail;
     }
     const passed = measured.followedScript && measured.unreadRun <= MAX_SKIPPED_IN_ONE_PLACE;
     return { id: READ_THROUGH, passed, text, fix: GUARD_FIXES[READ_THROUGH] };
   }
 
-  function notReadThrough(unread) {
+  function notReadThrough(unread, ending) {
     return {
       passed: false,
       detail:
         "You left out " + unread + " words of the passage in one place. " +
-        "Read all of it" + TO_CLEAR_THIS_LEVEL,
+        "Read all of it" + ending,
     };
   }
 
@@ -2147,7 +2152,7 @@
     }
     const unread = longestSkipRun(facts.skips);
     if (unread > MAX_SKIPPED_IN_ONE_PLACE) {
-      return Object.assign(notReadThrough(unread), { readThrough: false });
+      return Object.assign(notReadThrough(unread, TO_CLEAR_THIS_LEVEL), { readThrough: false });
     }
     const lo = pass.wpm - pass.toleranceWpm;
     const hi = pass.wpm + pass.toleranceWpm;
@@ -2175,7 +2180,8 @@
   }
 
   // A benchmark take is measured, never judged: the read's slips and the talk's fillers, each
-  // at its pace.
+  // at its pace. A read off its passage has no slips to count, and says so without a level's
+  // "to clear this level": a benchmark clears nothing.
   function describeBenchmarkTake(spec, takeIndex, report) {
     const take = takeOf(spec, takeIndex, null);
     if (take === null) {
@@ -2186,7 +2192,7 @@
       return takeResult({ sentence: NO_SPEECH });
     }
     if (take.read) {
-      const through = readThroughLine(measured);
+      const through = readThroughLine(measured, SO_SLIPS_ARE_COUNTED);
       if (!through.passed) {
         return takeResult({ unitLabel: "slips", sentence: through.text });
       }
