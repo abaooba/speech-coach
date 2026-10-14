@@ -1,9 +1,10 @@
 // Tests that nothing a speaker sees steers toward debate (the owner's rule of 2026-10-14, in
 // CLAUDE.md's Project paragraph): Speech Coach is for non-native speakers and anyone who wants
 // to speak more fluidly. No debate format, case, rebuttal, resolution, side, cross-examination,
-// round, judge or ballot appears on the Loop Path, and no Path tip or "why this works" line
-// cites a debate source. passages.js, delivery.js and path.js load into a vm in index.html's
-// order; the research library is read from backend/advice/library.json.
+// round, judge or ballot appears on the Loop Path or the How we measure page, and no Path tip
+// or "why this works" line cites a debate source. passages.js, delivery.js and path.js load
+// into a vm in index.html's order; the research library is read from
+// backend/advice/library.json and how.html as text.
 "use strict";
 
 const test = require("node:test");
@@ -52,7 +53,9 @@ function debateWordsIn(text) {
 }
 
 function assertNoDebateWords(where, text) {
-  assert.deepEqual(debateWordsIn(text), [], `${where}: "${text}"`);
+  const found = debateWordsIn(text);
+  const shown = String(text).length > 200 ? found.join(", ") : `"${text}"`;
+  assert.deepEqual(found, [], `${where}: ${shown}`);
 }
 
 // Every string inside `value`, at any depth, with the path it was found at.
@@ -143,4 +146,23 @@ test("no Path tip or why line cites a debate source", () => {
     const { author, credentials, title, publisher, url } = entry.source;
     [author, credentials, title, publisher, url].forEach((text) => assertNoDebateWords(id, text));
   }
+});
+
+// how.html as a speaker reads it: the text between the tags, and where each link goes.
+function howPage() {
+  const html = fs.readFileSync(path.join(FRONTEND_DIR, "how.html"), "utf8");
+  const text = html
+    .replace(/<!doctype[^>]*>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ");
+  const links = [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
+  return { text, links };
+}
+
+test("the How we measure page holds no debate word and links no debate source", () => {
+  const { text, links } = howPage();
+  assert.ok(text.includes("How we measure"), "the page's text was read");
+  assertNoDebateWords("how.html", text);
+  links.forEach((link) => assertNoDebateWords("how.html link", link));
 });

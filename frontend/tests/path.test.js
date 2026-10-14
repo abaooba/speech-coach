@@ -377,7 +377,7 @@ test("cold reads allow 4, 3, 2, then 1 restart or misread, then a talk at 1 a mi
   });
 });
 
-test("clean stretches grow from DebateDrills' 15 beginner seconds to a full minute", () => {
+test("clean stretches grow from the 15 s beginners' practice target to a full minute", () => {
   assert.deepEqual(
     Array.from(unit("long-pauses").levels, (entry) => entry.conditions[0].min),
     [15, 20, 30, 45, 60],

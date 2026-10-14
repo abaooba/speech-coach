@@ -51,8 +51,8 @@
   const BAND_UNBROKEN = "$1" + UNBROKEN_JOINER + "$2";
 
   // The headline's thresholds beyond the cards' own: a fillers drop counts from half a filler a
-  // minute, and a clean stretch under 15 seconds has room to grow (DebateDrills gives beginners
-  // 15 clean seconds; see how.html).
+  // minute, and a clean stretch under 15 seconds has room to grow (15 clean seconds is the
+  // beginners' practice target how.html names).
   const MIN_FILLER_DROP = 0.5;
   const CLEAN_STRETCH_GOAL_SECONDS = 15;
 
