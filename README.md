@@ -18,8 +18,8 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 - Progress: one metric charted across your takes, with your latest, your best and your change
   from the average.
   ![Progress screen](docs/screenshots/progress.png)
-- Onboarding, shown on first launch: what is measured and that audio is deleted after
-  analysis.
+- Onboarding, shown on first launch: what is measured, that audio is deleted after
+  analysis, and that take 1 of a Path level stays in memory for replay until the level ends.
   ![Onboarding screen](docs/screenshots/onboarding.png)
 
 ## How it works
@@ -29,8 +29,9 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 2. The audio is sent to a small FastAPI backend, which forwards it to a
    speech-to-text provider (Deepgram or AssemblyAI) with filler words kept.
 3. The backend computes the metrics from the word timestamps and returns
-   them with the transcript. Audio is discarded after analysis (see
-   Privacy below for exactly what that means).
+   them with the transcript. Audio is discarded after analysis; during a
+   Path level the browser keeps take 1 in memory for replay until the
+   level ends (see Privacy below for exactly what that means).
 4. The browser saves the session in IndexedDB on the device and draws a
    progress chart. No accounts, nothing stored on the server.
 
