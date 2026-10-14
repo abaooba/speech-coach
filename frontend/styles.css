@@ -1591,6 +1591,768 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* 8b. Level screen (#/level/<playId>, docs/superpowers/specs/2026-10-14-loop-path.md section 8):
+   the Path back link, the play's subtitle, the stepper, then the step: the Goal's target card,
+   take 1's feedback, the review's moments and chips, a take step, the result with its check-back
+   dates and what is next, and the step's buttons. Every figure is tabular. Nothing in it
+   animates, and colour is never its only cue: steps carry a check or a number, slips their marks
+   and hidden words, warnings the alert icon. */
+#screen-level {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The subtitle is the title's, so it sits close under the h1, as Results' meta line does; a
+   state block (level not found, not open yet) keeps the gap every screen has. */
+#screen-level h1 {
+  margin-bottom: var(--s-1);
+}
+
+#screen-level:has(> .screen__body > .state) h1 {
+  margin-bottom: var(--s-3);
+}
+
+/* Back to the Path, above the h1: a 44px link pulled into the gutter so its chevron lines up
+   with the column. When a state block makes the section a flex column, it keeps to its words. */
+.level-back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 44px;
+  margin: 0 0 var(--s-2) calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+  border-radius: var(--r-btn);
+  color: var(--accent);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.level__subtitle {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The stepper: one row of equal steps, each a circle over its label. A cleared step is an --ok
+   circle with a check, the current one --accent with its number, the rest outlined. Under 44px
+   a step (200% zoom) the row wraps. */
+.level-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: var(--s-3) var(--s-1);
+  margin: var(--s-5) 0 var(--s-6);
+  padding: 0;
+  list-style: none;
+}
+
+.level-steps__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  text-align: center;
+}
+
+.level-steps__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1;
+  font-weight: 600;
+}
+
+.level-steps__item--done .level-steps__mark {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: var(--on-accent);
+}
+
+.level-steps__item--current .level-steps__mark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.level-steps__label {
+  max-width: 100%;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.level-steps__item--current .level-steps__label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* A step: its heading, then its cards and lines a card gap apart, then its buttons. */
+.level-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.level-heading {
+  margin: 0;
+}
+
+.level-card {
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  overflow-wrap: anywhere;
+}
+
+.level-card__title {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* The target: the headline at the metric size with its unit label beside it, the length under
+   them, the example and non-example, and on the Goal the unit's why line. */
+.level-target__goal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  margin: 0;
+}
+
+.level-target__headline {
+  font-size: var(--fs-metric);
+  line-height: 1;
+  font-weight: 700;
+}
+
+.level-target__unit,
+.level-target__length {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-target__length {
+  margin: var(--s-1) 0 0;
+}
+
+.level-examples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The icon is drawn --s-1 down so it centres on the first 24px line. */
+.level-example {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.level-example__icon {
+  flex: none;
+  margin-top: var(--s-1);
+}
+
+.level-example--good .level-example__icon {
+  color: var(--ok);
+}
+
+.level-example--bad .level-example__icon {
+  color: var(--muted);
+}
+
+.level-example__text {
+  min-width: 0;
+}
+
+.level-why {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+}
+
+.level-why__text {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+/* "Source:" and the citation are one run of text. The link stays inline, and its padding makes
+   a 44px tap target without moving a line, as the Coach notes' source link does; the line sits
+   as far under the text above as that target reaches. */
+.level-source {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-source__icon {
+  margin-right: var(--s-1);
+  vertical-align: middle;
+}
+
+.level-source__link {
+  padding: var(--s-4) 0;
+  color: var(--accent);
+}
+
+.level-fillers__none {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-fillers__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-fillers__item {
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+
+/* The long-pause prep: its line, then Start planning, or the clock and Skip while it runs. */
+.level-prep__text {
+  margin: 0;
+}
+
+.level-prep__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.level-prep__clock {
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+/* The in-the-room switch: a 44px row whose track fills --accent when it is on, the thumb moving
+   across, so the state never rests on colour. */
+.level-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.level-switch__track {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 24px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+}
+
+.level-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+}
+
+.level-switch[aria-checked="true"] .level-switch__track {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.level-switch[aria-checked="true"] .level-switch__thumb {
+  left: 22px;
+  border-color: var(--bg);
+}
+
+.level-switch__label {
+  min-width: 0;
+}
+
+/* Take 1's card: its number at the metric size, the unit and target beside it, the change line,
+   then the moments to look at. */
+.level-take__result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  margin: var(--s-2) 0 0;
+}
+
+.level-take__value {
+  font-size: var(--fs-metric);
+  line-height: 1;
+  font-weight: 700;
+}
+
+.level-take__unit,
+.level-take__target {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-take__note,
+.level-take__caught {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.level-take .level-card__title {
+  margin-top: var(--s-4);
+}
+
+/* The change line: --ok and bold when take 1 did better, muted when it did worse or the same,
+   always with its triangle or dash. */
+.level-change {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-change--better {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.level-change__icon {
+  flex: none;
+}
+
+.level-moments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-moments__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.level-moments__time,
+.level-moment__time {
+  flex: none;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-moments__words {
+  min-width: 0;
+  line-height: 1.6;
+}
+
+/* A third of a read whose pace left its band: --warn words with the alert icon. */
+.level-moment__off {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.level-moment__alert {
+  margin-left: var(--s-1);
+  vertical-align: middle;
+}
+
+/* The tip card sits in the step's column, which spaces it already. */
+.level-tip {
+  margin-top: 0;
+}
+
+.level-tip__text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.level-tip__icon {
+  flex: none;
+  margin-top: var(--s-1);
+  color: var(--accent);
+}
+
+/* The review: its title with the time it takes, a card per moment, the fix and the privacy
+   line. */
+.level-review__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-3);
+}
+
+.level-review__about,
+.level-review__gone {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-review__gone {
+  margin: 0;
+}
+
+.level-review__fix-title {
+  margin: var(--s-3) 0 0;
+}
+
+.level-moment__time {
+  margin: 0;
+}
+
+.level-moment__words {
+  margin: var(--s-1) 0 0;
+  line-height: 1.6;
+}
+
+.level-moment__ask {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+/* Play 3 s and Play take 1: secondary buttons a size down, the icon before the words. */
+.level-play {
+  min-height: 44px;
+  margin-top: var(--s-3);
+  padding: 0 var(--s-4);
+  font-size: var(--fs-small);
+}
+
+/* Choice chips wrap in the column, and a long fix wraps inside its chip rather than run past
+   the screen's edge at 320px or 200% zoom. */
+.level-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.level-moment .level-chips {
+  margin-top: var(--s-2);
+}
+
+.level-chips .chip {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+/* Spot it: Play take 1 over a big Heard one, which is live only while take 1 plays, and the
+   score once it ends. */
+.level-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.level-spot__how {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-spot__tap {
+  min-height: 64px;
+  margin-top: var(--s-3);
+  font-size: var(--fs-h2);
+}
+
+.level-spot__score {
+  margin: var(--s-3) 0 0;
+  font-weight: 600;
+}
+
+.level-spot__score:empty {
+  display: none;
+}
+
+.level-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-privacy__icon {
+  flex: none;
+}
+
+/* A take step: the take before it, small, then the fix chosen. */
+.level-summary__label {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-summary__sentence {
+  margin: var(--s-1) 0 0;
+}
+
+.level-summary__fix {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* The result. A pass is a centred --ok-bg card under a big check; a miss a plain card whose
+   failed guards read in --warn after the alert icon. */
+.level-result {
+  overflow-wrap: anywhere;
+}
+
+.level-result--pass {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--s-5);
+  background: var(--ok-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  text-align: center;
+}
+
+.level-result__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--ok);
+  color: var(--on-accent);
+}
+
+.level-result__title {
+  margin: 0;
+}
+
+.level-result__verdict,
+.level-result__sentence {
+  margin: var(--s-2) 0 0;
+}
+
+.level-result__verdict,
+.level-result__fix,
+.level-result__room {
+  font-weight: 600;
+}
+
+.level-result__fix,
+.level-result__room {
+  margin: var(--s-3) 0 0;
+}
+
+.level-guards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-result--pass .level-guards {
+  align-items: center;
+}
+
+.level-guards__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-guards__icon {
+  flex: none;
+}
+
+.level-guards__item--passed .level-guards__icon {
+  color: var(--ok);
+}
+
+.level-guards__item--failed {
+  color: var(--warn);
+}
+
+.level-jump {
+  margin: 0;
+  font-weight: 600;
+}
+
+.level-rest {
+  margin: 0;
+  color: var(--muted);
+}
+
+.level-save-failed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--warn);
+}
+
+.level-save-failed__icon {
+  flex: none;
+}
+
+/* Check back: when each check-back falls, a calendar icon before its date. "gold" reads in
+   --warn, the path's gold. */
+.level-checkback__title,
+.level-next__title {
+  margin: 0;
+}
+
+.level-checkback__lead {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-dates__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.level-dates__icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.level-dates__gold {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.level-next__label {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-next__title {
+  margin-top: var(--s-1);
+}
+
+.level-next__goal {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-done__line,
+.level-done__since,
+.level-done__next {
+  margin: var(--s-2) 0 0;
+}
+
+.level-done__since,
+.level-done__next {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The step's buttons, full width, the primary first; links among them drop the underline. */
+.level-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.level-actions .btn {
+  text-decoration: none;
+}
+
+/* A focused control scrolls clear of the fixed nav, as on History. */
+#screen-level :is(a, button, [tabindex]) {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
+/* Under 360px the big numbers take the narrow metric size, as the metric cards do. */
+@media (max-width: 359px) {
+  .level-target__headline,
+  .level-take__value {
+    font-size: var(--fs-metric-narrow);
+  }
+}
+
 /* 9. History screen: session list and rows */
 .session-list {
   list-style: none;
