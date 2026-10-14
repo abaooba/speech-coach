@@ -121,7 +121,7 @@ test("on small phones the banner's title and body drop one type step", () => {
   );
 });
 
-test("on small phones the card sits --s-2 under the banner, as the record zone's gaps tighten", () => {
+test("on small phones the card sits --s-2 under the banner, as the record zone tightens", () => {
   assert.equal(
     valueFor("#screen-practice .practice__banner + .passage-card", "margin-top", SMALL_PHONES),
     "var(--s-2)",
@@ -137,7 +137,7 @@ test("the card keeps its two-line floor: nothing in 7b lowers it", () => {
   assert.deepEqual(lowered, []);
 });
 
-test("the small-phone rules live in 7b, and taller or wider screens keep the banner as it was", () => {
+test("the small-phone rules live in 7b; taller or wider screens keep the banner as is", () => {
   const smallPhoneRules = SECTION_RULES.filter((rule) => rule.at === SMALL_PHONES);
   assert.equal(smallPhoneRules.length, 3, "title, body and the card's gap");
   assert.equal(valueFor(".practice__banner-title", "font-size"), "var(--fs-h2)");

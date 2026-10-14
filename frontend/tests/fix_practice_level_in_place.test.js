@@ -47,7 +47,7 @@ function lastFocused(t) {
   return t.focused[t.focused.length - 1];
 }
 
-test("a request from onSaved shows its banner at once, with no show() from the router", async () => {
+test("a request from onSaved shows its banner at once, without the router's show()", async () => {
   const t = setup();
   const next = levelRequest({ title: NEXT_TITLE, body: NEXT_BODY });
   const first = levelRequest({
@@ -129,7 +129,7 @@ test("a request from onLeave shows the other play's banner at once", () => {
   assert.equal(parts(t).cardText.textContent, PASSAGE_MATERIAL.text);
 });
 
-test("a request while Practice shows normal mode replaces the switch with the banner at once", async () => {
+test("a request while normal mode shows puts the banner in the switch's place", async () => {
   const t = setup();
   t.practice.show({});
   const { request, log } = levelRequest();
@@ -182,7 +182,7 @@ test("a too-short take's time goes back to 0:00 when a request comes in place", 
   assert.equal(parts(t).timer.textContent, "0:00");
 });
 
-test("while a take uploads, a request in place waits: the upload keeps its own banner", async () => {
+test("while a take uploads, a request in place waits; the upload keeps its banner", async () => {
   const t = setup();
   const first = levelRequest();
   t.startLevel(first.request);
@@ -198,7 +198,7 @@ test("while a take uploads, a request in place waits: the upload keeps its own b
   assert.equal(parts(t).bannerTitle.textContent, NEXT_TITLE, "then the newer banner shows");
 });
 
-test("while a take records, a request in place leaves the take and its screen as they are", async () => {
+test("while a take records, a request in place leaves the take and its screen alone", async () => {
   const t = setup();
   const first = levelRequest();
   t.startLevel(first.request);

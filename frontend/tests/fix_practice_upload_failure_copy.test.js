@@ -141,7 +141,7 @@ function failingSave(t, times, message) {
   return attempts;
 }
 
-test("a save that fails shows the provider sentence; Retry saves the same judged session", async () => {
+test("a failed save shows the provider sentence; Retry saves the same judged session", async () => {
   const t = setup();
   const attempts = failingSave(t, 1, "QuotaExceededError: the disk is full");
   const { request, log } = levelRequest();
@@ -162,7 +162,7 @@ test("a save that fails shows the provider sentence; Retry saves the same judged
   assert.equal(log.onSaved[0].session, attempts[1]);
 });
 
-test("in normal mode too, a failed save shows a fixed sentence and Retry sends no audio", async () => {
+test("in normal mode too, a failed save reads as fixed copy and Retry sends no audio", async () => {
   const t = setup();
   const attempts = failingSave(t, 1, "UnknownError: IndexedDB went away");
   await t.recordTake(12000);
@@ -177,7 +177,7 @@ test("in normal mode too, a failed save shows a fixed sentence and Retry sends n
   assert.deepEqual(plain(t.calls.go), [{ name: "results", params: { id: SAVED_ID } }]);
 });
 
-test("a failed analysis still shows its own sentence, and Retry sends the audio again", async () => {
+test("a failed analysis still shows its own sentence; Retry sends the audio again", async () => {
   const t = setup();
   const { request } = levelRequest();
   t.startLevel(request);
@@ -204,7 +204,10 @@ test("Record a new take after a judge failure drops the analysis with the take",
   assert.equal(t.practice.state, "idle");
 
   failing = false;
-  const second = { transcript: [{ text: "again", start: 0.2, end: 0.6 }], metrics: ANALYSIS.metrics };
+  const second = {
+    transcript: [{ text: "again", start: 0.2, end: 0.6 }],
+    metrics: ANALYSIS.metrics,
+  };
   await t.recordTake(9000);
   assert.equal(t.calls.analyze.length, 2, "the new take is sent");
   t.resolveUpload(second);
