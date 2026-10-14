@@ -1,7 +1,8 @@
 // Tests for the cold-read passages in frontend/passages.js (docs/PLAN.md T44): original
-// debate-style readings for the skill path's coldRead mode, which hands a speaker a text they
-// have never read. app.passages.coldReads() hands them out; they are not entries of app.passages,
-// so Practice's Read tab keeps its six passages. Modules load with vm.runInNewContext.
+// everyday readings (explainers, short stories and news-style pieces) for the skill path's
+// coldRead mode, which hands a speaker a text they have never read. app.passages.coldReads()
+// hands them out; they are not entries of app.passages, so Practice's Read tab keeps its six
+// passages. Modules load with vm.runInNewContext.
 "use strict";
 
 const test = require("node:test");

@@ -1,10 +1,11 @@
 // Tests that the everyday texts in frontend/passages.js read cleanly (the owner's rule of
 // 2026-10-14: Speech Coach is for everyday fluency, not debate). The Read tab's explainer and
-// story are read word for word and scored against their script, so, as the cold reads already
-// were, they hold no digit, symbol or quotation mark, no number word a transcript could write as
-// digits ("twelve" or "12"), no habit word delivery.js counts and no hesitation sound: a take
-// that reads one as written shows no misread and no filler. Modules load with
-// vm.runInNewContext.
+// story, the Path's cold reads (explainers, short stories and news-style pieces) and the
+// benchmark read are read word for word and scored against their script, so they hold no digit,
+// symbol or quotation mark, no number word a transcript could write as digits ("twelve" or
+// "12"), no habit word delivery.js counts and no hesitation sound: a take that reads one as
+// written shows no misread and no filler. The cold reads keep the ids they had before they were
+// rewritten, so a take saved on one still counts as read. Modules load with vm.runInNewContext.
 "use strict";
 
 const test = require("node:test");
@@ -86,4 +87,55 @@ test("the Read tab's explainer and story read cleanly, as written", () => {
 test("the explainer is the Pace ladder's passage: 109 words, as the rebuttal it replaced", () => {
   const [explainer] = everydayPassages();
   assert.equal(explainer.text.trim().split(/\s+/).length, 109);
+});
+
+test("every cold read and the benchmark read read cleanly, as written", () => {
+  Array.from(APP.passages.coldReads()).forEach(assertReadsCleanly);
+  assertReadsCleanly(APP.passages.benchmark().read);
+});
+
+test("the cold reads keep their ids, so a take saved on one still counts as read", () => {
+  assert.deepEqual(
+    Array.from(APP.passages.coldReads(), (entry) => entry.id),
+    [
+      "cold-read-school-start",
+      "cold-read-free-transit",
+      "cold-read-nuclear-power",
+      "cold-read-space-funding",
+      "cold-read-plastic-bags",
+      "cold-read-social-media-ages",
+      "cold-read-compulsory-voting",
+      "cold-read-zoos",
+      "cold-read-car-free-centers",
+      "cold-read-ai-tools",
+      "cold-read-service-hours",
+      "cold-read-clock-changes",
+      "cold-read-local-news",
+      "cold-read-rent-control",
+      "cold-read-organ-donors",
+    ],
+  );
+});
+
+test("the cold reads' titles name what each one is about", () => {
+  assert.deepEqual(
+    Array.from(APP.passages.coldReads(), (entry) => entry.title),
+    [
+      "Cold read: the teenage body clock",
+      "Cold read: a week of free buses",
+      "Cold read: how a power plant works",
+      "Cold read: satellites at work",
+      "Cold read: the bag by the door",
+      "Cold read: why feeds keep us scrolling",
+      "Cold read: election day at the library",
+      "Cold read: a morning at the zoo",
+      "Cold read: a street without cars",
+      "Cold read: how chatbots write",
+      "Cold read: a first day volunteering",
+      "Cold read: when the clocks change",
+      "Cold read: a day at the local paper",
+      "Cold read: a first apartment",
+      "Cold read: giving blood",
+    ],
+  );
 });

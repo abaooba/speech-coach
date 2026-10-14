@@ -53,8 +53,9 @@
   // Word times are in seconds to the millisecond; two times closer than this are the same moment.
   const MILLISECOND = 0.001;
 
-  // A cold read lasts a minute and a half: the longest (192 words) takes 82 s at 140 wpm, the
-  // slow edge of the cold reads' band. The benchmark read is held to the same time.
+  // A cold read lasts a minute and a half: the longest (164 words) takes 70 s at 140 wpm, the
+  // slow edge of the cold reads' band, and any up to 200 words would fit. The benchmark read is
+  // held to the same time.
   const COLD_READ_SECONDS = 90;
   // A check-back on a new topic lasts a minute and a half (Fillers levels 1 and 2 excepted).
   const NEW_TOPIC_CHECKBACK_SECONDS = 90;
