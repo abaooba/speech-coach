@@ -196,8 +196,22 @@ function headingsOf(body) {
   return body.children.filter((node) => node.tagName === "h2").map((node) => node.textContent);
 }
 
+// The rule tips' cards: one each.
 function cardsOf(body) {
   return body.children.filter((node) => node.classList.contains("tip-card"));
+}
+
+// The one Coach notes card in the body, or undefined while the tips show.
+function notesCardOf(body) {
+  const cards = body.children.filter((node) => node.classList.contains("coach-notes"));
+  assert.ok(cards.length <= 1, "never more than one Coach notes card");
+  return cards[0];
+}
+
+// The notes in that card, or [] while the tips show.
+function notesOf(body) {
+  const card = notesCardOf(body);
+  return card ? card.children : [];
 }
 
 const CURRENT = takeOf("current", OCT(10, "10"), 40, [2, 5, 9]);
@@ -223,39 +237,57 @@ test("the tips are drawn at once and the coach notes take their place on arrival
   assert.equal(calls.requests[0].method, "POST");
   assert.equal(calls.requests[0].url, "/api/advice");
 
-  const cards = cardsOf(body);
-  assert.equal(cards.length, 3);
+  assert.deepEqual(cardsOf(body), [], "no tip card is left");
+  const card = notesCardOf(body);
+  assert.equal(card.tagName, "ul", "one card holds every note");
+  assert.equal(card.getAttribute("role"), "list", "Safari drops a list's role with its style");
+  const notes = notesOf(body);
+  assert.equal(notes.length, 3);
+  notes.forEach((note) => {
+    assert.equal(note.tagName, "li");
+    assert.equal(note.className, "coach-notes__note");
+  });
   assert.deepEqual(
-    cards.map((card) => byClass(card, "tip-card__text").textContent),
+    notes.map((note) => byClass(note, "coach-notes__text").textContent),
     REPLY.tips.map((tip) => tip.text),
   );
-  assert.ok(byClass(cards[0], "tip-card__text").tagName === "p");
+  assert.equal(byClass(notes[0], "coach-notes__text").tagName, "p");
 
-  const drill = byClass(cards[0], "tip-card__drill");
+  const drill = byClass(notes[0], "coach-notes__drill");
   assert.equal(fullText(drill), "Drill: Read one paragraph aloud and pause at each comma.");
-  assert.equal(byClass(drill, "tip-card__drill-label").textContent, "Drill:");
-  assert.equal(byClass(cards[1], "tip-card__drill"), undefined, "no drill line without a drill");
+  assert.equal(byClass(drill, "coach-notes__drill-label").textContent, "Drill:");
+  assert.equal(byClass(notes[1], "coach-notes__drill"), undefined, "no drill line without one");
 
-  const source = byClass(cards[0], "tip-card__source");
-  assert.equal(source.children[0].textContent, "Source:");
-  const link = byClass(source, "tip-card__link");
+  // "Source:" and the citation run on as one line of text, wrapping like words.
+  const source = byClass(notes[0], "coach-notes__source");
+  assert.equal(source.tagName, "p");
+  assert.equal(
+    fullText(source),
+    "Source: Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab",
+  );
+  assert.equal(source.children[0].textContent, "Source: ", "the label, then a space");
+  const link = byClass(source, "coach-notes__link");
+  assert.equal(source.children[1], link, "the link right after the label");
   assert.equal(link.tagName, "a");
   assert.equal(link.getAttribute("href"), "https://example.org/um");
   assert.equal(link.getAttribute("target"), "_blank");
   assert.equal(link.getAttribute("rel"), "noopener");
   assert.equal(link.textContent, "Lisa B. Marshall, Um, How Do I Stop (2017)");
-  assert.equal(fullText(link), "Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab");
-  assert.equal(byClass(source, "tip-card__badge"), undefined, "no badge for an organization");
+  assert.equal(byClass(source, "coach-notes__badge"), undefined, "no pill for an organization");
 
-  const reviewed = byClass(cards[1], "tip-card__source");
-  assert.equal(byClass(reviewed, "tip-card__badge").textContent, "Peer reviewed");
-  assert.equal(byClass(reviewed, "tip-card__link").getAttribute("href"), "https://example.org/p");
+  const reviewed = byClass(notes[1], "coach-notes__source");
+  assert.equal(
+    fullText(reviewed),
+    "Source: Smith and Lee, Pausing (2019), opens in a new tab Peer reviewed",
+    "the pill comes after the link",
+  );
+  assert.equal(byClass(reviewed, "coach-notes__badge").textContent, "Peer reviewed");
+  assert.equal(byClass(reviewed, "coach-notes__link").getAttribute("href"), "https://example.org/p");
 
-  const unlinked = byClass(cards[2], "tip-card__source");
-  assert.equal(byClass(unlinked, "tip-card__link"), undefined, "an ftp url is not a link");
-  assert.equal(unlinked.children[1].tagName, "span");
-  assert.equal(unlinked.children[1].textContent, "A Debate Coach, Openings (n.d.)");
-  assert.equal(byClass(unlinked, "tip-card__badge"), undefined);
+  const unlinked = byClass(notes[2], "coach-notes__source");
+  assert.equal(byClass(unlinked, "coach-notes__link"), undefined, "an ftp url is not a link");
+  assert.equal(fullText(unlinked), "Source: A Debate Coach, Openings (n.d.)");
+  assert.equal(byClass(unlinked, "coach-notes__badge"), undefined);
 
   const last = body.children[body.children.length - 1];
   assert.ok(last.classList.contains("results__actions"), "the action bar still ends the page");
@@ -348,7 +380,7 @@ test("notes kept from an earlier visit show without a request", async () => {
   await results.show({ id: "current" });
   assert.equal(calls.requests.length, 0);
   assert.deepEqual(headingsOf(body), ["Transcript", "Coach notes"]);
-  assert.equal(cardsOf(body).length, 3);
+  assert.equal(notesOf(body).length, 3);
 });
 
 test("the reply is kept and the ids shown are recorded for the next take", async () => {

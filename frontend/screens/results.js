@@ -167,10 +167,10 @@
   const TIPS_TITLE = "Tips";
 
   // Coach notes (docs/PLAN.md T41): the cited notes from POST /api/advice take the Tips section's
-  // place once they arrive. The lead names who wrote them, by the reply's `source` (tips.js
-  // SOURCES): Claude for this take, or the library's own words while the AI is off or its hourly
-  // budget is spent. A note's source is a link that opens in a new tab, and a peer-reviewed
-  // source carries a badge, so the evidence behind each note is one tap away.
+  // place once they arrive, together in one card. The lead names who wrote them, by the reply's
+  // `source` (tips.js SOURCES): Claude for this take, or the library's own words while the AI is
+  // off or its hourly budget is spent. A note's source is a link that opens in a new tab, and a
+  // peer-reviewed source carries a badge, so the evidence behind each note is one tap away.
   const COACH_NOTES_TITLE = "Coach notes";
   const NOTES_LEAD = Object.freeze({
     ai: "Written for this take by Claude, from the research library.",
@@ -828,7 +828,7 @@
       body.appendChild(notesHeading);
       const lead = NOTES_LEAD[notes.source];
       body.appendChild(app.ui.el("p", { class: "coach-notes__lead", text: lead }));
-      notes.tips.forEach((note) => body.appendChild(buildNoteCard(note)));
+      body.appendChild(buildNotesCard(notes.tips));
     } else if (tips.length > 0) {
       body.appendChild(sectionTitle(TIPS_TITLE));
       tips.forEach((tip) => body.appendChild(buildTipCard(tip)));
@@ -987,33 +987,41 @@
     return app.ui.el("div", { class: "tip-card", text: tip.text });
   }
 
-  // One coach note in the tip card: the note, its drill when the entry has one, then its source.
-  function buildNoteCard(note) {
-    const parts = [app.ui.el("p", { class: "tip-card__text", text: note.text })];
+  // The one Coach notes card, every note in it with a divider between two. It is a list, so a
+  // screen reader says how many notes it holds; Safari drops that role with the list style, so
+  // the role is set, as on History's session list.
+  function buildNotesCard(notes) {
+    return app.ui.el("ul", { class: "coach-notes", role: "list" }, notes.map(buildNote));
+  }
+
+  // One note in the card: the note, its drill when the entry has one, then its source.
+  function buildNote(note) {
+    const parts = [app.ui.el("p", { class: "coach-notes__text", text: note.text })];
     if (note.drill) {
       parts.push(
-        app.ui.el("p", { class: "tip-card__drill" }, [
-          app.ui.el("span", { class: "tip-card__drill-label", text: DRILL_LABEL }),
+        app.ui.el("p", { class: "coach-notes__drill" }, [
+          app.ui.el("span", { class: "coach-notes__drill-label", text: DRILL_LABEL }),
           TOKEN_SEPARATOR + note.drill,
         ]),
       );
     }
     parts.push(buildSourceLine(note.citation));
-    return app.ui.el("div", { class: "tip-card" }, parts);
+    return app.ui.el("li", { class: "coach-notes__note" }, parts);
   }
 
-  // "Source:" then the citation, as a link to the source when it has a web url (tips.js keeps
-  // only those) and as plain text otherwise, then the badge for a peer-reviewed source. The link
+  // "Source: " and the citation as one run of text, so the two share a line when they fit and
+  // wrap like any words when they do not: a link to the source when it has a web url (tips.js
+  // keeps only those), plain text otherwise, then the badge for a peer-reviewed source. The link
   // opens in a new tab, since the speaker is mid-review of a take, with rel="noopener" so the
   // page it opens gets no handle on this one.
   function buildSourceLine(citation) {
-    const parts = [SOURCE_LABEL];
+    const parts = [SOURCE_LABEL + TOKEN_SEPARATOR];
     if (citation.url) {
       parts.push(
         app.ui.el(
           "a",
           {
-            class: "tip-card__link",
+            class: "coach-notes__link",
             href: citation.url,
             target: "_blank",
             rel: "noopener",
@@ -1023,12 +1031,15 @@
         ),
       );
     } else {
-      parts.push(app.ui.el("span", { text: citation.label }));
+      parts.push(citation.label);
     }
     if (citation.type === PEER_REVIEWED_TYPE) {
-      parts.push(app.ui.el("span", { class: "tip-card__badge", text: PEER_REVIEWED_BADGE }));
+      parts.push(
+        TOKEN_SEPARATOR,
+        app.ui.el("span", { class: "coach-notes__badge", text: PEER_REVIEWED_BADGE }),
+      );
     }
-    return app.ui.el("p", { class: "tip-card__source" }, parts);
+    return app.ui.el("p", { class: "coach-notes__source" }, parts);
   }
 
   // "Gettysburg Address, opening · Oct 10, 10:30 AM", plus " · 2:41 of 3:00" for a timed

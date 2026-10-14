@@ -377,11 +377,12 @@ sample result", which opens a real sample take on this screen.
    Talking fast and full of "um" shows two cards, pace first; a third problem is dropped.
 
    Coach notes: within a second or so (up to nine with `ANTHROPIC_API_KEY` set, while Claude
-   writes) the "Tips" heading becomes "Coach notes" and the cards are replaced by two or three
-   notes, each a card with the note, "Drill:" and an exercise when the entry has one, and
-   "Source:" with the citation as a link ("Lisa B. Marshall, Um, How Do I Stop, Ya Know, Using
-   Um and Ah? (2017)") that opens in a new tab; a peer-reviewed source adds a green "Peer
-   reviewed" pill. The line under the heading reads "Written for this take by Claude, from the
+   writes) the "Tips" heading becomes "Coach notes" and the tip cards give way to one card
+   holding two or three notes, a thin line between two. Each note has its text, "Drill:" and an
+   exercise when the entry has one, then "Source:" with the citation as a link on the same line
+   ("Lisa B. Marshall, Um, How Do I Stop, Ya Know, Using Um and Ah? (2017)", wrapping like the
+   words around it at 320px) that opens in a new tab; a peer-reviewed source adds a green "Peer
+   reviewed" pill after the link. The line under the heading reads "Written for this take by Claude, from the
    research library." when the key is set and the hour's budget of AI calls lasts, and "The
    research library's own words, picked for this take." otherwise. The Network tab shows one
    `POST /api/advice`; with the key set, open the same take again from History and there is
