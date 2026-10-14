@@ -81,10 +81,49 @@ test("a few scattered skips still cost half an error each", () => {
   near(load().takeScore(reportWith({ skips })), oneMinuteScore(1.5));
 });
 
-test("8 words skipped in one place cost half an error each; a 9th makes it unread script", () => {
+test("without a speechStart, a 9th word makes the only run unread script", () => {
+  // A report saved without words cannot place a run, so its first and last big runs are
+  // treated as never reached.
   const rank = load();
   near(rank.takeScore(reportWith({ skips: skippedRun(8, 30, 21.4) })), oneMinuteScore(4), "8");
   assert.equal(rank.takeScore(reportWith({ skips: skippedRun(9, 30, 21.4) })), 100, "9");
+});
+
+// The same one-minute take, placed in time: its first word starts at 0.4 s, its last ends at 60.4.
+function placed(overrides) {
+  return reportWith({ speechStart: 0.4, speakingSeconds: 60, ...overrides });
+}
+
+test("9 or more words skipped mid-take are a skipped line: half an error each", () => {
+  const rank = load();
+  near(rank.takeScore(placed({ skips: skippedRun(9, 30, 21.4) })), oneMinuteScore(4.5), "9");
+  near(rank.takeScore(placed({ skips: skippedRun(40, 30, 21.4) })), oneMinuteScore(20), "40");
+});
+
+test("a mid-take run that is also the last run is still charged", () => {
+  const skips = [{ at: 4.2, word: "the" }, ...skippedRun(9, 30, 21.4)];
+  near(load().takeScore(placed({ skips })), oneMinuteScore(5));
+});
+
+test("the unread tail at the take's last word costs nothing, even after a closing um", () => {
+  const rank = load();
+  assert.equal(rank.takeScore(placed({ skips: skippedRun(200, 100, 60.4) })), 100, "at the end");
+  assert.equal(rank.takeScore(placed({ skips: skippedRun(200, 100, 59.2) })), 100, "then um");
+});
+
+test("the unread head at the take's first word costs nothing, even after an opening um", () => {
+  const rank = load();
+  assert.equal(rank.takeScore(placed({ skips: skippedRun(40, 0, 0.4) })), 100, "at the start");
+  assert.equal(rank.takeScore(placed({ skips: skippedRun(40, 0, 1.3) })), 100, "after um");
+});
+
+test("a head and a tail both unread cost nothing, and slips between them still count", () => {
+  const skips = [
+    ...skippedRun(20, 0, 0.4),
+    { at: 30.1, word: "word45" },
+    ...skippedRun(30, 90, 60.4),
+  ];
+  near(load().takeScore(placed({ skips })), oneMinuteScore(0.5));
 });
 
 test("an unread tail does not hide the skips before it", () => {

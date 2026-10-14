@@ -21,10 +21,14 @@
   // A misread word is an error; a skipped word is half one, since the listener rarely notices.
   const MISREAD_WEIGHT = 1;
   const SKIP_WEIGHT = 0.5;
-  // More script words than this skipped in one place is script the take never reached (it
-  // stopped early or started partway in), not a slip, so that run costs nothing. The same line
-  // as path.js MAX_SKIPPED_IN_ONE_PLACE, kept here so rank.js loads on its own.
+  // More script words than this skipped in one place, at the very start or end of the take, is
+  // script the take never reached (it stopped early or started partway in), not a slip, so that
+  // run costs nothing. The same run mid-take is a skipped line and is charged. The same line as
+  // path.js MAX_SKIPPED_IN_ONE_PLACE, kept here so rank.js loads on its own.
   const MAX_SKIPPED_IN_ONE_PLACE = 8;
+  // An unreached run sits at the take's first or last word, give or take an um or two said
+  // before the script starts or after it stops.
+  const EDGE_SECONDS = 1.5;
   // A skip's `at` is a word time in seconds; two closer than this are the same place.
   const MILLISECOND = 0.001;
 
@@ -78,7 +82,7 @@
       shortMidSentencePauseCount(given) * MID_SENTENCE_PAUSE_WEIGHT +
       numberOr0(given.longPauseCount) * LONG_PAUSE_WEIGHT +
       countOf(given.misreads) * MISREAD_WEIGHT +
-      chargedSkipCount(given.skips) * SKIP_WEIGHT;
+      chargedSkipCount(given) * SKIP_WEIGHT;
     const errorScore = MAX_SCORE * Math.exp((-DECAY_PER_ERROR_PER_MINUTE * weighted) / minutes);
     const pacePenalty = wpmOutsideBand(numberOr0(given.wordsPerMinute), targetWpm);
     return clamp(errorScore - pacePenalty / WPM_PER_PACE_POINT, 0, MAX_SCORE);
@@ -209,26 +213,43 @@
     ).length;
   }
 
-  // The skips a take is charged for: every skip outside a run of more than
-  // MAX_SKIPPED_IN_ONE_PLACE. Skips come in script order, and the words skipped in one place
-  // share their `at`, the end of the word said before them (path.js longestSkipRun); a skip
-  // without a numeric `at` is a place of its own.
-  function chargedSkipCount(skips) {
+  // The skips a take is charged for: every skip except an unreached run (see neverReached).
+  // Skips come in script order, and the words skipped in one place share their `at`, the end of
+  // the word said before them, or the start of the take for the script's head (path.js
+  // longestSkipRun); a skip without a numeric `at` is a place of its own.
+  function chargedSkipCount(report) {
     const runs = [];
-    let at = null;
-    (Array.isArray(skips) ? skips : []).forEach((skip) => {
+    (Array.isArray(report.skips) ? report.skips : []).forEach((skip) => {
       const here = skip && Number.isFinite(skip.at) ? skip.at : null;
-      const samePlace = here !== null && at !== null && Math.abs(here - at) < MILLISECOND;
+      const last = runs[runs.length - 1];
+      const samePlace =
+        here !== null && last && last.at !== null && Math.abs(here - last.at) < MILLISECOND;
       if (samePlace) {
-        runs[runs.length - 1] += 1;
+        last.count += 1;
       } else {
-        runs.push(1);
+        runs.push({ at: here, count: 1 });
       }
-      at = here;
     });
+    const start = Number.isFinite(report.speechStart) ? report.speechStart : null;
+    const end = start === null ? null : start + numberOr0(report.speakingSeconds);
     return runs
-      .filter((run) => run <= MAX_SKIPPED_IN_ONE_PLACE)
-      .reduce((sum, run) => sum + run, 0);
+      .filter((run, i) => !neverReached(run, i === 0, i === runs.length - 1, start, end))
+      .reduce((sum, run) => sum + run.count, 0);
+  }
+
+  // True for a run of more than MAX_SKIPPED_IN_ONE_PLACE that the take never reached: the first
+  // run at the take's first word or the last run at its last word. A report saved without words
+  // has no speechStart to place a run by, so its first and last big runs count as unreached.
+  function neverReached(run, first, last, start, end) {
+    if (run.count <= MAX_SKIPPED_IN_ONE_PLACE) {
+      return false;
+    }
+    if (start === null) {
+      return first || last;
+    }
+    const atHead = first && run.at !== null && run.at <= start + EDGE_SECONDS;
+    const atTail = last && run.at !== null && run.at >= end - EDGE_SECONDS;
+    return atHead || atTail;
   }
 
   function countOf(list) {

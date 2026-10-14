@@ -154,6 +154,14 @@ Owner decisions 2026-10-12, which override the bullets below where they differ:
 - The two 2026-10-11 takes score 33.5 (church) and 48.0 (uniforms) and land in Novice
   (rating about 39.8). That is accepted as "very harsh"; rank.test.js expects Novice, not
   Contender/Varsity.
+Review fixes 2026-10-13 (frontend/rank.js is the reference):
+- The 3 imaginary 40-point takes weigh whichever is more: 1 minute per empty slot of the
+  10-take window, or the minutes the rated takes fall short of 3. Ten quick tries cannot push
+  them out; ten full takes can still reach Master and Flawless.
+- Each pause is charged once: a 5 s+ pause costs 3 wherever it falls, a shorter mid-sentence
+  pause costs 1.
+- More than 8 script words skipped at the very start or end of a take (script it never
+  reached) cost nothing; every other skip costs 0.5.
 - `takeScore(report)`: `weighted = fillers×1 + restarts×1.5 + midSentencePauses×1 + longPauses×3
   + misreads×1 + skips×0.5`, `perMin = weighted / minutes`,
   `score = 100 × exp(−0.15 × perMin) − pacePenalty`, clamped 0-100. The pace penalty is 1 point
