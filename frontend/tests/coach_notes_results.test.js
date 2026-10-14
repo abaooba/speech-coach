@@ -87,10 +87,11 @@ function flush() {
 
 // Mounts Results against the fakes. store.get serves `sessions` by id, store.list returns them
 // newest first and counts its calls, flags live in a Map, and auth.request hands each call to
-// `reply(call)` for its {status, body}. `withRank` loads rank.js too.
+// `reply(call)` for its {status, body}. `withRank` loads rank.js too. `calls.draws` counts the
+// times the take is drawn: every draw empties the body and starts again with the meta line.
 function mount(sessions, reply, options) {
   const settings = options || {};
-  const calls = { lists: 0, requests: [] };
+  const calls = { lists: 0, requests: [], draws: 0 };
   const flags = new Map(settings.flags || []);
   const byId = Object.fromEntries(sessions.map((session) => [session.id, session]));
   const newestFirst = [...sessions].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -128,6 +129,13 @@ function mount(sessions, reply, options) {
   const root = new FakeElement("section");
   const body = new FakeElement("div");
   body.className = "screen__body";
+  const append = body.appendChild.bind(body);
+  body.appendChild = (child) => {
+    if (child.classList && child.classList.contains("results__meta")) {
+      calls.draws += 1;
+    }
+    return append(child);
+  };
   root.appendChild(body);
   const results = context.app.screens.results;
   results.mount(root);
@@ -276,7 +284,18 @@ test("a failed or empty request keeps the tips and draws the take twice at most"
     assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
     assert.equal(byClass(body, "coach-notes__lead"), undefined);
     assert.ok(byClass(body, "metric-grid__note"), "the comparison with the last take still drew");
+    assert.equal(calls.draws, 2, "the take at once, then with the comparison; no third draw");
   }
+});
+
+test("notes that arrive draw the take a third time, after the comparison", async () => {
+  const { results, calls } = mount([EARLIER, CURRENT], () => ({ status: 200, body: REPLY }));
+  await results.show({ id: "current" });
+  assert.equal(calls.draws, 3);
+
+  const alone = mount([CURRENT], () => ({ status: 200, body: REPLY }));
+  await alone.results.show({ id: "current" });
+  assert.equal(alone.calls.draws, 2, "with no last take there is no comparison draw");
 });
 
 test("notes kept from an earlier visit show without a request", async () => {

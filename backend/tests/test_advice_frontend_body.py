@@ -11,7 +11,7 @@ nothing opens a socket. Skips when node is not installed, as test_frontend_node.
 import json
 import shutil
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -25,8 +25,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 HOMEBREW_NODE = Path("/opt/homebrew/bin/node")
 
 # Loads the real frontend modules into a bare `app`, as the browser does, and prints the body
-# adviceRequest builds for the sample take; with a reply on stdin, prints what parseCoachNotes
-# makes of it instead. results.js summarize() gives the report and the band, as Results does.
+# adviceRequest builds for the sample take, with the shown ids given as a JSON list in the first
+# argument; with a reply on stdin, prints what parseCoachNotes makes of it instead.
+# results.js summarize() gives the report and the band, as Results does.
 BUILD_SCRIPT = """
 const fs = require("node:fs");
 const path = require("node:path");
@@ -40,10 +41,11 @@ const input = fs.readFileSync(0, "utf8");
 if (input.trim() !== "") {
   process.stdout.write(JSON.stringify(context.app.tips.parseCoachNotes(JSON.parse(input))));
 } else {
+  const shownIds = JSON.parse(process.argv[1]);
   const session = { ...JSON.parse(read("sample-session.json")), id: "sample-check" };
   const summary = context.app.screens.results.summarize(session);
   const body = context.app.tips.adviceRequest(
-    session, summary.report, summary.target, "Novice", ["filler-001"],
+    session, summary.report, summary.target, "Novice", shownIds,
   );
   process.stdout.write(JSON.stringify(body));
 }
@@ -57,10 +59,10 @@ def node_binary() -> str:
     return found
 
 
-def run_frontend(stdin: str) -> Any:
-    """Run BUILD_SCRIPT with `stdin` and return the JSON it prints."""
+def run_frontend(stdin: str, shown_ids: Sequence[str] = ()) -> Any:
+    """Run BUILD_SCRIPT with `stdin` and `shown_ids`, and return the JSON it prints."""
     result = subprocess.run(
-        [node_binary(), "--input-type=commonjs", "-e", BUILD_SCRIPT],
+        [node_binary(), "--input-type=commonjs", "-e", BUILD_SCRIPT, json.dumps(list(shown_ids))],
         cwd=REPO_ROOT,
         input=stdin,
         capture_output=True,
@@ -69,6 +71,11 @@ def run_frontend(stdin: str) -> Any:
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
+
+
+def entry_ids(reply: dict[str, Any]) -> list[str]:
+    """The library entry ids a reply of /api/advice shows, in order."""
+    return [tip["entry_id"] for tip in reply["tips"]]
 
 
 @pytest.fixture
@@ -81,7 +88,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
 
 def test_the_body_the_frontend_builds_for_the_sample_take_is_valid(client: TestClient) -> None:
-    body = run_frontend("")
+    body = run_frontend("", ["filler-001"])
 
     assert body["session_id"] == "sample-check"
     assert body["tier"] == "Novice"
@@ -109,19 +116,31 @@ def test_the_body_the_frontend_builds_for_the_sample_take_is_valid(client: TestC
     assert response.status_code == 200, response.text
 
 
+def test_an_entry_the_take_is_offered_is_left_out_once_the_frontend_sends_it_shown(
+    client: TestClient,
+) -> None:
+    # Asked with nothing shown, the server offers this take a first entry. The order is fixed
+    # for the take (select.py seeds it with the session id), so asked again it would offer that
+    # entry again, unless the shown ids the frontend sends keep it out.
+    offered = entry_ids(client.post("/api/advice", json=run_frontend("")).json())[0]
+
+    reply = client.post("/api/advice", json=run_frontend("", [offered])).json()
+
+    assert coach.MIN_TIPS <= len(reply["tips"]) <= coach.MAX_TIPS
+    assert offered not in entry_ids(reply), "a shown id is left out"
+
+
 def test_the_reply_round_trips_through_the_frontend_parser(client: TestClient) -> None:
-    body = run_frontend("")
-    reply = client.post("/api/advice", json=body).json()
+    reply = client.post("/api/advice", json=run_frontend("")).json()
 
     assert reply["source"] == "library"
     assert coach.MIN_TIPS <= len(reply["tips"]) <= coach.MAX_TIPS
-    assert "filler-001" not in [tip["entry_id"] for tip in reply["tips"]], "a shown id is left out"
 
     notes = run_frontend(json.dumps(reply))
 
     assert notes is not None, "the frontend must accept what the server sends"
     assert notes["source"] == "library"
-    assert [note["entryId"] for note in notes["tips"]] == [tip["entry_id"] for tip in reply["tips"]]
+    assert [note["entryId"] for note in notes["tips"]] == entry_ids(reply)
     for note, tip in zip(notes["tips"], reply["tips"], strict=True):
         assert note["text"] == tip["text"].strip()
         assert note["drill"] == tip["drill"].strip()
