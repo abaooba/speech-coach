@@ -188,7 +188,9 @@
     pausesStarted: false,
   };
 
-  // The finished take, kept through uploading and error so Retry re-sends the same blob.
+  // The finished take, kept through uploading and error so Retry re-sends the same blob. Once the
+  // backend's analysis is back it is kept here too, and so is the session once it is judged, so
+  // Retry repeats only the step that failed.
   let pendingTake = null;
 
   // The Upload failed block's detail, kept with its take. The block says the recording is still
@@ -1135,6 +1137,9 @@
       topic: topicOf(passage),
       request: levelRequest,
       liveTaps: liveTaps.slice(),
+      // {transcript, metrics} once the backend has analyzed the take, then the session to save.
+      analysis: null,
+      session: null,
     };
     upload();
   }
@@ -1199,10 +1204,11 @@
   }
 
   // Sends the pending take, saves the session and hands off: a plain take to Results, a level
-  // take back to the Level screen (handBack). "Retry upload" calls this again with the same
-  // blob; app.pauses, when present, folds its samples into metrics. Only the analysis, a level
-  // take's judging and the save can fail into the Upload failed block, which Retry repeats: the
-  // hand-off runs once the take is saved, so it is never repeated.
+  // take back to the Level screen (handBack). "Retry upload" calls this again for the same take.
+  // The analysis, a level take's judging and the save can each fail into the Upload failed
+  // block, and each step that succeeded stays with the take: Retry sends the same blob again
+  // only when no analysis came back, and never judges a take twice. The hand-off runs once the
+  // take is saved, so it is never repeated.
   async function upload() {
     const take = pendingTake;
     if (take === null) {
@@ -1217,38 +1223,37 @@
     if (focusInRecordZone) {
       focusIfPossible(stateTitle());
     }
-    let id = null;
-    let session = null;
-    try {
-      const result = await app.api.analyze(take.blob, take.contentType, take.script);
-      const metrics =
-        app.pauses && take.samples
-          ? app.pauses.reconcile(result.metrics, take.samples)
-          : result.metrics;
-      session = sessionFor(take, result.transcript, metrics);
-      id = await app.store.save(session);
-    } catch (error) {
-      if (error.kind === "too_short") {
-        // The backend answered 400: the same blob would fail again and cost a provider call on
-        // every tap, so the take goes, as after "Record a new take", and Retry is never offered.
-        // Its clock goes back to 0:00 too: the take ran at least 5 seconds, and idle showing
-        // that after Record again would contradict the block's "under 5 seconds".
-        letTakeGo();
-        resetClock();
-        showTooShort();
+    if (take.analysis === null) {
+      try {
+        take.analysis = await analysisOf(take);
+      } catch (error) {
+        if (error && error.kind === "too_short") {
+          // The backend answered 400: the same blob would fail again and cost a provider call
+          // on every tap, so the take goes, as after "Record a new take", and Retry is never
+          // offered. Its clock goes back to 0:00 too: the take ran at least 5 seconds, and idle
+          // showing that after Record again would contradict the block's "under 5 seconds".
+          letTakeGo();
+          resetClock();
+          showTooShort();
+          return;
+        }
+        showUploadFailed(analysisFailureSentence(error));
         return;
       }
-      failedUpload = {
-        title: UPLOAD_FAILED_TITLE,
-        body: error.message,
-        actionLabel: UPLOAD_FAILED_ACTION,
-        onAction: upload,
-        secondaryLabel: NEW_TAKE_ACTION,
-        onSecondary: dropTake,
-      };
-      render("error", failedUpload);
+    }
+    let id = null;
+    try {
+      if (take.session === null) {
+        take.session = sessionFor(take, take.analysis.transcript, take.analysis.metrics);
+      }
+      id = await app.store.save(take.session);
+    } catch {
+      // The judge or the save threw. Whatever it threw, the block reads as for an unknown
+      // failure on our side, and the speaker's recording is still here for Retry.
+      showUploadFailed(app.api.messages.provider);
       return;
     }
+    const session = take.session;
     letTakeGo();
     resetClock();
     if (take.request !== null) {
@@ -1258,6 +1263,41 @@
     app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
     render("idle");
     app.router.go("results", { id });
+  }
+
+  // The backend's analysis of the take: its transcript, and its metrics with the pause samples
+  // folded in when app.pauses is present.
+  async function analysisOf(take) {
+    const result = await app.api.analyze(take.blob, take.contentType, take.script);
+    const metrics =
+      app.pauses && take.samples
+        ? app.pauses.reconcile(result.metrics, take.samples)
+        : result.metrics;
+    return { transcript: result.transcript, metrics };
+  }
+
+  // The fixed sentence for a failed analysis (DESIGN.md section 8): app.api's for the kind it
+  // reports ("network", "provider"). An "unknown" kind, or a throw with no kind, reads as a
+  // provider failure, as api.js reads one; an exception's own words never show.
+  function analysisFailureSentence(error) {
+    const messages = app.api.messages;
+    const kind = error !== null && typeof error === "object" ? error.kind : undefined;
+    const sentence = typeof kind === "string" ? messages[kind] : undefined;
+    return typeof sentence === "string" ? sentence : messages.provider;
+  }
+
+  // The Upload failed block, with Retry and "Record a new take". It is kept with its take, so
+  // show() can draw it again after the speaker leaves Practice and comes back.
+  function showUploadFailed(sentence) {
+    failedUpload = {
+      title: UPLOAD_FAILED_TITLE,
+      body: sentence,
+      actionLabel: UPLOAD_FAILED_ACTION,
+      onAction: upload,
+      secondaryLabel: NEW_TAKE_ACTION,
+      onSecondary: dropTake,
+    };
+    render("error", failedUpload);
   }
 
   // The session to save: the fields every take has, the topic it was given (when it was given
