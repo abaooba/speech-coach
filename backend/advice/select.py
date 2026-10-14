@@ -85,6 +85,10 @@ DEBATE_WORDS = (
     "parent judges", "adult judges", "practice judge", "recitation judges",
     "in front of judges", "for judges", "or judge",
     "your round", "in a round",
+    # Speech contests pull the same way: extemp (the contest event), advice "in competition",
+    # contest speeches and contest prep time. "Extemporaneous" alone is everyday public
+    # speaking, so only the event's short name counts.
+    "extemp", "in competition", "contest", "contests",
 )
 _DEBATE_WORDS_PATTERN = re.compile(
     r"(?<!\w)(?:"
