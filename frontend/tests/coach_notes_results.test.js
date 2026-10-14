@@ -273,6 +273,12 @@ test("the tips are drawn at once and the coach notes take their place on arrival
   assert.equal(link.getAttribute("target"), "_blank");
   assert.equal(link.getAttribute("rel"), "noopener");
   assert.equal(link.textContent, "Lisa B. Marshall, Um, How Do I Stop (2017)");
+  // The hidden new-tab note sits inside the <a>, so it is part of the link's accessible name.
+  assert.equal(
+    fullText(link),
+    "Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab",
+    "the new-tab note is inside the link",
+  );
   assert.equal(byClass(source, "coach-notes__badge"), undefined, "no pill for an organization");
 
   const reviewed = byClass(notes[1], "coach-notes__source");
