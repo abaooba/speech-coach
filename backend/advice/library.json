@@ -450,26 +450,6 @@
     }
   },
   {
-    "id": "filler-025",
-    "advice": "In experiments, occasional fillers actually helped listeners recall a story better than a fluent version, while coughs of the same length hurt recall. One stray 'uh' isn't a disaster, so don't stop over it.",
-    "quote": "",
-    "drill": "",
-    "targets": [
-      "filler",
-      "restart"
-    ],
-    "level": "advanced",
-    "source": {
-      "author": "Scott H. Fraundorf, Duane G. Watson",
-      "credentials": "",
-      "title": "The disfluent discourse: Effects of filled pauses on recall",
-      "publisher": "Journal of Memory and Language",
-      "year": 2011,
-      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3134332/",
-      "type": "peer_reviewed"
-    }
-  },
-  {
     "id": "filler-026",
     "advice": "Listeners recognized the next word faster after any short delay, whether it was 'um' or silence. A silent pause gives you the same benefit without the filler.",
     "quote": "",
@@ -1117,25 +1097,6 @@
     }
   },
   {
-    "id": "filler-059",
-    "advice": "Speakers have real control over \"uh\" and \"um\". People use fewer of them in formal settings and when speaking in time with a metronome. Treat filled pauses as a habit you can manage, not an automatic reflex.",
-    "quote": "To summarize, speakers have selective control over uh and um.",
-    "drill": "Read a short passage, then talk off-script for one minute while a metronome ticks at a slow, steady beat. Note how your filler count changes when you speak to a steady pulse.",
-    "targets": [
-      "filler"
-    ],
-    "level": "advanced",
-    "source": {
-      "author": "Herbert H. Clark, Jean E. Fox Tree",
-      "credentials": "Stanford University; University of California, Santa Cruz",
-      "title": "Using uh and um in spontaneous speaking",
-      "publisher": "Cognition 84",
-      "year": 2002,
-      "url": "https://web.stanford.edu/~clark/2000s/Clark,%20H.H.%20_%20Fox%20Tree,%20J.E.%20_Using%20uh%20and%20um%20in%20spontaneous%20speaking_%202002.pdf",
-      "type": "peer_reviewed"
-    }
-  },
-  {
     "id": "filler-060",
     "advice": "Stretching a filler ('uhhhh') tells listeners a delay is already under way, a signal separate from choosing 'uh' or 'um'. If a filler slips out, keep it short rather than holding it and advertising that you are still stuck.",
     "quote": "Uh and um, we have argued, are not merely \"filled pauses\", audible counterparts to silent pauses.",
@@ -1465,25 +1426,6 @@
     }
   },
   {
-    "id": "filler-077",
-    "advice": "'Um' and 'uh' tend to show up right before hard-to-find words, such as abstract, technical or unfamiliar ones. Choosing more familiar wording and practicing until the material feels familiar removes many fillers at their source.",
-    "quote": "we need to make things more familiar, make things less difficult and make things less abstract",
-    "drill": "Mark the 5 hardest words or terms in your speech. Practice saying the sentences that contain them until each comes out without a filler in front.",
-    "targets": [
-      "filler"
-    ],
-    "level": "advanced",
-    "source": {
-      "author": "Valerie Fridland (guest), Matt Abrahams (host)",
-      "credentials": "Fridland: professor of sociolinguistics, University of Nevada; Abrahams: lecturer in strategic communication, Stanford GSB",
-      "title": "“Um, Like, So”: How Filler Words Can Be Effective in Communication",
-      "publisher": "Stanford Graduate School of Business (Think Fast, Talk Smart)",
-      "year": 2023,
-      "url": "https://gsb.stanford.edu/insights/um-so-how-filler-words-can-be-effective-communication",
-      "type": "organization"
-    }
-  },
-  {
     "id": "filler-078",
     "advice": "To sound authoritative, aim to sound fully rehearsed even when you're speaking off the cuff. In this conversation about authority, Pfeffer also advises avoiding filler words and ums or ahs as much as possible.",
     "quote": "You want to speak as if even though it's not rehearsed, it's been completely rehearsed",
@@ -1797,25 +1739,6 @@
     "id": "filler-094",
     "advice": "You don't need zero fillers. When listeners rated speeches with 0, 2, 5 or 12 disfluencies per minute, a rate of 5 per minute did not hurt perceived effectiveness, while high rates (notably 12 filler sounds per minute) did. Aim for five or fewer per minute.",
     "quote": "A low, but nonzero, rate of disfluencies (5 per minute) did not adversely affect perceived effectiveness.",
-    "drill": "",
-    "targets": [
-      "filler"
-    ],
-    "level": "beginner",
-    "source": {
-      "author": "Matthew M. Laske, Florence D. DiGennaro Reed",
-      "credentials": "",
-      "title": "Um, so, like, do speech disfluencies matter? A parametric evaluation of filler sounds and words",
-      "publisher": "Journal of Applied Behavior Analysis",
-      "year": 2024,
-      "url": "https://doi.org/10.1002/jaba.1093",
-      "type": "peer_reviewed"
-    }
-  },
-  {
-    "id": "filler-095",
-    "advice": "Prioritise filler sounds over filler words. In this study, adding disfluencies hurt how effective a speaker seemed in most rating categories, and filler sounds in particular did, especially at high rates. Work on your filler sounds first.",
-    "quote": "Increased disfluencies, particularly filler sounds, significantly affected perceptions across most categories,",
     "drill": "",
     "targets": [
       "filler"
