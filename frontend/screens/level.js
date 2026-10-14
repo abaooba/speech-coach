@@ -593,20 +593,19 @@
     return session;
   }
 
-  // Writes each record in order. A write that fails still counts for the dates shown, and the
-  // Result says the progress could not be saved.
+  // Writes each record in order, all with one clearedAt, the time the take passed, so levels a
+  // take jumped share its day and their check-backs fall with its own (spec section 4), even
+  // when the writes straddle midnight. A write that fails still counts for the dates shown, and
+  // the Result says the progress could not be saved.
   async function keepRecords(target, records) {
+    const clearedAt = new Date().toISOString();
     for (const levelId of records) {
       try {
-        const kept = await app.store.markLevelCleared(levelId);
-        target.kept.push(
-          kept && typeof kept.levelId === "string"
-            ? kept
-            : { levelId, clearedAt: new Date().toISOString() },
-        );
+        const kept = await app.store.markLevelCleared(levelId, clearedAt);
+        target.kept.push(kept && typeof kept.levelId === "string" ? kept : { levelId, clearedAt });
       } catch {
         target.saveFailed = true;
-        target.kept.push({ levelId, clearedAt: new Date().toISOString() });
+        target.kept.push({ levelId, clearedAt });
       }
     }
   }
