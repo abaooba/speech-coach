@@ -382,15 +382,15 @@ sample result", which opens a real sample take on this screen.
    exercise when the entry has one, then "Source:" with the citation as a link on the same line
    ("Lisa B. Marshall, Um, How Do I Stop, Ya Know, Using Um and Ah? (2017)", wrapping like the
    words around it at 320px) that opens in a new tab; a peer-reviewed source adds a green "Peer
-   reviewed" pill after the link. The line under the heading reads "Written for this take by Claude, from the
-   research library." when the key is set and the hour's budget of AI calls lasts, and "The
-   research library's own words, picked for this take." otherwise. The Network tab shows one
-   `POST /api/advice`; with the key set, open the same take again from History and there is
-   none: Claude's notes are kept on the device. The library's words are not kept, so without the
-   key that take asks again and shows entries it has not shown before. Record another take:
-   none of its notes repeats an entry shown before. With VoiceOver on, Tab to "How we count"
-   before the notes arrive: when they do, focus moves to the "Coach notes" heading and
-   VoiceOver says "Coach notes ready."; leave for History first and nothing is said.
+   reviewed" pill after the link. The line under the heading reads "Written for this take by
+   Claude, from the research library." when the key is set and the hour's budget of AI calls
+   lasts, and "The research library's own words, picked for this take." otherwise. The Network
+   tab shows one `POST /api/advice`; with the key set, open the same take again from History
+   and there is none: Claude's notes are kept on the device. The library's words are not kept,
+   so without the key that take asks again and shows entries it has not shown before. Record
+   another take: none of its notes repeats an entry shown before. With VoiceOver on, Tab to
+   "How we count" before the notes arrive: when they do, focus moves to the "Coach notes"
+   heading and VoiceOver says "Coach notes ready."; leave for History first and nothing is said.
    Stop uvicorn and reopen a take without kept notes (a fresh id): the Tips stay, with no error.
 
 7. Narrow the window to 320px (DevTools device toolbar): two cards per row with each number
