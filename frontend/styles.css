@@ -1171,6 +1171,25 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* Small phones (320 x 568), where section 7 also drops the hint, take one step more: the
+   banner's title and body drop a type step, and the card sits --s-2 under the banner, as the
+   record zone's gaps tighten. Level mode then fits one screen as normal mode does, the card at
+   its two-line floor and Record's label --s-5 above the nav. */
+@media (max-height: 600px) and (max-width: 479px) {
+  .practice__banner-title {
+    font-size: var(--fs-body);
+  }
+
+  .practice__banner-body {
+    font-size: var(--fs-small);
+    line-height: 1.4;
+  }
+
+  #screen-practice .practice__banner + .passage-card {
+    margin-top: var(--s-2);
+  }
+}
+
 /* 8. Results screen: meta line, headline, metric cards, timeline, transcript, tips, actions */
 /* Every figure on the screen, in hints, headline, legend and tips too, uses tabular numbers. */
 #screen-results {
