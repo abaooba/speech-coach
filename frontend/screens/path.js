@@ -388,9 +388,11 @@
   // --- A unit ----------------------------------------------------------------------------------
 
   // One unit: its card, then its levels and checkpoint as an ordered list winding down the page,
-  // the crown beside level 3. Each node opens its own card, one at a time in a unit; the unit's
-  // next step (its current level, or once every level is cleared its open checkpoint) has its
-  // card open from the start.
+  // the crown beside level 3. Each node opens its own card. The levels and the checkpoint open
+  // theirs one at a time in a unit; the unit's next step (its current level, or once every level
+  // is cleared its open checkpoint) has its card open from the start. The crown opens and closes
+  // its card on its own: it sits under level 3's card, and closing that card as the crown's
+  // opened would pull the crown up from under the finger.
   function buildUnit(pathUnit, view, drawing) {
     const cards = oneCardAtATime();
     const steps = pathUnit.levels
@@ -404,7 +406,8 @@
       const pair = buildPair(step, POINTERS[x], isNext, primary, cards);
       const beside = [];
       if (pathUnit.crown && step.number === CROWN_BESIDE_LEVEL) {
-        const crown = buildPair(crownStep(pathUnit, view), POINT_UP, false, false, cards);
+        const crownCard = oneCardAtATime();
+        const crown = buildPair(crownStep(pathUnit, view), POINT_UP, false, false, crownCard);
         beside.push(crown.node, crown.card);
       }
       const link =
@@ -734,10 +737,10 @@
     return app.ui.el("div", { class: classes.join(" "), id }, children);
   }
 
-  // A unit's cards, one open at a time: opening a node's card closes the one open before it,
-  // a second tap on its node closes it, and each node's aria-expanded follows its card. Escape
-  // closes the open card: pressed on its node, focus stays there; pressed inside the card, focus
-  // goes back to its node.
+  // A group of cards, one open at a time (a unit's steps, or a crown alone): opening a node's
+  // card closes the group's one open before it, a second tap on its node closes it, and each
+  // node's aria-expanded follows its card. Escape closes the open card: pressed on its node,
+  // focus stays there; pressed inside the card, focus goes back to its node.
   function oneCardAtATime() {
     let openPair = null;
 
