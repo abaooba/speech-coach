@@ -2531,3 +2531,489 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   scroll-margin-top: var(--s-2);
   scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
 }
+
+/* 13. Path screen (#/path), the Loop Path's map (spec
+   docs/superpowers/specs/2026-10-14-loop-path.md section 9). Under the h1: the status row, the
+   benchmark, then one block per unit, its card over its steps winding down the page. Each step
+   is a grid row of three columns, the room before the node, the 104px node (its circle over its
+   label) and the side that holds its card, so a node's centre sits at 25% or 75% of the row and
+   the checkpoint's at 50%, where screens/path.js nodeX places them. A link is an SVG stretched
+   from one node's centre to the next one's, so it follows a row however tall an open card makes
+   it. Cleared is --ok, current --accent, gold --warn. Nothing animates. */
+.path__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+/* This week's practice days: plain text in a pill, never a button. */
+.path__week {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 32px;
+  margin: 0;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The due chip starts the first due check-back. Unlike Practice's chips its words may wrap, so
+   "Due today: 1 check-back: Long pauses 5" fits at 320px. */
+.path__due {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  padding-block: var(--s-1);
+  white-space: normal;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Each chip's icon follows its words and is drawn first. */
+.path__week svg,
+.path__due svg {
+  flex: none;
+  order: -1;
+}
+
+.path__week svg {
+  color: var(--warn);
+}
+
+.path__due svg {
+  color: var(--muted);
+}
+
+/* The benchmark: a card when it is due, otherwise its next date and the change since the first
+   sitting. A section gap sets it off from the first unit. */
+.path-benchmark,
+.path__benchmark {
+  margin-bottom: var(--s-6);
+}
+
+.path-benchmark {
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.path-benchmark__title {
+  margin: 0;
+}
+
+.path-benchmark__text,
+.path__next,
+.path__since {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.path__next {
+  margin-top: 0;
+}
+
+.path__since {
+  margin-top: var(--s-1);
+}
+
+.path-benchmark__start {
+  margin-top: var(--s-3);
+}
+
+/* A unit: its card, then its steps, a section gap from the next unit. */
+.path-unit + .path-unit {
+  margin-top: var(--s-6);
+}
+
+.path-unit__card {
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.path-unit__title {
+  margin: 0;
+}
+
+.path-unit__subtitle,
+.path-unit__why {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.path-unit__why {
+  margin-top: var(--s-3);
+}
+
+/* The source link runs on in the why line. Its padding makes the tap target at least 44px tall
+   without moving a line, as the coach notes' source link does. */
+.path-unit__source {
+  padding: var(--s-4) 0;
+  color: var(--accent);
+}
+
+/* The steps stack with no gap between rows, so a link as tall as its row, starting at its
+   node's centre, ends at the next node's centre. isolation keeps the links' z-index inside the
+   list, under every node and card. */
+.path-steps {
+  position: relative;
+  isolation: isolate;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.path-step {
+  position: relative;
+  display: grid;
+  align-items: start;
+  padding-bottom: var(--s-5);
+}
+
+/* The room before a side node is a quarter of the row less half the node, so the node's centre
+   sits at 25% of the row from its own edge: left or right. */
+.path-step--left {
+  grid-template-columns: max(0px, calc(25% - 52px)) 104px minmax(0, 1fr);
+}
+
+.path-step--right {
+  grid-template-columns: minmax(0, 1fr) 104px max(0px, calc(25% - 52px));
+}
+
+.path-step--center {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+.path-step > .path-node {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.path-step--center > .path-node {
+  grid-column: 1;
+}
+
+/* The side holds the node's card and, beside level 3, the crown with its own card. A card hugs
+   its node: from the left beside a left node, from the right beside a right one. A closed card
+   takes no room. */
+.path-step__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.path-step--left > .path-step__side {
+  grid-row: 1;
+  grid-column: 3;
+  margin-left: var(--s-2);
+}
+
+.path-step--right > .path-step__side {
+  grid-row: 1;
+  grid-column: 1;
+  align-items: flex-end;
+  margin-right: var(--s-2);
+}
+
+/* The checkpoint's card opens under it. */
+.path-step--center > .path-step__side {
+  grid-row: 2;
+  grid-column: 1;
+  align-items: center;
+  width: 100%;
+}
+
+.path-step--center .path-card {
+  margin-top: var(--s-3);
+}
+
+.path-step__side > .path-node--crown,
+.path-step__side > .path-node--crown + .path-card {
+  align-self: center;
+}
+
+/* A link runs from its node's centre, 32px down the row, as tall as the row, so it ends at the
+   next node's centre; its stroke keeps 3px however far it stretches. Walked is --ok, the rest
+   --grid. */
+.path-step__link {
+  position: absolute;
+  z-index: -1;
+  top: 32px;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.path-step__link path {
+  fill: none;
+  stroke: var(--grid);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.path-step__link--walked path {
+  stroke: var(--ok);
+}
+
+/* A node is one button: its circle over its label. Its name says what the circle shows. */
+.path-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  width: 104px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.path-node__circle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+  color: var(--muted);
+}
+
+/* A crown or a checkpoint is a 48px circle set --s-2 down, its centre level with a level's. */
+.path-node--crown .path-node__circle,
+.path-node--checkpoint .path-node__circle {
+  width: 48px;
+  height: 48px;
+  margin-top: var(--s-2);
+  border-color: var(--border);
+}
+
+/* Labels sit on a --bg halo, so a link passing under one never crosses its words. */
+.path-node__label,
+.path-node__note {
+  max-width: 100%;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-tok);
+  background: var(--bg);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.path-node__label {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* "Back tomorrow" under a resting level, and the current level's label, read in --text. */
+.path-node__note,
+.path-node--current .path-node__label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.path-node__number {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Cleared: a filled --ok circle with a check. */
+.path-node--cleared .path-node__circle {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: var(--on-accent);
+}
+
+/* Current, and a checkpoint once open: --accent; the current level in a soft halo. */
+.path-node--current .path-node__circle,
+.path-node--checkpoint.path-node--open .path-node__circle {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.path-node--current .path-node__circle::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border: 6px solid var(--accent-soft);
+  border-radius: var(--r-chip);
+}
+
+/* A cleared level's rings, --s-1 out: half, a --warn arc over the top half of the edge, once its
+   first check-back passed; gold, the full --warn ring, once its second did. */
+.path-node--half .path-node__circle::after,
+.path-node--gold .path-node__circle::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 3px solid var(--warn);
+  border-radius: var(--r-chip);
+}
+
+.path-node--half .path-node__circle::after {
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  transform: rotate(-45deg);
+}
+
+/* A crown: muted while locked, a --warn crown once open, filled --warn once earned. */
+.path-node--crown.path-node--open .path-node__circle {
+  color: var(--warn);
+}
+
+.path-node--crown.path-node--earned .path-node__circle {
+  border-color: var(--warn);
+  background: var(--warn);
+  color: var(--on-accent);
+}
+
+/* The clock on a cleared level whose check-back is due, over its ring. */
+.path-node__badge {
+  position: absolute;
+  z-index: 1;
+  top: calc(-1 * var(--s-1));
+  right: calc(-1 * var(--s-1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* A node's card, beside its node (under it for the crown and the checkpoint) and pointing at
+   it; the next step's is tinted. A closed card is hidden: display: flex would otherwise beat
+   the hidden attribute. */
+.path-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: min(100%, 240px);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.path-card[hidden] {
+  display: none;
+}
+
+.path-card--current {
+  background: var(--accent-soft);
+}
+
+.path-card__text {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* The pointer: a square turned 45 degrees on the card's edge, in the card's own background, with
+   the two borders that face the node. Beside a node it is level with the node's centre, 32px
+   down; above the card it is centred. */
+.path-card::before {
+  content: "";
+  position: absolute;
+  width: var(--s-3);
+  height: var(--s-3);
+  border: 1px solid var(--border);
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.path-card--point-left::before {
+  top: 25px;
+  left: calc(-1 * var(--s-2));
+  border-top-color: transparent;
+  border-right-color: transparent;
+}
+
+.path-card--point-right::before {
+  top: 25px;
+  right: calc(-1 * var(--s-2));
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+}
+
+.path-card--point-up::before {
+  top: calc(-1 * var(--s-2));
+  left: calc(50% - 6px);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+
+/* Keyboard focus scrolls a control clear of the nav, ring and all, as on History. */
+#screen-path :is(a, button) {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
+/* 200% zoom on a phone leaves 160 to 187px, too narrow to wind: every step stacks its node over
+   its card at the left, and the links, drawn for the winding rows, are left out. */
+@media (max-width: 319px) {
+  .path-step--left,
+  .path-step--right,
+  .path-step--center {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .path-step > .path-node,
+  .path-step > .path-step__side {
+    grid-column: 1;
+  }
+
+  .path-step > .path-step__side {
+    grid-row: 2;
+    align-items: stretch;
+    width: 100%;
+    margin: 0;
+  }
+
+  .path-step__side > .path-card {
+    width: 100%;
+    margin-top: var(--s-3);
+  }
+
+  .path-step__link,
+  .path-card::before {
+    display: none;
+  }
+}
