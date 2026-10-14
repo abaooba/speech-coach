@@ -1092,6 +1092,17 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: none;
 }
 
+/* While a take records or uploads, Leave level hides as the nav does, but keeps its box: the
+   banner keeps its height, so the card under it, and the passage a read level starts reading at
+   the Record tap, stay where they were. visibility still takes it out of the tab order and the
+   accessibility tree, and the id outranks the [hidden] rule above. A level with the live tap
+   lets the box go, as before: "Heard one" needs that room under the record button at 375 x 667. */
+#screen-practice:is([data-state="recording"],
+  [data-state="uploading"]):not(:has(.practice__live-tap)) .practice__banner-leave[hidden] {
+  display: inline-flex;
+  visibility: hidden;
+}
+
 /* The live tap: a three-column grid keeps "Heard one" centered, as the timer keeps its clock,
    with the count in the right column, so a growing count never moves the button under the
    thumb. 160px leaves each side column room for "12 heard" at 320px wide. */
