@@ -1,8 +1,9 @@
 /* tips.js: app.tips, the coaching shown under the Results transcript. select(report, options)
    reads one take's app.delivery report and the passage's target range and returns at most two
    {id, text} rule tips in priority order; pure. coachNotes(session, report, targetWpm, tier) is
-   the one request to POST /api/advice (docs/PLAN.md T41): cited notes written for the take, kept
-   in app.store flags so a take is asked about once. adviceRequest and parseCoachNotes are pure. */
+   the one request to POST /api/advice (docs/PLAN.md T41): cited notes written for the take;
+   Claude's are kept in app.store flags so a take is asked about once. adviceRequest and
+   parseCoachNotes are pure. */
 (function () {
   "use strict";
 
@@ -45,13 +46,16 @@
   // Only web links are drawn; any other url is left out and the label stands alone.
   const WEB_URL = /^https?:\/\//i;
   // Who wrote the notes, as the reply's `source` says: Claude, or the library's own words.
-  const SOURCES = ["ai", "library"];
+  const AI_SOURCE = "ai";
+  const SOURCES = [AI_SOURCE, "library"];
   // A high surrogate, the first half of an emoji in UTF-16: an excerpt never ends on one.
   const HIGH_SURROGATE_FIRST = 0xd800;
   const HIGH_SURROGATE_LAST = 0xdbff;
-  // The flags that keep the notes: one per take (the server's reply, word for word, under
+  // The flags that keep the notes: one per take (Claude's reply, word for word, under
   // NOTES_FLAG_PREFIX + the take's id) and one list of the entry ids shown here, oldest first,
-  // which the request sends so a guest is not shown an entry twice while new ones are left.
+  // which the request sends so a guest is not shown an entry twice while new ones are left. The
+  // library's own words are shown but not kept: they stand in only while there is no key, the
+  // model failed or timed out, or its budget is spent, so a later visit asks again.
   const NOTES_FLAG_PREFIX = "coachNotes:";
   const SHOWN_FLAG = "coachNotesShown";
 
@@ -324,13 +328,13 @@
   // the later write would drop the earlier one's ids.
   let shownListWritten = Promise.resolve();
 
-  // The coach notes for one take, or null when there are none to show. The notes kept here from
-  // the take's first visit come back without a request; otherwise the server is asked once,
-  // through app.auth.request so a signed-in speaker's cookie goes along and the server keeps
-  // their shown ids itself, and its reply is kept for the next visit along with the entry ids
-  // it showed. While that request is open, another call for the take gets the same promise. A
-  // reply that is not notes, no reply, or a store that cannot be read gives null and keeps
-  // nothing; notes the store cannot keep are still returned. Never rejects.
+  // The coach notes for one take, or null when there are none to show. Claude's notes, kept here
+  // from an earlier visit, come back without a request; otherwise the server is asked, through
+  // app.auth.request so a signed-in speaker's cookie goes along and the server keeps their shown
+  // ids itself. The entry ids it showed are recorded, and its reply is kept for the next visit
+  // when Claude wrote it. While that request is open, another call for the take gets the same
+  // promise. A reply that is not notes, no reply, or a store that cannot be read gives null and
+  // keeps nothing; notes the store cannot keep are still returned. Never rejects.
   function coachNotes(session, report, targetWpm, tier) {
     const id = session && session.id;
     if (!id || !canAskForNotes()) {
@@ -346,11 +350,12 @@
     return openRequests.get(key);
   }
 
-  // The one request behind coachNotes: the notes kept for the take, or else the server's.
+  // The one request behind coachNotes: Claude's notes kept for the take, or else the server's.
+  // Only Claude's are ever kept (keepNotes), so anything else under the flag is asked again.
   async function askForNotes(id, session, report, targetWpm, tier) {
     try {
       const kept = parseCoachNotes(await app.store.getFlag(NOTES_FLAG_PREFIX + id));
-      if (kept !== null) {
+      if (kept !== null && kept.source === AI_SOURCE) {
         return kept;
       }
       const shown = stringsOf(await app.store.getFlag(SHOWN_FLAG));
@@ -380,11 +385,15 @@
     );
   }
 
-  // Keeps the reply under the take's flag and adds its entry ids to the shown list. A store that
-  // fails here costs nothing but a repeat request on the next visit.
+  // Keeps Claude's reply under the take's flag, so the take is not asked about again, and adds
+  // the entry ids shown to the shown list whoever wrote them. The library's words are not kept
+  // (NOTES_FLAG_PREFIX). A store that fails here costs nothing but a repeat request on the next
+  // visit.
   async function keepNotes(id, replyBody, notes) {
     try {
-      await app.store.setFlag(NOTES_FLAG_PREFIX + id, replyBody);
+      if (notes.source === AI_SOURCE) {
+        await app.store.setFlag(NOTES_FLAG_PREFIX + id, replyBody);
+      }
       await keepShown(notes.tips.map((tip) => tip.entryId));
     } catch {
       // The notes are shown all the same.

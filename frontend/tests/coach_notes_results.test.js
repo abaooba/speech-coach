@@ -318,6 +318,26 @@ test("the reply is kept and the ids shown are recorded for the next take", async
   ]);
 });
 
+test("the library's own words are not kept: reopening the take asks again", async () => {
+  const library = { ...REPLY, source: "library" };
+  const { results, body, calls, flags } = mount([CURRENT], () => ({
+    status: 200,
+    body: library,
+  }));
+  await results.show({ id: "current" });
+  assert.deepEqual(headingsOf(body), ["Transcript", "Coach notes"]);
+  assert.equal(flags.get("coachNotes:current"), undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(flags.get("coachNotesShown"))), [
+    "filler-001",
+    "pause-002",
+    "general-003",
+  ]);
+
+  await results.show({ id: "current" });
+  assert.equal(calls.requests.length, 2);
+  assert.deepEqual(calls.requests[1].body.shown_ids, ["filler-001", "pause-002", "general-003"]);
+});
+
 test("a slow reply from an earlier visit never draws over a newer take", async () => {
   const slow = deferred();
   const replies = { current: () => slow.promise, earlier: () => ({ status: 0, body: null }) };

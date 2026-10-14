@@ -365,6 +365,36 @@ test("coachNotes asks the server once, keeps the reply and records the ids shown
   );
 });
 
+test("the library's own words are shown, not kept, and the next visit asks again", async () => {
+  const store = fakeStore(false);
+  store.flags.set("coachNotesShown", ["old-1"]);
+  const library = replyWith(["lib-1", "lib-2"], "library");
+  const auth = fakeAuth({ status: 200, body: library });
+  const tips = load({ store, auth });
+
+  const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Novice");
+  assert.equal(notes.source, "library");
+  assert.deepEqual(plain(notes.tips.map((tip) => tip.entryId)), ["lib-1", "lib-2"]);
+  assert.ok(!store.flags.has("coachNotes:take-1"), "no key, a timeout or a spent budget");
+  assert.deepEqual(store.flags.get("coachNotesShown"), ["old-1", "lib-1", "lib-2"]);
+
+  await tips.coachNotes(SESSION, REPORT, [140, 160], "Novice");
+  assert.equal(auth.calls.length, 2, "a later visit asks again, when Claude may answer");
+  assert.deepEqual(auth.calls[1].body.shown_ids, ["old-1", "lib-1", "lib-2"]);
+});
+
+test("only Claude's notes come back from the flag; anything else there is asked again", async () => {
+  const store = fakeStore(false);
+  store.flags.set("coachNotes:take-1", { ...REPLY, source: "library" });
+  const auth = fakeAuth({ status: 200, body: REPLY });
+  const tips = load({ store, auth });
+
+  const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
+  assert.equal(auth.calls.length, 1);
+  assert.deepEqual(plain(notes), NOTES);
+  assert.deepEqual(store.flags.get("coachNotes:take-1"), REPLY, "Claude's reply replaces it");
+});
+
 test("coachNotes answers from the kept reply without a request", async () => {
   const store = fakeStore(false);
   store.flags.set("coachNotes:take-1", REPLY);
