@@ -166,3 +166,16 @@ test("the How we measure page holds no debate word and links no debate source", 
   assertNoDebateWords("how.html", text);
   links.forEach((link) => assertNoDebateWords("how.html link", link));
 });
+
+// Practice's "See a sample result" saves sample-session.json as a take, so its title shows in
+// History and on Results and its words in the transcript.
+test("the bundled sample is an everyday take on a Practice prompt", () => {
+  const sampleFile = path.join(FRONTEND_DIR, "sample-session.json");
+  const sample = JSON.parse(fs.readFileSync(sampleFile, "utf8"));
+  const prompt = Array.from(APP.passages).find((entry) => entry.id === sample.passageId);
+  assert.ok(prompt, `the sample's ${sample.passageId} is a Practice entry`);
+  assert.equal(prompt.kind, "prompt");
+  assert.equal(sample.passageTitle, "Sample: " + prompt.title);
+  assertNoDebateWords("the sample's title", sample.passageTitle);
+  assertNoDebateWords("the sample's words", sample.transcript.map((word) => word.text).join(" "));
+});
