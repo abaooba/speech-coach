@@ -3846,7 +3846,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--warn);
 }
 
-/* The clock on a cleared level whose check-back is due, over its ring. */
+/* A node's badge, over its ring: the clock on a cleared level whose check-back is due, the lock
+   on a locked crown, the check on a cleared checkpoint. The last two say what the circle's
+   colour alone would not (DESIGN.md section 9). */
 .path-node__badge {
   position: absolute;
   z-index: 1;
@@ -3861,6 +3863,14 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-radius: var(--r-chip);
   background: var(--bg);
   color: var(--text);
+}
+
+/* On a crown's or a checkpoint's 48px circle the badge sits --s-2 out, across its edge as on a
+   level's circle, so it never covers the crown or the flag. */
+.path-node--crown .path-node__badge,
+.path-node--checkpoint .path-node__badge {
+  top: calc(-1 * var(--s-2));
+  right: calc(-1 * var(--s-2));
 }
 
 /* A node's card, beside its node (under it for the crown and the checkpoint) and pointing at
