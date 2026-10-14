@@ -74,7 +74,7 @@ test("without take 1's audio the Review still says the privacy line, with its lo
   assert.equal(visibleText(find(world.body, "btn--primary")).trim(), "Say it again");
 });
 
-test("a three-read level keeps take 1's recording through reads 2 and 3, and no other", async () => {
+test("a three-read level keeps read 1's recording through reads 2 and 3, no other", async () => {
   const world = createWorld({ history: [] });
   await world.open("restarts-1");
   world.tap("Record read 1");

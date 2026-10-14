@@ -57,7 +57,7 @@ function primaryText(world) {
   return primary ? visibleText(primary).trim() : null;
 }
 
-test("three misses today rest a loop, so the history below is read as a rest would be", async () => {
+test("three misses today rest a loop, so this history is a real day of misses", async () => {
   const world = createWorld({
     history: threeMisses("fillers-3", "loop"),
     cleared: clearedOn(["fillers-2"]),

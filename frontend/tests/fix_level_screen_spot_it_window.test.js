@@ -76,7 +76,7 @@ async function playThrough(world, taps) {
   return textOf(find(world.spot, "level-spot__score"));
 }
 
-test("the fillers sit far enough apart that each tap can only catch the one beside it", async () => {
+test("the fillers sit so far apart that a tap can only catch the one beside it", async () => {
   const world = await spotItReview();
   assert.equal(world.fillers.length, 6);
   world.fillers.slice(1).forEach((time, index) => {
@@ -85,7 +85,7 @@ test("the fillers sit far enough apart that each tap can only catch the one besi
   });
 });
 
-test("Spot it does not count a tap 2.2 s after a filler, which only a live tap's window would", async () => {
+test("Spot it leaves out a tap 2.2 s after a filler, which a live tap would count", async () => {
   const world = await spotItReview();
   const filler = world.fillers[1];
   const tap = filler + 2.2;
@@ -94,7 +94,7 @@ test("Spot it does not count a tap 2.2 s after a filler, which only a live tap's
   assert.equal(world.announcements[world.announcements.length - 1], "You caught 0 of 6.");
 });
 
-test("Spot it keeps each tap to a tenth of a second: 0.45 s early still catches the filler", async () => {
+test("Spot it keeps a tap to a tenth of a second: 0.45 s early still catches", async () => {
   const world = await spotItReview();
   // A filler whose tap 0.45 s early, rounded to the whole second, would fall out of the window:
   // rounded to a tenth, as the screen keeps a tap, it stays in.
