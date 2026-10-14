@@ -477,9 +477,10 @@
   // The transcript as a list of items to draw, in reading order: {type: "word", text, filler}
   // for every backend word and {type: "pause", length} for every [at, length] in `pauses`
   // (Results passes only the pauses the card counts: mid-sentence, or 5 s+ anywhere). A pause
-  // goes right after the last word whose end is at or before `at`; when no word has ended by
-  // then it goes before the first word. A word whose index is in `restartWords` (the second
-  // copies of the report's restarts) also gets `restart: true`. `scriptSlips` (optional) holds
+  // goes right after the word app.delivery judged it by (wordBeforePause): the last word that
+  // has ended by `at` or is still going then; when there is none it goes before the first
+  // word. A word whose index is in `restartWords` (the second copies of the report's
+  // restarts) also gets `restart: true`. `scriptSlips` (optional) holds
   // the report's `misreads` and `skips` for a take read from a script: a word whose index is a
   // misread's `wordIndex` gets `misread`, the script word it stands for (two, space-joined, when
   // both halves of "short-endure" were misread), and each skip becomes {type: "skip", text} after
@@ -504,7 +505,7 @@
     const slots = skippedBySlot.map(skipItems);
     pauseList.forEach((pause) => {
       const [at, length] = Array.isArray(pause) ? pause : [];
-      const slot = lastWordEndedBy(wordList, numberOr0(at)) + 1;
+      const slot = app.delivery.wordBeforePause(wordList, numberOr0(at)) + 1;
       slots[slot].push({ type: PAUSE_ITEM, length: numberOr0(length) });
     });
 
@@ -556,7 +557,9 @@
     return byWord;
   }
 
-  // Index of the last word whose end is at or before `at`, or -1 when none has ended yet.
+  // Index of the last word whose end is at or before `at`, or -1 when none has ended yet. Skips
+  // go by it: a skip's `at` is the end of the word said before it, so a next word that starts
+  // early never pulls the skip past it.
   function lastWordEndedBy(wordList, at) {
     for (let index = wordList.length - 1; index >= 0; index -= 1) {
       if (numberOr0(wordList[index] && wordList[index].end) <= at) {
