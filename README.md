@@ -200,6 +200,12 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
 - The audio is forwarded once to the speech-to-text provider you configure
   (Deepgram or AssemblyAI) and is subject to that provider's retention
   policy.
+- During a Path level, the browser keeps take 1's recording in memory
+  after its upload, so the review step can play it back. It is never
+  written to IndexedDB, uploaded again or saved anywhere else, and it is
+  released when the level ends: when the result shows, when you leave the
+  level or start another, or when you open a screen other than Practice or
+  the level. Reloading the page drops it too.
 - Transcripts and metrics are returned to the browser and stored in
   IndexedDB on the device. For the coach notes on Results, the browser also
   sends the take's numbers and the first 1,500 characters of its transcript
