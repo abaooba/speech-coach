@@ -102,17 +102,19 @@
     [READ_THROUGH]: "Read every word, as written",
   });
 
-  // The guards each kind of take checks. Where the spec's tables list a play's guards, that list
-  // is all it checks: Pace levels 1 and 2 are ladder reads checked for readThrough alone, so the
-  // 2 restarts Pace level 2 allows on a read of under a minute never fail as "other slips". A
-  // rule that already holds every weighted slip at or under the baseline (the checkpoints and
-  // Pace level 5) needs no steadyOtherSlips, and the Pace unit, which trains speed itself, has
-  // no minWpm.
+  // The guards each kind of take checks. Where the spec lists a play's guards, that list is all
+  // it checks: Pace levels 1 and 2 are ladder reads checked for readThrough alone, so the 2
+  // restarts Pace level 2 allows on a read of under a minute never fail as "other slips", and
+  // the Fillers checkpoint checks talkShare and minWpm. The Pace unit, which trains speed itself,
+  // has no minWpm, and every slip in it is an "other" slip, so a rule holding every weighted slip
+  // at or under the baseline (Pace level 5 and the Pace checkpoint) keeps them steady already. In
+  // any other unit it does not: a take could trade the unit's own slips for others and still hold
+  // the total, so the Restarts and Long pauses checkpoints check steadyOtherSlips.
   const TALK_GUARDS = [TALK_SHARE, MIN_WPM, STEADY_OTHER_SLIPS];
   const READ_GUARDS = [READ_THROUGH, MIN_WPM, STEADY_OTHER_SLIPS];
   const PACE_READ_GUARDS = [READ_THROUGH];
   const PACE_TALK_GUARDS = [TALK_SHARE, STEADY_OTHER_SLIPS];
-  const ALL_SLIPS_TALK_GUARDS = [TALK_SHARE, MIN_WPM];
+  const FILLERS_CHECKPOINT_GUARDS = [TALK_SHARE, MIN_WPM];
   const ALL_SLIPS_PACE_GUARDS = [TALK_SHARE];
 
   const NO_SPEECH = "No speech was found in this take.";
@@ -706,7 +708,7 @@
       crown: null,
       checkpoint: {
         conditions: [atMost("restartsPerMinute", 1), atMost("weightedPerMinute", USUAL)],
-        guards: ALL_SLIPS_TALK_GUARDS,
+        guards: TALK_GUARDS,
       },
     },
     {
@@ -789,7 +791,7 @@
       },
       checkpoint: {
         conditions: [atMost("fillersPerMinute", 3), atMost("weightedPerMinute", USUAL)],
-        guards: ALL_SLIPS_TALK_GUARDS,
+        guards: FILLERS_CHECKPOINT_GUARDS,
       },
     },
     {
@@ -867,7 +869,7 @@
       crown: null,
       checkpoint: {
         conditions: [atMost("longPauses", 0), atMost("weightedPerMinute", USUAL)],
-        guards: ALL_SLIPS_TALK_GUARDS,
+        guards: TALK_GUARDS,
       },
     },
     {

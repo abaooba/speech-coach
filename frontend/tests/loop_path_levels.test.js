@@ -515,7 +515,7 @@ test("every unit ends in a 2-minute checkpoint held to its target and the usual 
       label: "Checkpoint: 2-minute new topic",
       seconds: 120,
       conditions: [{ measure: "restartsPerMinute", max: 1 }, allSlips],
-      guards: ["talkShare", "minWpm"],
+      guards: TALK_GUARDS,
     },
     fillers: {
       id: "fillers_checkpoint",
@@ -529,7 +529,7 @@ test("every unit ends in a 2-minute checkpoint held to its target and the usual 
       label: "Checkpoint: 2-minute new topic",
       seconds: 120,
       conditions: [{ measure: "longPauses", max: 0 }, allSlips],
-      guards: ["talkShare", "minWpm"],
+      guards: TALK_GUARDS,
     },
     pace: {
       id: "pace_checkpoint",
