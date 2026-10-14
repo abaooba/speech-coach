@@ -37,13 +37,15 @@
   // --- States and plays ------------------------------------------------------------------------
 
   // A level's states as app.path.statusOf names them, and the two a crown or a checkpoint adds:
-  // open (it can be played and is not done yet) and, for a crown, earned.
+  // open (it can be played and is not done yet) and, for a crown, earned (a run of it is). A
+  // crown earned only part of the way, some of its runs still to win, is also partial.
   const CLEARED = "cleared";
   const CURRENT = "current";
   const LOCKED = "locked";
   const RESTING = "resting";
   const OPEN = "open";
   const EARNED = "earned";
+  const PARTIAL = "partial";
   // app.path.ringOf's rings for a cleared level: none, half (its first check-back passed) and
   // gold (its second passed: locked in).
   const NO_RING = "none";
@@ -563,7 +565,9 @@
   }
 
   // The crown beside level 3: locked until level 3 is cleared, then open, then earned once a
-  // run (sudden death) or the ladder is.
+  // run (sudden death) or the ladder is. Earned part of the way ("2 of 5 earned") it is partial:
+  // drawn unfilled, with that count under its label, since only a crown whose every run is
+  // earned is filled, as its card's "Crown earned." says.
   function crownStep(pathUnit, view) {
     const crown = app.path.crownState(pathUnit.id, view.cleared);
     let state = OPEN;
@@ -572,19 +576,17 @@
     } else if (crown.earned > 0) {
       state = EARNED;
     }
-    let words = state;
-    if (state === EARNED && !crown.complete) {
-      words = earnedCount(crown);
-    }
+    const partial = state === EARNED && !crown.complete;
+    const words = partial ? earnedCount(crown) : state;
     return {
       id: crown.id,
       kind: CROWN_NODE,
       number: null,
       state,
-      modifiers: [],
+      modifiers: partial ? [PARTIAL] : [],
       name: pathUnit.title + " crown, " + crown.label + ", " + words,
       label: crown.label,
-      note: null,
+      note: partial ? earnedCount(crown) : null,
       circle: app.ui.icon("crown", SMALL_NODE_ICON_SIZE),
       badge: false,
       card: crownCard(crown, state, view),

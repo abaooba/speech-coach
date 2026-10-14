@@ -2910,7 +2910,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   transform: rotate(-45deg);
 }
 
-/* A crown: muted while locked, a --warn crown once open, filled --warn once earned. */
+/* A crown: muted while locked, a --warn crown once open, filled --warn once earned. Earned only
+   part of the way (some runs still to win) it is not filled yet: the open crown on --bg inside
+   the earned crown's --warn edge, its count ("2 of 5 earned") under its label. */
 .path-node--crown.path-node--open .path-node__circle {
   color: var(--warn);
 }
@@ -2919,6 +2921,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-color: var(--warn);
   background: var(--warn);
   color: var(--on-accent);
+}
+
+.path-node--crown.path-node--earned.path-node--partial .path-node__circle {
+  background: var(--bg);
+  color: var(--warn);
 }
 
 /* The clock on a cleared level whose check-back is due, over its ring. */
