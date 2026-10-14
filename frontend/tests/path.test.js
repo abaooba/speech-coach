@@ -166,10 +166,12 @@ test("path.js assigns exactly app.path", () => {
   assert.deepEqual(Object.keys(PATH).sort(), [
     "MODE_TITLES",
     "UNITS",
+    "baseline",
     "currentLevel",
     "evaluate",
     "isUnlocked",
     "levelById",
+    "measure",
     "order",
     "pickColdRead",
     "statusOf",

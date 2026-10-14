@@ -72,6 +72,16 @@
   // skipped words as one marker for the same reason (screens/results.js).
   const MAX_SKIPPED_IN_ONE_PLACE = 8;
 
+  // The units' ids, in the order select.py's MEASURED_SKILLS lists their skills.
+  const UNIT_IDS = ["restarts", "fillers", "long-pauses", "pace"];
+
+  // rank.js's slip weights, without misreads and skips: what one slip costs, counted in fillers.
+  // Kept here so path.js loads on its own; change the two together.
+  const FILLER_WEIGHT = 1;
+  const RESTART_WEIGHT = 1.5;
+  const SHORT_MID_PAUSE_WEIGHT = 1;
+  const LONG_PAUSE_WEIGHT = 3;
+
   // The weakness ranking mirrors backend/advice/select.py weakest_skills and
   // distances_from_target, with the same targets, so the path leads with the skill the coach's
   // advice is about. Change the two together.
@@ -409,6 +419,147 @@
     return countText(restarts, "restart") + " and " + countText(misreads, "misread");
   }
 
+  // --- Measures and the baseline (spec section 2) ----------------------------------------------
+
+  // One take's numbers, as every Loop Path rule reads them, from its app.delivery report and its
+  // set seconds (the take's time limit): {spoke, setSeconds, speakingSeconds, minutes, fillers,
+  // fillersPerMinute, restarts, restartsPerMinute, shortMid, shortMidPerMinute, longPauses,
+  // longPausesPerMinute, wpm, cleanStretchSeconds, misreads, readSlips, followedScript,
+  // unreadRun, weightedPerMinute, otherPerMinute}. Rates are rounded to a tenth, wpm to a whole
+  // number and seconds to a tenth, as the screens show them, so a rule judged on them never
+  // contradicts its copy ("6.0 a minute, target 6" passes). `spoke` is false for a take without
+  // speech (no first word, or no speaking time), which fails every rule. `minutes` is the
+  // unrounded speaking time, the weight the take carries in a baseline. `shortMid` counts the
+  // mid-sentence pauses that are not long, so a long one counts once, as long. `readSlips` are a
+  // reading take's restarts and misreads (a skipped word is not a slip: a transcript can drop a
+  // short word the speaker said) and `unreadRun` the most script words skipped in one place.
+  // `weightedPerMinute` weighs every slip as rank.js does; `otherPerMinute` does the same with
+  // each unit's own skill left out, by unit id (weightedSlipsOf).
+  function measure(report, setSeconds) {
+    const given = report && typeof report === "object" ? report : {};
+    const facts = factsOf(given);
+    const minutes = facts.speakingSeconds / SECONDS_PER_MINUTE;
+    const counts = {
+      fillers: numberOr0(given.fillerCount),
+      restarts: facts.restartCount,
+      shortMid: shortMidPauseCount(given),
+      longPauses: numberOr0(given.longPauseCount),
+    };
+    const weighted = weightedSlipsOf(counts);
+    const perMinute = (count) => (minutes > 0 ? roundToTenth(count / minutes) : 0);
+    const otherPerMinute = {};
+    UNIT_IDS.forEach((unitId) => {
+      otherPerMinute[unitId] = perMinute(weighted.other[unitId]);
+    });
+    return {
+      spoke: facts.spoke,
+      setSeconds: numberOr0(setSeconds),
+      speakingSeconds: roundToTenth(facts.speakingSeconds),
+      minutes,
+      fillers: counts.fillers,
+      fillersPerMinute: perMinute(counts.fillers),
+      restarts: counts.restarts,
+      restartsPerMinute: perMinute(counts.restarts),
+      shortMid: counts.shortMid,
+      shortMidPerMinute: perMinute(counts.shortMid),
+      longPauses: counts.longPauses,
+      longPausesPerMinute: perMinute(counts.longPauses),
+      wpm: facts.wpm,
+      cleanStretchSeconds: roundToTenth(facts.cleanStretchSeconds),
+      misreads: facts.misreadCount,
+      readSlips: counts.restarts + facts.misreadCount,
+      followedScript: facts.followedScript,
+      unreadRun: longestSkipRun(facts.skips),
+      weightedPerMinute: perMinute(weighted.all),
+      otherPerMinute,
+    };
+  }
+
+  // The mid-sentence pauses that are not long, as rank.js counts them: the report's `pauses`
+  // list each as {midSentence, long}; a report without that list falls back on its count.
+  function shortMidPauseCount(report) {
+    if (!Array.isArray(report.pauses)) {
+      return numberOr0(report.midSentencePauseCount);
+    }
+    return report.pauses.filter(
+      (pause) => Boolean(pause) && pause.midSentence === true && pause.long !== true,
+    ).length;
+  }
+
+  // The weighted slips of {fillers, restarts, shortMid, longPauses}: `all` of them, and in
+  // `other`, by unit id, what is left once the unit's own skill is left out. Fillers leaves out
+  // the fillers and Restarts the restarts; Long pauses leaves out both kinds of pause, so
+  // fillers and restarts are what it must keep steady; Pace leaves out nothing.
+  function weightedSlipsOf(counts) {
+    const fillers = counts.fillers * FILLER_WEIGHT;
+    const restarts = counts.restarts * RESTART_WEIGHT;
+    const pauses =
+      counts.shortMid * SHORT_MID_PAUSE_WEIGHT + counts.longPauses * LONG_PAUSE_WEIGHT;
+    return {
+      all: fillers + restarts + pauses,
+      other: {
+        restarts: fillers + pauses,
+        fillers: restarts + pauses,
+        "long-pauses": fillers + restarts,
+        pace: fillers + restarts + pauses,
+      },
+    };
+  }
+
+  // The speaker's usual numbers, which a play freezes when its Goal step opens: their
+  // RECENT_TAKES latest own takes with speech in `history` (the sample left out, as order()
+  // leaves it out), each as measure() reads it. Each rate is the takes' total count over their
+  // total speaking minutes, so a long take counts for every minute of it; wpm and the clean
+  // stretch are means weighted by those minutes. {takes, minutes, fillersPerMinute,
+  // restartsPerMinute, shortMidPerMinute, longPausesPerMinute, wpm, cleanStretchSeconds,
+  // weightedPerMinute, otherPerMinute}, rounded as measure() rounds; null with no such take.
+  function baseline(history) {
+    const recent = [];
+    for (const take of ownTakes(history).sort(newestFirst)) {
+      if (recent.length === RECENT_TAKES) {
+        break;
+      }
+      const measured = measure(app.delivery.analyze(take.transcript, take.metrics), 0);
+      if (measured.spoke) {
+        recent.push(measured);
+      }
+    }
+    if (recent.length === 0) {
+      return null;
+    }
+    const minutes = sumOf(recent, (measured) => measured.minutes);
+    const perMinute = (count) => roundToTenth(count / minutes);
+    const weightedMean = (key) => sumOf(recent, (measured) => measured[key] * measured.minutes) / minutes;
+    const counts = {
+      fillers: sumOf(recent, (measured) => measured.fillers),
+      restarts: sumOf(recent, (measured) => measured.restarts),
+      shortMid: sumOf(recent, (measured) => measured.shortMid),
+      longPauses: sumOf(recent, (measured) => measured.longPauses),
+    };
+    const weighted = weightedSlipsOf(counts);
+    const otherPerMinute = {};
+    UNIT_IDS.forEach((unitId) => {
+      otherPerMinute[unitId] = perMinute(weighted.other[unitId]);
+    });
+    return {
+      takes: recent.length,
+      minutes,
+      fillersPerMinute: perMinute(counts.fillers),
+      restartsPerMinute: perMinute(counts.restarts),
+      shortMidPerMinute: perMinute(counts.shortMid),
+      longPausesPerMinute: perMinute(counts.longPauses),
+      wpm: Math.round(weightedMean("wpm")),
+      cleanStretchSeconds: roundToTenth(weightedMean("cleanStretchSeconds")),
+      weightedPerMinute: perMinute(weighted.all),
+      otherPerMinute,
+    };
+  }
+
+  // The speaker's own takes in `history`: objects, the bundled sample left out.
+  function ownTakes(history) {
+    return listOf(history).filter((take) => take && typeof take === "object" && isOwnTake(take));
+  }
+
   // --- Weakest unit first ----------------------------------------------------------------------
 
   // The units, the weakest first: each unit's distance from its target (distancesFromTarget)
@@ -642,6 +793,10 @@
     return Array.isArray(value) ? value : [];
   }
 
+  function sumOf(list, valueOf) {
+    return list.reduce((sum, item) => sum + valueOf(item), 0);
+  }
+
   function isFiniteNumber(value) {
     return typeof value === "number" && Number.isFinite(value);
   }
@@ -679,5 +834,7 @@
     statusOf,
     currentLevel,
     pickColdRead,
+    measure,
+    baseline,
   };
 })();
