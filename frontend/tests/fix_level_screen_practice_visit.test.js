@@ -127,7 +127,7 @@ test("a request Practice let go keeps the run no more: the next visit ends it", 
   assert.equal(context.closed, true);
 });
 
-test("a take Practice still holds (an upload that failed) keeps the run across visits", async () => {
+test("a take Practice still holds (a failed upload) keeps the run across visits", async () => {
   const { world, context } = await inReview();
   world.tap("Say it again");
   // The upload fails; Practice keeps the take and its request while the speaker looks back.

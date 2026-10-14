@@ -62,7 +62,7 @@ function heading(world) {
   return textOf(find(world.body, "level-heading"));
 }
 
-test("after a reload that cut a run off after read 1, the Goal says its audio is gone", async () => {
+test("after a reload cut a run off after read 1, the Goal says its audio is gone", async () => {
   const history = [playTake("r1", "restarts-1", 1, at(TODAY, 9)), yesterdaysTake()];
   const world = createWorld({ history });
   await world.open("restarts-1");
@@ -114,7 +114,10 @@ test("no line when nothing of this play was cut off today", async () => {
       []],
     [
       "the run went on past take 1",
-      [playTake("r2", "restarts-1", 2, at(TODAY, 9)), playTake("r1", "restarts-1", 1, at(TODAY, 8))],
+      [
+        playTake("r2", "restarts-1", 2, at(TODAY, 9)),
+        playTake("r1", "restarts-1", 1, at(TODAY, 8)),
+      ],
       "restarts-1",
       [],
     ],
@@ -139,7 +142,8 @@ test("one-take plays never say it: they keep no take 1 audio", async () => {
     playTake("c1", "fillers-3_checkback", 1, at(TODAY, 9), "checkback"),
     yesterdaysTake(),
   ];
-  const world = createWorld({ history, cleared: clearedOn(["fillers-1", "fillers-2", "fillers-3"]) });
+  const cleared = clearedOn(["fillers-1", "fillers-2", "fillers-3"]);
+  const world = createWorld({ history, cleared });
   await world.open("fillers_crown");
   assert.equal(goneLine(world), null);
 });

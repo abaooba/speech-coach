@@ -95,7 +95,7 @@ test("once read 2 is saved, take 1's audio goes: read 3 has no review to play it
   assert.equal(world.contexts.length, 1, "no second context was ever made");
 });
 
-test("on Restarts level 2, a take 1 played through an <audio> element goes after read 2", async () => {
+test("on Restarts level 2, take 1 played by an <audio> element goes after read 2", async () => {
   // Restarts level 2 opens once level 1 is cleared; this recording cannot be decoded.
   const world = createWorld({
     history: steadyHistory(),
