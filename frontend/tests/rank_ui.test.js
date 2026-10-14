@@ -144,13 +144,6 @@ const TIER_LINE = ["rank-card__tier", "sr-only"];
 const RATING_LINE = ["rank-card__rating", "sr-only", "sr-only"];
 const NEXT_LINE = ["rank-card__next", "sr-only", "sr-only"];
 
-function scaleParts(current) {
-  const slices = Array.from({ length: 7 }, (_, index) =>
-    index === current ? "rank-card__slice rank-card__slice--current" : "rank-card__slice",
-  );
-  return ["rank-card__scale", "rank-card__ruler", ...slices, "rank-card__zoom"];
-}
-
 function ladderParts(current) {
   const rows = [6, 5, 4, 3, 2, 1, 0].flatMap((tier) => {
     let state = "ahead";
@@ -182,7 +175,6 @@ function cardParts({ current, change = null, notch = false, gate = null }) {
     ...TIER_LINE,
     ...(change || []),
     ...RATING_LINE,
-    ...scaleParts(current),
     "rank-card__bar",
     "rank-card__fill",
     ...(notch ? ["rank-card__notch"] : []),
@@ -321,7 +313,7 @@ test("screen readers hear the card in the tier spec's order; the drawings are hi
     ],
   );
   assert.equal(spoken(foot), visible(foot));
-  for (const hidden of ["rank-card__scale", "rank-card__bar", "rank-card__ends"]) {
+  for (const hidden of ["rank-card__bar", "rank-card__ends"]) {
     assert.equal(find(card, hidden).getAttribute("aria-hidden"), "true", hidden);
   }
 });
@@ -337,34 +329,13 @@ test("the caption keeps its number and 'to' together, and the next floor is hidd
   assert.equal(spoken(top), "Top tier");
 });
 
-test("the bar, the ruler and the wedge sit at their true places", () => {
+test("the bar sits at its true place, with no ruler or wedge above it", () => {
   const card = progressCard(ELITE_TAKES);
   // 80.0 is (80 - 75) / 13 of Elite's 75 to 88.
   assert.equal(find(card, "rank-card__fill").getAttribute("style"), "width:38.46%");
-  const slices = find(card, "rank-card__ruler").children;
-  assert.deepEqual(
-    slices.map((slice) => slice.getAttribute("style")),
-    [
-      "left:0%;width:calc(40% - 2px)",
-      "left:40%;width:calc(20% - 2px)",
-      "left:60%;width:calc(15% - 2px)",
-      "left:75%;width:calc(13% - 2px)",
-      "left:88%;width:calc(8% - 2px)",
-      "left:96%;width:calc(3% - 2px)",
-      "right:0;width:calc(1% - 2px)",
-    ],
-    "the top slice hangs from the right end, so its 2px minimum never runs past 100",
-  );
-  const zoom = find(card, "rank-card__zoom");
-  assert.equal(zoom.namespaceURI, SVG_NS);
-  assert.equal(zoom.tagName, "svg");
-  assert.equal(zoom.getAttribute("viewBox"), "0 0 100 12");
-  assert.equal(zoom.getAttribute("preserveAspectRatio"), "none");
-  assert.equal(zoom.children.length, 1);
-  const wedge = zoom.children[0];
-  assert.equal(wedge.tagName, "polygon");
-  assert.equal(wedge.namespaceURI, SVG_NS);
-  assert.equal(wedge.getAttribute("points"), "75,0 88,0 100,12 0,12");
+  for (const removed of ["rank-card__scale", "rank-card__ruler", "rank-card__zoom"]) {
+    assert.equal(find(card, removed), null, removed + " was removed: one bar, no wedge");
+  }
   assert.deepEqual(
     find(card, "rank-card__ends").children.map((end) => end.textContent),
     ["75", "88"],
@@ -554,10 +525,11 @@ test("the speaker's tier is accent on accent-soft, and an Up line is --ok", () =
   assert.equal(mark("passed").background, "var(--muted)");
   assert.equal(mark("ahead").background, undefined, "an ahead tier's mark is hollow");
   assert.equal(declared(".rank-ladder__mark").border, "1.5px solid var(--muted)");
-  assert.equal(declared(".rank-card__slice--current").background, "var(--accent)");
   assert.equal(declared(".rank-card__fill").background, "var(--accent)");
   assert.equal(declared(".rank-card__bar").background, "var(--grid)");
-  assert.equal(declared(".rank-card__zoom polygon").fill, "var(--accent-soft)");
+  for (const removed of [".rank-card__ruler", ".rank-card__slice", ".rank-card__zoom polygon"]) {
+    assert.deepEqual(declared(removed), {}, removed + ": no ruler or wedge styles left");
+  }
   assert.equal(declared(".rank-card__notch").background, "var(--text)");
   assert.equal(declared(".rank-card__change").color, "var(--muted)");
   assert.equal(declared(".rank-card__change--up").color, "var(--ok)");

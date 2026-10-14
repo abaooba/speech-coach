@@ -2,11 +2,9 @@
    (docs/PLAN.md T37). model(takes, options) works out everything the card shows from the
    speaker's takes, reading the rank only through app.rank (rank.js, owner-written); it is pure:
    no clock, no DOM, no store. build(model, {screen}) draws that model node by node with
-   app.ui.el, and the wedge with createElementNS. */
+   app.ui.el. */
 (function () {
   "use strict";
-
-  const SVG_NS = "http://www.w3.org/2000/svg";
 
   // The two screens the card is drawn on. Progress shows the streak; Results shows what the take
   // on screen did to the rating.
@@ -57,12 +55,6 @@
   const CHANGE_ICON_SIZE = 12;
   const FLAME_ICON = "flame";
   const FOOT_ICON_SIZE = 16;
-
-  // The wedge under the ruler is drawn in a 100 x 12 box stretched to the column: its top edge
-  // spans the speaker's slice of the ruler and its bottom edge the whole bar, which zooms in on
-  // that slice.
-  const WEDGE_WIDTH = 100;
-  const WEDGE_HEIGHT = 12;
 
   // Each card's hidden heading has an id of its own: Progress and Results both keep a card.
   const TITLE_ID_PREFIX = "rank-card-title-";
@@ -141,7 +133,6 @@
       floor: now.floor,
       ceiling: now.ceiling,
       fill: percentOf(now.rating, now.floor, now.ceiling),
-      slices: slicesOf(now),
       ladder: ladderOf(now),
       next: nextOf(now),
       change: null,
@@ -238,16 +229,6 @@
       return roundTo(ceiling - 1 / TENTHS, TENTHS);
     }
     return rounded;
-  }
-
-  // Each tier's slice of the 0 to 100 ruler, lowest first, with the speaker's marked current.
-  function slicesOf(now) {
-    const tiers = app.rank.TIERS;
-    return tiers.map((tier, index) => ({
-      floor: tier.min,
-      ceiling: index === tiers.length - 1 ? TOP_RATING : tiers[index + 1].min,
-      current: index === now.index,
-    }));
   }
 
   // The ladder's rows, best tier first; the top tier's row draws a diamond.
@@ -453,7 +434,7 @@
     ]);
   }
 
-  // The stats column, top to bottom: tier, the change on Results, rating, ruler and wedge, bar,
+  // The stats column, top to bottom: tier, the change on Results, rating, bar,
   // the bar's two ends and the caption.
   function buildStats(card) {
     const el = app.ui.el;
@@ -465,7 +446,6 @@
         card.rating.toFixed(1),
         hidden(HIDDEN.outOf),
       ]),
-      buildScale(card),
       buildBar(card),
       el("p", { class: "rank-card__ends", "aria-hidden": "true" }, [
         el("span", { text: String(card.floor) }),
@@ -494,41 +474,6 @@
         change.now === null ? null : COPY.now + change.now,
       ]),
     ]);
-  }
-
-  // The 0 to 100 ruler at true scale, one slice per tier 2px short of the next, and under it
-  // the wedge from the speaker's slice out to the bar's full width.
-  function buildScale(card) {
-    const last = card.slices.length - 1;
-    const slices = card.slices.map((slice, index) =>
-      app.ui.el("span", {
-        class: slice.current ? "rank-card__slice rank-card__slice--current" : "rank-card__slice",
-        style: sliceStyle(slice, index === last),
-      }),
-    );
-    const zoom = svgEl("svg", {
-      class: "rank-card__zoom",
-      viewBox: "0 0 " + WEDGE_WIDTH + " " + WEDGE_HEIGHT,
-      preserveAspectRatio: "none",
-    });
-    const corners = [
-      [card.floor, 0],
-      [card.ceiling, 0],
-      [WEDGE_WIDTH, WEDGE_HEIGHT],
-      [0, WEDGE_HEIGHT],
-    ];
-    zoom.appendChild(svgEl("polygon", { points: corners.map((pair) => pair.join(",")).join(" ") }));
-    return app.ui.el("div", { class: "rank-card__scale", "aria-hidden": "true" }, [
-      app.ui.el("div", { class: "rank-card__ruler" }, slices),
-      zoom,
-    ]);
-  }
-
-  // A tier's slice of the ruler at its true place. The top tier's slice hangs from the right
-  // end, so its 2px minimum width never runs past 100.
-  function sliceStyle(slice, last) {
-    const place = last ? "right:0" : "left:" + slice.floor + "%";
-    return place + ";width:calc(" + (slice.ceiling - slice.floor) + "% - 2px)";
   }
 
   // The speaker's tier from floor to ceiling, filled to the rating, with the notch on Results
@@ -618,14 +563,6 @@
 
   function hidden(text) {
     return app.ui.el("span", { class: "sr-only", text });
-  }
-
-  // SVG elements need their own namespace and take every attribute, class included, through
-  // setAttribute.
-  function svgEl(tag, attrs) {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.keys(attrs).forEach((key) => node.setAttribute(key, attrs[key]));
-    return node;
   }
 
   app.rankCard = { model, build };

@@ -23,16 +23,6 @@ const SAMPLE_PREFIX = "Sample: ";
 // The tiers best first, as the ladder lists them.
 const LADDER_NAMES = ["Flawless", "Master", "Champion", "Elite", "Varsity", "Contender", "Novice"];
 const LADDER_FLOORS = [99, 96, 88, 75, 60, 40, 0];
-// Each tier's slice of the 0 to 100 ruler, lowest first.
-const SLICES = [
-  [0, 40],
-  [40, 60],
-  [60, 75],
-  [75, 88],
-  [88, 96],
-  [96, 99],
-  [99, 100],
-];
 
 const GATE_RULE = "2 minutes or more, 97 or more, no long pause.";
 
@@ -161,12 +151,6 @@ function ladderFor(name) {
   }));
 }
 
-// The ruler's expected slices, lowest first, with the speaker's tier `name` marked current.
-function slicesFor(name) {
-  const current = SLICES.length - 1 - LADDER_NAMES.indexOf(name);
-  return SLICES.map(([floor, ceiling], index) => ({ floor, ceiling, current: index === current }));
-}
-
 test("rankcard.js assigns app.rankCard with a model function and no other global", () => {
   const { context, app, card } = load();
   assert.deepEqual(Object.keys(context), ["app"]);
@@ -200,7 +184,7 @@ const TIER_CASES = [
   ["Flawless", FLAWLESS, 99.3, 99, 100, 31, "Top tier"],
 ];
 
-test("every tier has its bar range, fill, caption, ruler slice and ladder states", () => {
+test("every tier has its bar range, fill, caption and ladder states, and no ruler", () => {
   for (const [tier, takes, rating, floor, ceiling, fill, caption] of TIER_CASES) {
     const model = progressOf(takes);
     assert.equal(model.tier, tier);
@@ -209,7 +193,7 @@ test("every tier has its bar range, fill, caption, ruler slice and ladder states
     assert.equal(model.ceiling, ceiling, tier + " ceiling");
     assert.equal(model.fill, fill, tier + " fill");
     assert.equal(model.next.text, caption, tier + " caption");
-    assert.deepEqual(model.slices, slicesFor(tier), tier + " slices");
+    assert.equal(model.slices, undefined, tier + ": the ruler and its wedge were removed");
     assert.deepEqual(model.ladder, ladderFor(tier), tier + " ladder");
     const current = model.ladder.filter((row) => row.state === "current");
     assert.deepEqual(current.map((row) => row.name), [tier], "exactly one current row");

@@ -172,6 +172,13 @@ h2 {
   outline-offset: 2px;
 }
 
+/* The router, and the Level screen at each step, move focus to a heading so a screen reader
+   announces the new screen. A heading is not a control, so it shows no ring; every button and
+   link keeps the one above. */
+:is(h1, h2, h3)[tabindex="-1"]:focus {
+  outline: none;
+}
+
 .num {
   font-variant-numeric: tabular-nums;
 }
@@ -3053,46 +3060,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--text);
 }
 
-/* The ruler: one slice per tier at its true place, 2px apart (styled inline from the model),
-   so the top tiers shrink toward the right end. The speaker's slice is thick and accent. */
-.rank-card__scale {
-  margin-top: var(--s-3);
-}
-
-.rank-card__ruler {
-  position: relative;
-  height: 4px;
-}
-
-.rank-card__slice {
-  position: absolute;
-  top: 1px;
-  height: 2px;
-  min-width: 2px;
-  border-radius: var(--r-chip);
-  background: var(--muted);
-}
-
-.rank-card__slice--current {
-  top: 0;
-  height: 4px;
-  background: var(--accent);
-}
-
-/* The wedge: from the speaker's slice above to the bar's full width below. */
-.rank-card__zoom {
-  display: block;
-  width: 100%;
-  height: 12px;
-}
-
-.rank-card__zoom polygon {
-  fill: var(--accent-soft);
-}
-
 /* The speaker's tier from floor to ceiling, filled to the rating. */
 .rank-card__bar {
   position: relative;
+  margin-top: var(--s-3);
   height: 8px;
   border-radius: var(--r-chip);
   background: var(--grid);
