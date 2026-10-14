@@ -15,7 +15,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const FRONTEND_DIR = path.join(__dirname, "..");
-const LADDER_PASSAGE_ID = "rebuttal-uniforms";
+const LADDER_PASSAGE_ID = "explainer-rainbows";
 
 function loadApp() {
   const app = { screens: {} };

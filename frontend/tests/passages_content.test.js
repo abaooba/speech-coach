@@ -11,7 +11,7 @@ const vm = require("node:vm");
 
 const PASSAGES_SOURCE = fs.readFileSync(path.join(__dirname, "..", "passages.js"), "utf8");
 
-const REBUTTAL_IDS = ["rebuttal-uniforms", "rebuttal-homework"];
+const EVERYDAY_IDS = ["explainer-rainbows", "story-wrong-train"];
 const EXCERPT_IDS = ["gettysburg-opening", "liberty-or-death"];
 const DRILL_IDS = ["drill-st-clusters", "drill-pl-bl-clusters"];
 const PROMPT_LIMITS = {
@@ -68,16 +68,23 @@ test("every passage has 60 to 130 words", () => {
   }
 });
 
-test("the two rebuttals have 80 to 110 words and a my-opponents-argue-but shape", () => {
+test("the explainer and the story have 80 to 110 words and say what they are", () => {
   const passages = loadPassages();
-  assertWordBand(passages, REBUTTAL_IDS, 80, 110);
-  for (const id of REBUTTAL_IDS) {
+  assertWordBand(passages, EVERYDAY_IDS, 80, 110);
+  for (const id of EVERYDAY_IDS) {
     const entry = byId(passages, id);
     assert.equal(entry.kind, "passage");
     assert.deepEqual([...entry.targetWpm], [150, 170], `targetWpm of ${id}`);
-    assert.match(entry.text, /^My opponents? (argue|claim)/, `${id} opening`);
-    assert.match(entry.text, /\bbut\b/, `${id} turns on 'but'`);
+    assert.ok(!Object.hasOwn(entry, "source"), `${id} is original, with no source`);
   }
+  const explainer = byId(passages, "explainer-rainbows");
+  assert.equal(explainer.title, "Explainer: how rainbows form");
+  assert.match(explainer.text, /^A rainbow appears when/, "explainer opening");
+  assert.match(explainer.text, /\bThat is why\b/, "the explainer gives its reason");
+  const story = byId(passages, "story-wrong-train");
+  assert.equal(story.title, "Story: the wrong train");
+  assert.match(story.text, /^On my first morning/, "story opening");
+  assert.match(story.text, /\bI arrived late, but I arrived\./, "the story turns on 'but'");
 });
 
 test("the two excerpts have 90 to 130 words and a non-empty source", () => {

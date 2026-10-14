@@ -146,7 +146,7 @@ test("reads: each read's title, body and passage", async () => {
     "Read the passage at 140 to 160 wpm. Read 2 counts: 140 to 160 wpm.",
   );
   assert.equal(ladder.seconds, pace.app.path.playById("pace-1").takes[0].seconds);
-  assert.equal(ladder.material.id, "rebuttal-uniforms");
+  assert.equal(ladder.material.id, "explainer-rainbows");
   assert.deepEqual(ladder.material.targetWpm, [140, 160]);
 });
 

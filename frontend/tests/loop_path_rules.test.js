@@ -14,7 +14,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const FRONTEND_DIR = path.join(__dirname, "..");
-const LADDER_PASSAGE_ID = "rebuttal-uniforms";
+const LADDER_PASSAGE_ID = "explainer-rainbows";
 const NO_SPEECH = "No speech was found in this take.";
 const NOT_FOLLOWED =
   "This take did not follow the passage. Read it as written to clear this level.";

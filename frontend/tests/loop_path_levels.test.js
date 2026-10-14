@@ -282,7 +282,7 @@ test("reading levels read, talk levels talk, and takes are labelled in order", (
 });
 
 test("the crown's ladder read lasts as long as the passage takes at 180 wpm, rounded up", () => {
-  const passage = APP.passages.find((entry) => entry.id === "rebuttal-uniforms");
+  const passage = APP.passages.find((entry) => entry.id === "explainer-rainbows");
   assert.equal(passage.text.trim().split(/\s+/).length, LADDER_WORDS);
   assert.deepEqual(plain(play("pace_crown").takes), [
     {
@@ -909,11 +909,11 @@ test("a cold read's material is the passage pickColdRead picks, with the same dr
 });
 
 test("a ladder read's material is the ladder passage held to the read's own band", () => {
-  const passage = APP.passages.find((entry) => entry.id === "rebuttal-uniforms");
+  const passage = APP.passages.find((entry) => entry.id === "explainer-rainbows");
   const ladder = (id, index) => plain(PATH.materialFor(id, [], () => 0, index));
   assert.deepEqual(ladder("pace-1", 0), {
     kind: "passage",
-    id: "rebuttal-uniforms",
+    id: "explainer-rainbows",
     title: passage.title,
     text: passage.text,
     targetWpm: [140, 160],

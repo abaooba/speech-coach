@@ -318,8 +318,8 @@ test("every kind of material app.path.materialFor gives is painted, sent and sav
     ["fillers-1", 0, "free-talk"],
     ["fillers-3", 0, "impromptu"],
     ["restarts-1", 0, null],
-    ["pace-2", 0, "rebuttal-uniforms"],
-    ["pace-2", 1, "rebuttal-uniforms"],
+    ["pace-2", 0, "explainer-rainbows"],
+    ["pace-2", 1, "explainer-rainbows"],
     ["benchmark", 0, "benchmark-read"],
     ["benchmark", 1, "benchmark-talk"],
   ];

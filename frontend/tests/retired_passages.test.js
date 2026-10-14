@@ -1,10 +1,11 @@
 // Tests for takes saved on a retired id. On 2026-10-14 the owner ruled that Speech Coach is for
-// everyday fluency, not debate, so the Congress speech and PF constructive prompts left
-// Practice; a speaker's saved takes still carry their ids. app.passages.retired() keeps each
-// retired id's pace band and time limit and nothing a screen could show, so Results, History,
-// Progress, the rank and the Path read an old take exactly as before, under the take's own saved
-// title, while Practice never lists a retired id and the Path never hands one out. The frontend
-// modules load with vm.runInNewContext, the screens against the shared fake DOM.
+// everyday fluency, not debate, so the Congress speech and PF constructive prompts and the two
+// rebuttal passages left Practice; a speaker's saved takes still carry their ids.
+// app.passages.retired() keeps each retired id's pace band and time limit and nothing a screen
+// could show, so Results, History, Progress, the rank and the Path read an old take exactly as
+// before, under the take's own saved title, while Practice never lists a retired id and the Path
+// never hands one out. The frontend modules load with vm.runInNewContext, the screens against
+// the shared fake DOM.
 "use strict";
 
 const test = require("node:test");
@@ -21,6 +22,8 @@ const FRONTEND_DIR = path.join(__dirname, "..");
 const RETIRED = [
   { id: "congress-speech", kind: "prompt", targetWpm: [130, 160], timeLimitSeconds: 180 },
   { id: "pf-constructive", kind: "prompt", targetWpm: [140, 180], timeLimitSeconds: 240 },
+  { id: "rebuttal-uniforms", kind: "passage", targetWpm: [150, 170] },
+  { id: "rebuttal-homework", kind: "passage", targetWpm: [150, 170] },
 ];
 const DEFAULT_BAND = [140, 160];
 
@@ -188,10 +191,11 @@ test("summarize reads an old take with the band and time limit of its retired id
     const take = oldTake("t", entry.id, "Old take", { wpm: 135, seconds: 30, createdAt: OCT_9 });
     const summary = results.summarize(take);
     assert.deepEqual(plain(summary.target), entry.targetWpm, entry.id);
-    assert.deepEqual(plain(summary.timeUsed), {
-      seconds: 30,
-      limitSeconds: entry.timeLimitSeconds,
-    });
+    // A prompt was timed, so its take shows the time it used; a passage never was.
+    const timeUsed = entry.timeLimitSeconds
+      ? { seconds: 30, limitSeconds: entry.timeLimitSeconds }
+      : null;
+    assert.deepEqual(plain(summary.timeUsed), timeUsed, entry.id);
   }
   // An id that is neither listed nor retired still falls back to the default band, untimed.
   const gone = results.summarize(
@@ -213,6 +217,49 @@ test("Results shows an old take under its own title, with its old band and time 
   const [strength, focus] = findClass(body, "headline").children.map(fullText);
   assert.equal(strength, "Your pace is inside the 130 to 160 target.");
   assert.equal(focus, "Next take, hold this delivery on a longer topic.");
+});
+
+// `count` words read at exactly `wpm` from 1 s, each 80% of its step long.
+function wordsAt(count, wpm) {
+  const step = ((60 / wpm) * count) / (count - 0.2);
+  return Array.from({ length: count }, (_, index) => ({
+    text: "word" + index,
+    start: 1 + index * step,
+    end: 1 + index * step + step * 0.8,
+  }));
+}
+
+// An old read of the school uniforms rebuttal at 165 wpm, which followed its script.
+const REBUTTAL_READ = {
+  id: "read",
+  createdAt: OCT_9,
+  passageId: "rebuttal-uniforms",
+  passageTitle: "Rebuttal: school uniforms",
+  durationSeconds: 41,
+  metrics: {
+    pauses: [],
+    repeats: [],
+    fillers: {},
+    pace_windows: [],
+    script: { restarts: [], skipped: [], misread: [] },
+  },
+  transcript: wordsAt(109, 165),
+};
+
+test("an old read of a retired passage keeps its 150 to 170 band on every screen", async () => {
+  const results = await showScreen(RESULTS_FILES, "results", [REBUTTAL_READ], { id: "read" });
+  assert.equal(
+    fullText(findClass(results.body, "results__meta")),
+    "Rebuttal: school uniforms · " + results.app.ui.formatDate(OCT_9),
+  );
+  // 165 wpm sits inside 150 to 170; against the default 140 to 160 it would read "Slow down".
+  assert.equal(
+    fullText(findClass(results.body, "metric-card__hint")),
+    "Target 150 to 170",
+  );
+  const files = [...RESULTS_FILES, path.join("screens", "history.js")];
+  const history = await showScreen(files, "history", [REBUTTAL_READ]);
+  assert.equal(fullText(findClass(history.body, "session-row__status")), "On target");
 });
 
 test("History lists an old take under its own title, with a status from its old band", async () => {

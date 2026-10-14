@@ -20,7 +20,7 @@ const FIXTURES_DIR = path.join(FRONTEND_DIR, "..", "backend", "tests", "fixtures
 
 const UNIT_IDS = ["restarts", "fillers", "long-pauses", "pace"];
 const NO_SPEECH = "No speech was found in this take.";
-const LADDER_PASSAGE_ID = "rebuttal-uniforms";
+const LADDER_PASSAGE_ID = "explainer-rainbows";
 // A cold read is read at the slow edge of its band at worst (passages.js gives 140 to 160).
 const SLOW_EDGE_WPM = 140;
 

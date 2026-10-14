@@ -47,7 +47,7 @@
   const BENCHMARK_MATERIAL = "benchmark"; // app.passages.benchmark(): one read, then one talk
   const YOUR_DAY_PROMPT_ID = "free-talk";
   const IMPROMPTU_PROMPT_ID = "impromptu";
-  const LADDER_PASSAGE_ID = "rebuttal-uniforms";
+  const LADDER_PASSAGE_ID = "explainer-rainbows";
 
   const SECONDS_PER_MINUTE = 60;
   // Word times are in seconds to the millisecond; two times closer than this are the same moment.

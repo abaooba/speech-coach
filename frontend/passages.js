@@ -67,27 +67,27 @@
     "Tell the story of a small mistake that turned out well.",
   ];
 
-  const REBUTTAL_UNIFORMS = [
-    "My opponents claim that uniforms erase bullying, but the evidence says otherwise.",
-    "Students who want to single someone out will find a reason, whether it is shoes,",
-    "a backpack, or a phone. The real problem is school culture, and a dress code does",
-    "not change culture. Second, they argue that uniforms save families money. In",
-    "practice, parents still buy everyday clothes for evenings and weekends, which makes",
-    "the uniform an added cost, not a replacement. Consider what we lose.",
-    "Choosing how to present yourself is one of the few decisions a student makes every",
-    "day. Taking that away teaches compliance, not confidence. The proposal fails on",
-    "its own terms.",
+  // The Read tab's everyday texts: an explainer and a short story, original, read as written.
+  // Like the cold reads, they hold no digit, symbol, quotation mark, number word or habit word,
+  // so a take that reads one as written shows no misread and no filler. The explainer is also
+  // the Pace ladder's passage (path.js), 109 words, so the ladder reads keep their set seconds.
+  const EXPLAINER_RAINBOWS = [
+    "A rainbow appears when sunlight meets rain at the right angle. Sunlight looks white, but it",
+    "is really a mix of many colors. When a beam of light enters a raindrop, it slows down and",
+    "bends. Each color bends a slightly different amount, and the colors separate. Inside the",
+    "drop, the light reflects off the back and bends again as it leaves. Millions of drops send",
+    "these colors toward your eyes at once. That is why you only see a rainbow with the sun",
+    "behind you and rain in front of you. When a storm clears in the late afternoon, turn your",
+    "back to the sun and look up.",
   ].join(" ");
 
-  const REBUTTAL_HOMEWORK = [
-    "My opponents argue that homework builds discipline, but the examples they offer show",
-    "effort, not learning. Discipline comes from habits a student chooses, not from",
-    "worksheets handed out at night. They also say homework prepares students for college.",
-    "Yet a seventh grader who sleeps six hours is not preparing for anything. Tired",
-    "students retain less, and the students with the least quiet time at home fall",
-    "further behind. Finally, my opponents ignore what homework replaces: sleep, family",
-    "dinners, sports, and play. A fair policy asks which of these a school is willing to",
-    "trade. On that question, their case offers no answer.",
+  const STORY_WRONG_TRAIN = [
+    "On my first morning in a new city, I got on the wrong train. I only noticed when the",
+    "station names stopped matching the map in my hand. My heart was racing, and every word of",
+    "my new language seemed to disappear. I took a slow breath and asked the woman beside me for",
+    "help. She smiled, studied the map, and told me to change at the next stop. Then she walked",
+    "with me to the right platform. I arrived late, but I arrived. Since that day, asking a",
+    "stranger for help no longer frightens me. Most people are glad to help when you ask.",
   ].join(" ");
 
   const DRILL_ST_CLUSTERS = [
@@ -180,17 +180,17 @@
       topics: STORY_TOPICS,
     },
     {
-      id: "rebuttal-uniforms",
+      id: "explainer-rainbows",
       kind: "passage",
-      title: "Rebuttal: school uniforms",
-      text: REBUTTAL_UNIFORMS,
+      title: "Explainer: how rainbows form",
+      text: EXPLAINER_RAINBOWS,
       targetWpm: [150, 170],
     },
     {
-      id: "rebuttal-homework",
+      id: "story-wrong-train",
       kind: "passage",
-      title: "Rebuttal: homework",
-      text: REBUTTAL_HOMEWORK,
+      title: "Story: the wrong train",
+      text: STORY_WRONG_TRAIN,
       targetWpm: [150, 170],
     },
     {
@@ -232,9 +232,10 @@
   // take that reads one as written shows no misread and no filler. They are not entries of
   // app.passages, so the Read tab keeps its six passages; coldReads() hands them out.
 
-  // A steady pace for a text read for the first time, a step under the rehearsed rebuttals' 150
-  // to 170. It is also the band summarize() in screens/results.js falls back on for an id that is
-  // not in app.passages, so a cold-read take is held to this band on every screen.
+  // A steady pace for a text read for the first time, a step under the 150 to 170 of the Read
+  // tab's explainer and story, which can be rehearsed. It is also the band summarize() in
+  // screens/results.js falls back on for an id that is not in app.passages, so a cold-read take
+  // is held to this band on every screen.
   const COLD_READ_TARGET_WPM = [140, 160];
 
   // One cold read, shaped like the passages above, with its own copy of the band.
@@ -530,6 +531,8 @@
   const RETIRED = [
     { id: "congress-speech", kind: "prompt", targetWpm: [130, 160], timeLimitSeconds: 180 },
     { id: "pf-constructive", kind: "prompt", targetWpm: [140, 180], timeLimitSeconds: 240 },
+    { id: "rebuttal-uniforms", kind: "passage", targetWpm: [150, 170] },
+    { id: "rebuttal-homework", kind: "passage", targetWpm: [150, 170] },
   ];
 
   // Each call returns new objects, so a caller can change its copy without changing the next.
