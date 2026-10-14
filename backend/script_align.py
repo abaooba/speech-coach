@@ -123,7 +123,9 @@ def align(words: Sequence[Word], script: str) -> ScriptReport:
     its text is the phrase as first spoken, up to its last word that read the script (a
     cut-off fragment such as 'evi—' reads the word it begins), without um/uh/hmm, and `at` is
     when that phrase began. Words said after the last script word read as written are off the
-    script and start no restart. A script with no words reports nothing.
+    script and start no restart, nor does talk before the reading that only happens to say the
+    script's first word ('Hi, my name is' before 'My opponents claim'). A script with no words
+    reports nothing.
     """
     return _read(words, script)[0]
 
@@ -316,10 +318,13 @@ def _restart_phrases(
     position the speaker is at when it says that word (see says_again: 'I' for "I'm",
     'evi—' for 'evidence'); or one past it, or up to RESTART_MAX_GO_BACK_WORDS back, when it
     says that word and the next spoken word reads on from there. Otherwise ('day' in
-    'a day —') it reads nothing. A restart is a word reading a position before the one the
-    speaker had reached. Its phrase runs from where the speaker first read that position,
-    since the last restart, to the last word before the jump that read the script. A word
-    after `last_read`, the last spoken word read as written, is off the script: it reads nothing.
+    'a day —') it reads nothing. Until some word has read the script, a filler or extra word
+    that says its first word reads it only when the next spoken word says it again or reads
+    on (see _reads_at), so talk before the reading ('my' in 'my name is') reads nothing.
+    A restart is a word reading a position before the one the speaker had reached. Its phrase
+    runs from where the speaker first read that position, since the last restart, to the last
+    word before the jump that read the script. A word after `last_read`, the last spoken word
+    read as written, is off the script: it reads nothing.
     """
     readings = [said for said, _ in steps if said is not None]
     reads = {said: read for said, read in steps if said is not None}
@@ -337,14 +342,15 @@ def _restart_phrases(
     reached, since = 0, 0
     for order, said in enumerate(readings):
         position = reads[said]
+        after = following[order]
+        after_read = None if after is None else (after, reads[after])
         if said > last_read:
             position = None
         elif position is None and spoken.fillers[said]:
             is_script_word = reached < len(script) and script[reached] == spoken.tokens[said]
-            position = reached if is_script_word else None
+            reads_it = is_script_word and _reads_at(spoken, script, reached, after_read)
+            position = reached if reads_it else None
         elif position is None:
-            after = following[order]
-            after_read = None if after is None else (after, reads[after])
             position = _extra_word_position(spoken, script, said, reached, after_read)
         if position is not None and position < reached:
             phrase = _abandoned_phrase(readings, positions, since, position)
@@ -372,7 +378,7 @@ def _extra_word_position(
     def says(position: int) -> bool:
         return says_again(spoken.tokens[said], script[position], spoken.cut_offs[said])
 
-    if at < len(script) and says(at):
+    if at < len(script) and says(at) and _reads_at(spoken, script, at, following):
         return at
     if following is None:
         return None
@@ -382,6 +388,28 @@ def _extra_word_position(
         if reads_here and _reads_on(spoken, script, position, following):
             return position
     return None
+
+
+def _reads_at(
+    spoken: _Spoken, script: list[str], at: int, following: tuple[int, int | None] | None
+) -> bool:
+    """Whether a word saying script word `at`, the one the speaker is at, reads it.
+
+    Once a word has read the script (`at` is past 0) it does. Before that, talk before the
+    reading can say the script's first word too ('my' in 'Hi, my name is', before 'My opponents
+    claim'), so it reads it only when the next spoken word reads on from there ('My, um, my
+    opponents', 'the evi— the evidence') or, not read itself, says that word again ('We, we,
+    uh, we affirm'). `following` is the next spoken word and what it reads.
+    """
+    if at > 0:
+        return True
+    if following is None:
+        return False
+    next_said, next_read = following
+    said_again = next_read is None and says_again(
+        spoken.tokens[next_said], script[at], spoken.cut_offs[next_said]
+    )
+    return said_again or _reads_on(spoken, script, at, following)
 
 
 def _reads_on(
