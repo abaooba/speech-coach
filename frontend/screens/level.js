@@ -215,6 +215,11 @@
     if (ticket !== showCount) {
       return;
     }
+    // A take handed back while the store was read brought this play's run back (takeSaved).
+    if (run !== null && run.playId === known.id) {
+      render();
+      return;
+    }
     const blocked = blockedReason(known, history, cleared);
     if (blocked !== null) {
       renderState(blocked.title, blocked.body, blocked.icon);
@@ -290,6 +295,8 @@
       // The take recorded next, and the one the Result shows.
       takeIndex: 0,
       last: null,
+      // Whether the run has handed Practice a take to record yet (startTake).
+      requested: false,
       // The step last drawn, so a new step takes focus and is announced.
       drawn: null,
     };
@@ -346,6 +353,7 @@
     }
     stopPrep();
     stopPlayback(target.audio);
+    target.requested = true;
     practice.startLevelTake(requestFor(target, takeIndex));
   }
 
@@ -515,7 +523,8 @@
 
   // Practice saved the take and hands its recording back. A loop keeps take 1's audio for the
   // review; a pass writes every record evaluate listed. Then the run moves to its next step and
-  // the screen shows it. A run that has ended still writes its records, but shows nothing.
+  // the screen shows it. A take that answers a run which has ended was judged and saved all the
+  // same, so that run comes back to show it (bringBack), unless another play holds the screen.
   async function takeSaved(target, takeIndex, saved) {
     const take = target.takes[takeIndex];
     if (!take) {
@@ -533,7 +542,7 @@
     if (take.evaluation.passed === true && take.evaluation.records.length > 0) {
       await keepRecords(target, take.evaluation.records);
     }
-    if (run !== target) {
+    if (run !== target && !bringBack(target)) {
       return;
     }
     advance(target, takeIndex);
@@ -542,6 +551,22 @@
     } else {
       app.router.go(LEVEL_ROUTE, { id: target.playId });
     }
+  }
+
+  // A run that ended while Practice still held its take (an upload that failed, then went
+  // through on Retry once the speaker came back) is the screen's run again, so the speaker sees
+  // what the take did: the Result, a miss's next try, or after take 1 its feedback. Take 1's
+  // audio went with the run and stays gone. It comes back only while no other play holds the
+  // screen: no run at all, or a fresh one of this same play that has asked Practice for no
+  // take yet. Returns whether it came back.
+  function bringBack(target) {
+    const freshOfThisPlay = run !== null && run.playId === target.playId && !run.requested;
+    if (run !== null && !freshOfThisPlay) {
+      return false;
+    }
+    endRun();
+    run = target;
+    return true;
   }
 
   // The saved take as the history reads it: Practice's session, with what the run knows

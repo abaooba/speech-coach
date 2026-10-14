@@ -66,7 +66,9 @@ test("a new speaker's take 1 without speech: take 2 is still judged, on its own 
   assert.ok(world.store.marks.includes("fillers-1"));
 });
 
-test("a pass handed back after the run ended still writes its records, and shows nothing", async () => {
+// A take that answers an ended run is judged and saved all the same, so the speaker sees it
+// (review fix: fix_level_screen_ended_run.test.js covers the ways back in).
+test("a pass handed back after the run ended writes its records and shows them", async () => {
   const world = createWorld({
     history: fillersYesterday(),
     cleared: clearedOn(["fillers-1", "fillers-2"]),
@@ -80,7 +82,8 @@ test("a pass handed back after the run ended still writes its records, and shows
   const gone = world.router.gone.length;
   await world.finishTake(talkResult({ fillers: 8 }));
   assert.deepEqual(world.store.marks, ["fillers-3"]);
-  assert.equal(world.router.gone.length, gone, "no route back to the ended run");
+  assert.deepEqual(world.router.gone.slice(gone), ["level/fillers-3"], "one route, to the run");
+  assert.equal(textOf(find(world.body, "level-result__title")), "Level cleared");
 });
 
 test("Leave level during take 1 ends the run: the level starts again at a fresh Goal", async () => {
