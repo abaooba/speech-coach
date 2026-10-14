@@ -619,9 +619,11 @@
 
   // The step after the take at `takeIndex`: the next one app.loop.stepsFor lists, or for a
   // retry the Result once its attempt is complete. An attempt is as many takes as the play's
-  // list scores: one, or Pace level 2's pair of reads. The Result releases take 1's audio, and
-  // so does a feedback with no moment to look at: its "Go to take 2" skips the review, the only
-  // step that plays take 1, so the recording is not kept for nothing.
+  // list scores: one, or Pace level 2's pair of reads. Take 1's audio is kept only for the
+  // review after it, the one step that plays take 1, so it is released as soon as nothing can
+  // play it: when a later take is saved (the review never shows again, and Restarts levels 1
+  // and 2 still wait on read 3), on the Result, and after a feedback with no moment to look at,
+  // whose "Go to take 2" skips the review. The recording is never kept for nothing.
   function advance(target, takeIndex) {
     const next = stepAfter(target, takeIndex);
     target.view = next.view;
@@ -632,6 +634,9 @@
       if (target.moments.length === 0) {
         releaseAudio(target);
       }
+    }
+    if (takeIndex > 0) {
+      releaseAudio(target);
     }
     if (next.view === RESULT_VIEW) {
       target.last = takeIndex;
