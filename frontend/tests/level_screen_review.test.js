@@ -99,7 +99,7 @@ test("the change line compares take 1 with the latest earlier take", async () =>
   assert.equal(byTag(flat, "svg")[0].getAttribute("data-icon"), "dash");
 });
 
-test("take 1's card lists up to three moments, each its time and words, the slip marked", async () => {
+test("take 1's card lists up to three moments, their times and words, slips marked", async () => {
   const world = await fillersThreeAfterTakeOne();
   const card = find(world.body, "level-take");
   assert.equal(textOf(find(card, "level-card__title")), "Three moments to look at");
@@ -115,7 +115,10 @@ test("take 1's card lists up to three moments, each its time and words, the slip
     moments.map((moment) => [moment.time, moment.text]),
   );
   assert.deepEqual(
-    [textOf(find(items[0], "level-moments__time")), visibleText(find(items[0], "level-moments__words"))],
+    [
+      textOf(find(items[0], "level-moments__time")),
+      visibleText(find(items[0], "level-moments__words")),
+    ],
     ["0:03", "word3 word4 um word6 word7"],
   );
   const mark = find(items[0], "tok--filler");
@@ -129,7 +132,8 @@ test("the level's tip follows take 1's card, with its source", async () => {
   const card = find(world.body, "level-tip");
   assert.ok(hasClass(card, "tip-card"));
   assert.equal(visibleText(find(card, "level-tip__text")).trim(), tip.text);
-  assert.equal(byTag(find(card, "level-tip__text"), "svg")[0].getAttribute("data-icon"), "lightbulb");
+  const bulb = byTag(find(card, "level-tip__text"), "svg")[0];
+  assert.equal(bulb.getAttribute("data-icon"), "lightbulb");
   const link = find(card, "level-source__link");
   assert.equal(link.getAttribute("href"), tip.url);
   assert.equal(link.getAttribute("target"), "_blank");
@@ -149,6 +153,21 @@ test("Fillers level 3's feedback says how many fillers were caught live", async 
   other.tap("Record take 1");
   await other.finishTake(talkResult({ fillers: 10 }), { liveTaps: [3.5] });
   assert.equal(find(other.body, "level-take__caught"), null, "only level 3 taps live");
+});
+
+test("one or two moments are counted in words, and the review's time with them", async () => {
+  const titleOf = (world) => textOf(find(find(world.body, "level-take"), "level-card__title"));
+  const two = await fillersThreeAfterTakeOne(talkResult({ fillers: 2 }));
+  assert.equal(titleOf(two), "Two moments to look at");
+  assert.equal(visibleText(primary(two)).trim(), "Review 2 moments (20 s)");
+  two.tap("Review 2 moments (20 s)");
+  const header = find(two.body, "level-review__header");
+  assert.equal(textOf(find(header, "level-heading")), "Look at 2 moments");
+  assert.equal(textOf(find(header, "level-review__about")), "about 20 s");
+
+  const one = await fillersThreeAfterTakeOne(talkResult({ fillers: 1 }));
+  assert.equal(titleOf(one), "One moment to look at");
+  assert.equal(visibleText(primary(one)).trim(), "Review 1 moment (10 s)");
 });
 
 test("a take 1 with nothing to look at goes straight to take 2", async () => {
@@ -274,7 +293,10 @@ test("a read's review names read 2 and reads it again", async () => {
   world.tap("Read a phrase ahead");
   world.tap("Read it again");
   assert.equal(world.request().title, "Read 2 of 2");
-  assert.equal(world.request().body, "Your fix: Read a phrase ahead. Read 2 counts: 2 or fewer slips.");
+  assert.equal(
+    world.request().body,
+    "Your fix: Read a phrase ahead. Read 2 counts: 2 or fewer slips.",
+  );
 });
 
 test("a pace third outside the band is flagged in the moments", async () => {
@@ -339,7 +361,8 @@ test("coming back to the same step moves nothing", async () => {
   const spoken = world.announcements.length;
   world.router.go("practice");
   await world.open("fillers-3");
-  assert.equal(textOf(find(find(world.body, "level-review__header"), "level-heading")), "Look at 3 moments");
+  const header = find(world.body, "level-review__header");
+  assert.equal(textOf(find(header, "level-heading")), "Look at 3 moments");
   assert.equal(world.focusLog.length, focused);
   assert.equal(world.announcements.length, spoken);
 });

@@ -104,7 +104,7 @@ test("a pass writes the level and every level it jumped, and says so", async () 
   assert.equal(findAll(world.body, "level-steps__item--done").length, 4);
 });
 
-test("a pass shows when its check-backs fall: two dated rows, the second turning it gold", async () => {
+test("a pass shows when its check-backs fall: two dated rows, the second gold", async () => {
   const world = await fillersThreeResult(talkResult({ fillers: 8 }));
   assert.deepEqual(world.store.marks, ["fillers-3"]);
   assert.equal(find(world.body, "level-jump"), null);
@@ -130,7 +130,10 @@ test("a pass names the next level with a link to start it, beside Back to path",
   const next = find(world.body, "level-next");
   assert.equal(textOf(find(next, "level-next__label")), "Next");
   assert.equal(textOf(find(next, "level-next__title")), "Fillers, level 4");
-  assert.equal(textOf(find(next, "level-next__goal")), "Pause instead, 5 or fewer fillers a minute");
+  assert.equal(
+    textOf(find(next, "level-next__goal")),
+    "Pause instead, 5 or fewer fillers a minute",
+  );
   assert.equal(primaryText(world), "Start level 4");
   assert.equal(hrefOf(world, "Start level 4"), "#/level/fillers-4");
   assert.equal(hrefOf(world, "Back to path"), "#/path");

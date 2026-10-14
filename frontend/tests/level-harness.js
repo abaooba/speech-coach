@@ -371,7 +371,13 @@ function talkResult({ seconds = 90, words = 225, fillers = 0, transcript, pauses
 
 // A read of a script: a script restart at each word index in `restartsAt`, a misread at each in
 // `misreadAt`. `followed` false leaves out the script block, as for a take that strayed.
-function readResult({ seconds = 80, words = 200, restartsAt = [], misreadAt = [], followed = true }) {
+function readResult({
+  seconds = 80,
+  words = 200,
+  restartsAt = [],
+  misreadAt = [],
+  followed = true,
+}) {
   const transcript = wordsOver(words, seconds);
   const restarts = restartsAt.map((index) => ({
     text: transcript[index].text + " " + transcript[index + 1].text,

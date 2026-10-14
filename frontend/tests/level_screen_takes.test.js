@@ -130,7 +130,8 @@ test("reads: each read's title, body and passage", async () => {
   assert.equal(read1.title, "Read 1 of 3");
   assert.equal(read1.body, "Read the passage aloud. Read 3 counts: 4 or fewer slips.");
   assert.equal(read1.seconds, 90);
-  assert.deepEqual(read1.material, plain(restarts.app.path.materialFor("restarts-1", history, () => 0, 0)));
+  const drawn = restarts.app.path.materialFor("restarts-1", history, () => 0, 0);
+  assert.deepEqual(read1.material, plain(drawn));
   assert.equal(read1.material.kind, "passage");
   assert.equal(read1.material.topic, null);
   assert.ok(read1.material.id.startsWith("cold-read-"), read1.material.id);
@@ -190,10 +191,34 @@ test("one-take plays: one take or one read, with the target", async () => {
     "pace-3",
   ]);
   const cases = [
-    ["fillers-3_checkback", "Record", "One take", "Talk for 90 s. Target: 6 or fewer fillers a minute.", 90],
-    ["restarts-1_checkback", "Read it", "One read", "Read the passage aloud. Target: 4 or fewer slips.", 90],
-    ["fillers_crown", "Record", "One take", "Talk for 45 s. Target: 0:30 without a filler or restart.", 45],
-    ["pace_crown", "Read it", "One read", "Read the passage aloud. Target: 170 to 190 wpm, at most 1 restart.", null],
+    [
+      "fillers-3_checkback",
+      "Record",
+      "One take",
+      "Talk for 90 s. Target: 6 or fewer fillers a minute.",
+      90,
+    ],
+    [
+      "restarts-1_checkback",
+      "Read it",
+      "One read",
+      "Read the passage aloud. Target: 4 or fewer slips.",
+      90,
+    ],
+    [
+      "fillers_crown",
+      "Record",
+      "One take",
+      "Talk for 45 s. Target: 0:30 without a filler or restart.",
+      45,
+    ],
+    [
+      "pace_crown",
+      "Read it",
+      "One read",
+      "Read the passage aloud. Target: 170 to 190 wpm, at most 1 restart.",
+      null,
+    ],
     [
       "long-pauses_checkpoint",
       "Record",

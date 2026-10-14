@@ -241,7 +241,7 @@ test("stopping Spot it early scores nothing; a clip and Spot it never play toget
 
 // --- Release ---------------------------------------------------------------------------------
 
-test("the Result releases take 1's audio: context closed, URL revoked, recording gone", async () => {
+test("the Result releases take 1's audio: URL revoked, element let go, no recording", async () => {
   const world = await inReview({ decodeFails: true });
   const [button] = playButtons(world);
   button.click();
@@ -337,7 +337,8 @@ test("Practice and this play keep the run: the review and its decoded audio stay
   world.tap("Say it again");
   await world.open("fillers-3");
   assert.equal(context.closed, false);
-  assert.equal(textOf(find(find(world.body, "level-review__header"), "level-heading")), "Look at 3 moments");
+  const header = find(world.body, "level-review__header");
+  assert.equal(textOf(find(header, "level-heading")), "Look at 3 moments");
   const kept = findAll(find(world.body, "level-moment"), "chip")[1];
   assert.equal(kept.getAttribute("aria-pressed"), "true", "the choices are kept");
   playButtons(world)[0].click();

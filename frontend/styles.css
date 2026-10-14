@@ -1612,9 +1612,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* Back to the Path, above the h1: a 44px link pulled into the gutter so its chevron lines up
-   with the column. */
+   with the column. When a state block makes the section a flex column, it keeps to its words. */
 .level-back {
   display: inline-flex;
+  align-self: flex-start;
   align-items: center;
   gap: var(--s-1);
   min-height: 44px;

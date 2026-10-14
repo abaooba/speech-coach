@@ -249,7 +249,7 @@ test("Goal: Fillers level 1 lists the speaker's top fillers", async () => {
   ]);
   assert.deepEqual(
     items.map((item) => visibleText(item)),
-    expected.map((filler) => filler.text + " " + filler.count + (filler.count === 1 ? " time" : " times")),
+    ["um 3 times", "uh 2 times"],
   );
   assert.deepEqual(
     items.map((item) => textOf(find(item, "tok--filler"))),

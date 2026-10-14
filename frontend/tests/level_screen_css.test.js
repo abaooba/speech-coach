@@ -144,7 +144,11 @@ test("nothing in the Level screen animates, and no focus ring is removed", () =>
 });
 
 test("its controls are 44px targets, Heard one bigger still", () => {
-  assert.equal(ruleFor(".level-back")["min-height"], "44px");
+  const back = ruleFor(".level-back");
+  assert.equal(back["min-height"], "44px");
+  // A state block makes the section a flex column (DESIGN.md "State block"); the link keeps to
+  // its words rather than stretch across it.
+  assert.equal(back["align-self"], "flex-start");
   assert.equal(ruleFor(".level-play")["min-height"], "44px");
   assert.equal(ruleFor(".level-switch")["min-height"], "44px");
   assert.equal(ruleFor(".level-spot__tap")["min-height"], "64px");

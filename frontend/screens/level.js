@@ -87,7 +87,7 @@
   const START_BENCHMARK = "Start benchmark";
 
   // Feedback and review
-  const MOMENT_COUNT_WORDS = ["No", "One", "Two", "Three"];
+  const MOMENT_COUNT_WORDS = ["One", "Two", "Three"];
   const PLAY_CLIP = "Play 3 s";
   const STOP_LABEL = "Stop";
   const WHAT_HAPPENED_ASK = "What happened?";
@@ -827,7 +827,12 @@
   }
 
   function primaryButton(label, onClick) {
-    return el("button", { type: "button", class: "btn btn--primary btn--block", text: label, onClick });
+    return el("button", {
+      type: "button",
+      class: "btn btn--primary btn--block",
+      text: label,
+      onClick,
+    });
   }
 
   function linkButton(label, href, primary) {
@@ -1134,8 +1139,10 @@
     ]);
   }
 
+  // "Three moments to look at"; app.loop gives three at most.
   function momentsTitle(count) {
-    return MOMENT_COUNT_WORDS[count] + (count === 1 ? " moment" : " moments") + " to look at";
+    const words = MOMENT_COUNT_WORDS[count - 1] || String(count);
+    return words + (count === 1 ? " moment" : " moments") + " to look at";
   }
 
   function momentsList(moments) {
@@ -1278,8 +1285,9 @@
       idleLabel: PLAY_CLIP,
     };
     paintPlay(control, false);
+    const clip = app.loop.clipFor(moment);
     control.button.addEventListener("click", () => {
-      togglePlayback(target, control, (audio) => playClip(audio, control, app.loop.clipFor(moment)));
+      togglePlayback(target, control, (audio) => playClip(audio, control, clip));
     });
     return control.button;
   }
@@ -1400,7 +1408,8 @@
         }
         closeContext(audio);
         return fallBackToElement(audio);
-      });
+      })
+      .catch(() => false);
   }
 
   function audioContextClass() {
