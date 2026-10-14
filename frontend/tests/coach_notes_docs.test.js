@@ -74,7 +74,7 @@ test("how.html's Coach notes section says who writes the notes and what is sent"
     "When the AI is off, the library’s own words stand in, still cited.",
     "Tap a source to read it. The link opens in a new tab.",
   ].forEach((sentence) => assert.ok(text.includes(sentence), sentence));
-  assert.ok(text.includes("482"), "names the size of the library");
+  assert.ok(text.includes("636"), "names the size of the library");
   assert.ok(
     !text.includes("It adds no facts of its own."),
     "the model is told what to use; nothing checks that it added nothing",
