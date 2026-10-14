@@ -805,7 +805,7 @@ def restart_entry(entry_id: str) -> AdviceEntry:
         author="Jordan Lee",
         credentials="",
         title="Pausing on Purpose",
-        publisher="Debate Coaches Quarterly",
+        publisher="Speaking Coaches Quarterly",
         year=2019,
         url="https://example.org/pausing-on-purpose",
         type="coach",
