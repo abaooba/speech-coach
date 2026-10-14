@@ -1,7 +1,8 @@
 // Tests for the cold-read passages in frontend/passages.js (docs/PLAN.md T44): original
-// debate-style readings for the skill path's coldRead mode, which hands a speaker a text they
-// have never read. app.passages.coldReads() hands them out; they are not entries of app.passages,
-// so Practice's Read tab keeps its six passages. Modules load with vm.runInNewContext.
+// everyday readings (explainers, short stories and news-style pieces) for the skill path's
+// coldRead mode, which hands a speaker a text they have never read. app.passages.coldReads()
+// hands them out; they are not entries of app.passages, so Practice's Read tab keeps its six
+// passages. Modules load with vm.runInNewContext.
 "use strict";
 
 const test = require("node:test");
@@ -17,8 +18,8 @@ const FRONTEND_DIR = path.join(__dirname, "..");
 const MIN_COLD_READS = 12;
 const MIN_WORDS = 120;
 const MAX_WORDS = 200;
-// app.passages as it stood before the cold reads: four timed prompts, then six passages.
-const PROMPT_COUNT = 4;
+// app.passages beside the cold reads: five timed prompts, then six passages.
+const PROMPT_COUNT = 5;
 const PASSAGE_COUNT = 6;
 const MAX_TITLE_LENGTH = 40;
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -136,7 +137,7 @@ test("cold-read ids and titles are unique and never repeat an app.passages entry
   }
 });
 
-test("app.passages keeps its ten entries, four prompts and six passages, none a cold read", () => {
+test("app.passages keeps its eleven entries, five prompts, six passages, none a cold read", () => {
   const practice = Array.from(loadPassages());
   assert.equal(practice.length, PROMPT_COUNT + PASSAGE_COUNT);
   assert.equal(practice.filter((entry) => entry.kind === "prompt").length, PROMPT_COUNT);

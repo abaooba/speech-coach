@@ -161,7 +161,7 @@ test("main and the nav items share the centered --col-max column", () => {
   assert.equal(ruleFor(ALL_RULES, ".nav")["justify-content"], "center");
   const item = ruleFor(ALL_RULES, ".nav__item");
   assert.equal(item.flex, "1 1 0");
-  assert.equal(item["max-width"], "calc(var(--col-max) / 3)");
+  assert.equal(item["max-width"], "calc(var(--col-max) / 4)");
   assert.equal(item["min-height"], "var(--nav-h)");
   const label = ruleFor(ALL_RULES, ".nav__label");
   assert.equal(label["font-size"], "var(--fs-micro)");

@@ -1,11 +1,12 @@
-// Tests that the skill path's reading levels (coldRead and speedLadder, docs/PLAN.md T42) clear
-// only on a take that followed its passage. The backend drops a take's script block when the
-// take does not follow the script it was sent (backend/script_align.py
-// MIN_SCRIPT_FOLLOWED_SHARE): free talk, another text, or a few lines read and then ad-libbed.
-// Without the block a take has no misreads and no skips, exactly as a flawless read has. So the
-// app.delivery report says whether the block was there (followedScript), and app.path fails a
-// reading take without it. Talk levels never need a script. Every report comes from the real
-// app.delivery.analyze.
+// Tests that the skill path's reading plays (the Restarts cold reads, the Pace ladder reads and
+// the speed ladder crown of docs/superpowers/specs/2026-10-14-loop-path.md, which replaced
+// docs/PLAN.md T42's coldRead and speedLadder levels) clear only on a take that followed its
+// passage. The backend drops a take's script block when the take does not follow the script it
+// was sent (backend/script_align.py MIN_SCRIPT_FOLLOWED_SHARE): free talk, another text, or a
+// few lines read and then ad-libbed. Without the block a take has no misreads and no skips,
+// exactly as a flawless read has. So the app.delivery report says whether the block was there
+// (followedScript), and app.path fails a reading take without it. Talk levels never need a
+// script. Every report comes from the real app.delivery.analyze.
 "use strict";
 
 const test = require("node:test");
@@ -19,8 +20,21 @@ const FIXTURES_DIR = path.join(FRONTEND_DIR, "..", "backend", "tests", "fixtures
 
 const NOT_FOLLOWED =
   "This take did not follow the passage. Read it as written to clear this level.";
-const READING_LEVELS = ["restarts-1", "restarts-2", "restarts-3", "restarts-4", "restarts-5"]
-  .concat(["pace-1", "pace-2", "pace-3", "pace-4", "pace-5"]);
+// Every reading play with the index of a take it scores: the loops' scored reads (Pace level
+// 2's first read is scored too), the cold-read check-backs and the speed ladder crown.
+const READING_PLAYS = [
+  ["restarts-1", 2],
+  ["restarts-2", 2],
+  ["restarts-3", 1],
+  ["restarts-4", 1],
+  ["restarts-1_checkback", 0],
+  ["restarts-2_checkback", 0],
+  ["restarts-3_checkback", 0],
+  ["restarts-4_checkback", 0],
+  ["pace-1", 1],
+  ["pace-2", 0],
+  ["pace_crown", 0],
+];
 // A script block as backend/script_align.py analyze_reading returns it for a clean read.
 const CLEAN_READ = { restarts: [], skipped: [], misread: [] };
 
@@ -61,9 +75,23 @@ function nervousWords() {
   }));
 }
 
-function evaluate(levelId, transcript, metrics) {
+// A speaker's usual numbers from one clean minute at 150 wpm: no slips of any kind.
+const STEADY = APP.path.baseline([
+  {
+    createdAt: "2026-10-12T10:00:00.000Z",
+    passageId: "free-talk",
+    passageTitle: "Your day",
+    metrics: {},
+    transcript: wordsAt(150, 150),
+  },
+]);
+
+// How take `takeIndex` of a play went, as {passed, detail}: its verdict and the sentence that
+// says why, against the steady baseline.
+function evaluate(playId, takeIndex, transcript, metrics) {
   const report = APP.delivery.analyze(transcript, metrics);
-  return plain(APP.path.evaluate(APP.path.levelById(levelId), report));
+  const result = plain(APP.path.evaluate(playId, takeIndex, report, { baseline: STEADY }));
+  return { passed: result.passed, detail: result.sentence };
 }
 
 // --- the delivery report ----------------------------------------------------------------------
@@ -87,59 +115,65 @@ test("a take saved without words still says whether it had a script block", () =
   assert.equal(APP.delivery.analyze([], { duration: 30 }).followedScript, false);
 });
 
-// --- reading levels ---------------------------------------------------------------------------
+// --- reading plays ----------------------------------------------------------------------------
 
 test("free talk sent with a cold read clears no cold-read level", () => {
   // 170 words of talk at 150 wpm: no restarts, misreads or skips, because no script block.
   const transcript = wordsAt(170, 150);
-  ["restarts-1", "restarts-5"].forEach((levelId) => {
-    assert.deepEqual(evaluate(levelId, transcript, { pauses: [], repeats: [] }), {
+  [
+    ["restarts-1", 2],
+    ["restarts-4", 1],
+    ["restarts-4_checkback", 0],
+  ].forEach(([playId, takeIndex]) => {
+    assert.deepEqual(evaluate(playId, takeIndex, transcript, { pauses: [], repeats: [] }), {
       passed: false,
       detail: NOT_FOLLOWED,
     });
   });
 });
 
-test("talk at the rung's pace clears no speed-ladder rung without the passage", () => {
-  assert.deepEqual(evaluate("pace-1", wordsAt(109, 140), {}), {
+test("talk at the read's pace clears no ladder read without the passage", () => {
+  assert.deepEqual(evaluate("pace-1", 1, wordsAt(109, 150), {}), {
     passed: false,
     detail: NOT_FOLLOWED,
   });
-  ["pace-3", "pace-4", "pace-5"].forEach((levelId) => {
-    assert.deepEqual(evaluate(levelId, wordsAt(109, 180), {}), {
-      passed: false,
-      detail: NOT_FOLLOWED,
-    });
+  assert.deepEqual(evaluate("pace-2", 0, wordsAt(109, 140), {}), {
+    passed: false,
+    detail: NOT_FOLLOWED,
+  });
+  assert.deepEqual(evaluate("pace_crown", 0, wordsAt(109, 180), {}), {
+    passed: false,
+    detail: NOT_FOLLOWED,
   });
 });
 
-test("the real nervous take, scored as free talk as it strays, clears no reading level", () => {
+test("the real nervous take, scored as free talk as it strays, clears no reading play", () => {
   // backend test_a_take_that_does_not_follow_the_script_is_free_talk: the nervous take sent with
   // the uniforms passage comes back as metrics.analyze would score it, no script block.
   const metrics = { pauses: [], repeats: [{ text: "I kinda ner", at: 27.379 }], fillers: {} };
-  READING_LEVELS.forEach((levelId) => {
-    assert.deepEqual(evaluate(levelId, nervousWords(), metrics), {
+  READING_PLAYS.forEach(([playId, takeIndex]) => {
+    assert.deepEqual(evaluate(playId, takeIndex, nervousWords(), metrics), {
       passed: false,
       detail: NOT_FOLLOWED,
-    }, levelId);
+    }, playId);
   });
 });
 
 test("a take that followed its passage is still scored on its slips", () => {
   const transcript = wordsAt(170, 150);
-  assert.deepEqual(evaluate("restarts-5", transcript, { script: CLEAN_READ }), {
+  assert.deepEqual(evaluate("restarts-4", 1, transcript, { script: CLEAN_READ }), {
     passed: true,
-    detail: "You read it with no restarts or misreads. Level cleared.",
+    detail: "No slips on read 2. The target was 1.",
   });
-  assert.deepEqual(evaluate("pace-1", wordsAt(109, 140), { script: CLEAN_READ }), {
+  assert.deepEqual(evaluate("pace-1", 1, wordsAt(109, 140), { script: CLEAN_READ }), {
     passed: true,
-    detail: "You read at 140 wpm with no restarts. Level cleared: the target was 130 to 150 wpm.",
+    detail: "140 wpm on read 2. The target was 140 to 160.",
   });
 });
 
 test("talk levels need no script", () => {
-  // 100 words at 120 wpm and no filler: one clean 50 s run from the first word to the last.
-  const transcript = wordsAt(100, 120);
-  assert.equal(evaluate("fillers-1", transcript, {}).passed, true);
-  assert.equal(evaluate("long-pauses-1", transcript, {}).passed, true);
+  // 180 words at 120 wpm and no filler: one clean 90 s run from the first word to the last.
+  const transcript = wordsAt(180, 120);
+  assert.equal(evaluate("fillers-1", 1, transcript, {}).passed, true);
+  assert.equal(evaluate("long-pauses-1", 1, transcript, {}).passed, true);
 });

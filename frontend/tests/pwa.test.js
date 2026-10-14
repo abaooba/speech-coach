@@ -14,7 +14,7 @@ const APP_SOURCE = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8")
 
 const ORIGIN = "https://speech-coach.test";
 const SW_URL = ORIGIN + "/sw.js";
-const CACHE_NAME = "speech-coach-shell-v3";
+const CACHE_NAME = "speech-coach-shell-v4";
 
 // The SHELL array as written in sw.js, so the test follows the list rather than copying it.
 const SHELL = [...SW_SOURCE.match(/const SHELL = \[([\s\S]*?)\];/)[1].matchAll(/"([^"]+)"/g)].map(
@@ -139,7 +139,7 @@ function cached(worker, url) {
   return entries ? entries.get(absolute(url)) : undefined;
 }
 
-test("install pre-caches every SHELL file in speech-coach-shell-v3, then skips waiting", async () => {
+test("install pre-caches every SHELL file in speech-coach-shell-v4, then skips waiting", async () => {
   const worker = loadWorker();
   await install(worker);
   assert.deepEqual(worker.calls, ["addAll " + CACHE_NAME, "skipWaiting"]);

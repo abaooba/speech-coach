@@ -21,9 +21,9 @@ const DELIVERY_SOURCE = read("delivery.js");
 const RESULTS_SOURCE = read(path.join("screens", "results.js"));
 const SAMPLE_FILE = JSON.parse(read("sample-session.json"));
 
-// The sample is a Congress speech (130 to 160 wpm); the real takes are on Gettysburg.
+// The sample is an Explain something take (130 to 160 wpm); the real takes are on Gettysburg.
 const PASSAGES = [
-  { id: "congress-speech", targetWpm: [130, 160] },
+  { id: "explain-something", targetWpm: [130, 160] },
   { id: "gettysburg", targetWpm: [130, 150] },
 ];
 

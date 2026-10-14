@@ -11,14 +11,14 @@
      fire. [lo, hi] is options.targetWpm, default [140, 160]. Every number is rounded as the
      Results cards show it, so a tip never disagrees with the card above it.
 
-       id          fires when                  why it matters for a debater
-       pace-fast   wpm > hi + 15               a judge who cannot keep up stops flowing
-       pace-slow   wpm < lo - 15               a slow speech runs out of time for its last point
+       id          fires when                  why it matters for a speaker
+       pace-fast   wpm > hi + 15               a listener who cannot keep up stops following
+       pace-slow   wpm < lo - 15               a slow talk runs out of time for its last point
        fillers     fillers per minute > 3      Zoom and tl;dv put 0.6 to 3 a minute in range
        habit       top habit 3 times or more   the Ah-Counter names each speaker's crutch word
        break-long  mid-sentence pause > 3 s    a pause at a period lands; mid-sentence it stalls
        freeze      5 s+ pause after a period   a freeze reads as a lost place, even at a period
-       repeats     3 restarts or more          each restart costs the judge's trust in the line
+       repeats     3 restarts or more          each restart costs the listener's trust in the line
        clean       nothing above fired */
 
   const DEFAULT_TARGET_WPM = [140, 160];

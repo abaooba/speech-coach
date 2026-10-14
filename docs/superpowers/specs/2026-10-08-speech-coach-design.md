@@ -5,13 +5,16 @@ Status: approved in chat, scope frozen on 2026-10-14
 
 ## Purpose
 
-A practice tool for high school debaters and speech students. The user
+A practice tool for anyone who wants to speak more fluently, especially
+non-native speakers and people who want to sound more articulate. (Updated
+2026-10-14: the first draft said debaters; it is not a debate tool.) The user
 records a short speech, gets objective numbers on pace, pauses, filler
 words and repetition, and sees those numbers improve across sessions.
 
 ## Users and success
 
-- Primary user: a debater practicing speeches on a phone or laptop.
+- Primary user: a non-native speaker, or anyone who wants to sound more
+  articulate, practicing on a phone or laptop.
 - Success: a first-time user can record, see results and find their
   history without help. The author has two weeks of real sessions in the
   chart by video day.

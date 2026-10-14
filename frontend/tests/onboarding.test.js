@@ -128,6 +128,8 @@ test("the copy is the brief's wording", () => {
   assert.equal(
     COPY.privacy,
     "Audio is deleted right after analysis. " +
+      "During a Path level, take 1 stays in this phone's memory for replay. " +
+      "It is deleted when the level ends. " +
       "Coach notes send the first 1,500 characters of your transcript to Anthropic.",
   );
   assert.equal(COPY.button, "Start practicing");

@@ -3,8 +3,12 @@
 Read docs/PLAN.md first. It is the source of truth for priorities and scope.
 
 ## Project
-Practice tool for debaters: record a speech, get pace / pause / filler
-metrics, track progress. FastAPI backend in backend/, plain HTML/CSS/JS PWA
+Practice tool for speaking fluently: record yourself talking or reading aloud,
+get pace / pause / filler metrics, track progress. It is for non-native
+speakers and anyone who wants to sound more articulate. It is NOT a debate
+tool: never steer features, copy or practice material toward debate (no
+rounds, cases, rebuttals, resolutions or judges' ballots). Where older docs
+say "debaters", they are out of date. FastAPI backend in backend/, plain HTML/CSS/JS PWA
 in frontend/. Spec: docs/superpowers/specs/2026-10-08-speech-coach-design.md
 
 ## How to work

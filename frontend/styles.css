@@ -403,7 +403,7 @@ h2 {
   }
 }
 
-/* 6. Bottom nav: the bar spans the window, its three items sit in the centered content column. */
+/* 6. Bottom nav: the bar spans the window, its four items sit in the centered content column. */
 .nav {
   position: fixed;
   bottom: 0;
@@ -417,9 +417,12 @@ h2 {
   border-top: 1px solid var(--border);
 }
 
+/* The four items share the width equally: min-width 0 keeps a label from widening its item and
+   pushing the others off the screen. */
 .nav__item {
   flex: 1 1 0;
-  max-width: calc(var(--col-max) / 3);
+  min-width: 0;
+  max-width: calc(var(--col-max) / 4);
   min-height: var(--nav-h);
   display: flex;
   flex-direction: column;
@@ -443,6 +446,49 @@ h2 {
 /* The nav touches the viewport edges, so its focus ring is drawn inside the item. */
 .nav__item:focus-visible {
   outline-offset: -3px;
+}
+
+/* 200% zoom on a phone leaves a 160 to 215px window, too narrow for four labels side by side
+   ("Progress" needs about 53px of a quarter). Each item shows its icon only; its label stays in
+   the link, visually hidden as .sr-only hides text, so the link keeps its name. */
+@media (max-width: 239px) {
+  .nav__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+/* Under 176px four 44px items no longer fit in a row: the nav takes two rows of two, each item
+   its icon over its label again, and --nav-h doubles, so every screen's bottom padding and
+   scroll margins still clear the nav. */
+@media (max-width: 175px) {
+  :root {
+    --nav-h: 112px;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+  }
+
+  .nav__item {
+    flex-basis: 50%;
+    min-height: calc(var(--nav-h) / 2);
+  }
+
+  .nav__label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
 }
 
 /* While Practice records or uploads, the nav steps aside. Only the active Practice counts: an
@@ -1034,6 +1080,195 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* 7b. Practice level mode (docs/superpowers/specs/2026-10-14-loop-path.md section 7). While the
+   Level screen's request is held, its banner stands in for the switch and the chips right above
+   the card, and on a level with the live tap "Heard one" sits under the record button's label
+   while a take records. Nothing here animates. */
+
+/* The parts level mode hides have display rules of their own, which would beat [hidden]. */
+#screen-practice .segmented[hidden],
+#screen-practice .chip-row[hidden],
+#screen-practice .practice__sample[hidden] {
+  display: none;
+}
+
+/* While the banner shows, Practice's header row steps aside for the eye, and so does the hint:
+   the banner's eyebrow names the level and its body says what to do. Every play's banner then
+   fits one screen, the card at its floor or above and Record's label --s-5 above the nav. The
+   wordmark and the theme toggle hide; the h1 stays for screen readers, hidden as .sr-only hides
+   text (its margin stays the header's 0, on the spacing scale), so the screen keeps its name and
+   the router still moves focus to it. Only level mode puts the banner in the body, so normal
+   mode keeps its header row and its hint. */
+#screen-practice:has(.practice__banner) .screen__header {
+  margin-bottom: 0;
+}
+
+#screen-practice:has(.practice__banner) .screen__header h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+#screen-practice:has(.practice__banner) .wordmark,
+#screen-practice:has(.practice__banner) .theme-toggle,
+#screen-practice:has(.practice__banner) .practice__hint {
+  display: none;
+}
+
+/* The banner: an accent-soft card with the level as its eyebrow, the take as its title, what to
+   do, and Leave level. The card under it keeps its own --s-3 top margin. */
+.practice__banner {
+  padding: var(--s-4);
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.practice__banner-eyebrow {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.practice__banner-title {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.practice__banner-body {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+/* Leave level: a small text button on a 44px target. Its --s-2 side padding is pulled back on
+   the left, so its words line up with the text above them. It hides while a take records or
+   uploads, as the nav does. */
+.practice__banner-leave {
+  min-height: 44px;
+  margin: var(--s-1) 0 0 calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.practice__banner-leave[hidden] {
+  display: none;
+}
+
+/* While a take records or uploads, Leave level hides as the nav does, but keeps its box: the
+   banner keeps its height, so the card under it, and the passage a read level starts reading at
+   the Record tap, stay where they were. visibility still takes it out of the tab order and the
+   accessibility tree, and the id outranks the [hidden] rule above. A level with the live tap
+   lets the box go, as before: "Heard one" needs that room under the record button at 375 x 667. */
+#screen-practice:is([data-state="recording"],
+  [data-state="uploading"]):not(:has(.practice__live-tap)) .practice__banner-leave[hidden] {
+  display: inline-flex;
+  visibility: hidden;
+}
+
+/* The live tap: a three-column grid keeps "Heard one" centered, as the timer keeps its clock,
+   with the count in the right column, so a growing count never moves the button under the
+   thumb. 160px leaves each side column room for "12 heard" at 320px wide. */
+.practice__live-tap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+
+.practice__live-tap[hidden] {
+  display: none;
+}
+
+.practice__live-tap-button {
+  grid-column: 2;
+  min-width: 160px;
+  min-height: 56px;
+}
+
+.practice__live-tap-count {
+  grid-column: 3;
+  justify-self: start;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Short screens (320 x 568, landscape phones): the banner keeps every line but tightens, with
+   --s-3 padding and Leave level at the end of the title's row, its words on the title's baseline
+   and its 44px target overlapping that row as New topic's does in the card. The eyebrow keeps
+   the banner's whole width, so it never wraps ("Path: Long pauses, level 4 check-back"); the
+   card keeps its two-line floor and Record stays above the nav. Heard one drops to the standard
+   48px. */
+@media (max-height: 600px) {
+  .practice__banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--s-3);
+  }
+
+  .practice__banner-eyebrow {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .practice__banner-title {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: baseline;
+  }
+
+  .practice__banner-body {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .practice__banner-leave {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: baseline;
+    margin-block: calc(-1 * var(--s-3));
+    margin-left: var(--s-2);
+    margin-right: calc(-1 * var(--s-2));
+  }
+
+  .practice__live-tap-button {
+    min-height: 48px;
+  }
+}
+
+/* Small phones (320 x 568), where section 7 also drops the hint, take one step more: the
+   banner's title and body drop a type step, and the card sits --s-2 under the banner, as the
+   record zone's gaps tighten. Level mode then fits one screen as normal mode does, the card at
+   its two-line floor or above and Record's label --s-5 above the nav. */
+@media (max-height: 600px) and (max-width: 479px) {
+  .practice__banner-title {
+    font-size: var(--fs-body);
+  }
+
+  .practice__banner-body {
+    font-size: var(--fs-small);
+    line-height: 1.4;
+  }
+
+  #screen-practice .practice__banner + .passage-card {
+    margin-top: var(--s-2);
+  }
+}
+
 /* 8. Results screen: meta line, headline, metric cards, timeline, transcript, tips, actions */
 /* Every figure on the screen, in hints, headline, legend and tips too, uses tabular numbers. */
 #screen-results {
@@ -1591,6 +1826,772 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* 8b. Level screen (#/level/<playId>, docs/superpowers/specs/2026-10-14-loop-path.md section 8):
+   the Path back link, the play's subtitle, the stepper, then the step: the Goal's target card,
+   take 1's feedback, the review's moments and chips, a take step, the result with its check-back
+   dates and what is next, and the step's buttons. Every figure is tabular. Nothing in it
+   animates, and colour is never its only cue: steps carry a check or a number, slips their marks
+   and hidden words, warnings the alert icon. */
+#screen-level {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The subtitle is the title's, so it sits close under the h1, as Results' meta line does; a
+   state block (level not found, not open yet) keeps the gap every screen has. */
+#screen-level h1 {
+  margin-bottom: var(--s-1);
+}
+
+#screen-level:has(> .screen__body > .state) h1 {
+  margin-bottom: var(--s-3);
+}
+
+/* Back to the Path, above the h1: a 44px link pulled into the gutter so its chevron lines up
+   with the column. When a state block makes the section a flex column, it keeps to its words. */
+.level-back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 44px;
+  margin: 0 0 var(--s-2) calc(-1 * var(--s-2));
+  padding: 0 var(--s-2);
+  border-radius: var(--r-btn);
+  color: var(--accent);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.level__subtitle {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The stepper: one row of equal steps, each a circle over its label. A cleared step is an --ok
+   circle with a check, the current one --accent with its number, the rest outlined. Under 44px
+   a step (200% zoom) the row wraps. */
+.level-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: var(--s-3) var(--s-1);
+  margin: var(--s-5) 0 var(--s-6);
+  padding: 0;
+  list-style: none;
+}
+
+.level-steps__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  text-align: center;
+}
+
+.level-steps__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1;
+  font-weight: 600;
+}
+
+.level-steps__item--done .level-steps__mark {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: var(--on-accent);
+}
+
+.level-steps__item--current .level-steps__mark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.level-steps__label {
+  max-width: 100%;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.level-steps__item--current .level-steps__label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* A step: its heading, then its cards and lines a card gap apart, then its buttons. */
+.level-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.level-heading {
+  margin: 0;
+}
+
+.level-card {
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  overflow-wrap: anywhere;
+}
+
+.level-card__title {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* The target: the headline at the metric size with its unit label beside it, the length under
+   them, the example and non-example, and on the Goal the unit's why line. */
+.level-target__goal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  margin: 0;
+}
+
+.level-target__headline {
+  font-size: var(--fs-metric);
+  line-height: 1;
+  font-weight: 700;
+}
+
+.level-target__unit,
+.level-target__length {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-target__length {
+  margin: var(--s-1) 0 0;
+}
+
+.level-examples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The icon is drawn --s-1 down so it centres on the first 24px line. */
+.level-example {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.level-example__icon {
+  flex: none;
+  margin-top: var(--s-1);
+}
+
+.level-example--good .level-example__icon {
+  color: var(--ok);
+}
+
+.level-example--bad .level-example__icon {
+  color: var(--muted);
+}
+
+.level-example__text {
+  min-width: 0;
+}
+
+.level-why {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border);
+}
+
+.level-why__text {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+/* "Source:" and the citation are one run of text. The link stays inline, and its padding makes
+   a 44px tap target without moving a line, as the Coach notes' source link does; the line sits
+   as far under the text above as that target reaches. */
+.level-source {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-source__icon {
+  margin-right: var(--s-1);
+  vertical-align: middle;
+}
+
+.level-source__link {
+  padding: var(--s-4) 0;
+  color: var(--accent);
+}
+
+.level-fillers__none {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-fillers__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-fillers__item {
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+
+/* The long-pause prep: its line, then Start planning, or the clock and Skip while it runs. */
+.level-prep__text {
+  margin: 0;
+}
+
+.level-prep__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.level-prep__clock {
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+/* The in-the-room switch: a 44px row whose track fills --accent when it is on, the thumb moving
+   across, so the state never rests on colour. */
+.level-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.level-switch__track {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 24px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+}
+
+.level-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+}
+
+.level-switch[aria-checked="true"] .level-switch__track {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.level-switch[aria-checked="true"] .level-switch__thumb {
+  left: 22px;
+  border-color: var(--bg);
+}
+
+.level-switch__label {
+  min-width: 0;
+}
+
+/* Take 1's card: its number at the metric size, the unit and target beside it, the change line,
+   then the moments to look at. */
+.level-take__result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  margin: var(--s-2) 0 0;
+}
+
+.level-take__value {
+  font-size: var(--fs-metric);
+  line-height: 1;
+  font-weight: 700;
+}
+
+.level-take__unit,
+.level-take__target {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-take__note,
+.level-take__caught {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.level-take .level-card__title {
+  margin-top: var(--s-4);
+}
+
+/* The change line: --ok and bold when take 1 did better, muted when it did worse or the same,
+   always with its triangle or dash. */
+.level-change {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-change--better {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.level-change__icon {
+  flex: none;
+}
+
+.level-moments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-moments__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.level-moments__time,
+.level-moment__time {
+  flex: none;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-moments__words {
+  min-width: 0;
+  line-height: 1.6;
+}
+
+/* A third of a read whose pace left its band: --warn words with the alert icon. */
+.level-moment__off {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.level-moment__alert {
+  margin-left: var(--s-1);
+  vertical-align: middle;
+}
+
+/* The tip card sits in the step's column, which spaces it already. */
+.level-tip {
+  margin-top: 0;
+}
+
+.level-tip__text {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.level-tip__icon {
+  flex: none;
+  margin-top: var(--s-1);
+  color: var(--accent);
+}
+
+/* The review: its title with the time it takes, a card per moment, the fix and the privacy
+   line. */
+.level-review__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-3);
+}
+
+/* "Take 1's audio is gone" reads the same in a review without audio and on the Goal of a run
+   that follows one cut off after take 1: a small muted line. */
+.level-review__about,
+.level-review__gone,
+.level-goal__gone {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-review__gone,
+.level-goal__gone {
+  margin: 0;
+}
+
+.level-review__fix-title {
+  margin: var(--s-3) 0 0;
+}
+
+.level-moment__time {
+  margin: 0;
+}
+
+.level-moment__words {
+  margin: var(--s-1) 0 0;
+  line-height: 1.6;
+}
+
+.level-moment__ask {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+/* Play 3 s and Play take 1: secondary buttons a size down, the icon before the words. */
+.level-play {
+  min-height: 44px;
+  margin-top: var(--s-3);
+  padding: 0 var(--s-4);
+  font-size: var(--fs-small);
+}
+
+/* Choice chips wrap in the column, and a long fix wraps inside its chip rather than run past
+   the screen's edge at 320px or 200% zoom. */
+.level-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.level-moment .level-chips {
+  margin-top: var(--s-2);
+}
+
+.level-chips .chip {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+/* Spot it: Play take 1 over a big Heard one, which is live only while take 1 plays, and the
+   score once it ends. */
+.level-spot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.level-spot__how {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-spot__tap {
+  min-height: 64px;
+  margin-top: var(--s-3);
+  font-size: var(--fs-h2);
+}
+
+.level-spot__score {
+  margin: var(--s-3) 0 0;
+  font-weight: 600;
+}
+
+.level-spot__score:empty {
+  display: none;
+}
+
+.level-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-privacy__icon {
+  flex: none;
+}
+
+/* A take step: the take before it, small, then the fix chosen. */
+.level-summary__label {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-summary__sentence {
+  margin: var(--s-1) 0 0;
+}
+
+.level-summary__fix {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* The result. A pass is a centred --ok-bg card under a big check; a miss a plain card whose
+   failed guards read in --warn after the alert icon. */
+.level-result {
+  overflow-wrap: anywhere;
+}
+
+.level-result--pass {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--s-5);
+  background: var(--ok-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  text-align: center;
+}
+
+.level-result__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--ok);
+  color: var(--on-accent);
+}
+
+.level-result__title {
+  margin: 0;
+}
+
+.level-result__verdict,
+.level-result__sentence {
+  margin: var(--s-2) 0 0;
+}
+
+.level-result__verdict,
+.level-result__fix,
+.level-result__room {
+  font-weight: 600;
+}
+
+.level-result__fix,
+.level-result__room {
+  margin: var(--s-3) 0 0;
+}
+
+.level-guards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-result--pass .level-guards {
+  align-items: center;
+}
+
+.level-guards__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-guards__icon {
+  flex: none;
+}
+
+.level-guards__item--passed .level-guards__icon {
+  color: var(--ok);
+}
+
+.level-guards__item--failed {
+  color: var(--warn);
+}
+
+.level-jump {
+  margin: 0;
+  font-weight: 600;
+}
+
+.level-rest {
+  margin: 0;
+  color: var(--muted);
+}
+
+.level-save-failed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--warn);
+}
+
+.level-save-failed__icon {
+  flex: none;
+}
+
+/* Check back: when each check-back falls, a calendar icon before its date. "gold" reads in
+   --warn, the path's gold. */
+.level-checkback__title,
+.level-next__title {
+  margin: 0;
+}
+
+.level-checkback__lead {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.level-dates__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.level-dates__icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.level-dates__gold {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.level-next__label {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.level-next__title {
+  margin-top: var(--s-1);
+}
+
+.level-next__goal {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.level-done__line,
+.level-done__since,
+.level-done__next {
+  margin: var(--s-2) 0 0;
+}
+
+.level-done__since,
+.level-done__next {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The step's buttons, full width, the primary first; links among them drop the underline. */
+.level-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.level-actions .btn {
+  text-decoration: none;
+}
+
+/* A focused control scrolls clear of the fixed nav, as on History. */
+#screen-level :is(a, button, [tabindex]) {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
+/* Under 360px the big numbers take the narrow metric size, as the metric cards do. */
+@media (max-width: 359px) {
+  .level-target__headline,
+  .level-take__value {
+    font-size: var(--fs-metric-narrow);
+  }
+}
+
 /* 9. History screen: session list and rows */
 .session-list {
   list-style: none;
@@ -1978,6 +2979,310 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-6);
 }
 
+/* 10b. Rank card ("ladder and lens", docs/PLAN.md T37) on Progress and Results. The stats sit
+   beside a ladder of all seven tiers: the tier, on Results the change this take made, the
+   rating, a 0 to 100 ruler at true scale whose wedge zooms the speaker's slice into the bar,
+   the bar's ends and the points to the next tier. A Master's gate and the foot run full width
+   under both columns. Nothing in it animates, and colour is never its only cue. */
+.rank-card {
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress: the first thing under the h1, a section gap above the metric switch (or above
+   "Need two sessions"). Results: under the headline, a section gap above the metric grid. */
+#screen-progress .rank-card {
+  margin-bottom: var(--s-6);
+}
+
+#screen-results .rank-card {
+  margin-top: var(--s-5);
+}
+
+/* The ladder's column is as wide as its widest row; the stats take the rest. */
+.rank-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--s-4);
+  align-items: start;
+}
+
+.rank-card__stats {
+  min-width: 0;
+}
+
+/* Plain text, never a chip: chips are buttons in this app. */
+.rank-card__tier {
+  margin: 0;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* "Up 3.1, now Contender": --ok when up, muted otherwise. The line wraps, never truncates. */
+.rank-card__change {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1);
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.rank-card__change--up {
+  color: var(--ok);
+}
+
+/* The 12px triangle or dash sits --s-1 down, centred on the first line. */
+.rank-card__change svg {
+  flex: none;
+  margin-top: var(--s-1);
+}
+
+.rank-card__rating {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-metric);
+  line-height: 1;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* The ruler: one slice per tier at its true place, 2px apart (styled inline from the model),
+   so the top tiers shrink toward the right end. The speaker's slice is thick and accent. */
+.rank-card__scale {
+  margin-top: var(--s-3);
+}
+
+.rank-card__ruler {
+  position: relative;
+  height: 4px;
+}
+
+.rank-card__slice {
+  position: absolute;
+  top: 1px;
+  height: 2px;
+  min-width: 2px;
+  border-radius: var(--r-chip);
+  background: var(--muted);
+}
+
+.rank-card__slice--current {
+  top: 0;
+  height: 4px;
+  background: var(--accent);
+}
+
+/* The wedge: from the speaker's slice above to the bar's full width below. */
+.rank-card__zoom {
+  display: block;
+  width: 100%;
+  height: 12px;
+}
+
+.rank-card__zoom polygon {
+  fill: var(--accent-soft);
+}
+
+/* The speaker's tier from floor to ceiling, filled to the rating. */
+.rank-card__bar {
+  position: relative;
+  height: 8px;
+  border-radius: var(--r-chip);
+  background: var(--grid);
+}
+
+.rank-card__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  min-width: 4px;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+}
+
+/* Results only: a tick where the rating stood before this take, centred on its place and
+   standing 4px clear of the bar above and below. */
+.rank-card__notch {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--text);
+  transform: translateX(-50%);
+}
+
+.rank-card__ends {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* "18.8 to Varsity", the number in the text colour. */
+.rank-card__next {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.rank-card__next strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The ladder, best tier first, with no rail between the marks. Every tier below the speaker's
+   is passed (a filled mark, the name in the text colour), theirs sits on an accent-soft pill in
+   accent at 600, and every tier above is ahead (a hollow mark, muted). */
+.rank-ladder {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rank-ladder__tier {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  column-gap: var(--s-2);
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.rank-ladder__mark {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--muted);
+  border-radius: 50%;
+}
+
+.rank-ladder__floor {
+  padding-left: var(--s-1);
+  text-align: right;
+}
+
+.rank-ladder__tier--passed .rank-ladder__name {
+  color: var(--text);
+}
+
+.rank-ladder__tier--passed .rank-ladder__mark {
+  background: var(--muted);
+}
+
+.rank-ladder__tier--current {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.rank-ladder__tier--current .rank-ladder__mark {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The top tier's mark is a diamond, in its row's colours. */
+.rank-ladder__tier--top .rank-ladder__mark {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+
+/* Master and Flawless: ten pills for the last ten takes, oldest first, filled --ok for each
+   take that passes, then the sentence that says it in words. */
+.rank-card__gate {
+  margin-top: var(--s-3);
+}
+
+.rank-card__pills {
+  display: flex;
+  gap: var(--s-1);
+}
+
+.rank-card__pill {
+  flex: 1 1 0;
+  height: 8px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+}
+
+.rank-card__pill--pass {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.rank-card__gate-text {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The streak after its flame on Progress; this take's sentences on Results. */
+.rank-card__foot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The 16px flame sits 2px down, centred on the first line. */
+.rank-card__foot svg {
+  flex: none;
+  position: relative;
+  top: 2px;
+}
+
+@media (max-width: 359px) {
+  .rank-card__rating {
+    font-size: var(--fs-metric-narrow);
+  }
+}
+
+/* 200% zoom on a phone leaves a 160 to 187px window: the ladder goes under the stats, and
+   under 200px the marks give their room to the names. */
+@media (max-width: 319px) {
+  .rank-card__body {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--s-3);
+  }
+}
+
+@media (max-width: 199px) {
+  .rank-ladder__tier {
+    grid-template-columns: 1fr auto;
+    column-gap: var(--s-1);
+    padding: 0 var(--s-1);
+  }
+
+  .rank-ladder__mark {
+    display: none;
+  }
+}
+
 /* 11. Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spinner,
@@ -2226,4 +3531,541 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 #screen-account :is(a, button, input, [tabindex]) {
   scroll-margin-top: var(--s-2);
   scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
+/* 13. Path screen (#/path), the Loop Path's map (spec
+   docs/superpowers/specs/2026-10-14-loop-path.md section 9). Under the h1: the status row, the
+   benchmark, then one block per unit, its card over its steps winding down the page. Each step
+   is a grid row of three columns, the room before the node, the 104px node (its circle over its
+   label) and the side that holds its card, so a node's centre sits at 25% or 75% of the row and
+   the checkpoint's at 50%, where screens/path.js nodeX places them. A link drops from one node's
+   centre to the foot of its row, however tall an open card makes it, crosses in the gap below
+   the row and drops into the next node. Cleared is --ok, current --accent, gold --warn. Nothing
+   animates. */
+.path__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+/* This week's practice days: plain text in a pill, never a button. */
+.path__week {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 32px;
+  margin: 0;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The due chip starts the first due check-back. Unlike Practice's chips its words may wrap, so
+   "Due today: 1 check-back: Long pauses 5" fits at 320px. */
+.path__due {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  padding-block: var(--s-1);
+  white-space: normal;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Each chip's icon follows its words and is drawn first, in --muted: the week's flame, as the
+   rank card's streak flame, and the due clock. Neither is a warning, so neither is --warn. */
+.path__week svg,
+.path__due svg {
+  flex: none;
+  order: -1;
+  color: var(--muted);
+}
+
+/* The benchmark: a card when it is due, otherwise its next date and the change since the first
+   sitting. A section gap sets it off from the first unit. */
+.path-benchmark,
+.path__benchmark {
+  margin-bottom: var(--s-6);
+}
+
+.path-benchmark {
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.path-benchmark__title {
+  margin: 0;
+}
+
+.path-benchmark__text,
+.path__next,
+.path__since {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.path__next {
+  margin-top: 0;
+}
+
+.path__since {
+  margin-top: var(--s-1);
+}
+
+.path-benchmark__start {
+  margin-top: var(--s-3);
+}
+
+/* A unit: its card, then its steps, a section gap from the next unit. */
+.path-unit + .path-unit {
+  margin-top: var(--s-6);
+}
+
+.path-unit__card {
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.path-unit__title {
+  margin: 0;
+}
+
+.path-unit__subtitle,
+.path-unit__why {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.path-unit__why {
+  margin-top: var(--s-3);
+}
+
+/* The source link runs on in the why line. Its padding makes the tap target at least 44px tall
+   without moving a line, as the coach notes' source link does. */
+.path-unit__source {
+  padding: var(--s-4) 0;
+  color: var(--accent);
+}
+
+/* The steps stack with no gap between rows, so a link as tall as its row, starting at its
+   node's centre, ends at the next node's centre. isolation keeps the links' z-index inside the
+   list, under every node and card. On a wide column the path keeps a phone's width, centred,
+   so its turns stay as steep as on a phone. */
+.path-steps {
+  position: relative;
+  isolation: isolate;
+  max-width: 440px;
+  margin: var(--s-5) auto 0;
+  padding: 0;
+  list-style: none;
+}
+
+.path-step {
+  position: relative;
+  display: grid;
+  align-items: start;
+  padding-bottom: var(--s-6);
+}
+
+/* The room before a side node is a quarter of the row less half the node, so the node's centre
+   sits at 25% of the row from its own edge: left or right. */
+.path-step--left {
+  grid-template-columns: max(0px, calc(25% - 52px)) 104px minmax(0, 1fr);
+}
+
+.path-step--right {
+  grid-template-columns: minmax(0, 1fr) 104px max(0px, calc(25% - 52px));
+}
+
+.path-step--center {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+.path-step > .path-node {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.path-step--center > .path-node {
+  grid-column: 1;
+}
+
+/* The side holds the node's card and, beside level 3, the crown with its own card. A card hugs
+   its node: from the left beside a left node, from the right beside a right one. A closed card
+   takes no room. */
+.path-step__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.path-step--left > .path-step__side {
+  grid-row: 1;
+  grid-column: 3;
+  margin-left: var(--s-2);
+}
+
+.path-step--right > .path-step__side {
+  grid-row: 1;
+  grid-column: 1;
+  align-items: flex-end;
+  margin-right: var(--s-2);
+}
+
+/* The checkpoint's card opens under it. */
+.path-step--center > .path-step__side {
+  grid-row: 2;
+  grid-column: 1;
+  align-items: center;
+  width: 100%;
+}
+
+.path-step--center .path-card {
+  margin-top: var(--s-3);
+}
+
+.path-step__side > .path-node--crown,
+.path-step__side > .path-node--crown + .path-card {
+  align-self: center;
+}
+
+/* A link runs from its node's centre, 32px down the row, as tall as the row, so it ends at the
+   next node's centre: a drop to the foot of the row's content, then a turn whose box spans the
+   row's --s-6 foot and the next node's top half. The turn crosses inside the foot, below every
+   card and crown in the row and above the next row's cards, then drops straight into the node
+   (screens/path.js linkD). Each part's stroke keeps 3px however far it stretches. Walked is
+   --ok, the rest --grid. */
+.path-step__link {
+  position: absolute;
+  z-index: -1;
+  top: 32px;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.path-step__drop,
+.path-step__turn {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  overflow: visible;
+}
+
+.path-step__drop {
+  top: 0;
+  height: calc(100% - var(--s-6) - 32px);
+}
+
+.path-step__turn {
+  bottom: 0;
+  height: calc(var(--s-6) + 32px);
+}
+
+.path-step__link path {
+  fill: none;
+  stroke: var(--grid);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.path-step__link--walked path {
+  stroke: var(--ok);
+}
+
+/* A node is one button: its circle over its label. Its name says what the circle shows. */
+.path-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  width: 104px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.path-node__circle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--muted);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+  color: var(--muted);
+}
+
+/* A crown or a checkpoint is a 48px circle set --s-2 down, its centre level with a level's. */
+.path-node--crown .path-node__circle,
+.path-node--checkpoint .path-node__circle {
+  width: 48px;
+  height: 48px;
+  margin-top: var(--s-2);
+  border-color: var(--border);
+}
+
+/* Labels sit on a --bg halo, so a link passing under one never crosses its words. */
+.path-node__label,
+.path-node__note {
+  max-width: 100%;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-tok);
+  background: var(--bg);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.path-node__label {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* "Back tomorrow" under a resting level, and the current level's label, read in --text. */
+.path-node__note,
+.path-node--current .path-node__label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.path-node__number {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Cleared: a filled --ok circle with a check. */
+.path-node--cleared .path-node__circle {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: var(--on-accent);
+}
+
+/* Current, and a checkpoint once open: --accent; the current level in a soft halo. */
+.path-node--current .path-node__circle,
+.path-node--checkpoint.path-node--open .path-node__circle {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.path-node--current .path-node__circle::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border: 6px solid var(--accent-soft);
+  border-radius: var(--r-chip);
+}
+
+/* A cleared level's rings, 3px of --warn on the circle's edge, as the design draws them: half,
+   an arc over the top half of the edge, once its first check-back passed; gold, the full ring,
+   once its second did. The inset counts from inside the circle's 1px border, so the ring ends
+   3px out, clear of the label --s-1 under the circle. */
+.path-node--half .path-node__circle::after,
+.path-node--gold .path-node__circle::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 3px solid var(--warn);
+  border-radius: var(--r-chip);
+}
+
+.path-node--half .path-node__circle::after {
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  transform: rotate(-45deg);
+}
+
+/* A crown: muted while locked, a --warn crown once open, filled --warn once earned. Earned only
+   part of the way (some runs still to win) it is not filled yet: the open crown on --bg inside
+   the earned crown's --warn edge, its count ("2 of 5 earned") under its label. */
+.path-node--crown.path-node--open .path-node__circle {
+  color: var(--warn);
+}
+
+.path-node--crown.path-node--earned .path-node__circle {
+  border-color: var(--warn);
+  background: var(--warn);
+  color: var(--on-accent);
+}
+
+.path-node--crown.path-node--earned.path-node--partial .path-node__circle {
+  background: var(--bg);
+  color: var(--warn);
+}
+
+/* A node's badge, over its ring: the clock on a cleared level whose check-back is due, the lock
+   on a locked crown, the check on a cleared checkpoint. The last two say what the circle's
+   colour alone would not (DESIGN.md section 9). */
+.path-node__badge {
+  position: absolute;
+  z-index: 1;
+  top: calc(-1 * var(--s-1));
+  right: calc(-1 * var(--s-1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* On a crown's or a checkpoint's 48px circle the badge sits --s-2 out, across its edge as on a
+   level's circle, so it never covers the crown or the flag. */
+.path-node--crown .path-node__badge,
+.path-node--checkpoint .path-node__badge {
+  top: calc(-1 * var(--s-2));
+  right: calc(-1 * var(--s-2));
+}
+
+/* A node's card, beside its node (under it for the crown and the checkpoint) and pointing at
+   it; the next step's is tinted. A closed card is hidden: display: flex would otherwise beat
+   the hidden attribute. */
+.path-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: min(100%, 240px);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+}
+
+.path-card[hidden] {
+  display: none;
+}
+
+.path-card--current {
+  background: var(--accent-soft);
+}
+
+.path-card__text {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* The pointer: a square turned 45 degrees on the card's edge, in the card's own background, with
+   the two borders that face the node. Beside a node it is level with the node's centre, 32px
+   down; above the card it is centred. */
+.path-card::before {
+  content: "";
+  position: absolute;
+  width: var(--s-3);
+  height: var(--s-3);
+  border: 1px solid var(--border);
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.path-card--point-left::before {
+  top: 25px;
+  left: calc(-1 * var(--s-2));
+  border-top-color: transparent;
+  border-right-color: transparent;
+}
+
+.path-card--point-right::before {
+  top: 25px;
+  right: calc(-1 * var(--s-2));
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+}
+
+.path-card--point-up::before {
+  top: calc(-1 * var(--s-2));
+  left: calc(50% - 6px);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+
+/* Keyboard focus scrolls a control clear of the nav, ring and all, as on History. */
+#screen-path :is(a, button) {
+  scroll-margin-top: var(--s-2);
+  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+}
+
+/* 200% zoom on a phone leaves 160 to 187px, too narrow to wind: every step stacks its node over
+   its card at the left, and the links, drawn for the winding rows, are left out. */
+@media (max-width: 319px) {
+  .path-step--left,
+  .path-step--right,
+  .path-step--center {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .path-step > .path-node,
+  .path-step > .path-step__side {
+    grid-column: 1;
+  }
+
+  .path-step > .path-step__side {
+    grid-row: 2;
+    align-items: stretch;
+    width: 100%;
+    margin: 0;
+  }
+
+  .path-step__side > .path-card {
+    width: 100%;
+    margin-top: var(--s-3);
+  }
+
+  .path-step__link,
+  .path-card::before {
+    display: none;
+  }
+
+  /* The cards give their words more room, as the metric cards do on a narrow screen, and
+     "Start benchmark" takes the card's width in small type, breaking a word sooner than
+     overflow it. */
+  .path-benchmark,
+  .path-unit__card {
+    padding: var(--s-3);
+  }
+
+  .path-benchmark__start {
+    width: 100%;
+    padding: 0 var(--s-2);
+    font-size: var(--fs-small);
+    overflow-wrap: anywhere;
+  }
 }

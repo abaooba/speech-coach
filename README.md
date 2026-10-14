@@ -1,8 +1,9 @@
 # Speech Coach (working title)
 
-A practice tool for debaters and speech students. Record a short practice
-speech on your phone or laptop, get back words per minute, long pauses,
-filler words and repeated words, and watch those numbers improve over days.
+A practice tool for speaking more fluently, for non-native speakers and
+anyone who wants to sound more articulate. Record yourself talking or reading
+aloud on your phone or laptop, get back words per minute, long pauses, filler
+words and repeated words, and watch those numbers improve over days.
 Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 
 ## Screenshots
@@ -18,8 +19,8 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 - Progress: one metric charted across your takes, with your latest, your best and your change
   from the average.
   ![Progress screen](docs/screenshots/progress.png)
-- Onboarding, shown on first launch: what is measured and that audio is deleted after
-  analysis.
+- Onboarding, shown on first launch: what is measured, that audio is deleted after
+  analysis, and that take 1 of a Path level stays in memory for replay until the level ends.
   ![Onboarding screen](docs/screenshots/onboarding.png)
 
 ## How it works
@@ -29,8 +30,9 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 2. The audio is sent to a small FastAPI backend, which forwards it to a
    speech-to-text provider (Deepgram or AssemblyAI) with filler words kept.
 3. The backend computes the metrics from the word timestamps and returns
-   them with the transcript. Audio is discarded after analysis (see
-   Privacy below for exactly what that means).
+   them with the transcript. Audio is discarded after analysis; during a
+   Path level the browser keeps take 1 in memory for replay until the
+   level ends (see Privacy below for exactly what that means).
 4. The browser saves the session in IndexedDB on the device and draws a
    progress chart. No accounts, nothing stored on the server.
 
@@ -200,6 +202,12 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
 - The audio is forwarded once to the speech-to-text provider you configure
   (Deepgram or AssemblyAI) and is subject to that provider's retention
   policy.
+- During a Path level, the browser keeps take 1's recording in memory
+  after its upload, so the review step can play it back. It is never
+  written to IndexedDB, uploaded again or saved anywhere else, and it is
+  released when the level ends: when the result shows, when you leave the
+  level or start another, or when you open a screen other than Practice or
+  the level. Reloading the page drops it too.
 - Transcripts and metrics are returned to the browser and stored in
   IndexedDB on the device. For the coach notes on Results, the browser also
   sends the take's numbers and the first 1,500 characters of its transcript

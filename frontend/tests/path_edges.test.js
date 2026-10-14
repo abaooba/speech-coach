@@ -1,4 +1,5 @@
-// Edge tests for two app.path rules (docs/PLAN.md T42) that frontend/tests/path.test.js leaves
+// Edge tests for two app.path rules (docs/PLAN.md T42, and the Loop Path of
+// docs/superpowers/specs/2026-10-14-loop-path.md) that frontend/tests/path.test.js leaves
 // unguarded: order() ranks a pace below the band as select.py's pace_slow does, and a clean
 // stretch clears its level at exactly the target, to the tenth of a second the Results card
 // shows. Every report comes from the real app.delivery.analyze.
@@ -52,9 +53,22 @@ function take(transcript, passageId) {
   };
 }
 
+// Talk at 0.25 s a word, each word 0.15 s long, from 1 s: 300 words speak for 74.9 s, enough
+// for a Long pauses take 2 of 90 s, and a stretch from the first word to a filler at index i
+// lasts exactly i / 4 seconds. `say` swaps in other text by index.
+function quickTalk(say) {
+  return Array.from({ length: 300 }, (_, index) => ({
+    text: say[index] || "word" + index,
+    start: 1 + index * 0.25,
+    end: 1 + index * 0.25 + 0.15,
+  }));
+}
+
+// How take 2 of a level went, against the take's own numbers as the usual ones.
 function evaluate(levelId, session) {
   const report = APP.delivery.analyze(session.transcript, session.metrics);
-  return plain(APP.path.evaluate(APP.path.levelById(levelId), report));
+  const baseline = APP.path.measure(report, 90);
+  return plain(APP.path.evaluate(levelId, 1, report, { baseline }));
 }
 
 test("a pace two band widths too slow puts Pace first, ahead of fillers twice their target", () => {
@@ -71,21 +85,25 @@ test("a pace two band widths too slow puts Pace first, ahead of fillers twice th
 });
 
 test("a clean stretch of exactly the target clears the level", () => {
-  // An um 15.0 s after the first word: the longest clean stretch is the 15.0 s before it.
-  const transcript = words({ count: 40, say: { 30: "um" } });
-  assert.deepEqual(evaluate("long-pauses-1", take(transcript, "impromptu")), {
-    passed: true,
-    detail: "Your longest clean stretch was 15 seconds. Level cleared: the target was 15 seconds.",
-  });
+  // An um 15.0 s after the first word, then one every 60 words: the longest clean stretch is the
+  // 15.0 s before the first.
+  const transcript = quickTalk({ 60: "um", 120: "um", 180: "um", 240: "um" });
+  const result = evaluate("long-pauses-1", take(transcript, "impromptu"));
+  assert.deepEqual([result.passed, result.sentence], [
+    true,
+    "15 seconds clean and no long pauses on take 2. The target was 15 seconds clean, with at " +
+      "most 1 long pause.",
+  ]);
 });
 
 test("a clean stretch a tenth of a second short of the target does not", () => {
   // The first word starts 0.1 s later, so the stretch before the um is 14.9 s.
-  const transcript = words({ count: 40, say: { 30: "um" } });
+  const transcript = quickTalk({ 60: "um", 120: "um", 180: "um", 240: "um" });
   transcript[0].start += 0.1;
-  assert.deepEqual(evaluate("long-pauses-1", take(transcript, "impromptu")), {
-    passed: false,
-    detail: "Your longest clean stretch was 14.9 seconds. Hold one for 15 seconds to clear " +
-      "this level.",
-  });
+  const result = evaluate("long-pauses-1", take(transcript, "impromptu"));
+  assert.deepEqual([result.passed, result.sentence], [
+    false,
+    "14.9 seconds clean and no long pauses on take 2. The target is 15 seconds clean, with at " +
+      "most 1 long pause.",
+  ]);
 });

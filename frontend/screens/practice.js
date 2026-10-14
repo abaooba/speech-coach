@@ -2,8 +2,10 @@
    mount() builds the Talk / Read switch, chips, card, timer, record button, hint (with Talk's
    script box) and state block once; render(state, detail) repaints them. Stop uploads the
    take with its script (a Read passage's text, or the one pasted on Talk) through app.api and
-   saves it with app.store. It never asks for the microphone before a Record tap, and never
-   stores audio. */
+   saves it with app.store, with the topic it was given. In level mode (startLevelTake, spec
+   docs/superpowers/specs/2026-10-14-loop-path.md section 7) a banner stands in for the switch
+   and the chips, and the saved take goes back to the Level screen instead of Results. It never
+   asks for the microphone before a Record tap, and never stores audio. */
 (function () {
   "use strict";
 
@@ -83,6 +85,12 @@
   const UPLOAD_FAILED_TITLE = "Upload failed";
   const UPLOAD_FAILED_ACTION = "Retry upload";
   const NEW_TAKE_ACTION = "Record a new take";
+  // What app.store rejects every call with while an older version of the app, open in another
+  // tab, blocks the database upgrade (store.js UPGRADE_BLOCKED_MESSAGE; DESIGN.md section 2).
+  // It says what to do, so a save refused with it shows it word for word; nothing else a save
+  // throws ever does.
+  const STORE_BLOCKED_SENTENCE =
+    "Close other Speech Coach tabs to finish updating, then try again.";
   const SAMPLE_URL = "sample-session.json";
   const SAMPLE_LABEL = "See a sample result";
   const SAMPLE_ERROR_TITLE = "Sample unavailable";
@@ -95,6 +103,17 @@
   const SVG_NS = "http://www.w3.org/2000/svg";
   const MIC_ICON_SIZE = "28";
   const STOP_ICON_SIZE = "24";
+
+  // Level mode: the Level screen asks for one take through startLevelTake(request). Its banner
+  // says what the take is for, and a level with the live tap (Fillers level 3) puts "Heard one"
+  // under the record button while the take records.
+  const PRACTICE_ROUTE = "practice";
+  const LEAVE_LEVEL_LABEL = "Leave level";
+  const LIVE_TAP_LABEL = "Heard one";
+  const LIVE_TAP_ARIA_LABEL = "Heard one filler";
+  const LIVE_TAP_COUNT_ID = "practice-live-tap-count";
+  const LIVE_TAP_COUNT_SUFFIX = " heard";
+  const LEVEL_CALLBACKS = ["judge", "onSaved", "onLeave"];
 
   // The screen's <section>; its data-state attribute drives the CSS for every state.
   let root = null;
@@ -112,14 +131,29 @@
   // toggle still cycles when localStorage is blocked and app.ui.getTheme() can only say "auto".
   let themeChoice = "auto";
 
+  // The Level screen's request while Practice records a take for it, or null in normal mode:
+  // {eyebrow, title, body, material, seconds, liveTap, judge, onSaved, onLeave} (spec section 7).
+  // Its material and its seconds stand in for the selected entry and that entry's time limit.
+  let levelRequest = null;
+
+  // True from the router's show() until its hide(): Practice is the screen on show. A request
+  // that comes meanwhile is painted at once, since the router has nothing new to show for it.
+  let shown = false;
+
+  // The clock's seconds, to a tenth, at each "Heard one" tap during the take recording now.
+  let liveTaps = [];
+
   // Nodes built by mount(). render() repaints them; startTimer(), tickTimer() and resetClock()
   // write the clock. The theme toggle is the one node index.html builds: mount() finds it in
-  // the header.
+  // the header. The banner and the live tap join the body only in level mode.
   const nodes = {
     themeToggle: null,
+    body: null,
+    modeSwitch: null,
     modeOptions: [],
     chipRow: null,
     chips: [],
+    card: null,
     cardTitle: null,
     cardTarget: null,
     cardText: null,
@@ -130,12 +164,21 @@
     limitFill: null,
     recordButton: null,
     recordLabel: null,
+    hint: null,
     hintText: null,
     sampleButton: null,
     stateBlock: null,
     scriptBox: null,
     scriptSummary: null,
     scriptInput: null,
+    banner: null,
+    bannerEyebrow: null,
+    bannerTitle: null,
+    bannerBody: null,
+    leaveLevel: null,
+    liveTap: null,
+    liveTapButton: null,
+    liveTapCount: null,
   };
 
   // Everything a live take holds, from the Record tap until Stop or hide() lets it go.
@@ -151,7 +194,9 @@
     pausesStarted: false,
   };
 
-  // The finished take, kept through uploading and error so Retry re-sends the same blob.
+  // The finished take, kept through uploading and error so Retry re-sends the same blob. Once the
+  // backend's analysis is back it is kept here too, and so is the session once it is judged, so
+  // Retry repeats only the step that failed.
   let pendingTake = null;
 
   // The Upload failed block's detail, kept with its take. The block says the recording is still
@@ -166,8 +211,8 @@
   let shownSeconds = 0;
 
   // What the card and the chip row last showed, so render() scrolls the text back to the top
-  // only when the passage or topic changes, and the chips back to the start only when the tab
-  // changes; a state change never loses the reader's place.
+  // only when the text changes (another passage or topic, or a level's material), and the chips
+  // back to the start only when the tab changes; a state change never loses the reader's place.
   let paintedTextKey = null;
   let paintedKind = null;
 
@@ -177,7 +222,9 @@
   // The state table from DESIGN.md section 7 as plain data, so it can be tested without a DOM.
   // showHint and showRecord mirror the [data-state] rules in styles.css: the record button and
   // its label show in idle and recording only, and error puts its block in their place.
-  // chipsDisabled holds the tabs and New topic as well; New topic shows in idle only.
+  // chipsDisabled holds the tabs and New topic as well; New topic shows in idle only. In level
+  // mode Leave level shows when the nav does (idle and error), so a stray thumb cannot abandon a
+  // take that records or uploads, and "Heard one" shows while a take records.
   function viewFor(nextState) {
     if (!STATES.includes(nextState)) {
       throw new Error("practice: unknown state " + JSON.stringify(nextState));
@@ -194,6 +241,8 @@
       showHint: idle || recording,
       hintText: recording ? RECORDING_HINT_TEXT : HINT_TEXT,
       showRecord: idle || recording,
+      showLeaveLevel: idle || nextState === "error",
+      showLiveTap: recording,
     };
   }
 
@@ -201,6 +250,31 @@
   function selectedPassage() {
     const id = selectedIdByKind[currentKind];
     return (app.passages || []).find((entry) => entry.id === id) || null;
+  }
+
+  // The entry the card, the clock and the take use: in level mode the request's material, with
+  // the request's seconds as its limit; otherwise the selected entry.
+  function shownEntry() {
+    return levelRequest === null ? selectedPassage() : levelEntry(levelRequest);
+  }
+
+  // A level request's material in the shape of an app.passages entry, so the card, the clock and
+  // the take read it as they read the selected entry. It has no topics: New topic never changes
+  // a level's material.
+  function levelEntry(request) {
+    const { id, kind, title, text, targetWpm } = request.material;
+    return { id, kind, title, text, targetWpm, timeLimitSeconds: request.seconds };
+  }
+
+  // The topic a take is given, saved as its `topic` so app.path.pickTopic knows which topics were
+  // used: a level material's topic, or the topic on screen of a prompt with topics. Null for a
+  // passage or a prompt without topics, whose takes save no topic.
+  function topicOf(entry) {
+    if (levelRequest !== null) {
+      const { topic } = levelRequest.material;
+      return typeof topic === "string" && topic !== "" ? topic : null;
+    }
+    return hasTopics(entry) ? cardTextOf(entry) : null;
   }
 
   // Helpers over the passage data; none of them touches the DOM or app.ui.
@@ -259,6 +333,7 @@
     }
 
     const body = root.querySelector(".screen__body");
+    nodes.body = body;
     body.appendChild(buildModeSwitch());
     body.appendChild(buildChipRow(passages));
     body.appendChild(buildPassageCard());
@@ -270,17 +345,63 @@
     // Talk's script box closes the row beside the sample button, so it costs the one-screen
     // layout no row of its own (DESIGN.md section 3).
     nodes.hintText = app.ui.el("span", { class: "practice__hint-text", text: HINT_TEXT });
-    body.appendChild(
-      app.ui.el("div", { class: "practice__hint" }, [
-        nodes.hintText,
-        buildSampleButton(),
-        buildScriptBox(),
-      ]),
-    );
+    nodes.hint = app.ui.el("div", { class: "practice__hint" }, [
+      nodes.hintText,
+      buildSampleButton(),
+      buildScriptBox(),
+    ]);
+    body.appendChild(nodes.hint);
     nodes.stateBlock = app.ui.el("div", { class: "practice__state" });
     body.appendChild(nodes.stateBlock);
+    // Level mode's banner and live tap are built once here too, but join the body only while a
+    // request is held (paintLevelParts), so normal mode keeps exactly the parts above.
+    buildBanner();
+    buildLiveTap();
 
     render("idle");
+  }
+
+  // The level banner: the level as its eyebrow ("Path: Fillers, level 3"), the take as its title
+  // ("Take 1 of 2"), what to do, and Leave level, a small text button.
+  function buildBanner() {
+    nodes.bannerEyebrow = app.ui.el("p", { class: "practice__banner-eyebrow" });
+    nodes.bannerTitle = app.ui.el("h2", { class: "practice__banner-title" });
+    nodes.bannerBody = app.ui.el("p", { class: "practice__banner-body" });
+    nodes.leaveLevel = app.ui.el("button", {
+      class: "btn btn--ghost practice__banner-leave",
+      type: "button",
+      text: LEAVE_LEVEL_LABEL,
+      onClick: leaveLevel,
+    });
+    nodes.banner = app.ui.el("section", { class: "practice__banner" }, [
+      nodes.bannerEyebrow,
+      nodes.bannerTitle,
+      nodes.bannerBody,
+      nodes.leaveLevel,
+    ]);
+  }
+
+  // "Heard one": a large secondary button the speaker taps on hearing one of their own fillers
+  // while the take records. The small count beside it ("3 heard") also describes it to screen
+  // readers, whose name for it, "Heard one filler", starts with the words on it (WCAG 2.5.3), so
+  // a voice-control user can say "Heard one".
+  function buildLiveTap() {
+    nodes.liveTapButton = app.ui.el("button", {
+      class: "btn btn--secondary practice__live-tap-button",
+      type: "button",
+      "aria-label": LIVE_TAP_ARIA_LABEL,
+      "aria-describedby": LIVE_TAP_COUNT_ID,
+      text: LIVE_TAP_LABEL,
+      onClick: onLiveTap,
+    });
+    nodes.liveTapCount = app.ui.el("span", {
+      class: "practice__live-tap-count",
+      id: LIVE_TAP_COUNT_ID,
+    });
+    nodes.liveTap = app.ui.el("div", { class: "practice__live-tap" }, [
+      nodes.liveTapButton,
+      nodes.liveTapCount,
+    ]);
   }
 
   // A closed <details> in the hint row: its summary opens a labeled textarea. The note under
@@ -388,11 +509,12 @@
         onClick: () => selectKind(mode.kind),
       }),
     );
-    return app.ui.el(
+    nodes.modeSwitch = app.ui.el(
       "div",
       { class: "segmented", role: "group", "aria-label": MODE_SWITCH_LABEL },
       nodes.modeOptions,
     );
+    return nodes.modeSwitch;
   }
 
   // One chip per entry, built once; render() shows only the current tab's chips.
@@ -454,12 +576,13 @@
       },
       [app.ui.icon("refresh", NEW_TOPIC_ICON_SIZE)],
     );
-    return app.ui.el("section", { class: "passage-card" }, [
+    nodes.card = app.ui.el("section", { class: "passage-card" }, [
       nodes.cardTitle,
       nodes.newTopic,
       nodes.cardTarget,
       nodes.cardText,
     ]);
+    return nodes.card;
   }
 
   // The clock, plus "/ 1:00" and a bar that fills toward the limit for a timed entry.
@@ -523,26 +646,30 @@
   // from the clock (the timer tick writes it and the bar, resetClock() puts it back to 0:00), a
   // focused chip scrolling into view, and the header's theme toggle, which repaints itself.
   // `detail` is only read for "error": {title, body, actionLabel, onAction, secondaryLabel?,
-  // onSecondary?}, passed straight to app.ui.renderState.
+  // onSecondary?}, passed straight to app.ui.renderState. A held level request is painted with
+  // the state: its banner, its material and limit, and the live tap.
   function render(nextState, detail) {
     const view = viewFor(nextState);
     state = nextState;
     root.dataset.state = view.dataState;
 
-    const passage = selectedPassage();
+    const passage = shownEntry();
     paintModeSwitch(view);
     paintChips(view);
+    paintLevelParts(view);
     paintPassageCard(view, passage);
     paintTimeLimit(passage);
     paintRecordButton(view);
     paintScriptBox(view);
-    nodes.hintText.textContent = view.hintText;
+    paintHint(view);
     paintStateBlock(view.dataState, detail || {});
   }
 
-  // A tab with no entries stays disabled, so the screen never shows an empty card.
+  // A tab with no entries stays disabled, so the screen never shows an empty card. Level mode
+  // hides the switch, and the chips below it: the banner takes their place.
   function paintModeSwitch(view) {
     const passages = app.passages || [];
+    nodes.modeSwitch.hidden = levelRequest !== null;
     nodes.modeOptions.forEach((option) => {
       const kind = option.dataset.kind;
       const selected = kind === currentKind;
@@ -555,6 +682,7 @@
   // Only the current tab's chips show; switching tabs scrolls the row back to its start.
   function paintChips(view) {
     const selectedId = selectedIdByKind[currentKind];
+    nodes.chipRow.hidden = levelRequest !== null;
     nodes.chips.forEach((chip) => {
       const inTab = chip.dataset.kind === currentKind;
       const selected = inTab && chip.dataset.passageId === selectedId;
@@ -569,13 +697,49 @@
     }
   }
 
+  // Level mode's parts join the body while a request is held and leave it with the request, so
+  // normal mode keeps exactly the body DESIGN.md section 3 lists: the banner right above the
+  // card, in the place of the switch and the chips, and on a level with the live tap "Heard one"
+  // right under the record button's label.
+  function paintLevelParts(view) {
+    const request = levelRequest;
+    placeInBody(nodes.banner, request !== null, nodes.card);
+    placeInBody(nodes.liveTap, request !== null && Boolean(request.liveTap), nodes.hint);
+    if (request === null) {
+      return;
+    }
+    nodes.bannerEyebrow.textContent = lineOf(request.eyebrow);
+    nodes.bannerTitle.textContent = lineOf(request.title);
+    nodes.bannerBody.textContent = lineOf(request.body);
+    nodes.leaveLevel.hidden = !view.showLeaveLevel;
+    nodes.liveTap.hidden = !view.showLiveTap;
+    nodes.liveTapCount.textContent = liveTaps.length + LIVE_TAP_COUNT_SUFFIX;
+  }
+
+  // Puts `node` into the body right before `next` when `wanted`, otherwise takes it out. The
+  // normal-mode test fakes keep no parentNode; nothing is ever put in there.
+  function placeInBody(node, wanted, next) {
+    const placed = node.parentNode === nodes.body;
+    if (wanted && !placed) {
+      nodes.body.insertBefore(node, next);
+    } else if (!wanted && placed) {
+      nodes.body.removeChild(node);
+    }
+  }
+
+  // A line of the request as the banner shows it: nothing when the Level screen leaves it out.
+  function lineOf(value) {
+    return typeof value === "string" ? value : "";
+  }
+
+  // In level mode `passage` is the request's material (shownEntry), which has no topics.
   function paintPassageCard(view, passage) {
-    const textKey = passage ? passage.id + "/" + topicIndexOf(passage) : null;
+    const textKey = passage ? passage.id + "/" + cardTextOf(passage) : null;
     if (textKey !== paintedTextKey) {
       nodes.cardText.scrollTop = 0;
       paintedTextKey = textKey;
     }
-    nodes.newTopic.hidden = !(view.showNewTopic && hasTopics(passage));
+    nodes.newTopic.hidden = !(view.showNewTopic && levelRequest === null && hasTopics(passage));
     nodes.newTopic.disabled = view.chipsDisabled;
     if (!passage) {
       nodes.cardTitle.textContent = "";
@@ -608,12 +772,20 @@
     nodes.limitBar.classList.toggle(LIMIT_OVER_CLASS, limit !== null && seconds >= limit);
   }
 
-  // The box shows on Talk only. Outside idle it is read-only rather than disabled, so the
-  // speaker can still scroll and read it while the take records.
+  // The box shows on Talk only, and never in level mode, where a take is said or read on its
+  // material alone. Outside idle it is read-only rather than disabled, so the speaker can still
+  // scroll and read it while the take records.
   function paintScriptBox(view) {
-    nodes.scriptBox.hidden = currentKind !== SCRIPT_KIND;
+    nodes.scriptBox.hidden = levelRequest !== null || currentKind !== SCRIPT_KIND;
     nodes.scriptInput.readOnly = view.chipsDisabled;
     paintScriptSummary();
+  }
+
+  // The hint's words for the state. The sample button hides in level mode, where the take on
+  // screen is the Level screen's.
+  function paintHint(view) {
+    nodes.hintText.textContent = view.hintText;
+    nodes.sampleButton.hidden = levelRequest !== null;
   }
 
   // "Paste your script (optional)" while the box is empty, else "Your script (124 words)".
@@ -688,6 +860,16 @@
     return active === node || (typeof node.contains === "function" && node.contains(active));
   }
 
+  // True when keyboard focus sits on no control: on <body>, where the browser leaves it when the
+  // focused node leaves the page, or on nothing in the test fakes.
+  function focusIsLost() {
+    if (typeof document === "undefined") {
+      return false;
+    }
+    const active = document.activeElement;
+    return !active || active === document.body;
+  }
+
   // Moves keyboard focus when the node can take it; the test fakes have no focus().
   function focusIfPossible(node) {
     if (node && typeof node.focus === "function") {
@@ -727,6 +909,7 @@
   // failed upload still holds its take: then its Upload failed block is drawn again, clock and
   // all, whether the upload failed before the speaker left or while they were away.
   function show() {
+    shown = true;
     if (state === "recording" || state === "uploading") {
       return;
     }
@@ -740,14 +923,132 @@
 
   // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer and pause
   // sampler go and drop the take. An upload in flight keeps going, and a failed upload keeps its
-  // take; show() will find either.
+  // take; show() will find either. A level request goes too, unless such a take still answers
+  // it: the Level screen asks again when the speaker goes back to it, and a later visit to
+  // Practice is a normal one.
   function hide() {
+    shown = false;
     capture.awaitingMic = false;
+    if (pendingTake === null) {
+      levelRequest = null;
+    }
     if (state === "recording") {
       releaseCapture();
       resetClock();
       render("idle");
     }
+  }
+
+  // The Level screen's way in (spec section 7): hold the request and go to #/practice, where
+  // show() paints it. A take still held from before (a failed upload) is let go, since the
+  // request asks for a new take; an upload already in flight still answers the request it was
+  // recorded under, while Practice holds the new one. When Practice is already on show (the
+  // request comes from onSaved or onLeave, say), going to #/practice changes no hash and the
+  // router calls no show(), so the request is painted here.
+  function startLevelTake(request) {
+    if (!isLevelRequest(request)) {
+      throw new TypeError(
+        "startLevelTake needs a material {kind, id, title, text, targetWpm} and judge, " +
+          "onSaved and onLeave",
+      );
+    }
+    levelRequest = request;
+    if (failedUpload !== null) {
+      letTakeGo();
+    }
+    if (shown) {
+      paintRequestInPlace();
+    }
+    app.router.go(PRACTICE_ROUTE);
+  }
+
+  // Paints a request that came while Practice is on show, as show() would: a fresh take at 0:00
+  // under the banner. A take that records or uploads is left as it is, as show() leaves it; the
+  // banner shows with the next state the screen draws. Focus that the repaint would strand, on a
+  // part the banner hides (the switch, the chips, New topic, the hint row), in a block it clears
+  // or already on nothing, moves to the banner's title, as a screen change moves it to the new h1
+  // (tabindex -1, never a Tab stop); focus anywhere else stays where it is.
+  function paintRequestInPlace() {
+    if (state === "recording" || state === "uploading") {
+      return;
+    }
+    const stranded =
+      focusIsLost() ||
+      [nodes.modeSwitch, nodes.chipRow, nodes.newTopic, nodes.hint, nodes.stateBlock].some(
+        holdsFocus,
+      );
+    resetClock();
+    render("idle");
+    if (stranded) {
+      nodes.bannerTitle.setAttribute("tabindex", "-1");
+      focusIfPossible(nodes.bannerTitle);
+    }
+  }
+
+  // Whether Practice still holds `request`: the request on screen, or the one a recorded take
+  // still answers (an upload in flight, or one that failed and waits for Retry). One it let go
+  // (handed back with its take, left, or dropped by hide() with no take held) is not held, and in
+  // normal mode nothing is. The Level screen keeps its run, and take 1's audio, on #/practice
+  // only while Practice holds one of the run's requests. It reads state and changes nothing.
+  function holdsLevelRequest(request) {
+    if (request === null || request === undefined) {
+      return false;
+    }
+    return levelRequest === request || (pendingTake !== null && pendingTake.request === request);
+  }
+
+  // A request Practice can paint and record: its callbacks, and a material whose kind decides
+  // the script (MODES lists the two) and whose band the card's target line reads.
+  function isLevelRequest(request) {
+    if (request === null || typeof request !== "object") {
+      return false;
+    }
+    const material = request.material;
+    return (
+      material !== null &&
+      typeof material === "object" &&
+      MODES.some((mode) => mode.kind === material.kind) &&
+      ["id", "title", "text"].every((field) => typeof material[field] === "string") &&
+      Array.isArray(material.targetWpm) &&
+      material.targetWpm.length === 2 &&
+      LEVEL_CALLBACKS.every((name) => typeof request[name] === "function")
+    );
+  }
+
+  // "Leave level": back to normal mode in idle. A take still held for the level (a failed upload)
+  // goes with the request, and a microphone prompt still open lets its stream go when it answers.
+  // Focus on the button, or in an error block it clears (Safari leaves focus there on a tap),
+  // moves to the Talk / Read switch now in the banner's place. The Level screen hears of it
+  // last, so it finds Practice already in normal mode.
+  function leaveLevel() {
+    const request = levelRequest;
+    if (request === null || !viewFor(state).showLeaveLevel) {
+      return;
+    }
+    const hadFocus = holdsFocus(nodes.leaveLevel) || holdsFocus(nodes.stateBlock);
+    capture.awaitingMic = false;
+    levelRequest = null;
+    letTakeGo();
+    resetClock();
+    render("idle");
+    if (hadFocus) {
+      focusIfPossible(selectedModeOption());
+    }
+    request.onLeave();
+  }
+
+  function selectedModeOption() {
+    return nodes.modeOptions.find((option) => option.dataset.kind === currentKind) || null;
+  }
+
+  // "Heard one" while the take records: the clock's seconds to a tenth, which the Level screen
+  // matches with the fillers the take finds (app.loop.matchTaps). The count beside it repaints.
+  function onLiveTap() {
+    if (state !== "recording") {
+      return;
+    }
+    liveTaps.push(toTenth(elapsedSeconds()));
+    render(state);
   }
 
   // The record button: Stop while recording, otherwise ask for the microphone and begin.
@@ -789,6 +1090,7 @@
 
   function beginTake(stream) {
     letTakeGo();
+    liveTaps = [];
     capture.stream = stream;
     if (app.pauses) {
       app.pauses.start(stream);
@@ -840,27 +1142,36 @@
       return;
     }
 
-    const passage = selectedPassage();
+    // Like the script, the topic and the level request are fixed at Stop, so Retry saves and
+    // hands back the take as it was recorded, with the taps it was given.
+    const passage = shownEntry();
     pendingTake = {
       blob: new Blob(chunks, { type: contentType }),
       contentType,
-      durationSeconds: Math.round(durationSeconds * 10) / 10,
+      durationSeconds: toTenth(durationSeconds),
       samples,
       passageId: passage ? passage.id : null,
       passageTitle: passage ? passage.title : "",
       script: scriptFor(passage),
+      topic: topicOf(passage),
+      request: levelRequest,
+      liveTaps: liveTaps.slice(),
+      // {transcript, metrics} once the backend has analyzed the take, then the session to save.
+      analysis: null,
+      session: null,
     };
     upload();
   }
 
   // The text the take was read from, fixed at Stop so Retry re-sends the same: a Read
-  // passage's text, or on Talk the pasted script ("" for none). A script left in the closed
-  // box is still sent; its summary names it.
+  // passage's (or a level passage's) text, or on Talk the pasted script ("" for none). A script
+  // left in the closed box is still sent; its summary names it. A level take on a prompt sends
+  // none: it is said on its topic, and the box is hidden.
   function scriptFor(entry) {
     if (entry && entry.kind !== SCRIPT_KIND) {
       return entry.text;
     }
-    return pastedScript();
+    return levelRequest === null ? pastedScript() : "";
   }
 
   // The box's text without its edge spaces. Some test fakes give the textarea no value.
@@ -911,60 +1222,158 @@
     stream.getTracks().forEach((track) => track.stop());
   }
 
-  // Sends the pending take, saves the session and hands off to Results. "Retry upload" calls
-  // this again with the same blob; app.pauses, when present, folds its samples into metrics.
+  // Sends the pending take, saves the session and hands off: a plain take to Results, a level
+  // take back to the Level screen (handBack). "Retry upload" calls this again for the same take.
+  // The analysis, a level take's judging and the save can each fail into the Upload failed
+  // block, and each step that succeeded stays with the take: Retry sends the same blob again
+  // only when no analysis came back, and never judges a take twice. The hand-off runs once the
+  // take is saved, so it is never repeated. The block's sentence is fixed copy, apart from the
+  // store's own while another tab blocks its upgrade (saveFailureSentence).
   async function upload() {
     const take = pendingTake;
     if (take === null) {
       return;
     }
-    // Stop and the error block both vanish as the take uploads. When focus sat on either, it
-    // moves to the loading title, so it stays in the record zone and "Analyzing your speech" is
-    // read out.
-    const focusInRecordZone = holdsFocus(nodes.recordButton) || holdsFocus(nodes.stateBlock);
+    // Stop, Heard one and the error block all vanish as the take uploads. When focus sat on any
+    // of them, it moves to the loading title, so it stays in the record zone and "Analyzing your
+    // speech" is read out.
+    const focusInRecordZone =
+      holdsFocus(nodes.recordButton) || holdsFocus(nodes.stateBlock) || holdsFocus(nodes.liveTap);
     render("uploading");
     if (focusInRecordZone) {
       focusIfPossible(stateTitle());
     }
-    try {
-      const result = await app.api.analyze(take.blob, take.contentType, take.script);
-      const metrics =
-        app.pauses && take.samples
-          ? app.pauses.reconcile(result.metrics, take.samples)
-          : result.metrics;
-      const id = await app.store.save({
-        passageId: take.passageId,
-        passageTitle: take.passageTitle,
-        durationSeconds: take.durationSeconds,
-        metrics,
-        transcript: result.transcript,
-      });
-      letTakeGo();
-      app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
-      resetClock();
-      render("idle");
-      app.router.go("results", { id });
-    } catch (error) {
-      if (error.kind === "too_short") {
-        // The backend answered 400: the same blob would fail again and cost a provider call on
-        // every tap, so the take goes, as after "Record a new take", and Retry is never offered.
-        // Its clock goes back to 0:00 too: the take ran at least 5 seconds, and idle showing
-        // that after Record again would contradict the block's "under 5 seconds".
-        letTakeGo();
-        resetClock();
-        showTooShort();
+    if (take.analysis === null) {
+      try {
+        take.analysis = await analysisOf(take);
+      } catch (error) {
+        if (error && error.kind === "too_short") {
+          // The backend answered 400: the same blob would fail again and cost a provider call
+          // on every tap, so the take goes, as after "Record a new take", and Retry is never
+          // offered. Its clock goes back to 0:00 too: the take ran at least 5 seconds, and idle
+          // showing that after Record again would contradict the block's "under 5 seconds".
+          letTakeGo();
+          resetClock();
+          showTooShort();
+          return;
+        }
+        showUploadFailed(analysisFailureSentence(error));
         return;
       }
-      failedUpload = {
-        title: UPLOAD_FAILED_TITLE,
-        body: error.message,
-        actionLabel: UPLOAD_FAILED_ACTION,
-        onAction: upload,
-        secondaryLabel: NEW_TAKE_ACTION,
-        onSecondary: dropTake,
-      };
-      render("error", failedUpload);
     }
+    if (take.session === null) {
+      try {
+        take.session = sessionFor(take, take.analysis.transcript, take.analysis.metrics);
+      } catch {
+        // The judge threw. Whatever it threw, the block reads as for an unknown failure on our
+        // side, and the speaker's recording is still here for Retry.
+        showUploadFailed(app.api.messages.provider);
+        return;
+      }
+    }
+    let id = null;
+    try {
+      id = await app.store.save(take.session);
+    } catch (error) {
+      showUploadFailed(saveFailureSentence(error));
+      return;
+    }
+    const session = take.session;
+    letTakeGo();
+    resetClock();
+    if (take.request !== null) {
+      handBack(take, id, session);
+      return;
+    }
+    app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
+    render("idle");
+    app.router.go("results", { id });
+  }
+
+  // The backend's analysis of the take: its transcript, and its metrics with the pause samples
+  // folded in when app.pauses is present.
+  async function analysisOf(take) {
+    const result = await app.api.analyze(take.blob, take.contentType, take.script);
+    const metrics =
+      app.pauses && take.samples
+        ? app.pauses.reconcile(result.metrics, take.samples)
+        : result.metrics;
+    return { transcript: result.transcript, metrics };
+  }
+
+  // The fixed sentence for a failed analysis (DESIGN.md section 8): app.api's for the kind it
+  // reports ("network", "provider"). An "unknown" kind, or a throw with no kind, reads as a
+  // provider failure, as api.js reads one; an exception's own words never show.
+  function analysisFailureSentence(error) {
+    const messages = app.api.messages;
+    const kind = error !== null && typeof error === "object" ? error.kind : undefined;
+    const sentence = typeof kind === "string" ? messages[kind] : undefined;
+    return typeof sentence === "string" ? sentence : messages.provider;
+  }
+
+  // The sentence for a save that failed. While an older tab blocks the database upgrade, the
+  // store's own sentence tells the speaker to close it and try again, and Retry then saves the
+  // same take. Anything else reads as an unknown failure on our side: an exception's own words
+  // never show.
+  function saveFailureSentence(error) {
+    const message = error !== null && typeof error === "object" ? error.message : undefined;
+    return message === STORE_BLOCKED_SENTENCE ? STORE_BLOCKED_SENTENCE : app.api.messages.provider;
+  }
+
+  // The Upload failed block, with Retry and "Record a new take". It is kept with its take, so
+  // show() can draw it again after the speaker leaves Practice and comes back.
+  function showUploadFailed(sentence) {
+    failedUpload = {
+      title: UPLOAD_FAILED_TITLE,
+      body: sentence,
+      actionLabel: UPLOAD_FAILED_ACTION,
+      onAction: upload,
+      secondaryLabel: NEW_TAKE_ACTION,
+      onSecondary: dropTake,
+    };
+    render("error", failedUpload);
+  }
+
+  // The session to save: the fields every take has, the topic it was given (when it was given
+  // one) and, for a level take, the `path` its request's judge returns once the take is
+  // analyzed. A field the take lacks stays absent, as app.store keeps it.
+  function sessionFor(take, transcript, metrics) {
+    const session = {
+      passageId: take.passageId,
+      passageTitle: take.passageTitle,
+      durationSeconds: take.durationSeconds,
+      metrics,
+      transcript,
+    };
+    if (take.topic !== null) {
+      session.topic = take.topic;
+    }
+    if (take.request !== null) {
+      session.path = take.request.judge({
+        transcript,
+        metrics,
+        durationSeconds: take.durationSeconds,
+      });
+    }
+    return session;
+  }
+
+  // A saved level take goes back to the Level screen, never to Results. The request it answered
+  // is let go (a newer one that took its place stays), Practice is back in idle, and onSaved
+  // gets the take with its blob and its live taps. The take was already let go, so the blob
+  // handed over is the only one left.
+  function handBack(take, id, session) {
+    if (levelRequest === take.request) {
+      levelRequest = null;
+    }
+    render("idle");
+    take.request.onSaved({
+      id,
+      session,
+      blob: take.blob,
+      contentType: take.contentType,
+      liveTaps: take.liveTaps,
+    });
   }
 
   // "Record a new take" after a failed upload: let the held take go and start over in idle.
@@ -988,7 +1397,7 @@
     capture.announcedBlocks = 0;
     shownSeconds = 0;
     nodes.timer.textContent = TIMER_START;
-    paintLimitFill(limitOf(selectedPassage()));
+    paintLimitFill(limitOf(shownEntry()));
     capture.timerId = setInterval(tickTimer, TIMER_TICK_MS);
   }
 
@@ -996,7 +1405,7 @@
     const elapsed = elapsedSeconds();
     shownSeconds = elapsed;
     nodes.timer.textContent = app.ui.formatClock(elapsed);
-    paintLimitFill(limitOf(selectedPassage()));
+    paintLimitFill(limitOf(shownEntry()));
     const blocks = Math.floor(elapsed / ANNOUNCE_EVERY_SECONDS);
     if (blocks > capture.announcedBlocks) {
       capture.announcedBlocks = blocks;
@@ -1020,6 +1429,11 @@
 
   function elapsedSeconds() {
     return (performance.now() - capture.startedAt) / 1000;
+  }
+
+  // Seconds to a tenth, as a take's duration and its live taps are kept.
+  function toTenth(seconds) {
+    return Math.round(seconds * 10) / 10;
   }
 
   // Both icons draw in currentColor, which the button sets to --on-record: white on the light
@@ -1068,6 +1482,8 @@
     mount,
     show,
     hide,
+    startLevelTake,
+    holdsLevelRequest,
     STATES,
     viewFor,
     render,

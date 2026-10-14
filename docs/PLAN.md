@@ -6,6 +6,12 @@ Research library: /Users/arescajas/Downloads/speech_advice_all.json (482 entries
 > Owner note, 2026-10-11: this plan replaces the previous PLAN.md, including its
 > "Out of scope" list. T36 is written by the owner with Claude pairing live; agents skip it.
 
+> Owner note, 2026-10-14: Speech Coach is for non-native speakers and anyone who wants to speak
+> more fluidly and sound more articulate. It is not a debate tool. Every feature, prompt,
+> passage, tip and doc is about everyday fluency (talking, explaining, telling a story, an
+> interview answer, a presentation). Never add debate formats, rounds, cases, rebuttals,
+> resolutions or judges' ballots; wherever this plan or older docs say "debate", that is out of date.
+
 ## Read first (repo rules that override everything here)
 
 - CLAUDE.md: one task per session, test first, run `.venv/bin/pytest -q`, `.venv/bin/ruff check .`
@@ -180,6 +186,9 @@ Review fixes 2026-10-13 (frontend/rank.js is the reference):
 **T37 Rank UI** (depends T36): a rank badge with a progress bar to the next tier on Results
 (including the change, "+3.1 → Varsity") and Progress; a streak flame on Practice. A rank line in
 how.html. New frontend/tests/rank_ui.test.js.
+Owner decision 2026-10-14: the rank card ("ladder and lens", new frontend/rankcard.js) shows on
+Progress and Results only, never on the Path or inside a level, and the Practice streak chip is
+dropped. Build spec: docs/superpowers/specs/2026-10-14-loop-path.md section 11.
 
 ## Phase 3: Research library + cited Haiku advice (Oct 13-15)
 
@@ -242,6 +251,16 @@ Entry shape:
 
 ## Phase 4: Skill path with challenge modes (Oct 14-17)
 
+Owner decisions 2026-10-14, which override T42 and T43 below where they differ: build the Loop
+Path from docs/research/path-method-evidence.md. Each level is a loop (goal, take 1, feedback,
+review, take 2 counts), cleared levels come back as check-backs at +2 and +7 days, pass rules use
+rates with guards, sudden death and the speed ladder become optional crowns, and each unit ends
+in a checkpoint; a benchmark runs every 14 days. Take 1's audio is replayed from memory during a
+level and never saved. The rank never appears on the Path. New files: frontend/loop.js
+(app.loop), frontend/screens/path.js (#/path) and frontend/screens/level.js (#/level/<playId>).
+The nav is Practice · Path · Progress · History until T45 adds Calendar. Build spec:
+docs/superpowers/specs/2026-10-14-loop-path.md.
+
 **T42 frontend/path.js (app.path): data + pure evaluator**
 - Units: Restarts, Fillers, Long pauses, Pace, each with 5 levels. `path.order(history)` puts the
   weakest unit first (same weakness ranking as T39, mirrored in JS).
@@ -264,7 +283,7 @@ mode/passage/time. Results shows pass/fail for a path take. Each level shows one
 works" line, picked from the library for that unit. Nav becomes Practice · Path · Calendar ·
 Progress · History. New frontend/tests/path_screen.test.js.
 
-**T44 Cold-read passages**: add at least 12 new debate-style passages (120-200 words each, original
+**T44 Cold-read passages**: add at least 12 new everyday passages (120-200 words each, original
 text) to passages.js with a `coldRead: true` flag. New frontend/tests/passages_cold.test.js
 checks the count and word lengths.
 
