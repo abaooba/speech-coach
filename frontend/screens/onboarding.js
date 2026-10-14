@@ -1,7 +1,7 @@
 /* screens/onboarding.js: app.screens.onboarding, the first-launch screen (DESIGN.md sections 1
-   and 8): what is measured, that audio is deleted after analysis, and one button that saves the
-   "onboarded" flag and opens Practice. COPY holds every string, so tests check it without a DOM.
-   It never asks for the microphone, and app.js, not this file, decides when it shows. */
+   and 8): what is measured, what happens to audio and transcripts, and one button that saves
+   the "onboarded" flag and opens Practice. COPY holds every string, so tests check it without a
+   DOM. It never asks for the microphone, and app.js, not this file, decides when it shows. */
 (function () {
   "use strict";
 
@@ -12,7 +12,10 @@
       "Pauses over 1.5 seconds and filler words like um",
       "A chart of every session on this phone",
     ]),
-    privacy: "Audio is deleted right after analysis. Transcripts stay on this device.",
+    // 1,500: the longest excerpt POST /api/advice carries (tips.js MAX_EXCERPT_CHARACTERS).
+    privacy:
+      "Audio is deleted right after analysis. " +
+      "Coach notes send the first 1,500 characters of your transcript to Anthropic.",
     button: "Start practicing",
   });
 
