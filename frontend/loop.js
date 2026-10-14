@@ -393,14 +393,15 @@
   // --- Taps and clips -------------------------------------------------------------------------
 
   // Matches taps to events, each tap to at most one event not yet matched and each event to at
-  // most one tap: a tap at `t` catches an event at `e` when e - window.before <= t <= e +
-  // window.after (SPOT_IT_WINDOW or LIVE_TAP_WINDOW). Taps are taken in time order, each
+  // most one tap: a tap at `t` catches an event at `e` when e - tapWindow.before <= t <= e +
+  // tapWindow.after (SPOT_IT_WINDOW or LIVE_TAP_WINDOW). Taps are taken in time order, each
   // catching the earliest event still free in its window, which catches as many as can be
   // caught. {caught, total, pairs: [[tap, event]], text: "You caught 4 of 6."}; anything that is
   // not a time is skipped.
-  function matchTaps(taps, eventTimes, window) {
-    const before = window && isFiniteNumber(window.before) ? window.before : 0;
-    const after = window && isFiniteNumber(window.after) ? window.after : 0;
+  function matchTaps(taps, eventTimes, tapWindow) {
+    const given = tapWindow && typeof tapWindow === "object" ? tapWindow : {};
+    const before = isFiniteNumber(given.before) ? given.before : 0;
+    const after = isFiniteNumber(given.after) ? given.after : 0;
     const times = (list) => listOf(list).filter(isFiniteNumber).sort((a, b) => a - b);
     const events = times(eventTimes);
     const free = events.map(() => true);
