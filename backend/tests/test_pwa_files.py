@@ -17,7 +17,7 @@ SERVICE_WORKER_JS = FRONTEND_DIR / "sw.js"
 INDEX_HTML = FRONTEND_DIR / "index.html"
 
 APP_NAME = "Speech Coach"
-CACHE_NAME = "speech-coach-shell-v3"
+CACHE_NAME = "speech-coach-shell-v4"
 HUMAN_OWNED_SCRIPT = "pauses.js"
 PNG_ICON_SIZES = {"icons/icon-192.png": "192x192", "icons/icon-512.png": "512x512"}
 SVG_ICON = "icons/icon.svg"

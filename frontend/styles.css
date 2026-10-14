@@ -419,7 +419,7 @@ h2 {
 
 .nav__item {
   flex: 1 1 0;
-  max-width: calc(var(--col-max) / 3);
+  max-width: calc(var(--col-max) / 4);
   min-height: var(--nav-h);
   display: flex;
   flex-direction: column;

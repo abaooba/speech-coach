@@ -67,6 +67,14 @@
       <h1>Progress</h1>
       <div class="screen__body"></div>
     </section>
+    <section class="screen" id="screen-path" hidden>
+      <h1>Path</h1>
+      <div class="screen__body"></div>
+    </section>
+    <section class="screen" id="screen-level" hidden>
+      <h1>Level</h1>
+      <div class="screen__body"></div>
+    </section>
     <section class="screen" id="screen-account" hidden>
       <h1>Account</h1>
       <div class="screen__body"></div>
@@ -85,6 +93,25 @@
       </svg>
       <span class="nav__label">Practice</span>
     </a>
+    <a class="nav__item" href="#/path">
+      <svg class="nav__icon" aria-hidden="true" width="24" height="24" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+           stroke-linejoin="round">
+        <circle cx="6" cy="19" r="3"></circle>
+        <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path>
+        <circle cx="18" cy="5" r="3"></circle>
+      </svg>
+      <span class="nav__label">Path</span>
+    </a>
+    <a class="nav__item" href="#/progress">
+      <svg class="nav__icon" aria-hidden="true" width="24" height="24" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+           stroke-linejoin="round">
+        <polyline points="3 17 9 11 13 15 21 7"></polyline>
+        <polyline points="15 7 21 7 21 13"></polyline>
+      </svg>
+      <span class="nav__label">Progress</span>
+    </a>
     <a class="nav__item" href="#/history">
       <svg class="nav__icon" aria-hidden="true" width="24" height="24" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -98,15 +125,6 @@
       </svg>
       <span class="nav__label">History</span>
     </a>
-    <a class="nav__item" href="#/progress">
-      <svg class="nav__icon" aria-hidden="true" width="24" height="24" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-           stroke-linejoin="round">
-        <polyline points="3 17 9 11 13 15 21 7"></polyline>
-        <polyline points="15 7 21 7 21 13"></polyline>
-      </svg>
-      <span class="nav__label">Progress</span>
-    </a>
   </nav>
   <script src="app.js"></script>
   <script src="ui.js"></script>
@@ -115,13 +133,18 @@
   <script src="api.js"></script>
   <script src="passages.js"></script>
   <script src="delivery.js"></script>
+  <script src="rank.js"></script>
+  <script src="rankcard.js"></script>
   <script src="path.js"></script>
+  <script src="loop.js"></script>
   <script src="tips.js"></script>
   <script src="pauses.js"></script>
   <script src="screens/practice.js"></script>
   <script src="screens/results.js"></script>
   <script src="screens/history.js"></script>
   <script src="screens/progress.js"></script>
+  <script src="screens/path.js"></script>
+  <script src="screens/level.js"></script>
   <script src="screens/account.js"></script>
   <script src="screens/onboarding.js"></script>
 </body>

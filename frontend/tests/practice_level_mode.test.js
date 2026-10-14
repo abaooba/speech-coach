@@ -46,7 +46,7 @@ const NORMAL_BODY = [
 
 const LEAVE_LEVEL = "Leave level";
 const HEARD_ONE = "Heard one";
-const HEARD_ONE_LABEL = "I heard a filler";
+const HEARD_ONE_LABEL = "Heard one filler";
 
 // --- The request and the banner -------------------------------------------------------------
 
@@ -572,6 +572,7 @@ test("with liveTap, Heard one joins the body right under the record button's lab
   assert.equal(p.liveTapButton.className, "btn btn--secondary practice__live-tap-button");
   assert.equal(p.liveTapButton.textContent, HEARD_ONE);
   assert.equal(p.liveTapButton.getAttribute("aria-label"), HEARD_ONE_LABEL);
+  assert.ok(HEARD_ONE_LABEL.startsWith(HEARD_ONE), "its name starts with its visible label");
   const countId = p.liveTapCount.getAttribute("id");
   assert.ok(countId, "the count has an id");
   assert.equal(p.liveTapButton.getAttribute("aria-describedby"), countId);

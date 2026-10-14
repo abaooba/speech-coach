@@ -25,6 +25,8 @@ SCREEN_IDS = [
     "screen-results",
     "screen-history",
     "screen-progress",
+    "screen-path",
+    "screen-level",
 ]
 
 # The fixed load order. index.html may include any subset, but never out of order.
@@ -36,13 +38,18 @@ SCRIPT_LOAD_ORDER = [
     "api.js",
     "passages.js",
     "delivery.js",
+    "rank.js",
+    "rankcard.js",
     "path.js",
+    "loop.js",
     "tips.js",
     "pauses.js",
     "screens/practice.js",
     "screens/results.js",
     "screens/history.js",
     "screens/progress.js",
+    "screens/path.js",
+    "screens/level.js",
     "screens/account.js",
     "screens/onboarding.js",
 ]

@@ -46,7 +46,7 @@ test("index.html holds the account screen: its h1 and one empty body", () => {
   );
 });
 
-test("History's header links to the account screen; the nav keeps its three items", () => {
+test("History's header links to the account screen; the nav is Practice, Path, Progress, History", () => {
   const history = sectionOf("screen-history");
   assert.equal(
     history,
@@ -56,14 +56,14 @@ test("History's header links to the account screen; the nav keeps its three item
   );
   const nav = INDEX_HTML.match(/<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/)[1];
   const links = [...nav.matchAll(/<a class="nav__item" href="([^"]+)">/g)].map((m) => m[1]);
-  assert.deepEqual(links, ["#/practice", "#/history", "#/progress"]);
+  assert.deepEqual(links, ["#/practice", "#/path", "#/progress", "#/history"]);
 });
 
 test("auth.js loads before store.js and the account screen before onboarding, the last", () => {
   const scripts = [...INDEX_HTML.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.deepEqual(scripts.slice(0, 4), ["app.js", "ui.js", "auth.js", "store.js"]);
   assert.deepEqual(scripts.slice(-3), [
-    "screens/progress.js",
+    "screens/level.js",
     "screens/account.js",
     "screens/onboarding.js",
   ]);
@@ -76,7 +76,7 @@ test("the offline shell holds both new files under a new cache name", () => {
   );
   assert.ok(shell.includes("auth.js"));
   assert.ok(shell.includes("screens/account.js"));
-  assert.match(worker, /const CACHE_NAME = "speech-coach-shell-v3";/);
+  assert.match(worker, /const CACHE_NAME = "speech-coach-shell-v4";/);
 });
 
 test("app.js routes #/account to the account screen", () => {

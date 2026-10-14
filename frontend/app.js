@@ -6,7 +6,16 @@
 (function () {
   "use strict";
 
-  const SCREEN_NAMES = ["onboarding", "practice", "results", "history", "progress", "account"];
+  const SCREEN_NAMES = [
+    "onboarding",
+    "practice",
+    "results",
+    "history",
+    "progress",
+    "path",
+    "level",
+    "account",
+  ];
   const DEFAULT_SCREEN = "practice";
   const ACTIVE_SCREEN_CLASS = "screen--active";
   const ACTIVE_NAV_CLASS = "nav__item--active";
@@ -16,6 +25,8 @@
   const ONBOARDING_SCREEN = "onboarding";
   const ONBOARDING_HASH = "#/onboarding";
   const ONBOARDED_FLAG = "onboarded";
+  // A screen without its own nav item lights up the item it belongs to: a level is on the Path.
+  const NAV_PARENT = Object.freeze({ level: "path" });
 
   const app = { screens: {}, router: {} };
   window.app = app;
@@ -82,7 +93,7 @@
   }
 
   function updateNav(name) {
-    const activeHref = "#/" + name;
+    const activeHref = "#/" + (NAV_PARENT[name] || name);
     document.querySelectorAll(".nav__item").forEach((link) => {
       const isActive = link.getAttribute("href") === activeHref;
       link.classList.toggle(ACTIVE_NAV_CLASS, isActive);

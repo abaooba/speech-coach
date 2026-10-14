@@ -104,7 +104,7 @@
   const PRACTICE_ROUTE = "practice";
   const LEAVE_LEVEL_LABEL = "Leave level";
   const LIVE_TAP_LABEL = "Heard one";
-  const LIVE_TAP_ARIA_LABEL = "I heard a filler";
+  const LIVE_TAP_ARIA_LABEL = "Heard one filler";
   const LIVE_TAP_COUNT_ID = "practice-live-tap-count";
   const LIVE_TAP_COUNT_SUFFIX = " heard";
   const LEVEL_CALLBACKS = ["judge", "onSaved", "onLeave"];
@@ -377,7 +377,8 @@
 
   // "Heard one": a large secondary button the speaker taps on hearing one of their own fillers
   // while the take records. The small count beside it ("3 heard") also describes it to screen
-  // readers, whose name for it is "I heard a filler".
+  // readers, whose name for it, "Heard one filler", starts with the words on it (WCAG 2.5.3), so
+  // a voice-control user can say "Heard one".
   function buildLiveTap() {
     nodes.liveTapButton = app.ui.el("button", {
       class: "btn btn--secondary practice__live-tap-button",
