@@ -285,9 +285,11 @@
       topFillers: play.listsTopFillers ? app.path.topFillers(history) : [],
       // By take index: {transcript, metrics, report, evaluation, liveTaps, session}.
       takes: [],
-      // The run's saved sessions, newest first, and the records its passes kept.
+      // The run's saved sessions, newest first, and the records its passes kept, with the ids
+      // of any whose write failed (keepRecords).
       sessions: [],
       kept: [],
+      unsaved: [],
       saveFailed: false,
       // The Review's choices: what happened at each moment, and the fix for the next take.
       choices: {},
@@ -603,7 +605,8 @@
   // Writes each record in order, all with one clearedAt, the time the take passed, so levels a
   // take jumped share its day and their check-backs fall with its own (spec section 4), even
   // when the writes straddle midnight. A write that fails still counts for the dates shown, and
-  // the Result says the progress could not be saved.
+  // the Result says the progress could not be saved; its id is noted, since the store does not
+  // have it for what comes next (savedCleared).
   async function keepRecords(target, records) {
     const clearedAt = new Date().toISOString();
     for (const levelId of records) {
@@ -612,6 +615,7 @@
         target.kept.push(kept && typeof kept.levelId === "string" ? kept : { levelId, clearedAt });
       } catch {
         target.saveFailed = true;
+        target.unsaved.push(levelId);
         target.kept.push({ levelId, clearedAt });
       }
     }
@@ -688,8 +692,18 @@
     return target.sessions.concat(target.history);
   }
 
+  // The cleared records as the run's passes left them, a write that failed included: the dates
+  // the Result shows count from them.
   function clearedAfter(target) {
     return target.cleared.concat(target.kept);
+  }
+
+  // The cleared records the store holds now: those it had at the Goal and every record a pass
+  // kept, leaving out any whose write failed. What opens next is read from these, as the Path and
+  // the Level screen read them from the store.
+  function savedCleared(target) {
+    const saved = target.kept.filter((record) => !target.unsaved.includes(record.levelId));
+    return target.cleared.concat(saved);
   }
 
   // --- Plays that cannot start -----------------------------------------------------------------
@@ -1986,9 +2000,12 @@
   }
 
   // The unit's next level not cleared, or once all five are, its checkpoint: a card naming it
-  // and a link that starts it, beside Back to path.
+  // and a link that starts it, beside Back to path. It is read from the records the store kept
+  // (savedCleared), so the link never opens a level the store still has locked. A pass whose own
+  // record failed to save leaves the store's next level the one just played: nothing is offered
+  // then but Back to path.
   function nextParts(target) {
-    const cleared = clearedAfter(target);
+    const cleared = savedCleared(target);
     const unit = app.path.UNITS.find((entry) => entry.id === target.play.unit);
     const level = unit ? app.path.currentLevel(unit, cleared) : null;
     let nextId = level ? level.id : null;
@@ -1998,7 +2015,7 @@
         nextId = checkpoint.id;
       }
     }
-    if (nextId === null) {
+    if (nextId === null || nextId === target.play.level) {
       return [actionsOf([linkButton(BACK_TO_PATH, PATH_HREF, true)])];
     }
     const next = app.path.playById(nextId, { baseline: target.baseline, cleared });
