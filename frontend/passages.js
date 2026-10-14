@@ -1,7 +1,8 @@
 /* passages.js: app.passages, Practice's fixed material. Each entry is {id, kind, title, text,
-   targetWpm: [lo, hi], source?, format?, timeLimitSeconds?, topics?}: a "prompt" is a timed topic
-   (the Talk tab), a "passage" is read word for word (the Read tab), and prompts come first, as
-   Practice opens on the first entry. coldReads() and benchmark() hold the Path's own. No DOM. */
+   targetWpm: [lo, hi], source?, timeLimitSeconds?, topics?}: a "prompt" is a timed topic (the
+   Talk tab), a "passage" is read word for word (the Read tab), and prompts come first, as
+   Practice opens on the first entry. coldReads() and benchmark() hold the Path's own, and
+   retired() the ids old takes still carry. Everyday fluency only, never debate. No DOM. */
 (function () {
   "use strict";
 
@@ -18,15 +19,52 @@
     "Describe a place you spent time today, using three senses.",
   ];
 
+  // Everyday opinion questions: each asks what the speaker thinks and why, never for a side.
   const IMPROMPTU_TOPICS = [
     "Explain one rule your school should change, and say why.",
-    "Argue for or against school uniforms, with two clear reasons.",
-    "Should every student learn a second language? Take a side.",
-    "Argue whether homework should be optional in high school.",
-    "Make the case for or against a four-day school week.",
-    "Should phones be banned during the school day? Defend your answer.",
-    "Argue whether voting should start at age sixteen.",
-    "Make the case for one change that would improve your town.",
+    "Would you rather live in a big city or a small town? Why?",
+    "Is it worth learning a second language as an adult? Why or why not?",
+    "What is the best way to spend a free Saturday, and why?",
+    "Which season of the year do you enjoy most, and why?",
+    "Do phones bring friends closer or push them apart? Why?",
+    "Is it better to save money or enjoy it now? Explain your view.",
+    "What one change would make your neighborhood a better place to live?",
+  ];
+
+  // Job interview questions, "Tell me about yourself" first.
+  const INTERVIEW_TOPICS = [
+    "Tell me about yourself: where you are now and what comes next.",
+    "What is one strength you would bring to a new team?",
+    "Describe a time you solved a problem at work or school.",
+    "Why do you want this job, and what makes you a good fit?",
+    "Tell me about a mistake you made and what you learned from it.",
+    "Describe a time you worked with someone who saw things differently.",
+    "Where do you see yourself in five years, and why?",
+    "How do you stay calm and organized when things get busy?",
+  ];
+
+  // Something the speaker knows well, explained to someone who does not.
+  const EXPLAIN_TOPICS = [
+    "Explain how to cook a dish you know well, step by step.",
+    "Explain the rules of a game or sport you enjoy.",
+    "Explain how to get around your city without a car.",
+    "Explain how a tool or app you use every day works.",
+    "Explain a tradition from your family or culture to a newcomer.",
+    "Explain how to plan a trip on a small budget.",
+    "Explain how to look after a plant or a pet.",
+    "Explain something you are good at to a complete beginner.",
+  ];
+
+  // Something that happened to the speaker, told from the start.
+  const STORY_TOPICS = [
+    "Tell the story of a day that did not go as planned.",
+    "Tell the story of the first time you visited a new place.",
+    "Talk about a time a stranger was kind to you.",
+    "Tell the story of how you learned something difficult.",
+    "Describe a time you got lost, and how you found your way.",
+    "Tell the story of a meal you will never forget.",
+    "Talk about a moment when you felt proud of yourself.",
+    "Tell the story of a small mistake that turned out well.",
   ];
 
   const REBUTTAL_UNIFORMS = [
@@ -114,24 +152,32 @@
       topics: IMPROMPTU_TOPICS,
     },
     {
-      id: "congress-speech",
+      id: "interview-answer",
       kind: "prompt",
-      title: "Congress speech",
-      text: "Give a three-minute speech for or against a bill of your choice. " +
-        "Open with a clear claim.",
+      title: "Interview answer",
+      text: INTERVIEW_TOPICS[0],
+      targetWpm: [140, 160],
+      timeLimitSeconds: 90,
+      topics: INTERVIEW_TOPICS,
+    },
+    // A listener new to the subject needs time to follow, so this band reaches down to 130.
+    {
+      id: "explain-something",
+      kind: "prompt",
+      title: "Explain something",
+      text: EXPLAIN_TOPICS[0],
       targetWpm: [130, 160],
-      format: "Congress",
-      timeLimitSeconds: 180,
+      timeLimitSeconds: 120,
+      topics: EXPLAIN_TOPICS,
     },
     {
-      id: "pf-constructive",
+      id: "tell-a-story",
       kind: "prompt",
-      title: "PF constructive",
-      text: "Deliver a constructive case you are working on, " +
-        "clear enough for a lay judge to follow.",
-      targetWpm: [140, 180],
-      format: "Public Forum",
-      timeLimitSeconds: 240,
+      title: "Tell a story",
+      text: STORY_TOPICS[0],
+      targetWpm: [140, 160],
+      timeLimitSeconds: 120,
+      topics: STORY_TOPICS,
     },
     {
       id: "rebuttal-uniforms",
@@ -473,5 +519,23 @@
         topics: [BENCHMARK_TALK_TOPIC],
       },
     };
+  };
+
+  // Retired ids. On 2026-10-14 the owner ruled that Speech Coach is for everyday fluency, not
+  // debate, and these entries left Practice; takes saved on them still carry their ids. Each
+  // keeps only what such a take is judged and timed by, its band and, for a prompt, its time
+  // limit, so Results, History, Progress, the rank and the Path read an old take as before,
+  // under the take's own saved passageTitle. No title, text or topics: nothing here is shown,
+  // Practice never lists a retired id and the Path never hands one out.
+  const RETIRED = [
+    { id: "congress-speech", kind: "prompt", targetWpm: [130, 160], timeLimitSeconds: 180 },
+    { id: "pf-constructive", kind: "prompt", targetWpm: [140, 180], timeLimitSeconds: 240 },
+  ];
+
+  // Each call returns new objects, so a caller can change its copy without changing the next.
+  app.passages.retired = function retired() {
+    return RETIRED.map((entry) =>
+      Object.assign({}, entry, { targetWpm: entry.targetWpm.slice() }),
+    );
   };
 })();

@@ -2356,11 +2356,15 @@
     };
   }
 
-  // The pace band of the take's passage, the one Results judges it against, or
-  // DEFAULT_TARGET_WPM for a passage that is gone or a band that is not two numbers, low first.
+  // The pace band of the take's passage, the one Results judges it against: a Practice entry's,
+  // a cold read's, or a retired id's (app.passages.retired(), the band an old take was recorded
+  // under); DEFAULT_TARGET_WPM for a passage that is gone or a band that is not two numbers,
+  // low first.
   function paceBandOf(passageId) {
     const passages = Array.isArray(app.passages) ? app.passages : [];
-    const passage = passages.concat(coldReadPassages()).find((entry) => entry.id === passageId);
+    const passage = passages
+      .concat(coldReadPassages(), retiredPassages())
+      .find((entry) => entry.id === passageId);
     const band = passage ? passage.targetWpm : null;
     const valid =
       Array.isArray(band) && band.length === 2 && band.every(isFiniteNumber) && band[0] < band[1];
@@ -2926,6 +2930,12 @@
   function coldReadPassages() {
     const passages = app.passages;
     return passages && typeof passages.coldReads === "function" ? passages.coldReads() : [];
+  }
+
+  // The ids old takes still carry after they left Practice, each with its band (passages.js).
+  function retiredPassages() {
+    const passages = app.passages;
+    return passages && typeof passages.retired === "function" ? passages.retired() : [];
   }
 
   function passageById(id) {

@@ -1,5 +1,6 @@
-// Content tests for frontend/passages.js: the exact set of readings, prompts and debate presets.
-// The shape checks live in passages.test.js; this file pins what Task 3 promises.
+// Content tests for frontend/passages.js: the exact set of readings and everyday prompts (the
+// owner's rule of 2026-10-14: Speech Coach is for everyday fluency, not debate). The shape checks
+// live in passages.test.js; this file pins what Task 3 promises, as that rule rewrote it.
 "use strict";
 
 const test = require("node:test");
@@ -16,8 +17,9 @@ const DRILL_IDS = ["drill-st-clusters", "drill-pl-bl-clusters"];
 const PROMPT_LIMITS = {
   "free-talk": 60,
   impromptu: 120,
-  "congress-speech": 180,
-  "pf-constructive": 240,
+  "interview-answer": 90,
+  "explain-something": 120,
+  "tell-a-story": 120,
 };
 
 function loadPassages() {
@@ -43,11 +45,11 @@ function assertWordBand(passages, ids, lo, hi) {
   }
 }
 
-test("there are exactly ten entries: six passages and four prompts", () => {
+test("there are exactly eleven entries: six passages and five prompts", () => {
   const passages = loadPassages();
-  assert.equal(passages.length, 10);
+  assert.equal(passages.length, 11);
   assert.equal(passages.filter((entry) => entry.kind === "passage").length, 6);
-  assert.equal(passages.filter((entry) => entry.kind === "prompt").length, 4);
+  assert.equal(passages.filter((entry) => entry.kind === "prompt").length, 5);
 });
 
 test("ids are unique lowercase slugs", () => {
@@ -114,30 +116,33 @@ test("each targetWpm has lo below hi", () => {
   }
 });
 
-test("the four prompts are free-talk, impromptu and the two presets", () => {
+test("the five prompts are free-talk, impromptu and the three everyday prompts", () => {
   const passages = loadPassages();
   const prompts = Array.from(passages)
     .filter((entry) => entry.kind === "prompt")
     .map((entry) => entry.id);
   assert.deepEqual(prompts.sort(), [
-    "congress-speech",
+    "explain-something",
     "free-talk",
     "impromptu",
-    "pf-constructive",
+    "interview-answer",
+    "tell-a-story",
   ]);
   assert.deepEqual([...byId(passages, "free-talk").targetWpm], [140, 160]);
   assert.deepEqual([...byId(passages, "impromptu").targetWpm], [140, 160]);
-  assert.deepEqual([...byId(passages, "congress-speech").targetWpm], [130, 160]);
-  assert.deepEqual([...byId(passages, "pf-constructive").targetWpm], [140, 180]);
-  assert.equal(byId(passages, "congress-speech").title, "Congress speech");
-  assert.equal(byId(passages, "pf-constructive").title, "PF constructive");
+  assert.deepEqual([...byId(passages, "interview-answer").targetWpm], [140, 160]);
+  assert.deepEqual([...byId(passages, "explain-something").targetWpm], [130, 160]);
+  assert.deepEqual([...byId(passages, "tell-a-story").targetWpm], [140, 160]);
+  assert.equal(byId(passages, "interview-answer").title, "Interview answer");
+  assert.equal(byId(passages, "explain-something").title, "Explain something");
+  assert.equal(byId(passages, "tell-a-story").title, "Tell a story");
   assert.equal(
     byId(passages, "impromptu").text,
     "Explain one rule your school should change, and say why.",
   );
 });
 
-test("four prompts are timed at 60, 120, 180 and 240; only the presets carry a format", () => {
+test("five prompts are timed at 60, 120, 90, 120 and 120; no entry carries a format", () => {
   const passages = loadPassages();
   const timed = Array.from(passages).filter((entry) => Object.hasOwn(entry, "timeLimitSeconds"));
   assert.deepEqual(timed.map((entry) => entry.id).sort(), Object.keys(PROMPT_LIMITS).sort());
@@ -145,10 +150,12 @@ test("four prompts are timed at 60, 120, 180 and 240; only the presets carry a f
     assert.ok(Number.isInteger(entry.timeLimitSeconds) && entry.timeLimitSeconds > 0);
     assert.equal(entry.timeLimitSeconds, PROMPT_LIMITS[entry.id], `limit of ${entry.id}`);
   }
-  assert.equal(byId(passages, "congress-speech").format, "Congress");
-  assert.equal(byId(passages, "pf-constructive").format, "Public Forum");
-  const formatted = passages.filter((entry) => Object.hasOwn(entry, "format"));
-  assert.equal(formatted.length, 2, "only the two presets carry a format");
+  const formatted = Array.from(passages).filter((entry) => Object.hasOwn(entry, "format"));
+  assert.deepEqual(
+    formatted.map((entry) => entry.id),
+    [],
+    "no prompt names a contest format",
+  );
 });
 
 test("titles stay under 40 characters", () => {

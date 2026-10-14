@@ -752,8 +752,9 @@ test("with the real passages Practice opens on Talk with Your day and its first 
   assert.deepEqual(visibleChipLabels(parts), [
     "Your day 1:00",
     "Impromptu 2:00",
-    "Congress speech 3:00",
-    "PF constructive 4:00",
+    "Interview answer 1:30",
+    "Explain something 2:00",
+    "Tell a story 2:00",
   ]);
 });
 

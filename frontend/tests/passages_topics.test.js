@@ -1,6 +1,8 @@
-// Content tests for the timed topics in frontend/passages.js (DESIGN.md section 2): "Your day" and
-// Impromptu each hold eight topics shown one at a time, every prompt has a time limit, and the
-// prompts come first so Practice opens on the Talk tab with "Your day" selected.
+// Content tests for the timed topics in frontend/passages.js (DESIGN.md section 2): "Your day",
+// Impromptu and the three everyday prompts (an interview answer, an explanation and a story)
+// each hold eight topics shown one at a time, every prompt has a time limit, and the prompts
+// come first so Practice opens on the Talk tab with "Your day" selected. Since the owner's rule
+// of 2026-10-14 the Impromptu topics are everyday opinion questions, never a side to argue.
 "use strict";
 
 const test = require("node:test");
@@ -24,20 +26,61 @@ const YOUR_DAY_TOPICS = [
 
 const IMPROMPTU_TOPICS = [
   "Explain one rule your school should change, and say why.",
-  "Argue for or against school uniforms, with two clear reasons.",
-  "Should every student learn a second language? Take a side.",
-  "Argue whether homework should be optional in high school.",
-  "Make the case for or against a four-day school week.",
-  "Should phones be banned during the school day? Defend your answer.",
-  "Argue whether voting should start at age sixteen.",
-  "Make the case for one change that would improve your town.",
+  "Would you rather live in a big city or a small town? Why?",
+  "Is it worth learning a second language as an adult? Why or why not?",
+  "What is the best way to spend a free Saturday, and why?",
+  "Which season of the year do you enjoy most, and why?",
+  "Do phones bring friends closer or push them apart? Why?",
+  "Is it better to save money or enjoy it now? Explain your view.",
+  "What one change would make your neighborhood a better place to live?",
+];
+
+const INTERVIEW_TOPICS = [
+  "Tell me about yourself: where you are now and what comes next.",
+  "What is one strength you would bring to a new team?",
+  "Describe a time you solved a problem at work or school.",
+  "Why do you want this job, and what makes you a good fit?",
+  "Tell me about a mistake you made and what you learned from it.",
+  "Describe a time you worked with someone who saw things differently.",
+  "Where do you see yourself in five years, and why?",
+  "How do you stay calm and organized when things get busy?",
+];
+
+const EXPLAIN_TOPICS = [
+  "Explain how to cook a dish you know well, step by step.",
+  "Explain the rules of a game or sport you enjoy.",
+  "Explain how to get around your city without a car.",
+  "Explain how a tool or app you use every day works.",
+  "Explain a tradition from your family or culture to a newcomer.",
+  "Explain how to plan a trip on a small budget.",
+  "Explain how to look after a plant or a pet.",
+  "Explain something you are good at to a complete beginner.",
+];
+
+const STORY_TOPICS = [
+  "Tell the story of a day that did not go as planned.",
+  "Tell the story of the first time you visited a new place.",
+  "Talk about a time a stranger was kind to you.",
+  "Tell the story of how you learned something difficult.",
+  "Describe a time you got lost, and how you found your way.",
+  "Tell the story of a meal you will never forget.",
+  "Talk about a moment when you felt proud of yourself.",
+  "Tell the story of a small mistake that turned out well.",
+];
+
+// The three everyday prompts: [id, title, time limit in seconds, topics].
+const EVERYDAY_PROMPTS = [
+  ["interview-answer", "Interview answer", 90, INTERVIEW_TOPICS],
+  ["explain-something", "Explain something", 120, EXPLAIN_TOPICS],
+  ["tell-a-story", "Tell a story", 120, STORY_TOPICS],
 ];
 
 const ALL_IDS = [
   "free-talk",
   "impromptu",
-  "congress-speech",
-  "pf-constructive",
+  "interview-answer",
+  "explain-something",
+  "tell-a-story",
   "rebuttal-uniforms",
   "rebuttal-homework",
   "gettysburg-opening",
@@ -79,6 +122,24 @@ test("Impromptu lasts two minutes and holds its eight topics in order", () => {
   assert.equal(entry.text, entry.topics[0], "text repeats the first topic");
 });
 
+test("the interview, explain and story prompts each hold their eight topics in order", () => {
+  const passages = loadPassages();
+  for (const [id, title, limit, topics] of EVERYDAY_PROMPTS) {
+    const entry = byId(passages, id);
+    assert.equal(entry.kind, "prompt", id);
+    assert.equal(entry.title, title, id);
+    assert.equal(entry.timeLimitSeconds, limit, id);
+    assert.deepEqual(Array.from(entry.topics), topics, id);
+    assert.equal(entry.text, entry.topics[0], `${id}: text repeats the first topic`);
+  }
+});
+
+test("no topic is shared between two prompts", () => {
+  const topics = loadPassages().flatMap((entry) => Array.from(entry.topics || []));
+  assert.equal(topics.length, 40, "eight topics for each of the five prompts");
+  assert.equal(new Set(topics).size, topics.length, "a topic in two prompts");
+});
+
 test("every prompt has a time limit and only prompts carry topics", () => {
   for (const entry of loadPassages()) {
     if (entry.kind === "prompt") {
@@ -114,7 +175,7 @@ test("every topic is a distinct sentence under 15 words", () => {
   }
 });
 
-test("all ten ids stay, prompts first, so Practice opens on Talk with Your day", () => {
+test("all eleven ids in order, prompts first, so Practice opens on Talk with Your day", () => {
   const passages = loadPassages();
   assert.deepEqual(
     passages.map((entry) => entry.id),

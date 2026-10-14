@@ -959,7 +959,17 @@ test("pickTopic passes over an excluded topic while another is left", () => {
 
 test("pickTopic needs a random source and a prompt with topics", () => {
   assert.throws(() => PATH.pickTopic([], "impromptu"), /random/);
-  assert.equal(PATH.pickTopic([], "congress-speech", () => 0), null);
+  // Every Practice prompt holds topics; a timed prompt without them gives null.
+  const app = loadApp();
+  app.passages.push({
+    id: "timed-talk",
+    kind: "prompt",
+    title: "Timed talk",
+    text: "Talk for three minutes on a subject you know well.",
+    targetWpm: [140, 160],
+    timeLimitSeconds: 180,
+  });
+  assert.equal(app.path.pickTopic([], "timed-talk", () => 0), null);
   assert.equal(PATH.pickTopic([], "nothing", () => 0), null);
   assert.equal(PATH.pickTopic([], "impromptu", () => Number.NaN), topicsOf("impromptu")[0]);
 });
