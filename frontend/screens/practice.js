@@ -916,8 +916,8 @@
 
   // The Level screen's way in (spec section 7): hold the request and go to #/practice, where
   // show() paints it. A take still held from before (a failed upload) is let go, since the
-  // request asks for a new take; an upload already in flight answers the request it was
-  // recorded under, and Practice stays on this one.
+  // request asks for a new take; an upload already in flight still answers the request it was
+  // recorded under, while Practice holds the new one.
   function startLevelTake(request) {
     if (!isLevelRequest(request)) {
       throw new TypeError(
@@ -1156,8 +1156,9 @@
 
   // Sends the pending take, saves the session and hands off: a plain take to Results, a level
   // take back to the Level screen (handBack). "Retry upload" calls this again with the same
-  // blob; app.pauses, when present, folds its samples into metrics. Only the analysis and the
-  // save can fail into the Upload failed block: the hand-off runs once the take is saved.
+  // blob; app.pauses, when present, folds its samples into metrics. Only the analysis, a level
+  // take's judging and the save can fail into the Upload failed block, which Retry repeats: the
+  // hand-off runs once the take is saved, so it is never repeated.
   async function upload() {
     const take = pendingTake;
     if (take === null) {
