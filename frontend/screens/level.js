@@ -95,6 +95,11 @@
   const MOMENT_COUNT_WORDS = ["One", "Two", "Three"];
   const PLAY_CLIP = "Play 3 s";
   const STOP_LABEL = "Stop";
+  // A clip's name for a screen reader adds its moment's time to the words on the button: "at"
+  // a moment, "of" a pace third, which spans a stretch of the take.
+  const AT_MOMENT = " at ";
+  const OF_STRETCH = " of ";
+  const STOP_PLAYING = "Stop playing ";
   const WHAT_HAPPENED_ASK = "What happened?";
   const SPOT_IT_TITLE = "Spot it";
   const SPOT_IT_HOW = "Play take 1. Tap Heard one each time you hear a filler.";
@@ -135,6 +140,8 @@
   const READ_ALOUD = "Read the passage aloud.";
   const MEASURED_ONLY = "It is measured, not scored.";
 
+  // The kind app.loop gives a pace third, the one moment that spans a stretch of the take.
+  const PACE_MOMENT = "pace";
   // How a moment's slip is marked, as the transcript marks it on Results, and what a screen
   // reader hears after it. A pace third outside its band reads in --warn with the alert icon.
   const MOMENT_MARKS = Object.freeze({
@@ -1223,7 +1230,7 @@
         return part.text;
       }
       const children = [part.text, el("span", { class: "sr-only", text: mark.note })];
-      if (moment.kind === "pace") {
+      if (moment.kind === PACE_MOMENT) {
         children.push(iconOf("alert", 12, "level-moment__alert"));
       }
       return el("span", { class: mark.className }, children);
@@ -1340,6 +1347,12 @@
     const control = {
       button: el("button", { type: "button", class: "btn btn--secondary level-play" }),
       idleLabel: PLAY_CLIP,
+      // Every clip reads "Play 3 s", so a screen reader's list of controls tells them apart by
+      // their moment: "Play 3 s at 0:12", "Stop playing 0:12".
+      names: {
+        idle: PLAY_CLIP + (moment.kind === PACE_MOMENT ? OF_STRETCH : AT_MOMENT) + moment.time,
+        playing: STOP_PLAYING + moment.time,
+      },
     };
     paintPlay(control, false);
     const clip = app.loop.clipFor(moment);
@@ -1580,14 +1593,23 @@
     playing.onStop = () => {
       spot.taps = [];
       spot.position = null;
-      spot.tap.disabled = true;
+      quietTap(spot);
     };
     paintPlay(spot.control, true);
   }
 
+  // Heard one goes quiet when take 1 stops or ends. A disabled button loses focus to the page,
+  // so focus on it moves first to Play take 1, the next thing to press.
+  function quietTap(spot) {
+    if (holdsFocus(spot.tap)) {
+      focusIfPossible(spot.control.button, false);
+    }
+    spot.tap.disabled = true;
+  }
+
   function scoreSpotIt(spot) {
     spot.position = null;
-    spot.tap.disabled = true;
+    quietTap(spot);
     const caught = app.loop.matchTaps(
       spot.taps,
       app.loop.fillerTimes(spot.report),
@@ -1657,12 +1679,17 @@
     }
   }
 
-  // "Play 3 s" with the play icon, or "Stop" with the stop icon while it plays.
+  // "Play 3 s" with the play icon, or "Stop" with the stop icon while it plays; a clip's name
+  // follows, starting with the same words.
   function paintPlay(control, playing) {
     fill(control.button, [
       iconOf(playing ? "stop" : "play", 16),
       playing ? STOP_LABEL : control.idleLabel,
     ]);
+    if (control.names) {
+      const name = playing ? control.names.playing : control.names.idle;
+      control.button.setAttribute("aria-label", name);
+    }
   }
 
   // Releases take 1's audio: stops playback, closes the AudioContext, drops the decoded
