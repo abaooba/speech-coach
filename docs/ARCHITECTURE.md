@@ -83,7 +83,7 @@ are optional and only sync what the phone already has.
   explained on a whiteboard (`how.html`), and the same rules re-score old takes.
 - **AssemblyAI over Deepgram.** On a 30 s clip with heavy fillers, AssemblyAI
   kept 6 um and 3 uh and a restart; Deepgram kept 1 and 2 (`scripts/compare_providers.py`).
-- **No framework, no build.** The app is 20 files a judge can read top to
+- **No framework, no build.** The app is about two dozen files a judge can read top to
   bottom. The service worker makes it installable and offline for the shell.
 - **Guests first.** Everything works with no account. Accounts add sync and
   nothing else, so they could be cut without touching a screen.
@@ -95,4 +95,4 @@ are optional and only sync what the phone already has.
 `backend/tests/` (pytest, network blocked by `pytest-socket`, providers behind
 `httpx.MockTransport`, SQLite in memory for accounts) and `frontend/tests/`
 (`node:test` with a hand-written fake DOM in `fake-dom.js`; modules run inside
-`vm` contexts). CI runs both on every push and PR.
+`vm` contexts). CI runs both on every push to main and every PR.
