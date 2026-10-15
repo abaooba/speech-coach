@@ -246,3 +246,8 @@ Speech-to-text is provided by a third-party API. All metric calculations,
 pause detection, the user interface and the backend are hand-written.
 AI coding assistants were used during development; see
 [`docs/ai-disclosure.md`](docs/ai-disclosure.md) for details.
+
+## License
+
+[MIT](LICENSE). The research library in `backend/advice/library.json` quotes
+and cites published sources; each entry names its author and link.
