@@ -53,9 +53,6 @@ class FakeElement {
 
   setAttribute(name, value) {
     this.attributes[name] = String(value);
-    // In a browser an SVG element's class attribute is its class list; a test that finds SVG
-    // parts by class name reads it back through className here.
-    if (name === "class" && this.namespaceURI) this.className = String(value);
   }
 
   getAttribute(name) {

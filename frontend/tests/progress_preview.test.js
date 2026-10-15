@@ -57,8 +57,13 @@ function mountProgress(sessions) {
   return { progress, body };
 }
 
+// SVG parts carry their class as an attribute (the fake DOM keeps it apart from className).
+function classOf(node) {
+  return node.getAttribute ? node.getAttribute("class") || node.className || "" : node.className || "";
+}
+
 function find(node, className) {
-  if (node.className && node.className.split(" ").includes(className)) return node;
+  if (classOf(node).split(" ").includes(className)) return node;
   for (const child of node.children || []) {
     const hit = find(child, className);
     if (hit) return hit;
@@ -81,7 +86,7 @@ test("the preview is the block's fifth child and holds chart, caption and tracke
   const figure = block.children[4];
   assert.equal(figure.className, "state__preview");
   assert.deepEqual(
-    figure.children.map((child) => child.tagName + "." + child.className),
+    figure.children.map((child) => child.tagName + "." + classOf(child)),
     ["svg.progress-preview__chart", "p.progress-preview__caption", "ol.progress-preview__steps"],
   );
 });
