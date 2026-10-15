@@ -189,11 +189,7 @@ test("one repeat: a Restart card at the repeat's at, with both copies marked", a
   const [row] = rows;
   assert.equal(row.tagName, "li");
   assert.equal(row.className, "moment moment--restart");
-  assert.deepEqual(rowText(row), [
-    "0:01",
-    "Restart",
-    "…today, [we] [need,] [uh,] [we] [need] a…",
-  ]);
+  assert.deepEqual(rowText(row), ["0:01", "Restart", "…[we] [need,] [uh,] [we] [need] a…"]);
   assert.equal(mapOf(body).children[0], row, "first on the map: nothing comes before 0:01");
   const [card] = row.children;
   assert.equal(card.tagName, "button");
@@ -245,7 +241,7 @@ test("the real uniforms take: the second 'the few decisions a' is underlined", a
     [
       "0:32",
       "Restart",
-      "…of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a] student…",
+      "…[the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a] student…",
     ],
   ]);
 });
@@ -257,7 +253,7 @@ test("the real nervous take: a cut-off restart marks the words said after the cu
   const ner = spans.find((span) => span.textContent === "ner—");
   assert.equal(ner.className, "tok", "the cut-off fragment is the first copy");
   assert.deepEqual(restartRows(body).map(rowText), [
-    ["0:26", "Restart", "…time. [I] [kinda] [ner—] [I'm] [kinda] [nervous] though…"],
+    ["0:26", "Restart", "…[I] [kinda] [ner—] [I'm] [kinda] [nervous] though…"],
   ]);
 });
 
@@ -285,7 +281,7 @@ test("a phrase started three times marks each copy after the first", async () =>
   assert.equal(spans[2].className, "tok", "a dash on its own is not part of either copy");
   assert.deepEqual(restartRows(body).map(rowText), [
     ["0:00", "Restart", "[the] [few] [—] [the] [few] —…"],
-    ["0:01", "Restart", "…— [the] [few] [—] [the] [few] decisions…"],
+    ["0:01", "Restart", "…[the] [few] [—] [the] [few] decisions…"],
   ]);
 });
 

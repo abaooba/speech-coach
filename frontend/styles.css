@@ -1977,12 +1977,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: nowrap;
 }
 
-/* The action bar stays stuck above the nav while the page scrolls under it: one row, a ghost
-   History and the primary Record again, which caps at 320px on wide screens. There History's
-   auto left margin takes the spare room and parks the pair at the column's end. Unlike end
-   alignment, a margin never pushes History off the left edge: at 200% zoom on a phone the row
-   wraps instead and Record again takes a line of its own. The negative bottom margin gives back
-   main's spare bottom padding, so at the end of the page the bar still meets the nav. */
+/* The action bar stays stuck above the nav while the page scrolls under it: one row with the
+   primary Record again, which fills a phone's row and caps at 320px on wide screens, where its
+   auto left margin takes the spare room and parks it at the column's end. History is the nav's
+   own tab, so the bar carries no second button. The negative bottom margin gives back main's
+   spare bottom padding, so at the end of the page the bar still meets the nav. */
 .results__actions {
   position: sticky;
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
@@ -1996,13 +1995,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-top: 1px solid var(--border);
 }
 
-.results__actions .btn--ghost {
-  margin-left: auto;
-}
-
 .results__actions .btn--primary {
   flex: 1 1 auto;
   max-width: 320px;
+  margin-left: auto;
 }
 
 /* Keyboard focus never hides under the stuck bar and the fixed nav. The browser scrolls to a
@@ -2012,14 +2008,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    for none: padding the page's scroll area instead would make Tab into the bar move the page. */
 #screen-results :is(a, button):not(.results__actions *) {
   scroll-margin-bottom: calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom));
-}
-
-/* A short phone (320 x 568) has little room under the stuck bar: History leaves it, since the
-   nav has History too, and Record again keeps the bar alone. */
-@media (max-height: 600px) {
-  .results__actions .btn--ghost {
-    display: none;
-  }
 }
 
 /* Landscape phones and 200% zoom leave too little height for a stuck bar: with the nav it
@@ -2043,64 +2031,42 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
-/* A wide window (1024px and up) puts the speech map and the stat strip side by side: the
-   column doubles for Results alone, the body becomes a two-column grid, the meta line and the
-   headline span it, the map takes the left column while the strip, its note and the rank card
-   take the right, and everything after (the transcript, the notes or tips, the action bar)
-   spans both again. Rows 3 to 8 are the two columns' rows: the strip, its note, the rank card
-   and the transcript's heading and legend size rows 3 to 7, and row 8, the transcript itself,
-   takes the rest of the map's height, so the right column is never empty beside the map;
-   without a map the left stays empty beside the strip. */
+/* A wide window (1024px and up) lays Results out in two columns: the column doubles for
+   Results alone, the meta line and the headline span the width, the body flows into two
+   columns that break only at the Transcript heading (the speech map, the stat strip, its note
+   and the rank card on the left; the transcript and the coach notes or tips on the right), and
+   the action bar spans the width again under both. The two columns balance to the taller one.
+   No card, strip or note splits between the columns. */
 @media (min-width: 1024px) {
   main:has(> #screen-results.screen--active) {
     max-width: calc(var(--col-max) * 2 + var(--s-6));
   }
 
   #screen-results > .screen__body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: repeat(7, auto) minmax(0, 1fr);
+    columns: 2;
     column-gap: var(--s-6);
-    align-items: start;
   }
 
   #screen-results > .screen__body > * {
-    grid-column: 1 / -1;
+    break-inside: avoid;
   }
 
-  #screen-results > .screen__body > .speech-map {
-    grid-column: 1;
-    grid-row: 3 / span 6;
-  }
-
-  #screen-results > .screen__body > .stat-strip {
-    grid-column: 2;
-    grid-row: 3;
-  }
-
-  #screen-results > .screen__body > .stat-strip__note {
-    grid-column: 2;
-    grid-row: 4;
-  }
-
-  #screen-results > .screen__body > .rank-card {
-    grid-column: 2;
-    grid-row: 5;
+  #screen-results > .screen__body > .results__meta,
+  #screen-results > .screen__body > .headline,
+  #screen-results > .screen__body > .results__actions {
+    column-span: all;
   }
 
   #screen-results > .screen__body > .transcript__heading {
-    grid-column: 2;
-    grid-row: 6;
+    break-before: column;
+    margin-top: 0;
   }
 
-  #screen-results > .screen__body > .transcript__legend {
-    grid-column: 2;
-    grid-row: 7;
-  }
-
-  #screen-results > .screen__body > .transcript {
-    grid-column: 2;
-    grid-row: 8;
+  /* The paragraphs are the right column's tall parts: they may run on past a page of the
+     column, as any text does. */
+  #screen-results > .screen__body > .transcript,
+  #screen-results > .screen__body > .coach-notes {
+    break-inside: auto;
   }
 }
 

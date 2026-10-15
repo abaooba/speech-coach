@@ -124,8 +124,9 @@
   // between two, so the rail is exactly as tall as the stack (no empty rail, however long the
   // take); a moment's dot, diamond or block sits on the rail at its true second and a curve joins
   // it to its card. Fillers within clusterSeconds of the one before, with no other moment
-  // between, share one card ("3 fillers"). A card shows contextWords words either side of its
-  // moment. A take with more than shownCards moments shows that many until "Show all" is tapped,
+  // between, share one card ("3 fillers"). A card's words start at the moment itself after at most
+  // leadWords, so the mark is in view on a 320px phone, and run contextWords past it. A take
+  // with more than shownCards moments shows that many until "Show all" is tapped,
   // so a long take never becomes a column of cards. Clocks count from the first word, as the
   // meta line's time used does.
   const MAP_TITLE = "Speech map";
@@ -139,7 +140,9 @@
     blockWidth: 10,
     minBlockHeight: 10,
     clusterSeconds: 5,
+    leadWords: 1,
     contextWords: 2,
+    restartLeadWords: 0,
     restartContextWords: 1,
     shownCards: 8,
   });
@@ -176,7 +179,7 @@
     [CLEAN_MOMENT]: (row) => "Clean stretch" + KIND_SEPARATOR + row.seconds + " s",
   });
   // The clean stretch has no words to show: its line says what it is.
-  const CLEAN_CONTEXT = "Without a filler, pause or restart.";
+  const CLEAN_CONTEXT = "No filler, pause or restart.";
   const CONTEXT_ELLIPSIS = "…";
   // The transcript ids the Show in transcript button scrolls to: every word carries one, and
   // every pause marker, numbered in time order.
@@ -551,8 +554,9 @@
   // word and `height` the last) and `railEnd` where a pause or the clean stretch ends there (at
   // least minBlockHeight below railY, never past the rail); `context` the words around it,
   // {before, after, tokens: [{text, mark}]} with `mark` null or the moment's kind, cut to
-  // contextWords either side (restartContextWords for a restart) with `before` and `after` true
-  // where words were cut, or for a cluster its fillers alone, every one marked, with `cluster`
+  // leadWords before and contextWords after (restartLeadWords and restartContextWords for a
+  // restart) with `before` and `after` true where words were cut, or for a cluster its fillers
+  // alone, every one marked, with `cluster`
   // true; `target` the transcript id the card scrolls to. A filler row adds `words` (every
   // filler in its cluster, in order), `count` and `lastTime`; a pause row `afterWord`, the word
   // the pause followed (null before the first word), and `pauseIndex`, its place among the
@@ -732,10 +736,11 @@
   }
 
   // The words around a moment, marked where they are the moment: a filler's word, the pause
-  // itself as "5.2 s" after the word it followed, or the restarted phrase; contextWords plain
-  // words either side (restartContextWords for a restart, whose phrase is long already). A
-  // cluster of fillers shows its fillers alone ("um · um · mhm"), and a restart with no word at
-  // its `at` its phrase alone, unmarked. Null for the clean stretch.
+  // itself as "5.2 s" after the word it followed, or the restarted phrase; leadWords plain words
+  // before and contextWords after (restartLeadWords, none, and restartContextWords for a restart,
+  // whose phrase is long already), so the mark starts the line on a narrow phone. A cluster of
+  // fillers shows its fillers alone ("um · um · mhm"), and a restart with no word at its `at`
+  // its phrase alone, unmarked. Null for the clean stretch.
   function contextFor(wordList, moment) {
     if (moment.kind === CLEAN_MOMENT) {
       return null;
@@ -761,7 +766,7 @@
         text: textOf(word),
         mark: marked.has(first + offset) ? FILLER_MOMENT : null,
       }));
-      return contextAround(wordList, plain, first, last, inside, MAP.contextWords);
+      return contextAround(wordList, plain, first, last, inside, MAP.leadWords, MAP.contextWords);
     }
     if (moment.kind === RESTART_MOMENT && moment.copyFirst === -1) {
       return { before: false, after: false, tokens: [{ text: moment.phrase, mark: null }] };
@@ -776,18 +781,20 @@
         moment.copyFirst,
         moment.copyLast,
         inside,
+        MAP.restartLeadWords,
         MAP.restartContextWords,
       );
     }
     const pauseToken = { text: moment.seconds.toFixed(1) + " s", mark: moment.kind };
-    const after = moment.afterIndex;
-    return contextAround(wordList, plain, after + 1, after, [pauseToken], MAP.contextWords);
+    const index = moment.afterIndex;
+    const pause = [pauseToken];
+    return contextAround(wordList, plain, index + 1, index, pause, MAP.leadWords, MAP.contextWords);
   }
 
-  // `inside` (the moment's own tokens, at word indexes first..last) with `count` plain words
-  // before and after; `before` and `after` say whether the take went on past the cut.
-  function contextAround(wordList, plain, first, last, inside, count) {
-    const from = first - count;
+  // `inside` (the moment's own tokens, at word indexes first..last) with `lead` plain words
+  // before and `count` after; `before` and `after` say whether the take went on past the cut.
+  function contextAround(wordList, plain, first, last, inside, lead, count) {
+    const from = first - lead;
     const to = last + 1 + count;
     return {
       before: from > 0,
@@ -1849,15 +1856,9 @@
   }
 
   // The bar CSS keeps stuck above the nav, or at the end of the page on a short or zoomed
-  // window: a quiet History, then the screen's one primary button, Record again.
+  // window: the screen's one primary button, Record again. History is the nav's tab under it.
   function buildActions() {
     return app.ui.el("div", { class: "results__actions" }, [
-      app.ui.el("button", {
-        class: "btn btn--ghost",
-        type: "button",
-        text: HISTORY_LABEL,
-        onClick: () => app.router.go("history"),
-      }),
       app.ui.el("button", {
         class: "btn btn--primary",
         type: "button",

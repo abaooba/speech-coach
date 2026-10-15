@@ -1,5 +1,5 @@
 // Tests for the Results action bar (DESIGN.md sections 1, 3, 6 and 9; audit L6): the last child
-// of the screen, stuck above the nav, one row with a ghost "History" and the screen's only
+// of the screen, stuck above the nav, one row with the screen's only
 // primary button, "Record again", whose width caps at 320px on wide screens. At 200% zoom on a
 // phone the row wraps rather than push History off the left edge, and a focused link or button
 // above the bar scrolls clear of the bar, the nav and its own focus ring. On a short or zoomed
@@ -61,19 +61,17 @@ function descendants(node) {
   return (node.children || []).flatMap((child) => [child, ...descendants(child)]);
 }
 
-test("the action bar is the last child: a ghost History, then Record again", async () => {
+test("the action bar is the last child: Record again alone; History is the nav's tab", async () => {
   const { body } = await showResults("s1");
   const actions = body.children[body.children.length - 1];
   assert.equal(actions.tagName, "div");
   assert.equal(actions.className, "results__actions");
   assert.deepEqual(
     actions.children.map((button) => [button.tagName, button.className, button.textContent]),
-    [
-      ["button", "btn btn--ghost", "History"],
-      ["button", "btn btn--primary", "Record again"],
-    ],
+    [["button", "btn btn--primary", "Record again"]],
   );
   actions.children.forEach((button) => assert.equal(button.getAttribute("type"), "button"));
+  assert.equal(descendants(body).some((node) => node.textContent === "History"), false);
 });
 
 test("Record again is the only primary button on the screen", async () => {
@@ -85,12 +83,12 @@ test("Record again is the only primary button on the screen", async () => {
   assert.equal(primaries[0].textContent, "Record again");
 });
 
-test("found by class, Record again goes to Practice and History to History", async () => {
+test("found by class, Record again goes to Practice", async () => {
   const { body, routes } = await showResults("s1");
   const actions = byClass(body, "results__actions");
   byClass(actions, "btn--primary").click();
-  byClass(actions, "btn--ghost").click();
-  assert.deepEqual(routes, ["practice", "history"]);
+  assert.equal(byClass(actions, "btn--ghost"), undefined);
+  assert.deepEqual(routes, ["practice"]);
 });
 
 test("a missing session shows no action bar, only the state's History action", async () => {
@@ -131,13 +129,14 @@ test("the bar sticks above the nav on the page background with a top border", ()
   assert.notEqual(bar["flex-direction"], "column", "one row");
 });
 
-test("Record again fills the row and caps at 320px", () => {
+test("Record again fills the row, caps at 320px and parks at the column's end", () => {
   const primary = rule(".results__actions .btn--primary");
   assert.equal(primary.flex, "1 1 auto");
   assert.equal(primary["max-width"], "320px");
+  assert.equal(primary["margin-left"], "auto", "a margin, never end alignment");
 });
 
-test("at 200% zoom the bar wraps instead of pushing History off the left edge", () => {
+test("the bar wraps rather than overflows, and never aligns to the end", () => {
   const bar = rule(".results__actions");
   assert.equal(bar["flex-wrap"], "wrap");
   assert.doesNotMatch(
@@ -145,11 +144,8 @@ test("at 200% zoom the bar wraps instead of pushing History off the left edge", 
     /^(flex-)?end$|^right$/,
     "end alignment sends an overflowing row off the left edge, where nothing can scroll to it",
   );
-  assert.equal(
-    rule(".results__actions .btn--ghost")["margin-left"],
-    "auto",
-    "History's auto margin still parks the pair at the column's end on wide screens",
-  );
+  const ghost = ALL_RULES.find((entry) => entry.selector === ".results__actions .btn--ghost");
+  assert.equal(ghost, undefined, "no ghost button rule: the bar holds Record again alone");
 });
 
 // Every rule in styles.css as {at, selector, declarations}: `at` is the enclosing @-rule or

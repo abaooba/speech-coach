@@ -344,8 +344,8 @@ test("the map draws a long pause as its own card, named, with the words around i
   const rows = mapRows(body);
   assert.ok(!rows.some(([kind]) => kind === "pause"), "not a plain mid-sentence pause");
   assert.deepEqual(rows, [
-    ["long-pause", "0:00", "Long pause · 6.0 s", "We win. [6.0 s] The plan…"],
-    ["clean", "0:06 to 0:08", "Clean stretch · 1.5 s", "Without a filler, pause or restart."],
+    ["long-pause", "0:00", "Long pause · 6.0 s", "…win. [6.0 s] The plan…"],
+    ["clean", "0:06 to 0:08", "Clean stretch · 1.5 s", "No filler, pause or restart."],
   ]);
   assert.equal(
     mapLabel(body),

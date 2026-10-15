@@ -138,7 +138,7 @@ test("on the church take the map draws its freeze as a named, timed long-pause r
   assert.deepEqual(longRow(map), {
     time: "0:34",
     kind: "Long pause · 5.2 s",
-    context: "…be sad. 5.2 s Mhm. I…",
+    context: "…sad. 5.2 s Mhm. I…",
   });
 });
 

@@ -411,16 +411,15 @@ explanation of making coffee.
    "Fillers are down" headline. The next take you record compares with your take before the
    sample.
 
-3. "History" and "Record again" sit in one bar stuck above the nav while the page scrolls under
-   it. Tap "Record again": Practice opens in idle. Use the browser's back button to return,
-   then tap "History": the hash becomes `#/history`. With a keyboard, press Tab from the top
-   of the page: the "How we count" link scrolls up above the bar with its whole focus ring in
-   view, and the next Tab moves to "History" without moving the page. In landscape
-   (568 x 320) or at 200% zoom on a phone (DevTools at 187 x 333 or 160 x 284) the bar is not
-   stuck: the transcript and tips read through the whole window above the nav, and the bar
-   sits at the end of the page. At 187px it wraps: "History" on one line, "Record again"
-   under it, both inside the screen. Tabbing through the page there keeps every focused
-   control, the bar's two included, with its whole ring clear of the nav.
+3. "Record again" sits alone in a bar stuck above the nav while the page scrolls under it;
+   History is the nav's tab under the bar. Tap "Record again": Practice opens in idle. Use
+   the browser's back button to return. With a keyboard, press Tab from the top of the page:
+   the "How we count" link scrolls up above the bar with its whole focus ring in view, and
+   the next Tab moves to "Record again" without moving the page. In landscape (568 x 320) or
+   at 200% zoom on a phone (DevTools at 187 x 333 or 160 x 284) the bar is not stuck: the
+   transcript and tips read through the whole window above the nav, and the bar sits at the
+   end of the page, "Record again" inside the screen. Tabbing through the page there keeps
+   every focused control, the bar's own included, with its whole ring clear of the nav.
 
 4. Speech map: under the headline, a "Speech map" heading, then "0:00 · First word" beside a
    hollow ring, a grey rail that is linear in time with the take's moments stacked as two-line
@@ -432,15 +431,16 @@ explanation of making coffee.
    at its true second and a curve in its colour joins it to its card; the card's first line is
    the clock and the kind in that colour, its second the words around the moment with the
    moment marked as the transcript marks it, and a chevron sits at its right edge: the whole
-   card is the control. An amber dot and "Filler" with the words around it, "…judging because,
-   um, I put…" (fillers within 5 s of each other share a card, "3 fillers" over "um · like ·
-   you know"); a purple block as long as the pause and "Mid-sentence pause · 1.5 s" with
-   "…play piano, 1.5 s um, and…"; a pink block as long as the pause for each pause of 5 s or
-   more, even after a period, and its card reads "Long pause · 5.2 s" over "…be sad. 5.2 s
+   card is the control; its words start at the moment after at most one lead-in word, so the
+   mark is in view on a 320px phone. An amber dot and "Filler" with the words around it,
+   "…because, um, I put…" (fillers within 5 s of each other share a card, "3 fillers" over
+   "um · like · you know"); a purple block as long as the pause and "Mid-sentence pause ·
+   1.5 s" with "…piano, 1.5 s um, and…"; a pink block as long as the pause for each pause of
+   5 s or more, even after a period, and its card reads "Long pause · 5.2 s" over "…sad. 5.2 s
    Mhm. I…"; a purple diamond and "Restart" with the abandoned start and the restart marked,
-   "…time. I kinda ner— I'm kinda nervous though…"; a pale green block with a green edge for
-   the longest clean stretch, "0:00 to 0:26 Clean stretch · 26.5 s" over "Without a filler,
-   pause or restart." Tap a card: the page scrolls so the mark sits mid-window, the mark
+   "…I kinda ner— I'm kinda nervous though…"; a pale green block with a green edge for the
+   longest clean stretch, "0:00 to 0:26 Clean stretch · 26.5 s" over "No filler, pause or
+   restart." Tap a card: the page scrolls so the mark sits mid-window, the mark
    flashes a blue ring for a moment (no fade with reduced motion), focus lands on it, and
    VoiceOver says "Shown in transcript." (each card's hidden text names the action). A screen
    reader hears the list's label, "Speech map from 0:00 to 0:30: 11 fillers, 3 mid-sentence
@@ -511,10 +511,10 @@ explanation of making coffee.
 7. Narrow the window to 320px (DevTools device toolbar): two stats per row with each number
    and its unit on one line, the date in the meta line never split, the speech map's cards
    inside the column with their clocks on the rail, the transcript wrapping with the pause
-   pills staying on their line, no horizontal scroll, no console errors. At 320 x 568 the
-   stuck bar holds "Record again" alone (the nav has History). At 1024px the column doubles:
-   the speech map takes the left column, the stat strip (four across), the rank card and the
-   transcript the right, and "Record again" is at most 320px wide. Switch the OS theme (or DevTools "Emulate CSS
+   pills staying on their line, no horizontal scroll, no console errors. At 1024px the column
+   doubles into two: the speech map, the stat strip (four across) and the rank card on the
+   left, the transcript and the coach notes on the right, and "Record again" is at most
+   320px wide at the column's end. Switch the OS theme (or DevTools "Emulate CSS
    prefers-color-scheme: dark", or the theme toggle): the rust warnings, amber
    and purple marks and the green band stay readable on both backgrounds.
 

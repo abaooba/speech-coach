@@ -197,7 +197,7 @@ test("summarize does not change the session it reads", () => {
   assert.equal(JSON.stringify(session), before);
 });
 
-test("show({id}) builds the meta line, four metric cards in order and two actions", async () => {
+test("show({id}) builds the meta line, four stats in order and the one action", async () => {
   const session = sessionWith();
   const { app, results, body } = mountResults({ s1: session });
   await results.show({ id: "s1" });
@@ -252,10 +252,8 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   const actions = byClass(body, "results__actions");
   assert.deepEqual(
     actions.children.map((button) => [button.tagName, button.className, button.textContent]),
-    [
-      ["button", "btn btn--ghost", "History"],
-      ["button", "btn btn--primary", "Record again"],
-    ],
+    [["button", "btn btn--primary", "Record again"]],
+    "History is the nav's tab, never a second button in the bar",
   );
   actions.children.forEach((button) => assert.equal(button.getAttribute("type"), "button"));
 });
@@ -270,17 +268,15 @@ test("an in-range pace gets the ok hint built from the passage target", async ()
   assert.ok(!hint.classList.contains("stat__hint--warn"));
 });
 
-test("Record again goes to practice and History goes to history", async () => {
+test("Record again goes to practice; the bar has no History button", async () => {
   const { results, body, calls } = mountResults({ s1: sessionWith() });
   await results.show({ id: "s1" });
   const actions = byClass(body, "results__actions");
-  const recordAgain = byClass(actions, "btn--primary");
-  const history = byClass(actions, "btn--ghost");
-  recordAgain.click();
-  history.click();
+  assert.equal(byClass(actions, "btn--ghost"), undefined);
+  byClass(actions, "btn--primary").click();
   assert.deepEqual(
     calls.routes.map((route) => route.name),
-    ["practice", "history"],
+    ["practice"],
   );
 });
 

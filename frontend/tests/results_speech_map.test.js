@@ -282,22 +282,23 @@ test("the real clip: clustered fillers, pauses with their word, the restarted ph
   assert.deepEqual([last.words, last.lastTime], [["uh", "um", "uh"], 31.451]);
 });
 
-test("the real clip: two words either side, the moment marked, a cluster's fillers alone", () => {
+test("the real clip: one lead-in word, the mark, two after; a cluster's fillers alone", () => {
   const map = rowsFor(CLIP_WORDS, CLIP_METRICS);
   assert.deepEqual(map.rows.map((row) => contextText(row.context)), [
     "[so] · [um] · [basically] · [um]",
     null,
-    "…10:21 PM. [Um,] I like…",
-    "…play piano, [1.5 s] um, and…",
-    "…play piano, [um,] and I,…",
-    "…um, [and] [I,] [uh,] [and] [I,] um,…",
-    "…and I, [2.5 s] uh, and…",
+    "…PM. [Um,] I like…",
+    "…piano, [1.5 s] um, and…",
+    "…piano, [um,] and I,…",
+    "…[and] [I,] [uh,] [and] [I,] um,…",
+    "…I, [2.5 s] uh, and…",
     "[uh] · [um]",
-    "…I, um, [2.2 s] studying for…",
+    "…um, [2.2 s] studying for…",
     "[uh] · [um] · [uh]",
   ]);
   const marks = map.rows[3].context.tokens.map((token) => token.mark);
-  assert.deepEqual(marks, [null, null, "pause", null, null]);
+  assert.deepEqual(marks, [null, "pause", null, null], "the mark is second at most");
+  assert.equal(map.rows[5].context.tokens[0].mark, "restart", "a restart leads with its mark");
   assert.equal(map.rows[0].context.cluster, true);
   assert.equal(map.rows[2].context.cluster, undefined);
   assert.deepEqual(
@@ -492,7 +493,7 @@ function railOf(body) {
   return mapBodyOf(body).children.find((node) => node.getAttribute("class") === "speech-map__rail");
 }
 
-const CLEAN_LINE = "Without a filler, pause or restart.";
+const CLEAN_LINE = "No filler, pause or restart.";
 
 // [kind, head text, context text, card target] for one card.
 function cardShape(row) {
@@ -562,7 +563,7 @@ test("Show all draws every card and drops the button", async () => {
   const list = momentsOf(body);
   assert.equal(list.children.length, 10);
   assert.deepEqual(list.children.slice(8).map(cardShape), [
-    ["pause", "0:19 Mid-sentence pause · 2.2 s", "…I, um, 2.2 s studying for…", "pause-2"],
+    ["pause", "0:19 Mid-sentence pause · 2.2 s", "…um, 2.2 s studying for…", "pause-2"],
     ["filler", "0:24 3 fillers", "uh · um · uh", "word-39"],
   ]);
   assert.equal(railOf(body).getAttribute("height"), "632", "the rail grows with the stack");
@@ -617,11 +618,11 @@ test("every card is a button: head, context, hidden Show in transcript, chevron"
   assert.deepEqual(list.children.map(cardShape), [
     ["filler", "0:00 4 fillers", "so · um · basically · um", "word-1"],
     ["clean", "0:04 to 0:09 Clean stretch · 4.9 s", CLEAN_LINE, "word-5"],
-    ["filler", "0:09 Filler", "…10:21 PM. Um, I like…", "word-16"],
-    ["pause", "0:13 Mid-sentence pause · 1.5 s", "…play piano, 1.5 s um, and…", "pause-0"],
-    ["filler", "0:14 Filler", "…play piano, um, and I,…", "word-25"],
-    ["restart", "0:15 Restart", "…um, and I, uh, and I, um,…", "word-29"],
-    ["pause", "0:15 Mid-sentence pause · 2.5 s", "…and I, 2.5 s uh, and…", "pause-1"],
+    ["filler", "0:09 Filler", "…PM. Um, I like…", "word-16"],
+    ["pause", "0:13 Mid-sentence pause · 1.5 s", "…piano, 1.5 s um, and…", "pause-0"],
+    ["filler", "0:14 Filler", "…piano, um, and I,…", "word-25"],
+    ["restart", "0:15 Restart", "…and I, uh, and I, um,…", "word-29"],
+    ["pause", "0:15 Mid-sentence pause · 2.5 s", "…I, 2.5 s uh, and…", "pause-1"],
     ["filler", "0:18 2 fillers", "uh · um", "word-28"],
   ]);
 });
@@ -649,8 +650,8 @@ test("a card marks its moment in the transcript's own classes; plain words stay 
     Array(5).fill("tok tok--restart"),
   );
   const plain = contextOf(3).children.filter((child) => child.nodeType === 3);
-  assert.equal(plain.map((node) => node.textContent).join(""), "…play piano,  um, and…");
-  assert.equal(fullText(contextOf(3)), "…play piano, 1.5 s um, and…");
+  assert.equal(plain.map((node) => node.textContent).join(""), "…piano,  um, and…");
+  assert.equal(fullText(contextOf(3)), "…piano, 1.5 s um, and…");
   assert.equal(marks(contextOf(1)).length, 0, "the clean stretch's line is plain text");
   const cluster = contextOf(0).children.filter((child) => child.nodeType === 3);
   assert.deepEqual(
@@ -785,7 +786,7 @@ test("a long pause's block, elbow and card take the long-pause colour", async ()
   assert.deepEqual(cardShape(row), [
     "long-pause",
     "0:00 Long pause · 6.0 s",
-    "We win. 6.0 s The plan…",
+    "…win. 6.0 s The plan…",
     "pause-0",
   ]);
   const mark = row.children[0].children[1].children.find((child) => child.nodeType !== 3);
