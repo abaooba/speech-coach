@@ -138,11 +138,17 @@ nothing else to host. `render.yaml` at the repo root describes the service.
    repo. Render reads `render.yaml` and proposes a web service named
    `speech-coach` (Python runtime, free plan, build `pip install -r
    requirements.txt`, start `uvicorn backend.app:app`).
-3. Before you apply the Blueprint, Render asks for the two secrets that
-   `render.yaml` marks `sync: false`: `ASSEMBLYAI_API_KEY` and
-   `DEEPGRAM_API_KEY`. Paste both. You can change them later under the
-   service's **Environment** tab. `STT_PROVIDER` is preset to `assemblyai`;
-   switch it to `deepgram` there if you want the other provider.
+3. Before you apply the Blueprint, Render asks for the secrets that
+   `render.yaml` marks `sync: false`. Two are required: `ASSEMBLYAI_API_KEY`
+   and `DEEPGRAM_API_KEY` (paste both; `STT_PROVIDER` is preset to
+   `assemblyai`, switch it to `deepgram` under the service's **Environment**
+   tab if you want the other provider). Three are optional and turn features
+   on: `ANTHROPIC_API_KEY` makes Claude write the coach notes on Results
+   (unset, the research library's own words stand in); `DATABASE_URL` (a
+   Neon Postgres connection string) and `SESSION_SECRET` (32 random bytes,
+   `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`) turn
+   accounts on (unset, the app is guest-only and every account route answers
+   503). Setting or changing `SESSION_SECRET` signs every account out.
 4. Apply. The first build takes a few minutes. Render polls the health check
    path `/api/health` and marks the deploy live once it answers 200.
 5. Open the service URL (`https://speech-coach.onrender.com` or whatever the
@@ -156,9 +162,11 @@ Things to know before testing or demoing on the deploy:
   pages but not on a laptop's LAN address. Test on a phone by opening the
   Render URL, which is HTTPS out of the box.
 - **Cold start.** The free tier spins the service down after about fifteen
-  minutes without traffic, and the first open after that can take up to a
-  minute while Render restarts it. Open the URL a minute before a demo, and
-  say so before the demo if someone else is clicking.
+  minutes without traffic, and the first open after that shows Render's own
+  "Application loading" page for up to a minute. For a demo or a judging
+  window, move the service to Render's Starter plan, which never sleeps; a
+  pinger hitting `/api/health` every five minutes is the fallback. Check a
+  deploy with `.venv/bin/python scripts/smoke_deploy.py <url>` (see Tests).
 - **Caching.** The backend sends `Cache-Control: no-cache` for the PWA shell
   (`/`, `/index.html`, `/sw.js`, `/manifest.json`) so a new deploy shows up
   on the next open, `public, max-age=3600` for the other static files, and
