@@ -99,6 +99,9 @@ for (const view of VIEWS) {
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: view.theme }] });
   // Onboarding shows only while the flag is unset: clear it for that view, set it back after.
   if (view.route === "/onboarding") await evaluate('app.store.setFlag("onboarded", false)');
+  // The coach notes rotate past the entries already shown: forget them before each Results view,
+  // so the light and dark captures pick the same notes (the server's order is seeded by take id).
+  if (view.route === "@results") await evaluate('app.store.setFlag("coachNotesShown", [])');
   const hash = view.route === "@results" ? resultsRoute(lastId) : view.route;
   await send("Page.navigate", { url: BASE + "?v=" + Date.now() + "#" + hash });
   await sleep(1500);
