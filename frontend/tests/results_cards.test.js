@@ -149,7 +149,7 @@ test("each value line is the number, one space and the unit, with /min for fille
     [
       ["#162", "# ", "stat__unit"],
       ["#18", "# ", "stat__unit"],
-      ["#2"],
+      ["#2", "# ", "stat__unit"],
       ["#0", "# ", "stat__unit"],
     ],
   );
@@ -157,7 +157,7 @@ test("each value line is the number, one space and the unit, with /min for fille
   const units = values.map((value) => byClass(value, "stat__unit"));
   assert.deepEqual(
     units.map((unit) => (unit ? unit.textContent : null)),
-    ["wpm", "/min", null, "s"],
+    ["wpm", "/min", "pauses", "s"],
   );
 });
 

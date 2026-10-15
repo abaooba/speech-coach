@@ -73,9 +73,9 @@ function mapLabel(list) {
   return list.getAttribute("aria-label");
 }
 
-// Each card as its clock, its kind and its context, the marked words in brackets: "0:33
-// Restart …one of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a]
-// student makes…".
+// Each card as its clock, its kind and its context, the marked words in brackets: "0:32
+// Restart …of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a] student…".
+// Clocks count from the first word.
 function rows(list) {
   return list.children.map((row) => {
     const [head, context] = row.children[0].children;
@@ -93,8 +93,8 @@ test("the uniforms take: a Restart row where the first copy began, with both cop
   assert.equal(restarts.length, 1);
   assert.ok(
     rows(list).includes(
-      "0:33 Restart …one of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] " +
-        "[decisions] [a] student makes…",
+      "0:32 Restart …of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] " +
+        "[decisions] [a] student…",
     ),
     rows(list).join(" | "),
   );
@@ -113,11 +113,11 @@ test("restarts sit among the other moments in time order", async () => {
   ];
   const list = await showMap(sessionWith(words, repeats));
   assert.deepEqual(rows(list), [
-    "0:00 Restart [We] [need,] [uh,] [we] [need] a plan.…",
-    "0:01 Filler We need, [uh,] we need a…",
+    "0:00 Restart [We] [need,] [uh,] [we] [need] a…",
+    "0:01 Filler We need, [uh,] we need…",
     "0:01 to 0:03 Clean stretch · 2 s Without a filler, pause or restart.",
-    "0:03 Restart …a plan. [The] [plan,] [um,] [the] [plan] works today.",
-    "0:04 Filler …plan. The plan, [um,] the plan works…",
+    "0:03 Restart …plan. [The] [plan,] [um,] [the] [plan] works…",
+    "0:04 Filler …The plan, [um,] the plan…",
   ]);
   assert.deepEqual(
     list.children.map((row) => row.className),

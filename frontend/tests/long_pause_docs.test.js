@@ -136,9 +136,9 @@ test("on the church take the map draws its freeze as a named, timed long-pause r
   );
   assert.match(map.label, /, no mid-sentence pauses, 1 long pause, /);
   assert.deepEqual(longRow(map), {
-    time: "0:35",
+    time: "0:34",
     kind: "Long pause · 5.2 s",
-    context: "…would be sad. 5.2 s Mhm. I didn't…",
+    context: "…be sad. 5.2 s Mhm. I…",
   });
 });
 

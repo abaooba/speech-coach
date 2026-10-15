@@ -116,7 +116,7 @@ test("the Results pauses card reads Pauses and counts the freeze after a full st
   const cards = byClass(await showResults(SESSION), "stat-strip").children;
   const card = cards[2];
   assert.equal(byClass(card, "stat__label").textContent, "Pauses");
-  assert.equal(fullText(byClass(card, "stat__value")), "2");
+  assert.equal(fullText(byClass(card, "stat__value")), "2 pauses");
 });
 
 test("the Progress pauses chart is titled Pauses and labelled with it", async () => {

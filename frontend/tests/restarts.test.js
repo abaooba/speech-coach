@@ -192,16 +192,17 @@ test("one repeat: a Restart card at the repeat's at, with both copies marked", a
   assert.deepEqual(rowText(row), [
     "0:01",
     "Restart",
-    "So today, [we] [need,] [uh,] [we] [need] a plan…",
+    "…today, [we] [need,] [uh,] [we] [need] a…",
   ]);
   assert.equal(mapOf(body).children[0], row, "first on the map: nothing comes before 0:01");
-  const button = row.children[0].children[2];
-  assert.equal(button.getAttribute("data-target"), "word-5", "the second copy's first word");
-  // The take runs 0 to 5.75 s over a 316px rail: 1 s in is 55 px, where the diamond sits.
+  const [card] = row.children;
+  assert.equal(card.tagName, "button");
+  assert.equal(card.getAttribute("data-target"), "word-5", "the second copy's first word");
+  // The take runs 0 to 5.75 s over a 184px rail: 1 s in is 32 px, where the diamond sits.
   const [diamond] = restartMarks(body);
   assert.equal(diamond.tagName, "rect");
   assert.equal(diamond.getAttribute("fill"), "var(--pause)");
-  assert.equal(diamond.getAttribute("transform"), "rotate(45 24 55)", "a diamond, not a dot");
+  assert.equal(diamond.getAttribute("transform"), "rotate(45 24 32)", "a diamond, not a dot");
   assert.equal(diamond.getAttribute("width"), "10");
 });
 
@@ -242,10 +243,9 @@ test("the real uniforms take: the second 'the few decisions a' is underlined", a
   );
   assert.deepEqual(restartRows(body).map(rowText), [
     [
-      "0:33",
+      "0:32",
       "Restart",
-      "…one of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a] " +
-        "student makes…",
+      "…of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a] student…",
     ],
   ]);
 });
@@ -257,11 +257,7 @@ test("the real nervous take: a cut-off restart marks the words said after the cu
   const ner = spans.find((span) => span.textContent === "ner—");
   assert.equal(ner.className, "tok", "the cut-off fragment is the first copy");
   assert.deepEqual(restartRows(body).map(rowText), [
-    [
-      "0:27",
-      "Restart",
-      "…first time. [I] [kinda] [ner—] [I'm] [kinda] [nervous] though for…",
-    ],
+    ["0:26", "Restart", "…time. [I] [kinda] [ner—] [I'm] [kinda] [nervous] though…"],
   ]);
 });
 
@@ -288,8 +284,8 @@ test("a phrase started three times marks each copy after the first", async () =>
   );
   assert.equal(spans[2].className, "tok", "a dash on its own is not part of either copy");
   assert.deepEqual(restartRows(body).map(rowText), [
-    ["0:00", "Restart", "[the] [few] [—] [the] [few] — the…"],
-    ["0:01", "Restart", "…few — [the] [few] [—] [the] [few] decisions a…"],
+    ["0:00", "Restart", "[the] [few] [—] [the] [few] —…"],
+    ["0:01", "Restart", "…— [the] [few] [—] [the] [few] decisions…"],
   ]);
 });
 
@@ -329,7 +325,7 @@ test("a repeat with no second copy in the words gets its row but marks no word",
   const words = spoken("We need a plan that works today and every day.");
   const body = await showSession(sessionWith(words, [{ text: "We need", at: 0 }]));
   assert.deepEqual(restartWords(body), []);
-  assert.deepEqual(restartRows(body).map(rowText), [["0:00", "Restart", "[We] need a…"]]);
+  assert.deepEqual(restartRows(body).map(rowText), [["0:00", "Restart", "[We] need…"]]);
   assert.ok(!byClass(body, "transcript__legend").textContent.includes("restart"));
 });
 

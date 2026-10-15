@@ -1422,13 +1422,14 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--accent);
 }
 
-/* Speech map: the take's moments as cards stacked in reading order beside a rail that is
-   linear in time. The stage is the first word's cap, the body and the last word's cap. In the
-   body the rail (an SVG results.js sizes to the stack: --s-7 plus --s-2 wide, as tall as the
-   cards) sits at the left and the list of cards to its right; a mark on the rail at each
-   moment's true second is joined to its card by an elbow drawn in the SVG. Every card is the
-   same height (results.js MAP.cardHeight, 100px), with --s-2 between two, so the rail is never
-   longer than the cards and a long take never grows the map past the rest of the screen. */
+/* Speech map: the take's moments as two-line cards stacked in reading order beside a rail that
+   is linear in time. The stage is the first word's cap, the body and the last word's cap. In
+   the body the rail (an SVG results.js sizes to the stack: --s-7 plus --s-2 wide, as tall as
+   the cards) sits at the left and the list of cards to its right; a mark on the rail at each
+   moment's true second is joined to its card by a curve drawn in the SVG. Every card is the
+   same height (results.js MAP.cardHeight, 56px), with --s-2 between two, so the rail is never
+   longer than the cards, six cards fit a phone screen, and a long take shows its first eight
+   with a Show all button rather than a column of cards. */
 .speech-map__heading {
   margin-top: var(--s-5);
 }
@@ -1487,26 +1488,48 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 .moment {
-  height: calc(var(--s-7) * 2 + var(--s-1));
+  height: calc(var(--s-7) + var(--s-2));
 }
 
 .moment + .moment {
   margin-top: var(--s-2);
 }
 
-/* The card: a surface card with its moment's colour on the left edge; three rows, the head,
-   the words (which take the room left and clamp at two lines) and the button at the bottom. */
+/* The card is the control: a button the card's whole size, a surface card with its moment's
+   colour on the left edge, two rows (the head over the words) beside a chevron that spans
+   them. The button resets its font and alignment, so the card reads as a card; its ring is the
+   page's. A card with nothing to scroll to (.moment__card--still) is a plain box, no chevron. */
 .moment__card {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--s-2);
   row-gap: var(--s-1);
+  align-items: center;
+  width: 100%;
   height: 100%;
   min-width: 0;
+  margin: 0;
   padding: var(--s-2) var(--s-3);
   background: var(--surface);
   border: 1px solid var(--border);
   border-left-width: 4px;
   border-radius: var(--r-card);
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.moment__card--still {
+  cursor: default;
+}
+
+.moment__chevron {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  color: var(--muted);
 }
 
 .moment--filler .moment__card {
@@ -1560,25 +1583,28 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--ok);
 }
 
-/* The words around the moment, marked as the transcript marks them, at most two lines; a long
-   token wraps anywhere, so a 320px column never overflows. */
+/* The words around the moment, marked as the transcript marks them, on one line that ends in
+   an ellipsis where it runs out of room; no least height, so a card's spacing never changes. */
 .moment__context {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+  grid-column: 1;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   font-size: var(--fs-small);
   line-height: 1.4;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-/* The button: a quiet link-like control on a 44px target whose --s-3 padding is pulled back by
-   equal negative margins, so it takes one small line of the card. */
-.moment__show {
-  justify-self: start;
+.moment__head {
+  grid-column: 1;
+}
+
+/* Show all: a quiet link-like button under the stage on a 44px target whose --s-3 padding is
+   pulled back by equal negative margins, --s-3 under the end cap. */
+.speech-map__more {
   min-height: 44px;
-  margin: calc(-1 * var(--s-3)) 0;
+  margin: 0 0 calc(-1 * var(--s-3));
   padding: var(--s-3) 0;
   border: 0;
   background: none;
@@ -2021,9 +2047,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    column doubles for Results alone, the body becomes a two-column grid, the meta line and the
    headline span it, the map takes the left column while the strip, its note and the rank card
    take the right, and everything after (the transcript, the notes or tips, the action bar)
-   spans both again. Rows 3 to 5 are the two columns' rows: the strip and its note size rows 3
-   and 4, and row 5 takes the rest of the map's height, so the rank card sits right under the
-   note; without a map the left stays empty beside the strip. */
+   spans both again. Rows 3 to 8 are the two columns' rows: the strip, its note, the rank card
+   and the transcript's heading and legend size rows 3 to 7, and row 8, the transcript itself,
+   takes the rest of the map's height, so the right column is never empty beside the map;
+   without a map the left stays empty beside the strip. */
 @media (min-width: 1024px) {
   main:has(> #screen-results.screen--active) {
     max-width: calc(var(--col-max) * 2 + var(--s-6));
@@ -2032,7 +2059,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   #screen-results > .screen__body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    grid-template-rows: repeat(7, auto) minmax(0, 1fr);
     column-gap: var(--s-6);
     align-items: start;
   }
@@ -2043,7 +2070,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
   #screen-results > .screen__body > .speech-map {
     grid-column: 1;
-    grid-row: 3 / span 3;
+    grid-row: 3 / span 6;
   }
 
   #screen-results > .screen__body > .stat-strip {
@@ -2059,6 +2086,21 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   #screen-results > .screen__body > .rank-card {
     grid-column: 2;
     grid-row: 5;
+  }
+
+  #screen-results > .screen__body > .transcript__heading {
+    grid-column: 2;
+    grid-row: 6;
+  }
+
+  #screen-results > .screen__body > .transcript__legend {
+    grid-column: 2;
+    grid-row: 7;
+  }
+
+  #screen-results > .screen__body > .transcript {
+    grid-column: 2;
+    grid-row: 8;
   }
 }
 

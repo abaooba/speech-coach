@@ -218,7 +218,7 @@ test("show draws Transcript and Tips between the stat strip and the actions", as
     "section.headline",
     "section.speech-map",
     "div.stat-strip",
-    "h2.results__heading",
+    "h2.results__heading transcript__heading",
     "p.transcript__legend",
     "p.transcript",
     "h2.results__heading",
@@ -226,7 +226,7 @@ test("show draws Transcript and Tips between the stat strip and the actions", as
     "div.tip-card",
     "div.results__actions",
   ]);
-  const headings = body.children.filter((node) => node.className === "results__heading");
+  const headings = body.children.filter((node) => node.classList.contains("results__heading"));
   assert.deepEqual(
     headings.map((heading) => heading.textContent),
     ["Transcript", "Tips"],
@@ -354,7 +354,7 @@ test("without app.tips the screen still renders, just with no Tips section", asy
     "section.headline",
     "section.speech-map",
     "div.stat-strip",
-    "h2.results__heading",
+    "h2.results__heading transcript__heading",
     "p.transcript__legend",
     "p.transcript",
     "div.results__actions",

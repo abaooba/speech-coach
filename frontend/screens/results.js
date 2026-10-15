@@ -22,6 +22,8 @@
   const FILLERS_LABEL = "Fillers";
   const FILLERS_UNIT = "/min";
   const PAUSES_LABEL = "Pauses";
+  const PAUSE_UNIT = "pause";
+  const PAUSES_UNIT = "pauses";
   const CLEAN_STRETCH_LABEL = "Clean stretch";
   const CLEAN_STRETCH_UNIT = "s";
 
@@ -117,15 +119,18 @@
   const DELTA_ICON_SIZE = 12;
   const DELTA_NOTE = "Arrows compare with your last take.";
 
-  // The speech map (DESIGN.md section 6): the take's moments as cards stacked in reading order
-  // beside a rail that is linear in time. Every card is cardHeight tall with cardGap between
-  // two, so the rail is exactly as tall as the stack (no empty rail, however long the take); a
-  // moment's dot, diamond or block sits on the rail at its true second and a short elbow joins it
-  // to its card. Fillers within clusterSeconds of the one before, with no other moment between,
-  // share one card ("3 fillers"). A card shows contextWords words either side of its moment.
+  // The speech map (DESIGN.md section 6): the take's moments as two-line cards stacked in reading
+  // order beside a rail that is linear in time. Every card is cardHeight tall with cardGap
+  // between two, so the rail is exactly as tall as the stack (no empty rail, however long the
+  // take); a moment's dot, diamond or block sits on the rail at its true second and a curve joins
+  // it to its card. Fillers within clusterSeconds of the one before, with no other moment
+  // between, share one card ("3 fillers"). A card shows contextWords words either side of its
+  // moment. A take with more than shownCards moments shows that many until "Show all" is tapped,
+  // so a long take never becomes a column of cards. Clocks count from the first word, as the
+  // meta line's time used does.
   const MAP_TITLE = "Speech map";
   const MAP = Object.freeze({
-    cardHeight: 100,
+    cardHeight: 56,
     cardGap: 8,
     railWidth: 56,
     railX: 24,
@@ -133,14 +138,19 @@
     dotRadius: 5,
     blockWidth: 10,
     minBlockHeight: 10,
-    clusterSeconds: 4,
-    contextWords: 3,
-    restartContextWords: 2,
+    clusterSeconds: 5,
+    contextWords: 2,
+    restartContextWords: 1,
+    shownCards: 8,
   });
   const MAP_START_TEXT = "First word";
   const MAP_END_TEXT = "Last word";
   const CAP_SEPARATOR = " · ";
   const SHOW_IN_TRANSCRIPT = "Show in transcript";
+  const SHOW_ALL = (count) => "Show all " + count + " moments";
+  const CHEVRON_ICON = "chevron-right";
+  const CHEVRON_SIZE = 16;
+  const CLUSTER_JOINER = " · ";
   const SVG_NS = "http://www.w3.org/2000/svg";
   const RAIL_COLORS = Object.freeze({
     line: "var(--border)",
@@ -529,23 +539,27 @@
   }
 
   // The speech map's rows for a report and the take's words: every moment in time order with its
-  // card and rail geometry, or null when the take has no timeline. Returns {height, rows}:
-  // `height` is the stack's, and the rail's, in pixels (cardHeight a card, cardGap between two);
-  // a row is {kind, time, seconds, index, cardTop, cardMid, railY, railEnd, context, target}:
-  // `kind` one of filler, pause, long-pause, restart or clean; `time` its recording-time start;
-  // `seconds` how long it holds the rail (0 for a filler or a restart); `index` its place in the
-  // stack; `cardTop` and `cardMid` its card's top and middle in the stack; `railY` its second on
-  // the rail (linear in time, 0 the first word and `height` the last) and `railEnd` where a pause
-  // or the clean stretch ends there (at least minBlockHeight below railY, never past the rail);
-  // `context` the words around it, [{text, mark}] with `mark` null or the moment's kind, cut to
-  // contextWords either side (restartContextWords for a restart), with `before` and `after` true
-  // where words were cut; `target` the transcript id the card's button scrolls to. A filler row
-  // adds `words` (every filler in its cluster, in order), `count` and `lastTime`; a pause row
-  // `afterWord`, the word the pause followed (null before the first word), and `pauseIndex`, its
-  // place among the counted pauses; a restart row `phrase`, the words from the abandoned first
-  // copy through its second copy ("I kinda ner— I'm kinda nervous"), or the repeat's own text
-  // when the copy was not found; the clean row `endTime` and no context. Pure.
-  function speechMapRows(report, words) {
+  // card and rail geometry, or null when the take has no timeline. `limit` (default every row)
+  // is how many cards are shown: the rest stay on the rail as marks without a card. Returns
+  // {height, shown, rows}: `shown` the cards shown, `height` their stack's, and the rail's, in
+  // pixels (cardHeight a card, cardGap between two); a row is {kind, time, at, seconds, index,
+  // cardTop, cardMid, railY, railEnd, context, target}: `kind` one of filler, pause, long-pause,
+  // restart or clean; `time` its recording-time start and `at` the same counted from the first
+  // word, the clock the cards show; `seconds` how long it holds the rail (0 for a filler or a
+  // restart); `index` its place in the stack; `cardTop` and `cardMid` its card's top and middle
+  // in the stack (null past `limit`); `railY` its second on the rail (linear in time, 0 the first
+  // word and `height` the last) and `railEnd` where a pause or the clean stretch ends there (at
+  // least minBlockHeight below railY, never past the rail); `context` the words around it,
+  // {before, after, tokens: [{text, mark}]} with `mark` null or the moment's kind, cut to
+  // contextWords either side (restartContextWords for a restart) with `before` and `after` true
+  // where words were cut, or for a cluster its fillers alone, every one marked, with `cluster`
+  // true; `target` the transcript id the card scrolls to. A filler row adds `words` (every
+  // filler in its cluster, in order), `count` and `lastTime`; a pause row `afterWord`, the word
+  // the pause followed (null before the first word), and `pauseIndex`, its place among the
+  // counted pauses; a restart row `phrase`, the words from the abandoned first copy through its
+  // second copy ("I kinda ner— I'm kinda nervous"), or the repeat's own text when the copy was
+  // not found; the clean row `endTime` (and `endAt`) and no context. Pure.
+  function speechMapRows(report, words, limit = Infinity) {
     const segments = timelineSegments(report);
     if (!segments) {
       return null;
@@ -600,17 +614,21 @@
       }
       clustered.push(moment);
     });
-    const height = stackHeight(clustered.length);
+    const shown = Math.min(clustered.length, Math.max(0, limit));
+    const height = stackHeight(shown);
     const railY = (time) =>
       coordinate(clamp01((time - segments.start) / segments.seconds) * height);
     const rows = clustered.map((moment, index) => {
-      const top = index * (MAP.cardHeight + MAP.cardGap);
+      const top = index < shown ? index * (MAP.cardHeight + MAP.cardGap) : null;
       const y = railY(moment.time);
       const row = {
         ...moment,
+        at: roundToTenth(moment.time - segments.start),
+        endAt:
+          moment.endTime === undefined ? undefined : roundToTenth(moment.endTime - segments.start),
         index,
         cardTop: top,
-        cardMid: top + MAP.cardHeight / 2,
+        cardMid: top === null ? null : top + MAP.cardHeight / 2,
         railY: y,
         railEnd: moment.seconds > 0 ? railEndFor(y, railY(spanEnd(moment)), height) : y,
         context: contextFor(wordList, moment),
@@ -622,9 +640,16 @@
       delete row.copyFirst;
       delete row.copyLast;
       delete row.markIndex;
+      if (row.endAt === undefined) {
+        delete row.endAt;
+      }
       return row;
     });
-    return { height, rows };
+    return { height, shown, rows };
+  }
+
+  function roundToTenth(value) {
+    return Math.round(value * 10) / 10;
   }
 
   // When a span moment ends: the clean stretch's own end time (its seconds are rounded), or the
@@ -706,10 +731,11 @@
     };
   }
 
-  // The words around a moment, marked where they are the moment: a filler's words (every filler
-  // in a cluster), the pause itself as "5.2 s" after the word it followed, or the restarted
-  // phrase; contextWords plain words either side (restartContextWords for a restart, whose phrase
-  // is long already). Null for the clean stretch.
+  // The words around a moment, marked where they are the moment: a filler's word, the pause
+  // itself as "5.2 s" after the word it followed, or the restarted phrase; contextWords plain
+  // words either side (restartContextWords for a restart, whose phrase is long already). A
+  // cluster of fillers shows its fillers alone ("um · um · mhm"), and a restart with no word at
+  // its `at` its phrase alone, unmarked. Null for the clean stretch.
   function contextFor(wordList, moment) {
     if (moment.kind === CLEAN_MOMENT) {
       return null;
@@ -719,6 +745,14 @@
         text: textOf(word),
         mark: null,
       }));
+    if (moment.kind === FILLER_MOMENT && moment.count > 1) {
+      return {
+        before: false,
+        after: false,
+        cluster: true,
+        tokens: moment.words.map((text) => ({ text, mark: FILLER_MOMENT })),
+      };
+    }
     if (moment.kind === FILLER_MOMENT) {
       const marked = new Set(moment.wordIndexes);
       const first = Math.min(...marked);
@@ -728,6 +762,9 @@
         mark: marked.has(first + offset) ? FILLER_MOMENT : null,
       }));
       return contextAround(wordList, plain, first, last, inside, MAP.contextWords);
+    }
+    if (moment.kind === RESTART_MOMENT && moment.copyFirst === -1) {
+      return { before: false, after: false, tokens: [{ text: moment.phrase, mark: null }] };
     }
     if (moment.kind === RESTART_MOMENT) {
       const inside = wordList
@@ -933,6 +970,18 @@
     }
   }
 
+  // Show all: the map is drawn again with every card, and focus moves to the first card the tap
+  // revealed, so a keyboard carries on from there instead of falling to the page.
+  function expandMap(session, view, previous) {
+    view.mapExpanded = true;
+    revealedCard = null;
+    renderSession(session, view, previous);
+    focusIfPossible(revealedCard);
+  }
+
+  // The first card past the collapsed count, set while the expanded map is built.
+  let revealedCard = null;
+
   // The third draw, with the coach notes in the tips' place. Like every draw it rebuilds the
   // body, so a link or button the speaker was on inside it is gone: focus then moves to the
   // Coach notes heading, where the next Tab carries on, instead of falling to the page. Focus
@@ -1105,6 +1154,8 @@
       plan,
       hasTranscript,
       map: hasTranscript ? speechMapRows(summary.report, session.transcript) : null,
+      // Set once Show all is tapped: the map then shows every card, not its first shownCards.
+      mapExpanded: false,
       tips: selectTips(summary.report, summary.target),
       // The coach notes, set by show() once they arrive.
       notes: null,
@@ -1131,7 +1182,11 @@
     body.appendChild(buildMeta(session, summary.timeUsed));
     body.appendChild(buildHeadline(headlineFor(summary, previousSummary), summary.target));
     if (map) {
-      body.appendChild(buildSpeechMap(map, timelineSegments(summary.report)));
+      const shownMap = view.mapExpanded
+        ? map
+        : speechMapRows(summary.report, session.transcript, MAP.shownCards);
+      const expand = () => expandMap(session, view, previous);
+      body.appendChild(buildSpeechMap(shownMap, timelineSegments(summary.report), expand));
     }
     body.appendChild(buildStatStrip(summary, deltas));
     if (deltas) {
@@ -1141,7 +1196,9 @@
       body.appendChild(app.rankCard.build(rankCard, { screen: RANK_SCREEN }));
     }
     if (hasTranscript) {
-      body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
+      body.appendChild(
+        app.ui.el("h2", { class: "results__heading transcript__heading", text: TRANSCRIPT_TITLE }),
+      );
       body.appendChild(buildLegend(summary.topHabit, plan));
       body.appendChild(buildTranscript(plan));
     }
@@ -1423,7 +1480,12 @@
         unit: FILLERS_UNIT,
         hint: summary.fillersHint,
       },
-      { label: PAUSES_LABEL, value: summary.pauseCount, hint: summary.pausesHint },
+      {
+        label: PAUSES_LABEL,
+        value: summary.pauseCount,
+        unit: summary.pauseCount === 1 ? PAUSE_UNIT : PAUSES_UNIT,
+        hint: summary.pausesHint,
+      },
       {
         label: CLEAN_STRETCH_LABEL,
         value: summary.cleanStretchSeconds,
@@ -1486,32 +1548,41 @@
   }
 
   // The speech map section: the heading, then the stage: the first word's cap, the body (the
-  // rail SVG beside the list of moment cards) and the last word's cap. The list's label sums the
-  // take up for screen readers; each card's own words say the rest, so the rail is decoration.
-  function buildSpeechMap(map, segments) {
+  // rail SVG beside the list of moment cards) and the last word's cap, then, while the map shows
+  // only its first cards, the Show all button. The list's label sums the take up for screen
+  // readers; each card's own words say the rest, so the rail is decoration. Clocks count from
+  // the first word, so the end cap reads as the meta line's time used does.
+  function buildSpeechMap(map, segments, onExpand) {
     const clock = app.ui.formatClock;
-    return app.ui.el("section", { class: "speech-map" }, [
+    const parts = [
       app.ui.el("h2", { class: "results__heading speech-map__heading", text: MAP_TITLE }),
       app.ui.el("div", { class: "speech-map__stage" }, [
-        mapCap("speech-map__cap speech-map__cap--start", clock(segments.start), MAP_START_TEXT),
+        mapCap("speech-map__cap speech-map__cap--start", clock(0), MAP_START_TEXT),
         app.ui.el("div", { class: "speech-map__body" }, [
           buildRail(map),
           app.ui.el(
             "ol",
             { class: "speech-map__moments", role: "list", "aria-label": mapLabel(segments) },
-            map.rows.map((row) => momentRow(row, clock)),
+            map.rows.slice(0, map.shown).map((row) => momentRow(row, clock)),
           ),
         ]),
-        mapCap(
-          "speech-map__cap speech-map__cap--end",
-          clock(segments.start + segments.seconds),
-          MAP_END_TEXT,
-        ),
+        mapCap("speech-map__cap speech-map__cap--end", clock(segments.seconds), MAP_END_TEXT),
       ]),
-    ]);
+    ];
+    if (map.shown < map.rows.length) {
+      parts.push(
+        app.ui.el("button", {
+          class: "speech-map__more",
+          type: "button",
+          text: SHOW_ALL(map.rows.length),
+          onClick: onExpand,
+        }),
+      );
+    }
+    return app.ui.el("section", { class: "speech-map" }, parts);
   }
 
-  // "0:00 · First word" or "1:02 · Last word": a hollow ring on the rail's end and its words.
+  // "0:00 · First word" or "1:01 · Last word": a hollow ring on the rail's end and its words.
   function mapCap(className, time, text) {
     return app.ui.el("p", { class: className }, [
       app.ui.el("span", { class: "speech-map__ring", "aria-hidden": "true" }),
@@ -1546,20 +1617,20 @@
         "stroke-width": "2",
       }),
     );
-    map.rows.forEach((row) => rail.appendChild(railElbow(row)));
+    map.rows.slice(0, map.shown).forEach((row) => rail.appendChild(railElbow(row)));
     map.rows.forEach((row) => rail.appendChild(railMark(row)));
     return rail;
   }
 
-  // From the mark's second (its start, for a block) out to a lane beside the rail, along the lane
-  // to the card's middle, then across to the card's edge. The lane keeps the elbow clear of the
-  // blocks on the rail, which would hide a run along the rail itself.
+  // One curve from the mark's second (its start, for a block) to the card's edge at its middle:
+  // a cubic whose handles sit at the lane's x, so it leaves the rail sideways and arrives level,
+  // and never runs alongside a block on the rail.
   function railElbow(row) {
     const d = [
       "M" + MAP.railX + " " + row.railY,
-      "H" + MAP.laneX,
-      "V" + row.cardMid,
-      "H" + MAP.railWidth,
+      "C" + MAP.laneX + " " + row.railY,
+      MAP.laneX + " " + row.cardMid,
+      MAP.railWidth + " " + row.cardMid,
     ].join(" ");
     return svgEl("path", {
       class: "speech-map__elbow speech-map__elbow--" + row.kind,
@@ -1611,44 +1682,69 @@
     return svgEl("rect", attrs);
   }
 
-  // One card: the head (its clock, or the clean stretch's two clocks, then its kind), the words
-  // around the moment with the moment marked as the transcript marks it, and the button that
-  // scrolls the transcript to that mark.
+  // One card, the whole of it the control: the head (its clock, or the clean stretch's two
+  // clocks, then its kind) over the words around the moment, the moment marked as the transcript
+  // marks it, a hidden "Show in transcript" that names what a tap does, and a chevron at the
+  // edge. A restart whose words were not found has nothing to scroll to, so its card is plain.
   function momentRow(row, clock) {
-    return app.ui.el("li", { class: "moment moment--" + row.kind }, [
-      app.ui.el("div", { class: "moment__card" }, [
-        app.ui.el("p", { class: "moment__head" }, [
-          app.ui.el("span", { class: "moment__time num", text: momentTime(row, clock) }),
-          app.ui.el("span", { class: "moment__kind", text: MOMENT_LABEL[row.kind](row) }),
-        ]),
-        momentContext(row),
-        showButton(row.target),
+    const parts = [
+      app.ui.el("p", { class: "moment__head" }, [
+        app.ui.el("span", { class: "moment__time num", text: momentTime(row, clock) }),
+        app.ui.el("span", { class: "moment__kind", text: MOMENT_LABEL[row.kind](row) }),
       ]),
-    ]);
+      momentContext(row),
+    ];
+    let card;
+    if (row.target) {
+      parts.push(
+        app.ui.el("span", { class: "sr-only", text: SHOW_IN_TRANSCRIPT }),
+        app.ui.el("span", { class: "moment__chevron", "aria-hidden": "true" }, [
+          app.ui.icon(CHEVRON_ICON, CHEVRON_SIZE),
+        ]),
+      );
+      card = app.ui.el(
+        "button",
+        {
+          class: "moment__card",
+          type: "button",
+          "data-target": row.target,
+          onClick: () => showInTranscript(row.target),
+        },
+        parts,
+      );
+    } else {
+      card = app.ui.el("div", { class: "moment__card moment__card--still" }, parts);
+    }
+    if (row.index === MAP.shownCards) {
+      revealedCard = card;
+    }
+    return app.ui.el("li", { class: "moment moment--" + row.kind }, [card]);
   }
 
-  // "0:31", or "0:00 to 0:27" for the clean stretch.
+  // "0:30", or "0:00 to 0:26" for the clean stretch, counted from the first word.
   function momentTime(row, clock) {
     if (row.kind === CLEAN_MOMENT) {
-      return clock(row.time) + TARGET_JOINER + clock(row.endTime);
+      return clock(row.at) + TARGET_JOINER + clock(row.endAt);
     }
-    return clock(row.time);
+    return clock(row.at);
   }
 
-  // "…for judging because, [um] I put a lot…": the plain words as text, each marked token as a
-  // span in the transcript's own classes (.tok--filler, .tok--restart, .tok--pause), an ellipsis
-  // at an end where the take went on. The clean stretch's line says what it is instead.
+  // "…judging because, [um] I put…": the plain words as text, each marked token a span in the
+  // transcript's own classes (.tok--filler, .tok--restart, .tok--pause), an ellipsis at an end
+  // where the take went on; a cluster's fillers alone, " · " between two. The clean stretch's
+  // line says what it is instead.
   function momentContext(row) {
     if (!row.context) {
       return app.ui.el("p", { class: "moment__context", text: CLEAN_CONTEXT });
     }
+    const joiner = row.context.cluster ? CLUSTER_JOINER : TOKEN_SEPARATOR;
     const parts = [];
     if (row.context.before) {
       parts.push(CONTEXT_ELLIPSIS);
     }
     row.context.tokens.forEach((token, index) => {
       if (index > 0) {
-        parts.push(TOKEN_SEPARATOR);
+        parts.push(joiner);
       }
       parts.push(token.mark ? contextMark(token) : token.text);
     });
@@ -1667,21 +1763,6 @@
 
   function contextMark(token) {
     return app.ui.el("span", { class: CONTEXT_MARK_CLASS[token.mark], text: token.text });
-  }
-
-  // The card's one control. Without a target (a restart whose words were not found) the button
-  // is left out rather than left dead.
-  function showButton(target) {
-    if (!target) {
-      return null;
-    }
-    return app.ui.el("button", {
-      class: "moment__show",
-      type: "button",
-      "data-target": target,
-      text: SHOW_IN_TRANSCRIPT,
-      onClick: () => showInTranscript(target),
-    });
   }
 
   // Scrolls the transcript's mark into the middle of the window (smoothly, unless the speaker
@@ -1722,13 +1803,13 @@
     return node;
   }
 
-  // "Speech map from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
-  // stretch", in the recording-time clock the tips use. A take with long pauses adds "1 long
+  // "Speech map from 0:00 to 0:30: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
+  // stretch", counted from the first word. A take with long pauses adds "1 long
   // pause" after the mid-sentence count, which then leaves the long ones out, and a take with
   // restarts adds "1 restart" after the pauses, the order the cards use.
   function mapLabel(segments) {
-    const from = app.ui.formatClock(segments.start);
-    const to = app.ui.formatClock(segments.start + segments.seconds);
+    const from = app.ui.formatClock(0);
+    const to = app.ui.formatClock(segments.seconds);
     const longCount = segments.pauses.filter((pause) => pause.long).length;
     const shortCount = segments.pauses.length - longCount;
     const parts = [

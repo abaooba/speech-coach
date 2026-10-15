@@ -226,13 +226,13 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   );
   const values = cards.map((card) => byClass(card, "stat__value"));
   values.forEach((value) => assert.ok(value.classList.contains("num")));
-  assert.deepEqual(values.map(fullText), ["162 wpm", "18 /min", "2", "0 s"]);
+  assert.deepEqual(values.map(fullText), ["162 wpm", "18 /min", "2 pauses", "0 s"]);
   assert.deepEqual(
     values.map((value) => {
       const unit = byClass(value, "stat__unit");
       return unit ? unit.textContent : null;
     }),
-    ["wpm", "/min", null, "s"],
+    ["wpm", "/min", "pauses", "s"],
   );
 
   const hint = byClass(cards[0], "stat__hint");

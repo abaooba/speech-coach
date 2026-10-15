@@ -344,7 +344,7 @@ test("the map draws a long pause as its own card, named, with the words around i
   const rows = mapRows(body);
   assert.ok(!rows.some(([kind]) => kind === "pause"), "not a plain mid-sentence pause");
   assert.deepEqual(rows, [
-    ["long-pause", "0:00", "Long pause · 6.0 s", "We win. [6.0 s] The plan works…"],
+    ["long-pause", "0:00", "Long pause · 6.0 s", "We win. [6.0 s] The plan…"],
     ["clean", "0:06 to 0:08", "Clean stretch · 1.5 s", "Without a filler, pause or restart."],
   ]);
   assert.equal(
@@ -360,11 +360,11 @@ test("the long-pause block on the rail is as long as the pause, in its colour", 
   const [block, clean] = railMarks(body);
   assert.equal(block.getAttribute("class"), "speech-map__mark speech-map__mark--long-pause");
   assert.equal(block.getAttribute("fill"), "var(--pause-long)");
-  // Two cards make a 208px rail over the take; the pause runs from "win." for 6 s.
+  // Two cards make a 120px rail over the take; the pause runs from "win." for 6 s.
   const words = session.transcript;
   const start = words[0].start;
   const seconds = words[words.length - 1].end - start;
-  const at = (time) => String(Math.round(((time - start) / seconds) * 208 * 10) / 10);
+  const at = (time) => String(Math.round(((time - start) / seconds) * 120 * 10) / 10);
   assert.equal(block.getAttribute("y"), at(words[1].end));
   assert.equal(
     Number(block.getAttribute("y")) + Number(block.getAttribute("height")),

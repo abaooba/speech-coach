@@ -395,8 +395,8 @@ explanation of making coffee.
    story 150 to 170, Explain something 130 to 160, Your day 140 to 160). An old take saved on
    a retired debate entry keeps the band it was recorded under. The Fillers stat shows "/min"
    and its hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in rust
-   above. The Pauses stat's hint counts the freezes, "0 over 5 s" in green or "1 over 5 s" in
-   rust. The Clean stretch stat shows seconds and reads "Target 15 s" in green from 15 s, or
+   above. The Pauses stat reads "1 pause" or "3 pauses", and its hint counts the freezes,
+   "0 over 5 s" in green or "1 over 5 s" in rust. The Clean stretch stat shows seconds and reads "Target 15 s" in green from 15 s, or
    "Aim past 15 s" in rust. Every cell has the same rows, so the four stay level. Then the
    rank card (step 8), its big number labelled "Rating" above "This take scored 34.". No nav
    item is highlighted.
@@ -423,28 +423,31 @@ explanation of making coffee.
    control, the bar's two included, with its whole ring clear of the nav.
 
 4. Speech map: under the headline, a "Speech map" heading, then "0:00 · First word" beside a
-   hollow ring, a grey rail that is linear in time with the take's moments stacked as cards
-   beside it, and "1:02 · Last word" beside a ring at the bottom. Every card is the same
-   height, so the rail is exactly as tall as the stack and a 3-minute take never grows the
-   map past the rest of the screen. Each moment's mark sits on the rail at its true second
-   and a short elbow in its colour joins it to its card; the card's first line is the clock
-   and the kind in that colour, its second the words around the moment with the moment
-   marked as the transcript marks it, and its last a "Show in transcript" link. An amber dot
-   and "Filler" with the words around it, "…for judging because, um, I put a lot…" (fillers
-   within 4 s of each other share a card, "3 fillers"); a purple block as long as the pause
-   and "Mid-sentence pause · 1.5 s" with "…I play piano, 1.5 s um, and I,…"; a pink block as
-   long as the pause for each pause of 5 s or more, even after a period, and its card reads
-   "Long pause · 5.2 s" over "…would be sad. 5.2 s Mhm. I didn't…"; a purple diamond and
-   "Restart" with the abandoned start and the restart marked, "…first time. I kinda ner— I'm
-   kinda nervous though for…"; a pale green block with a green edge for the longest clean
-   stretch, "0:00 to 0:27 Clean stretch · 26.5 s" over "Without a filler, pause or restart."
-   Tap "Show in transcript": the page scrolls so the mark sits mid-window, the mark flashes a
-   blue ring for a moment (no fade with reduced motion), focus lands on it, and VoiceOver says
-   "Shown in transcript." A screen reader hears the list's label, "Speech map from 0:01 to
-   0:32: 11 fillers, 3 mid-sentence pauses, 1 restart, a 4.9 second clean stretch", with
-   "1 long pause" after the mid-sentence count when there is one, and then every card as one
-   sentence. End a sentence and stay silent for 6 seconds: the map draws the pink block and
-   the card reads "Long pause · 6.0 s". A session saved with an empty transcript shows no map.
+   hollow ring, a grey rail that is linear in time with the take's moments stacked as two-line
+   cards beside it, and "1:01 · Last word" beside a ring at the bottom, the same speaking time
+   the meta line counts; every clock on the map counts from the first word. Every card is 56px
+   tall, so six fit about one phone screen, the rail is exactly as tall as the stack, and a
+   take with more than eight moments shows eight and a "Show all 12 moments" button that draws
+   the rest (the moments past eight still mark the rail). Each moment's mark sits on the rail
+   at its true second and a curve in its colour joins it to its card; the card's first line is
+   the clock and the kind in that colour, its second the words around the moment with the
+   moment marked as the transcript marks it, and a chevron sits at its right edge: the whole
+   card is the control. An amber dot and "Filler" with the words around it, "…judging because,
+   um, I put…" (fillers within 5 s of each other share a card, "3 fillers" over "um · like ·
+   you know"); a purple block as long as the pause and "Mid-sentence pause · 1.5 s" with
+   "…play piano, 1.5 s um, and…"; a pink block as long as the pause for each pause of 5 s or
+   more, even after a period, and its card reads "Long pause · 5.2 s" over "…be sad. 5.2 s
+   Mhm. I…"; a purple diamond and "Restart" with the abandoned start and the restart marked,
+   "…time. I kinda ner— I'm kinda nervous though…"; a pale green block with a green edge for
+   the longest clean stretch, "0:00 to 0:26 Clean stretch · 26.5 s" over "Without a filler,
+   pause or restart." Tap a card: the page scrolls so the mark sits mid-window, the mark
+   flashes a blue ring for a moment (no fade with reduced motion), focus lands on it, and
+   VoiceOver says "Shown in transcript." (each card's hidden text names the action). A screen
+   reader hears the list's label, "Speech map from 0:00 to 0:30: 11 fillers, 3 mid-sentence
+   pauses, 1 restart, a 4.9 second clean stretch", with "1 long pause" after the mid-sentence
+   count when there is one, and then every card as one sentence. End a sentence and stay
+   silent for 6 seconds: the map draws the pink block and the card reads "Long pause · 6.0 s".
+   A session saved with an empty transcript shows no map.
 
 5. Transcript: under the rank card, a "Transcript" heading, a small legend and every word of the
    take. The legend reads "Highlighted words are hesitations: um, uh, mhm. Underlined words
@@ -510,8 +513,8 @@ explanation of making coffee.
    inside the column with their clocks on the rail, the transcript wrapping with the pause
    pills staying on their line, no horizontal scroll, no console errors. At 320 x 568 the
    stuck bar holds "Record again" alone (the nav has History). At 1024px the column doubles:
-   the speech map takes the left column, the stat strip (four across) and the rank card the
-   right, and "Record again" is at most 320px wide. Switch the OS theme (or DevTools "Emulate CSS
+   the speech map takes the left column, the stat strip (four across), the rank card and the
+   transcript the right, and "Record again" is at most 320px wide. Switch the OS theme (or DevTools "Emulate CSS
    prefers-color-scheme: dark", or the theme toggle): the rust warnings, amber
    and purple marks and the green band stay readable on both backgrounds.
 
