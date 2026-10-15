@@ -30,9 +30,10 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 2. The audio is sent to a small FastAPI backend, which forwards it to a
    speech-to-text provider (Deepgram or AssemblyAI) with filler words kept.
 3. The backend computes the metrics from the word timestamps and returns
-   them with the transcript. Audio is discarded after analysis; during a
-   Path level the browser keeps take 1 in memory for replay until the
-   level ends (see Privacy below for exactly what that means).
+   them with the transcript. Audio is discarded after analysis, and the
+   backend asks AssemblyAI to delete its copy as soon as the words are back;
+   during a Path level the browser keeps take 1 in memory for replay until
+   the level ends (see Privacy below for exactly what that means).
 4. The browser saves the session in IndexedDB on the device and draws a
    progress chart. No accounts, nothing stored on the server.
 
@@ -217,9 +218,13 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
   the operating system's temp directory while the request runs, and the
   file is deleted when the request ends. A long recording may therefore
   touch disk for a few seconds.
-- The audio is forwarded once to the speech-to-text provider you configure
-  (Deepgram or AssemblyAI) and is subject to that provider's retention
-  policy.
+- The audio is forwarded once to the speech-to-text provider you configure.
+  With AssemblyAI, the default, the backend asks AssemblyAI to delete the
+  transcript and the uploaded audio as soon as the words are back
+  (`DELETE /v2/transcript/{id}`, which AssemblyAI documents as removing both).
+  A failed delete is logged by its status alone, and the copy then expires
+  under the retention setting in the AssemblyAI dashboard. With Deepgram the
+  audio is subject to Deepgram's retention policy.
 - During a Path level, the browser keeps take 1's recording in memory
   after its upload, so the review step can play it back. It is never
   written to IndexedDB, uploaded again or saved anywhere else, and it is
