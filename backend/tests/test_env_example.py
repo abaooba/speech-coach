@@ -47,3 +47,7 @@ def test_readme_says_what_each_optional_secret_turns_on() -> None:
     assert "coach notes" in section.lower()
     assert "accounts" in section.lower()
     assert "Starter" in section, "the deploy section names the plan that stops the cold start"
+
+
+def test_readme_deploy_step_tells_the_owner_to_change_render_yaml_too() -> None:
+    assert "`plan: starter`" in deploy_section()

@@ -20,7 +20,6 @@ Phone width, light and dark. The history is seeded with two real takes
 | Light | Dark |
 | --- | --- |
 | ![Practice screen](docs/screenshots/practice-light.png) | ![Practice screen, dark](docs/screenshots/practice-dark.png) |
-| ![Results screen](docs/screenshots/results-light.png) | ![Results screen, dark](docs/screenshots/results-dark.png) |
 | ![Progress screen](docs/screenshots/progress-light.png) | ![Progress screen, dark](docs/screenshots/progress-dark.png) |
 | ![History screen](docs/screenshots/history-light.png) | ![History screen, dark](docs/screenshots/history-dark.png) |
 | ![Onboarding screen](docs/screenshots/onboarding-light.png) | ![Onboarding screen, dark](docs/screenshots/onboarding-dark.png) |
@@ -34,6 +33,12 @@ Phone width, light and dark. The history is seeded with two real takes
 - History: every take, newest first, with its pace, fillers per minute and a status word.
 - Onboarding, shown on first launch: what is measured and what happens to your audio.
 
+### Results, full page
+
+![Results screen](docs/screenshots/results-light.png)
+
+![Results screen, dark](docs/screenshots/results-dark.png)
+
 ## How it works
 
 1. The browser records audio with `MediaRecorder` and measures loudness
@@ -46,7 +51,7 @@ Phone width, light and dark. The history is seeded with two real takes
    during a Path level the browser keeps take 1 in memory for replay until
    the level ends (see Privacy below for exactly what that means).
 4. The browser saves the session in IndexedDB on the device and draws a
-   progress chart. No accounts, nothing stored on the server.
+   progress chart. Guests need no account. With an account, the same takes sync to Postgres so a second device sees them.
 
 The longer version, with a diagram and every module's job, is
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -176,8 +181,8 @@ nothing else to host. `render.yaml` at the repo root describes the service.
    503). Setting or changing `SESSION_SECRET` signs every account out.
 4. Apply. The first build takes a few minutes. Render polls the health check
    path `/api/health` and marks the deploy live once it answers 200.
-5. Open the service URL (`https://speech-coach.onrender.com` or whatever the
-   dashboard shows). Every later push to the connected branch redeploys
+5. Open the service URL (`https://speech-coach-xz8c.onrender.com`).
+   Every later push to the connected branch redeploys
    automatically.
 
 Things to know before testing or demoing on the deploy:
@@ -189,8 +194,10 @@ Things to know before testing or demoing on the deploy:
 - **Cold start.** The free tier spins the service down after about fifteen
   minutes without traffic, and the first open after that shows Render's own
   "Application loading" page for up to a minute. For a demo or a judging
-  window, move the service to Render's Starter plan, which never sleeps; a
-  pinger hitting `/api/health` every five minutes is the fallback. Check a
+  window, move the service to Render's Starter plan, which never sleeps. Change
+  `plan: free` to `plan: starter` in `render.yaml` as well, or the next push can put
+  the service back on the free plan. A pinger hitting `/api/health` every five
+  minutes is the fallback. Check a
   deploy with `.venv/bin/python scripts/smoke_deploy.py <url>` (see Tests).
 - **Caching.** The backend sends `Cache-Control: no-cache` for the PWA shell
   (`/`, `/index.html`, `/sw.js`, `/manifest.json`) so a new deploy shows up

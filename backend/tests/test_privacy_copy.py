@@ -22,3 +22,8 @@ def test_how_it_works_step_three_names_the_delete() -> None:
     start = README.index("## How it works")
     end = README.index("### API")
     assert "asks AssemblyAI to delete" in README[start:end]
+
+
+def test_readme_no_longer_claims_nothing_is_stored_on_the_server() -> None:
+    assert "No accounts, nothing stored on the server" not in README
+    assert "Guests need no account." in README

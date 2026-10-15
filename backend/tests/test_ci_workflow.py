@@ -33,3 +33,7 @@ def test_readme_shows_the_ci_badge_near_the_top() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert BADGE in readme
     assert readme.index(BADGE) < readme.index("## Screenshots")
+
+
+def test_workflow_token_is_read_only() -> None:
+    assert "permissions:\n  contents: read" in WORKFLOW.read_text(encoding="utf-8")
