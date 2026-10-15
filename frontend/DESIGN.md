@@ -6,7 +6,7 @@ Every screen is built from this file. Angle: **drill-first**. A speaker who want
 
 | Screen | Route | Purpose |
 |---|---|---|
-| Onboarding | `#/onboarding` | First launch only: what is measured, audio is deleted after analysis, one button. |
+| Onboarding | `#/onboarding` | First launch only: what is measured, audio is deleted after analysis, one button. The lead paragraph draws the 64px app icon above itself with `::before` (`icons/icon.svg`), so the screen's DOM is unchanged. |
 | Practice | `#/practice` (default) | Talk on a timed topic or read a passage aloud, record, stop. Home. |
 | Results | `#/results/:id` | A two-sentence headline, four metric cards with "vs last take" lines, the speech timeline, the highlighted transcript, one or two tips. |
 | History | `#/history` | Sessions newest first with a status word, tap to reopen, delete with confirm. |

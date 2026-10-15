@@ -3014,6 +3014,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
+/* The app's mark above the first sentence, drawn by CSS so the screen's DOM stays the four
+   pinned children. The same file the manifest and the home screen use. */
+.onboarding__lead::before {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 0 var(--s-4);
+  background: url("icons/icon.svg") center / contain no-repeat;
+  border-radius: 14px;
+}
+
 /* Onboarding screen: a lead line, three measured things with their icons, the privacy line and
    one full-width button. Its content starts --s-3 under the h1, as on every screen. */
 .onboarding__lead {
