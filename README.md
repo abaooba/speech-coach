@@ -120,6 +120,16 @@ Lint the Python code:
 ruff check .
 ```
 
+Check a deploy before a demo (this one reaches the network, so pytest never runs it):
+
+```bash
+.venv/bin/python scripts/smoke_deploy.py https://speech-coach-xz8c.onrender.com
+```
+
+It prints PASS or FAIL for health, accounts (`/api/me` answers 401 when
+`DATABASE_URL` is set) and coach notes (`/api/advice` says Claude wrote them
+when `ANTHROPIC_API_KEY` is set and the hourly budget lasts).
+
 Frontend tests (plain `node:test`, no dependencies; pytest also runs them when
 `node` is installed):
 
