@@ -395,6 +395,70 @@ h2 {
   margin-top: calc(var(--s-6) - var(--s-3));
 }
 
+/* The optional preview under a state block's actions (ui.js renderState). Progress fills it
+   with an example trend while it waits for a second take: a picture of the chart to come, in
+   the Fillers series color, never a sentence of its own. */
+.state__preview {
+  width: 100%;
+  margin: var(--s-4) 0 0;
+}
+
+.progress-preview__chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--filler);
+}
+
+.progress-preview__band {
+  fill: var(--ok-bg);
+}
+
+.progress-preview__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  stroke-linejoin: round;
+}
+
+.progress-preview__point {
+  fill: var(--bg);
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.progress-preview__caption {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  text-align: center;
+}
+
+.progress-preview__steps {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress-preview__step {
+  padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.progress-preview__step--done {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .spinner {
   width: 24px;
   height: 24px;

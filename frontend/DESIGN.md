@@ -218,7 +218,7 @@ Mic permission is requested on the first record tap, never on load. Stopping und
 - Provider (502) or unknown: "Analysis failed on our side. Your recording is still here." Action "Retry upload", secondary "Record a new take".
 - Too short: "That was under 5 seconds. Try again." Action "Record again". When the backend rejects a take as too short (400), the same block shows and the take is dropped: "Record again", no Retry upload.
 - History empty: "No sessions yet" / "Your first recording will show up here." Action "Record".
-- Progress under two sessions (samples do not count): "Need two sessions" / "Record two sessions to see a trend." with none, "Record one more to see a trend." with one. Action "Record".
+- Progress under two sessions (samples do not count): "Need two sessions" / "Record two sessions to see a trend." with none, "Record one more to see a trend." with one. Action "Record". Under the action, the preview (section 6, state block): an example chart captioned "Example: fillers per minute falling over six takes." and a tracker "Take 1", "Take 2" with one chip filled per recorded take (`aria-label` "1 of 2 takes recorded").
 - Results bad id: "Session not found" / "It may have been deleted." Action "History".
 - Sample failed: "Could not load the sample. Try again." Action "Try again" (back to idle).
 - Practice: tabs "Talk" and "Read"; "New topic"; recording hint "Tap Stop when you finish. It uploads right away."

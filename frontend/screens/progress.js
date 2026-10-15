@@ -160,6 +160,17 @@
   const EMPTY_BODY_ONE = "Record one more to see a trend.";
   const EMPTY_ICON = "chart";
   const RECORD_LABEL = "Record";
+  // The example trend under "Need two sessions": fillers per minute over six takes, falling
+  // toward the target band the real chart draws (0 to 3). Values, not data: a picture of what
+  // the chart will show, in the Fillers series color.
+  const PREVIEW_VIEWBOX = "0 0 320 120";
+  const PREVIEW_VALUES = [8.5, 7.2, 7.8, 5.1, 4.4, 3.2];
+  const PREVIEW_MAX = 10;
+  const PREVIEW_TARGET = 3;
+  const PREVIEW_PAD = { left: 16, right: 16, top: 12, bottom: 12 };
+  const PREVIEW_CAPTION = "Example: fillers per minute falling over six takes.";
+  const PREVIEW_STEPS = ["Take 1", "Take 2"];
+  const PREVIEW_STEPS_LABEL = " of 2 takes recorded";
   const LATEST_LABEL = "Latest";
   const BEST_LABEL = "Best";
   const CHANGE_LABEL = "From your average";
@@ -426,12 +437,74 @@
       body: count === 0 ? EMPTY_BODY_NONE : EMPTY_BODY_ONE,
       actionLabel: RECORD_LABEL,
       onAction: () => app.router.go("practice"),
+      preview: buildPreview(count),
     });
     if (rankCard) {
       body.removeChild(block);
       body.appendChild(rankCard);
       body.appendChild(block);
     }
+  }
+
+  // The preview's three parts: the example chart, its caption and the two-take tracker.
+  function buildPreview(count) {
+    return [previewChart(), previewCaption(), previewSteps(count)];
+  }
+
+  function previewCaption() {
+    return app.ui.el("p", { class: "progress-preview__caption", text: PREVIEW_CAPTION });
+  }
+
+  // A 320 x 120 picture: the target band along the bottom, a dashed line through six points.
+  function previewChart() {
+    const svg = svgEl("svg", {
+      class: "progress-preview__chart",
+      viewBox: PREVIEW_VIEWBOX,
+      "aria-hidden": "true",
+    });
+    const width = 320 - PREVIEW_PAD.left - PREVIEW_PAD.right;
+    const height = 120 - PREVIEW_PAD.top - PREVIEW_PAD.bottom;
+    const y = (value) => PREVIEW_PAD.top + height - (value / PREVIEW_MAX) * height;
+    const x = (index) => PREVIEW_PAD.left + (index / (PREVIEW_VALUES.length - 1)) * width;
+    svg.appendChild(
+      svgEl("rect", {
+        class: "progress-preview__band",
+        x: String(PREVIEW_PAD.left),
+        y: String(y(PREVIEW_TARGET)),
+        width: String(width),
+        height: String(y(0) - y(PREVIEW_TARGET)),
+      }),
+    );
+    const points = PREVIEW_VALUES.map((value, i) => x(i).toFixed(1) + "," + y(value).toFixed(1));
+    svg.appendChild(
+      svgEl("polyline", { class: "progress-preview__line", points: points.join(" ") }),
+    );
+    PREVIEW_VALUES.forEach((value, i) => {
+      svg.appendChild(
+        svgEl("circle", {
+          class: "progress-preview__point",
+          cx: x(i).toFixed(1),
+          cy: y(value).toFixed(1),
+          r: "4",
+        }),
+      );
+    });
+    return svg;
+  }
+
+  // "Take 1 · Take 2", each recorded take filled; the list's label says the count for readers.
+  function previewSteps(count) {
+    const items = PREVIEW_STEPS.map((label, i) =>
+      app.ui.el("li", {
+        class: "progress-preview__step" + (i < count ? " progress-preview__step--done" : ""),
+        text: label,
+      }),
+    );
+    return app.ui.el(
+      "ol",
+      { class: "progress-preview__steps", "aria-label": count + PREVIEW_STEPS_LABEL },
+      items,
+    );
   }
 
   // The rank card, when there is one, and the segmented control are built once per show(); a tap
