@@ -2,6 +2,10 @@
 [![CI](https://github.com/abaooba/speech-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/abaooba/speech-coach/actions/workflows/ci.yml)
 Live app: <https://speech-coach-xz8c.onrender.com>
 
+Talk for a minute, get your pace, your pauses, your fillers and your restarts
+back in seconds, with coach notes that cite the research they come from.
+Then climb a practice path built from that research.
+
 A practice tool for speaking more fluently, for non-native speakers and
 anyone who wants to sound more articulate. Record yourself talking or reading
 aloud on your phone or laptop, get back words per minute, long pauses, filler
@@ -10,20 +14,25 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 
 ## Screenshots
 
+Phone width, light and dark. The history is seeded with two real takes
+(`scripts/screenshot_seed.py`), so Results and Progress have something to show.
+
+| Light | Dark |
+| --- | --- |
+| ![Practice screen](docs/screenshots/practice-light.png) | ![Practice screen, dark](docs/screenshots/practice-dark.png) |
+| ![Results screen](docs/screenshots/results-light.png) | ![Results screen, dark](docs/screenshots/results-dark.png) |
+| ![Progress screen](docs/screenshots/progress-light.png) | ![Progress screen, dark](docs/screenshots/progress-dark.png) |
+| ![History screen](docs/screenshots/history-light.png) | ![History screen, dark](docs/screenshots/history-dark.png) |
+| ![Onboarding screen](docs/screenshots/onboarding-light.png) | ![Onboarding screen, dark](docs/screenshots/onboarding-dark.png) |
+
 - Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
   the take.
-  ![Practice screen](docs/screenshots/practice.png)
-- Results: a two-sentence headline, four metric cards, a speech timeline, the transcript with
-  fillers highlighted and one or two tips.
-  ![Results screen](docs/screenshots/results.png)
-- History: every session, newest first, with its pace, fillers per minute and a status word.
-  ![History screen](docs/screenshots/history.png)
+- Results: a two-sentence headline, your rank, four metric cards, a speech timeline, the
+  transcript with fillers and restarts marked, and two or three cited coach notes.
 - Progress: one metric charted across your takes, with your latest, your best and your change
-  from the average.
-  ![Progress screen](docs/screenshots/progress.png)
-- Onboarding, shown on first launch: what is measured, that audio is deleted after
-  analysis, and that take 1 of a Path level stays in memory for replay until the level ends.
-  ![Onboarding screen](docs/screenshots/onboarding.png)
+  from the average, under your rank and streak.
+- History: every take, newest first, with its pace, fillers per minute and a status word.
+- Onboarding, shown on first launch: what is measured and what happens to your audio.
 
 ## How it works
 
