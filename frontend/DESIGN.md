@@ -8,7 +8,7 @@ Every screen is built from this file. Angle: **drill-first**. A speaker who want
 |---|---|---|
 | Onboarding | `#/onboarding` | First launch only: what is measured, audio is deleted after analysis, one button. The lead paragraph draws the 64px app icon above itself with `::before` (`icons/icon.svg`), so the screen's DOM is unchanged. |
 | Practice | `#/practice` (default) | Talk on a timed topic or read a passage aloud, record, stop. Home. |
-| Results | `#/results/:id` | A two-sentence headline over the speech map (the take's moments, each a card pinned to its second), a strip of four stats with "vs last take" lines, the rank card, the highlighted transcript, the coach notes or one or two tips. |
+| Results | `#/results/:id` | A two-sentence headline over the speech map (the take's moments as two-line cards beside a rail that is linear in time, each card a button that shows its moment in the transcript; eight cards, then "Show all"), a strip of four stats with hints and "vs last take" lines, the rank card with its labelled rating, the highlighted transcript, the coach notes or one or two tips. |
 | History | `#/history` | Sessions newest first with a status word, tap to reopen, delete with confirm. |
 | Progress | `#/progress` | Metric switch, summary row, hand-rolled SVG line chart with the target band and the personal best. |
 | Path | `#/path` | The skill map: the four units weakest first, each a winding line of level nodes with its crown and checkpoint; the week and due check-back chips; the benchmark when due. No rank. |
