@@ -7,8 +7,9 @@
 //
 // CHROME=/path/to/chrome overrides the default macOS location.
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const require = createRequire(import.meta.url);
@@ -22,7 +23,6 @@ const OUT = args.out || "docs/screenshots";
 const BASE = (args.base || "http://127.0.0.1:8766").replace(/\/$/, "") + "/";
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9333;
-const PROFILE = join(OUT, ".chrome-profile");
 
 if (!SEED || !existsSync(SEED)) {
   console.error("--seed <file> is required (scripts/screenshot_seed.py writes one)");
@@ -33,6 +33,8 @@ if (!existsSync(CHROME)) {
   process.exit(1);
 }
 mkdirSync(OUT, { recursive: true });
+// A fresh profile per run, so a re-run never doubles the seeded history.
+const PROFILE = mkdtempSync(join(tmpdir(), "speech-coach-shots-"));
 
 const chrome = spawn(
   CHROME,
@@ -41,6 +43,12 @@ const chrome = spawn(
     "about:blank"],
   { stdio: "ignore" },
 );
+// Every exit path (errors, Ctrl-C, success) kills Chrome and deletes the profile.
+process.on("exit", () => {
+  chrome.kill();
+  rmSync(PROFILE, { recursive: true, force: true });
+});
+process.on("SIGINT", () => process.exit(130));
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 const stop = (code) => { chrome.kill(); process.exit(code); };
 
