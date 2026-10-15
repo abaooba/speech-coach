@@ -1,8 +1,8 @@
 // Tests for the Results action bar (DESIGN.md sections 1, 3, 6 and 9; audit L6): the last child
-// of the screen, stuck above the nav, one row with the screen's only
-// primary button, "Record again", whose width caps at 320px on wide screens. At 200% zoom on a
-// phone the row wraps rather than push History off the left edge, and a focused link or button
-// above the bar scrolls clear of the bar, the nav and its own focus ring. On a short or zoomed
+// of the screen, stuck above the nav, one row with the screen's only primary button, "Record
+// again", whose width caps at 320px on wide screens (History is the nav's tab, never a second
+// button). At 200% zoom on a phone the row wraps rather than overflow, and a focused link or
+// button above the bar scrolls clear of the bar, the nav and its own focus ring. On a short or zoomed
 // window (review a11y-4) the bar sits at the end of the page instead of covering it.
 "use strict";
 

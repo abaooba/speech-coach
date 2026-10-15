@@ -1552,6 +1552,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 /* The head: the clock, muted, then the kind in the moment's colour (every pair reads at 4.5:1
    or better on --surface, DESIGN.md 4). It never wraps. */
 .moment__head {
+  grid-column: 1;
   display: flex;
   gap: var(--s-2);
   margin: 0;
@@ -1594,10 +1595,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   line-height: 1.4;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-.moment__head {
-  grid-column: 1;
 }
 
 /* Show all: a quiet link-like button under the stage on a 44px target whose --s-3 padding is
@@ -2036,37 +2033,40 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    columns that break only at the Transcript heading (the speech map, the stat strip, its note
    and the rank card on the left; the transcript and the coach notes or tips on the right), and
    the action bar spans the width again under both. The two columns balance to the taller one.
-   No card, strip or note splits between the columns. */
-@media (min-width: 1024px) {
-  main:has(> #screen-results.screen--active) {
-    max-width: calc(var(--col-max) * 2 + var(--s-6));
-  }
+   No card, strip or note splits between the columns. The whole block waits for :has, which
+   widens main: a browser without it keeps the single column instead of two columns in one. */
+@supports selector(:has(a)) {
+  @media (min-width: 1024px) {
+    main:has(> #screen-results.screen--active) {
+      max-width: calc(var(--col-max) * 2 + var(--s-6));
+    }
 
-  #screen-results > .screen__body {
-    columns: 2;
-    column-gap: var(--s-6);
-  }
+    #screen-results > .screen__body {
+      columns: 2;
+      column-gap: var(--s-6);
+    }
 
-  #screen-results > .screen__body > * {
-    break-inside: avoid;
-  }
+    #screen-results > .screen__body > * {
+      break-inside: avoid;
+    }
 
-  #screen-results > .screen__body > .results__meta,
-  #screen-results > .screen__body > .headline,
-  #screen-results > .screen__body > .results__actions {
-    column-span: all;
-  }
+    #screen-results > .screen__body > .results__meta,
+    #screen-results > .screen__body > .headline,
+    #screen-results > .screen__body > .results__actions {
+      column-span: all;
+    }
 
-  #screen-results > .screen__body > .transcript__heading {
-    break-before: column;
-    margin-top: 0;
-  }
+    #screen-results > .screen__body > .transcript__heading {
+      break-before: column;
+      margin-top: 0;
+    }
 
-  /* The paragraphs are the right column's tall parts: they may run on past a page of the
-     column, as any text does. */
-  #screen-results > .screen__body > .transcript,
-  #screen-results > .screen__body > .coach-notes {
-    break-inside: auto;
+    /* The paragraphs are the right column's tall parts: they may run on past a page of the
+       column, as any text does. */
+    #screen-results > .screen__body > .transcript,
+    #screen-results > .screen__body > .coach-notes {
+      break-inside: auto;
+    }
   }
 }
 

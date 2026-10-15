@@ -1,8 +1,9 @@
 // Tests for the Results stat strip (DESIGN.md sections 3, 5 and 6): short sentence-case labels,
 // the "/min" unit, a value line that never wraps apart from its unit, and the strip's layout in
 // styles.css (one surface band with hairlines between its cells: 2 x 2 on a phone, four across
-// from 480px, stacked at 200% zoom). The DOM half mounts the real ui.js, delivery.js and
-// results.js against the shared fake DOM; the CSS half reads styles.css.
+// from 600px, stacked at 200% zoom), plus the wide window's two-column Results. The DOM half
+// mounts the real ui.js, delivery.js and results.js against the shared fake DOM; the CSS half
+// reads styles.css.
 "use strict";
 
 const test = require("node:test");
@@ -245,4 +246,45 @@ test("the value is a compact --fs-h2 figure at 700 with a micro muted unit", () 
 
 test("every figure on Results uses tabular numbers, hints and headline included", () => {
   assert.equal(ruleFor("#screen-results")["font-variant-numeric"], "tabular-nums");
+});
+
+// The wide window (DESIGN.md section 3): from 1024px Results flows into two columns. The block
+// sits inside @supports selector(:has(a)), since only :has widens main for Results; the parser
+// records the innermost @-rule, the media query, as a rule's `at`.
+const WIDE_WINDOW = "@media (min-width: 1024px)";
+const BODY = "#screen-results > .screen__body";
+
+test("from 1024px Results is two columns that break only at the Transcript heading", () => {
+  assert.equal(ruleFor(BODY, WIDE_WINDOW).columns, "2");
+  assert.equal(ruleFor(BODY, WIDE_WINDOW)["column-gap"], "var(--s-6)");
+  assert.equal(
+    ruleFor("main:has(> #screen-results.screen--active)", WIDE_WINDOW)["max-width"],
+    "calc(var(--col-max) * 2 + var(--s-6))",
+  );
+  const spanning = [".results__meta", ".headline", ".results__actions"]
+    .map((part) => BODY + " > " + part)
+    .join(", ");
+  assert.equal(ruleFor(spanning, WIDE_WINDOW)["column-span"], "all");
+  const heading = ruleFor(BODY + " > .transcript__heading", WIDE_WINDOW);
+  assert.equal(heading["break-before"], "column");
+  assert.equal(heading["margin-top"], "0");
+  assert.equal(ruleFor(BODY + " > *", WIDE_WINDOW)["break-inside"], "avoid");
+  assert.equal(
+    ruleFor(BODY + " > .transcript, " + BODY + " > .coach-notes", WIDE_WINDOW)["break-inside"],
+    "auto",
+    "only the two tall paragraphs may split between the columns",
+  );
+});
+
+test("the two-column block waits for :has, so a browser without it keeps one column", () => {
+  const css = withoutComments(CSS);
+  const supports = css.indexOf("@supports selector(:has(a))");
+  assert.ok(supports !== -1, "styles.css has the @supports wrapper");
+  const open = css.indexOf("{", supports);
+  const block = css.slice(open + 1, closingBrace(css, open));
+  assert.ok(block.includes(WIDE_WINDOW), "the 1024px media query sits inside it");
+  assert.ok(block.includes("columns: 2"), "and so do the columns");
+  const outside = css.slice(0, supports) + css.slice(closingBrace(css, open) + 1);
+  assert.ok(!outside.includes("columns: 2"), "no two-column rule outside the wrapper");
+  assert.ok(!outside.includes(":has(> #screen-results"), "nor the widened main");
 });

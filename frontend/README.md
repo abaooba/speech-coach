@@ -387,7 +387,7 @@ explanation of making coffee.
    sentences in plain text: a bold strength after a green check and a focus after a blue
    arrow, such as "Your longest clean stretch is 4.9 seconds." and "Next take, cut fillers
    under 3 a minute." Then the speech map (step 4), then one strip of four stats, two per row
-   on a phone and four across from 480px, in this order: "Pace", "Fillers", "Pauses", "Clean
+   on a phone and four across from 600px, in this order: "Pace", "Fillers", "Pauses", "Clean
    stretch". Hesitation sounds (um, uh) are not counted as words. The Pace hint reads "Target
    lo to hi" in green with a check when the pace is inside the passage's range, or "Slow
    down" / "Speed up" in rust with a warning triangle outside it; the numbers come from the
@@ -510,7 +510,7 @@ explanation of making coffee.
 
 7. Narrow the window to 320px (DevTools device toolbar): two stats per row with each number
    and its unit on one line, the date in the meta line never split, the speech map's cards
-   inside the column with their clocks on the rail, the transcript wrapping with the pause
+   inside the column with their clocks on the cards, the transcript wrapping with the pause
    pills staying on their line, no horizontal scroll, no console errors. At 1024px the column
    doubles into two: the speech map, the stat strip (four across) and the rank card on the
    left, the transcript and the coach notes on the right, and "Record again" is at most

@@ -176,7 +176,7 @@
     [PAUSE_MOMENT]: (row) => "Mid-sentence pause" + KIND_SEPARATOR + row.seconds.toFixed(1) + " s",
     [LONG_PAUSE_MOMENT]: (row) => "Long pause" + KIND_SEPARATOR + row.seconds.toFixed(1) + " s",
     [RESTART_MOMENT]: () => "Restart",
-    [CLEAN_MOMENT]: (row) => "Clean stretch" + KIND_SEPARATOR + row.seconds + " s",
+    [CLEAN_MOMENT]: (row) => "Clean stretch" + KIND_SEPARATOR + row.seconds.toFixed(1) + " s",
   });
   // The clean stretch has no words to show: its line says what it is.
   const CLEAN_CONTEXT = "No filler, pause or restart.";
@@ -978,16 +978,25 @@
   }
 
   // Show all: the map is drawn again with every card, and focus moves to the first card the tap
-  // revealed, so a keyboard carries on from there instead of falling to the page.
+  // revealed, so a keyboard carries on from there instead of falling to the page; when that
+  // card is a still one (nothing to press), focus goes to the map's heading instead.
   function expandMap(session, view, previous) {
     view.mapExpanded = true;
     revealedCard = null;
+    mapHeading = null;
     renderSession(session, view, previous);
-    focusIfPossible(revealedCard);
+    if (revealedCard && revealedCard.tagName === "button") {
+      focusIfPossible(revealedCard);
+    } else if (mapHeading) {
+      mapHeading.setAttribute("tabindex", "-1");
+      focusIfPossible(mapHeading);
+    }
   }
 
-  // The first card past the collapsed count, set while the expanded map is built.
+  // The first card past the collapsed count and the map's heading, set while the expanded map
+  // is built.
   let revealedCard = null;
+  let mapHeading = null;
 
   // The third draw, with the coach notes in the tips' place. Like every draw it rebuilds the
   // body, so a link or button the speaker was on inside it is gone: focus then moves to the
@@ -1561,8 +1570,12 @@
   // the first word, so the end cap reads as the meta line's time used does.
   function buildSpeechMap(map, segments, onExpand) {
     const clock = app.ui.formatClock;
+    mapHeading = app.ui.el("h2", {
+      class: "results__heading speech-map__heading",
+      text: MAP_TITLE,
+    });
     const parts = [
-      app.ui.el("h2", { class: "results__heading speech-map__heading", text: MAP_TITLE }),
+      mapHeading,
       app.ui.el("div", { class: "speech-map__stage" }, [
         mapCap("speech-map__cap speech-map__cap--start", clock(0), MAP_START_TEXT),
         app.ui.el("div", { class: "speech-map__body" }, [
@@ -1776,13 +1789,19 @@
   // asked for less motion), flashes it for a moment and moves keyboard focus onto it, so the
   // next Tab carries on from the transcript. The live region says what happened. A mark the
   // document cannot find (a test fake, a take redrawn meanwhile) means nothing happens; a
-  // context without timers (a test fake) keeps the flash on.
+  // context without timers (a test fake) keeps the flash on until the next tap. Only one mark
+  // flashes at a time: a tap within the 1.5 s takes the flash off the mark before it.
   let shownTimer = null;
+  let shownMark = null;
   function showInTranscript(target) {
     const mark = typeof document === "undefined" ? null : document.getElementById(target);
     if (!mark) {
       return;
     }
+    if (shownMark && shownMark !== mark) {
+      shownMark.classList.remove(SHOWN_CLASS);
+    }
+    shownMark = mark;
     const reduced =
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&

@@ -115,7 +115,7 @@ test("restarts sit among the other moments in time order", async () => {
   assert.deepEqual(rows(list), [
     "0:00 Restart [We] [need,] [uh,] [we] [need] a…",
     "0:01 Filler …need, [uh,] we need…",
-    "0:01 to 0:03 Clean stretch · 2 s No filler, pause or restart.",
+    "0:01 to 0:03 Clean stretch · 2.0 s No filler, pause or restart.",
     "0:03 Restart …[The] [plan,] [um,] [the] [plan] works…",
     "0:04 Filler …plan, [um,] the plan…",
   ]);

@@ -815,6 +815,46 @@ test("Show in transcript scrolls to the mark, flashes it, focuses it and says so
   assert.ok(!mark.classList.contains("tok--shown"), "and off again after 1.5 s");
 });
 
+test("a second tap within the flash takes the flash off the first mark", async () => {
+  const first = new FakeElement("span");
+  const second = new FakeElement("span");
+  const body = await showSession(CLIP_SESSION, { "word-16": first, "word-25": second }, []);
+  const cards = momentsOf(body).children;
+  cards[2].children[0].click();
+  assert.ok(first.classList.contains("tok--shown"));
+  cards[4].children[0].click();
+  assert.ok(!first.classList.contains("tok--shown"), "the first flash is gone");
+  assert.ok(second.classList.contains("tok--shown"), "exactly one mark flashes");
+  cards[4].children[0].click();
+  assert.ok(second.classList.contains("tok--shown"), "the same mark again keeps its flash");
+});
+
+test("Show all focuses the map's heading when the first card revealed is a still one", async () => {
+  // Seven ums 7 s apart and the clean stretch between the last two make eight rows; a repeat
+  // placed after the last word is the ninth, a still card with nothing to press.
+  const words = Array.from({ length: 60 }, (_, index) => ({
+    text: index % 7 === 0 && index <= 42 ? "um" : "word",
+    start: index,
+    end: index + 1,
+  }));
+  const session = {
+    ...CLIP_SESSION,
+    transcript: words,
+    metrics: { pauses: [], repeats: [{ text: "We need", at: 100 }] },
+  };
+  const body = await showSession(session);
+  const map = byClass(body, "speech-map");
+  assert.equal(momentsOf(body).children.length, 8);
+  byClass(map, "speech-map__more").click();
+  const list = momentsOf(body);
+  assert.equal(list.children.length, 9);
+  const [revealed] = list.children[8].children;
+  assert.equal(outline(revealed), "div.moment__card moment__card--still");
+  const heading = byClass(body, "speech-map").children[0];
+  assert.equal(heading.getAttribute("tabindex"), "-1", "the heading takes focus instead");
+  assert.equal(revealed.getAttribute("tabindex"), null);
+});
+
 test("Show in transcript does nothing when the document has no such mark", async () => {
   const said = [];
   const body = await showSession(CLIP_SESSION, {}, said);
