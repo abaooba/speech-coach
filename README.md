@@ -51,7 +51,7 @@ Phone width, light and dark. The history is seeded with two real takes
    during a Path level the browser keeps take 1 in memory for replay until
    the level ends (see Privacy below for exactly what that means).
 4. The browser saves the session in IndexedDB on the device and draws a
-   progress chart. Guests need no account. With an account, the same takes sync to Postgres so a second device sees them.
+   progress chart. Guests need no account. With an account, your takes sync to Postgres, so a second device sees them.
 
 The longer version, with a diagram and every module's job, is
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
