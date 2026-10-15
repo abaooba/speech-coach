@@ -1,4 +1,6 @@
 # Speech Coach (working title)
+[![CI](https://github.com/abaooba/speech-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/abaooba/speech-coach/actions/workflows/ci.yml)
+Live app: <https://speech-coach-xz8c.onrender.com>
 
 A practice tool for speaking more fluently, for non-native speakers and
 anyone who wants to sound more articulate. Record yourself talking or reading
