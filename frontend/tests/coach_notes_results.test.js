@@ -339,7 +339,7 @@ test("a sample is listed too, for the tier, and asks for notes like any take", a
   await results.show({ id: "sample" });
   assert.equal(calls.lists, 1);
   assert.equal(calls.requests.length, 1);
-  assert.equal(byClass(body, "metric-grid__note"), undefined, "a sample compares with nothing");
+  assert.equal(byClass(body, "stat-strip__note"), undefined, "a sample compares with nothing");
   assert.ok(headingsOf(body).includes("Coach notes"));
 });
 
@@ -365,7 +365,7 @@ test("a failed or empty request keeps the tips and draws the take twice at most"
     assert.equal(calls.requests.length, 1);
     assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
     assert.equal(byClass(body, "coach-notes__lead"), undefined);
-    assert.ok(byClass(body, "metric-grid__note"), "the comparison with the last take still drew");
+    assert.ok(byClass(body, "stat-strip__note"), "the comparison with the last take still drew");
     assert.equal(calls.draws, 2, "the take at once, then with the comparison; no third draw");
   }
 });
@@ -430,12 +430,12 @@ test("a slow reply from an earlier visit never draws over a newer take", async (
   await flush();
   await results.show({ id: "earlier" });
   assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
-  const pace = fullText(byClass(byClass(body, "metric-grid").children[0], "metric-card__value"));
+  const pace = fullText(byClass(byClass(body, "stat-strip").children[0], "stat__value"));
 
   slow.resolve({ status: 200, body: REPLY });
   await first;
   assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
-  const after = fullText(byClass(byClass(body, "metric-grid").children[0], "metric-card__value"));
+  const after = fullText(byClass(byClass(body, "stat-strip").children[0], "stat__value"));
   assert.equal(after, pace, "the earlier take is still the one shown");
   assert.equal(calls.requests.length, 2);
 });

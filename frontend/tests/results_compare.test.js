@@ -190,7 +190,7 @@ function mount(sessions, options = {}) {
 }
 
 function deltasOf(body) {
-  return byClass(body, "metric-grid").children.map((card) => byClass(card, "metric-card__delta"));
+  return byClass(body, "stat-strip").children.map((card) => byClass(card, "stat__delta"));
 }
 
 // [class, own text, hidden ending, icon name] for one delta line.
@@ -214,34 +214,34 @@ test("each comparable card ends with its delta line, read as a full sentence", a
   await results.show({ id: "c" });
   assert.deepEqual(deltasOf(body).map(deltaShape), [
     [
-      "metric-card__delta metric-card__delta--down",
+      "stat__delta stat__delta--down",
       "76 slower",
       "sr-only: than your last take",
       "triangle-down",
     ],
     [
-      "metric-card__delta metric-card__delta--up",
+      "stat__delta stat__delta--up",
       "20.4 more",
       "sr-only: than your last take",
       "triangle-up",
     ],
     [
-      "metric-card__delta metric-card__delta--up",
+      "stat__delta stat__delta--up",
       "3 more",
       "sr-only: than your last take",
       "triangle-up",
     ],
     null,
   ]);
-  const cards = byClass(body, "metric-grid").children;
+  const cards = byClass(body, "stat-strip").children;
   cards.forEach((card) => {
     const last = card.children[card.children.length - 1];
-    if (byClass(card, "metric-card__delta")) {
-      assert.equal(last.className.split(" ")[0], "metric-card__delta", "the delta comes last");
+    if (byClass(card, "stat__delta")) {
+      assert.equal(last.className.split(" ")[0], "stat__delta", "the delta comes last");
     }
   });
   for (const card of cards.slice(2)) {
-    assert.equal(byClass(card, "metric-card__hint"), undefined, "a delta is never a hint");
+    assert.equal(byClass(card, "stat__hint"), undefined, "a delta is never a hint");
   }
 });
 
@@ -253,7 +253,7 @@ test("No change reads from your last take and draws a dash", async () => {
   const shapes = deltasOf(body).map(deltaShape);
   shapes.forEach((shape) =>
     assert.deepEqual(shape, [
-      "metric-card__delta metric-card__delta--same",
+      "stat__delta stat__delta--same",
       "No change",
       "sr-only: from your last take",
       "dash",
@@ -266,15 +266,15 @@ test("the note under the grid explains the arrows, only when there is a last tak
   const current = tallies("c", OCT_10, { wpm: 150 });
   const { results, body } = mount([previous, current]);
   await results.show({ id: "c" });
-  const grid = byClass(body, "metric-grid");
+  const grid = byClass(body, "stat-strip");
   const note = body.children[body.children.indexOf(grid) + 1];
   assert.equal(note.tagName, "p");
-  assert.equal(note.className, "metric-grid__note");
+  assert.equal(note.className, "stat-strip__note");
   assert.equal(note.textContent, "Arrows compare with your last take.");
 
   const first = mount([current]);
   await first.results.show({ id: "c" });
-  assert.equal(byClass(first.body, "metric-grid__note"), undefined);
+  assert.equal(byClass(first.body, "stat-strip__note"), undefined);
   assert.deepEqual(deltasOf(first.body), [undefined, undefined, undefined, undefined]);
 });
 
@@ -290,7 +290,7 @@ test("the last take is the newest one saved before this one, never a later one",
   assert.equal(calls.tips, 1, "tips are chosen for this take only, never the last one");
 
   await results.show({ id: "o" });
-  assert.equal(byClass(body, "metric-grid__note"), undefined, "the oldest take has no last take");
+  assert.equal(byClass(body, "stat-strip__note"), undefined, "the oldest take has no last take");
 });
 
 test("a store without list(), or one that fails, shows the cards without deltas", async () => {
@@ -305,9 +305,9 @@ test("a store without list(), or one that fails, shows the cards without deltas"
   ]) {
     const { results, body } = mount([tallies("p", OCT_9), current], { list });
     await assert.doesNotReject(() => results.show({ id: "c" }));
-    assert.equal(byClass(body, "metric-grid").children.length, 4);
+    assert.equal(byClass(body, "stat-strip").children.length, 4);
     assert.deepEqual(deltasOf(body), [undefined, undefined, undefined, undefined]);
-    assert.equal(byClass(body, "metric-grid__note"), undefined);
+    assert.equal(byClass(body, "stat-strip__note"), undefined);
   }
 });
 
@@ -344,7 +344,7 @@ test("when two loads overlap, the later show wins even if its list is slower", a
   await results.show({ id: "fast" });
   releaseList();
   await pendingSlow;
-  const pace = byClass(byClass(body, "metric-grid").children[0], "metric-card__value");
+  const pace = byClass(byClass(body, "stat-strip").children[0], "stat__value");
   assert.equal(pace.children[0].textContent, "140", "the slow earlier load must not paint over");
   assert.equal(deltasOf(body)[0].textContent, "40 faster");
 });
@@ -387,13 +387,13 @@ function rule(selector) {
 }
 
 test("a delta is one muted micro line with tabular figures and its icon drawn first", () => {
-  const delta = rule(".metric-card__delta");
+  const delta = rule(".stat__delta");
   assert.equal(delta["font-size"], "var(--fs-micro)");
   assert.equal(delta.color, "var(--muted)");
   assert.equal(delta["white-space"], "nowrap");
   assert.equal(delta["font-variant-numeric"], "tabular-nums");
-  assert.equal(rule(".metric-card__delta svg").order, "-1");
-  const note = rule(".metric-grid__note");
+  assert.equal(rule(".stat__delta svg").order, "-1");
+  const note = rule(".stat-strip__note");
   assert.equal(note["font-size"], "var(--fs-micro)");
   assert.equal(note.color, "var(--muted)");
 });

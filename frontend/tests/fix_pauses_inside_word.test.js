@@ -245,13 +245,16 @@ function transcriptTokens(body) {
 }
 
 function pauseCard(body) {
-  const card = byClass(body, "metric-grid").children[2];
-  return byClass(card, "metric-card__value").children[0].textContent;
+  const card = byClass(body, "stat-strip").children[2];
+  return byClass(card, "stat__value").children[0].textContent;
 }
 
-function timelineMarks(body, className) {
-  const strip = byClass(body, "timeline").children[1];
-  return strip.children.filter((mark) => mark.getAttribute("class") === className).length;
+// How many speech-map rows carry the modifier (moment--pause, moment--long-pause).
+function mapRows(body, modifier) {
+  const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
+  return byClass(stage, "speech-map__moments").children.filter((row) =>
+    row.classList.contains(modifier),
+  ).length;
 }
 
 test("buildTranscriptPlan puts a pause that starts inside 'sad.' right after 'sad.'", () => {
@@ -272,7 +275,7 @@ test("Results draws no pill for the 1.8 s pause after 'sad.'; the card counts no
   const body = await showSession(sessionWith(AFTER_STOP, [QUIET_IN_FOURTH_WORD]));
   assert.deepEqual(transcriptTokens(body), ["I", "would", "be", "sad.", "Then", "I", "left."]);
   assert.equal(pauseCard(body), "0");
-  assert.equal(timelineMarks(body, "timeline__pause"), 0);
+  assert.equal(mapRows(body, "moment--pause"), 0);
 });
 
 test("a long pause that starts inside 'sad.' is drawn after 'sad.', not before it", async () => {
@@ -288,7 +291,7 @@ test("a long pause that starts inside 'sad.' is drawn after 'sad.', not before i
     "left.",
   ]);
   assert.equal(pauseCard(body), "1");
-  assert.equal(timelineMarks(body, "timeline__long-pause"), 1);
+  assert.equal(mapRows(body, "moment--long-pause"), 1);
 });
 
 test("a pause inside a mid-sentence word is drawn after that word and counted once", async () => {
@@ -304,7 +307,7 @@ test("a pause inside a mid-sentence word is drawn after that word and counted on
     "loss.",
   ]);
   assert.equal(pauseCard(body), "1");
-  assert.equal(timelineMarks(body, "timeline__pause"), 1);
+  assert.equal(mapRows(body, "moment--pause"), 1);
 });
 
 test("a skip still goes after the word it follows when the next word overlaps its `at`", () => {

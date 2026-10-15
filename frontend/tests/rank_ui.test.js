@@ -537,7 +537,7 @@ test("the speaker's tier is accent on accent-soft, and an Up line is --ok", () =
   assert.equal(declared(".rank-card__next strong").color, "var(--text)");
 });
 
-test("the card sits 24px under the Results headline and 32px above Progress's switch", () => {
+test("the card sits 24px under the Results stat strip and 32px above Progress's switch", () => {
   assert.equal(declared("#screen-results .rank-card")["margin-top"], "var(--s-5)");
   assert.equal(declared("#screen-progress .rank-card")["margin-bottom"], "var(--s-6)");
 });
@@ -674,13 +674,16 @@ test("a sample never counts toward Progress's card", async () => {
   assert.deepEqual(snapshot(withSample.body.children[0]), snapshot(without.body.children[0]));
 });
 
-test("Results puts the card under the headline and above the metric grid", async () => {
+test("Results puts the card under the stat strip and above the transcript", async () => {
   const { body } = await showResults(ELITE_TAKES, "day-3");
-  assert.deepEqual(partsOf(body).slice(0, 4), [
+  assert.deepEqual(partsOf(body).slice(0, 7), [
     "results__meta",
     "headline",
+    "speech-map",
+    "stat-strip",
+    "stat-strip__note",
     "rank-card",
-    "metric-grid",
+    "results__heading",
   ]);
   const card = find(body, "rank-card");
   assert.equal(visible(find(card, "rank-card__change")), "Up 5.7, now Elite");
@@ -703,7 +706,7 @@ test("Results draws no card for a sample", async () => {
   const sample = sampleTake("sample", "2026-10-14T12:00:00");
   const { body } = await showResults([...ELITE_TAKES, sample], "sample");
   assert.equal(find(body, "rank-card"), null);
-  assert.equal(find(body, "metric-grid__note"), null, "a sample compares with nothing");
+  assert.equal(find(body, "stat-strip__note"), null, "a sample compares with nothing");
 });
 
 test("a first take's card comes with the store's list, in one more draw", async () => {
@@ -730,7 +733,13 @@ test("the card stays in place when the coach notes redraw Results", async () => 
   const tips = { select: () => [], coachNotes: () => Promise.resolve(notes) };
   const { body, calls } = await showResults(ELITE_TAKES, "day-3", { tips });
   assert.equal(calls.draws, 3, "the take, the comparison and card, then the notes");
-  assert.deepEqual(partsOf(body).slice(1, 4), ["headline", "rank-card", "metric-grid"]);
+  assert.deepEqual(partsOf(body).slice(1, 6), [
+    "headline",
+    "speech-map",
+    "stat-strip",
+    "stat-strip__note",
+    "rank-card",
+  ]);
   assert.ok(find(body, "coach-notes"), "the notes arrived");
 });
 

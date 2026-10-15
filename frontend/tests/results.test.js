@@ -109,7 +109,7 @@ function fullText(node) {
 }
 
 function cardsOf(body) {
-  return byClass(body, "metric-grid").children;
+  return byClass(body, "stat-strip").children;
 }
 
 test("results.js registers app.screens.results and touches no DOM at load time", () => {
@@ -204,7 +204,7 @@ test("show({id}) builds the meta line, four metric cards in order and two action
 
   assert.deepEqual(
     body.children.map((child) => child.className),
-    ["results__meta num", "headline", "metric-grid", "results__actions"],
+    ["results__meta num", "headline", "stat-strip", "results__actions"],
   );
 
   const meta = body.children[0];
@@ -218,32 +218,32 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   assert.equal(cards.length, 4);
   cards.forEach((card) => {
     assert.equal(card.tagName, "div");
-    assert.equal(card.className, "metric-card");
+    assert.equal(card.className, "stat");
   });
   assert.deepEqual(
-    cards.map((card) => byClass(card, "metric-card__label").textContent),
+    cards.map((card) => byClass(card, "stat__label").textContent),
     EXPECTED_LABELS,
   );
-  const values = cards.map((card) => byClass(card, "metric-card__value"));
+  const values = cards.map((card) => byClass(card, "stat__value"));
   values.forEach((value) => assert.ok(value.classList.contains("num")));
   assert.deepEqual(values.map(fullText), ["162 wpm", "18 /min", "2", "0 s"]);
   assert.deepEqual(
     values.map((value) => {
-      const unit = byClass(value, "metric-card__unit");
+      const unit = byClass(value, "stat__unit");
       return unit ? unit.textContent : null;
     }),
     ["wpm", "/min", null, "s"],
   );
 
-  const hint = byClass(cards[0], "metric-card__hint");
+  const hint = byClass(cards[0], "stat__hint");
   assert.equal(hint.textContent, "Slow down");
-  assert.ok(hint.classList.contains("metric-card__hint--warn"));
-  assert.ok(!hint.classList.contains("metric-card__hint--ok"));
-  const fillersHint = byClass(cards[1], "metric-card__hint");
+  assert.ok(hint.classList.contains("stat__hint--warn"));
+  assert.ok(!hint.classList.contains("stat__hint--ok"));
+  const fillersHint = byClass(cards[1], "stat__hint");
   assert.equal(fillersHint.textContent, "Aim for under 3");
-  assert.ok(fillersHint.classList.contains("metric-card__hint--warn"));
+  assert.ok(fillersHint.classList.contains("stat__hint--warn"));
   for (const card of cards.slice(2)) {
-    assert.equal(byClass(card, "metric-card__hint"), undefined, "the last two cards have no hint");
+    assert.equal(byClass(card, "stat__hint"), undefined, "the last two cards have no hint");
   }
 
   const actions = byClass(body, "results__actions");
@@ -261,10 +261,10 @@ test("an in-range pace gets the ok hint built from the passage target", async ()
   const session = sessionWith({ words_per_minute: 140 });
   const { results, body } = mountResults({ s1: session });
   await results.show({ id: "s1" });
-  const hint = byClass(cardsOf(body)[0], "metric-card__hint");
+  const hint = byClass(cardsOf(body)[0], "stat__hint");
   assert.equal(hint.textContent, "Target 130\u00a0to\u00a0150");
-  assert.ok(hint.classList.contains("metric-card__hint--ok"));
-  assert.ok(!hint.classList.contains("metric-card__hint--warn"));
+  assert.ok(hint.classList.contains("stat__hint--ok"));
+  assert.ok(!hint.classList.contains("stat__hint--warn"));
 });
 
 test("Record again goes to practice and History goes to history", async () => {
@@ -341,6 +341,6 @@ test("when two loads overlap, the later show wins", async () => {
   releaseFirst(slowSession);
   await pendingSlow;
 
-  const wpmValue = byClass(cardsOf(body)[0], "metric-card__value");
+  const wpmValue = byClass(cardsOf(body)[0], "stat__value");
   assert.equal(fullText(wpmValue), "140 wpm", "the slow earlier load must not paint over");
 });

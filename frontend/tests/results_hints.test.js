@@ -81,7 +81,7 @@ function childShape(node) {
 }
 
 function hintsOf(body) {
-  return byClass(body, "metric-grid").children.map((card) => byClass(card, "metric-card__hint"));
+  return byClass(body, "stat-strip").children.map((card) => byClass(card, "stat__hint"));
 }
 
 // [words, class, icon name of the last child] for a hint.
@@ -160,17 +160,17 @@ test("warning hints keep their words and class and end with the alert icon", asy
   const slowHints = hintsOf((await showResults({ s2: slow }, "s2")).body);
   assert.deepEqual(hintShape(fastHints[0]), [
     "Slow down",
-    "metric-card__hint metric-card__hint--warn",
+    "stat__hint stat__hint--warn",
     "alert",
   ]);
   assert.deepEqual(hintShape(fastHints[1]), [
     "Aim for under 3",
-    "metric-card__hint metric-card__hint--warn",
+    "stat__hint stat__hint--warn",
     "alert",
   ]);
   assert.deepEqual(hintShape(slowHints[0]), [
     "Speed up",
-    "metric-card__hint metric-card__hint--warn",
+    "stat__hint stat__hint--warn",
     "alert",
   ]);
 });
@@ -179,12 +179,12 @@ test("in-target hints keep their words and class and end with the check icon", a
   const hints = hintsOf((await showResults({ s1: session() }, "s1")).body);
   assert.deepEqual(hintShape(hints[0]), [
     "Target 130\u00a0to\u00a0150",
-    "metric-card__hint metric-card__hint--ok",
+    "stat__hint stat__hint--ok",
     "check",
   ]);
   assert.deepEqual(hintShape(hints[1]), [
     "Target under 3",
-    "metric-card__hint metric-card__hint--ok",
+    "stat__hint stat__hint--ok",
     "check",
   ]);
   assert.equal(hints[2], undefined);
@@ -214,22 +214,22 @@ test("a pace band's numbers stay on one line; other hints keep plain spaces", as
 test("a hint that wraps keeps its icon on the first line", () => {
   // The icon's box is one line tall (the hint's 1.4 line height), so the 16px drawing centers
   // on the first line, as the headline's icons do.
-  assert.equal(ruleFor(".metric-card__hint")["align-items"], "flex-start");
-  assert.equal(ruleFor(".metric-card__hint")["line-height"], "1.4");
-  assert.equal(ruleFor(".metric-card__hint svg").height, "1.4em");
+  assert.equal(ruleFor(".stat__hint")["align-items"], "flex-start");
+  assert.equal(ruleFor(".stat__hint")["line-height"], "1.4");
+  assert.equal(ruleFor(".stat__hint svg").height, "1.4em");
 });
 
 test("the hint is a 600-weight flex row whose icon is drawn before the words", () => {
-  const hint = ruleFor(".metric-card__hint");
+  const hint = ruleFor(".stat__hint");
   assert.equal(hint.display, "flex");
   assert.equal(hint.gap, "var(--s-1)");
   assert.equal(hint["font-size"], "var(--fs-small)");
   assert.equal(hint["font-weight"], "600");
-  const icon = ruleFor(".metric-card__hint svg");
+  const icon = ruleFor(".stat__hint svg");
   assert.equal(icon.order, "-1");
   assert.equal(icon.flex, "none");
-  assert.equal(ruleFor(".metric-card__hint--warn").color, "var(--warn)");
-  assert.equal(ruleFor(".metric-card__hint--ok").color, "var(--ok)");
+  assert.equal(ruleFor(".stat__hint--warn").color, "var(--warn)");
+  assert.equal(ruleFor(".stat__hint--ok").color, "var(--ok)");
 });
 
 test("the meta line is the title, then the date in its own span", async () => {

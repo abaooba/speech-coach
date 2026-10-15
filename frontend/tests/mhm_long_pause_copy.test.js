@@ -152,7 +152,7 @@ test("frontend/README.md quotes the new legend and walks through a marked freeze
     readme.includes(
       "A pause of 5 s or more is marked wherever it falls, even after a period, as an " +
         'outlined pink pill such as "6.0 s long pause". A shorter pause after a period is not ' +
-        "marked, so the transcript, the Pauses card and the timeline always show the same pauses.",
+        "marked, so the transcript, the Pauses stat and the speech map always show the same pauses.",
     ),
   );
   assert.ok(!readme.includes("A pause after a period is not marked"));

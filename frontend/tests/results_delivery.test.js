@@ -80,11 +80,11 @@ function fullText(node) {
 }
 
 function cardsOf(body) {
-  return byClass(body, "metric-grid").children;
+  return byClass(body, "stat-strip").children;
 }
 
 function hintOf(card) {
-  const hint = byClass(card, "metric-card__hint");
+  const hint = byClass(card, "stat__hint");
   return hint ? [hint.textContent, hint.className] : null;
 }
 
@@ -92,12 +92,12 @@ test("on the real clip the cards show pace without ums, breaks and the clean str
   const { body } = await showSession(clipSession());
   const cards = cardsOf(body);
   assert.deepEqual(
-    cards.map((card) => fullText(byClass(card, "metric-card__value"))),
+    cards.map((card) => fullText(byClass(card, "stat__value"))),
     ["76 wpm", "21.4 /min", "3", "4.9 s"],
   );
   assert.deepEqual(cards.map(hintOf), [
-    ["Speed up", "metric-card__hint metric-card__hint--warn"],
-    ["Aim for under 3", "metric-card__hint metric-card__hint--warn"],
+    ["Speed up", "stat__hint stat__hint--warn"],
+    ["Aim for under 3", "stat__hint stat__hint--warn"],
     null,
     null,
   ]);
@@ -157,7 +157,7 @@ test("a fluent take gets the ok fillers hint and no habit in the legend", async 
   const { body } = await showSession(session);
   assert.deepEqual(hintOf(cardsOf(body)[1]), [
     "Target under 3",
-    "metric-card__hint metric-card__hint--ok",
+    "stat__hint stat__hint--ok",
   ]);
   assert.equal(
     byClass(body, "transcript__legend").textContent,

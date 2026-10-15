@@ -1,9 +1,9 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
    show({id}) reads the take and the speaker's take before it from app.store, never writing, and
-   draws the meta line, headline, rank card (app.rankCard), cards, timeline, transcript, tips and
-   actions node by node, never from markup; the cited coach notes (app.tips.coachNotes) take the
-   tips' place when they arrive. summarize, headlineFor and the other pure helpers touch no DOM
-   or app.ui. */
+   draws the meta line, headline, speech map, stat strip, rank card (app.rankCard), transcript,
+   tips and actions node by node, never from markup; the cited coach notes (app.tips.coachNotes)
+   take the tips' place when they arrive. summarize, headlineFor and the other pure helpers touch
+   no DOM or app.ui. */
 (function () {
   "use strict";
 
@@ -15,8 +15,8 @@
   // prefix to keep it out of every comparison.
   const SAMPLE_TITLE_PREFIX = "Sample: ";
 
-  // Card labels and units (DESIGN.md sections 5 and 6), in display order. Labels stay short so
-  // two cards fit side by side at 320px; the units are small text after the number.
+  // Stat labels and units (DESIGN.md sections 5 and 6), in display order. Labels stay short so
+  // two stats fit side by side at 320px; the units are small text after the number.
   const WPM_LABEL = "Pace";
   const WPM_UNIT = "wpm";
   const FILLERS_LABEL = "Fillers";
@@ -76,7 +76,7 @@
   const FOCUS_ICON = "arrow-right";
   const HEADLINE_ICON_SIZE = 16;
 
-  // "vs last take" lines, one per card in card order: the summary key, the card's precision
+  // "vs last take" lines, one per stat in strip order: the summary key, the stat's precision
   // (decimal places) and the words for a rise or a fall. The clean stretch compares only
   // between two takes with words; without words a take has no clean stretch to measure.
   const DELTAS = [
@@ -103,57 +103,43 @@
   const DELTA_ICON_SIZE = 12;
   const DELTA_NOTE = "Arrows compare with your last take.";
 
-  // The speech timeline's strip, in viewBox units: 320 wide and 40 tall, stretched to the
-  // column. The track sits inside the box; filler ticks and long-pause blocks run 4 units past
-  // it at both ends, so they read as taller than the track. A restart is a 1-unit line the full
-  // height of the strip, so it shows past a filler tick at the same moment and never reads as a
-  // pause block. Every color is a token string, so both themes apply.
-  const TIMELINE_TITLE = "Speech timeline";
-  const SVG_NS = "http://www.w3.org/2000/svg";
-  const STRIP = Object.freeze({
-    width: 320,
-    height: 40,
-    trackY: 6,
-    trackHeight: 28,
-    trackRadius: 4,
-    tickY: 2,
-    tickHeight: 36,
-    tickWidth: 2,
-    restartWidth: 1,
-    edgeHeight: 3,
-    minBlockWidth: 2,
+  // The speech map (DESIGN.md section 6): the take laid out top to bottom along a rail, every
+  // moment a card pinned to its second. A second is MAP.pxPerSecond tall, chosen so a whole take
+  // runs about MAP.nominalHeight px: shorter takes stretch to at most maxPxPerSecond a second,
+  // longer ones shrink to at least minPxPerSecond. A pause or the clean stretch holds its length
+  // of rail (its row is at least that tall); a filler or a restart is a point. Fillers within
+  // clusterSeconds of the one before, with no other moment between, share one card ("3 fillers").
+  const MAP_TITLE = "Speech map";
+  const MAP = Object.freeze({
+    nominalHeight: 360,
+    minPxPerSecond: 2,
+    maxPxPerSecond: 8,
+    clusterSeconds: 4,
   });
-  const STRIP_COLORS = Object.freeze({
-    track: "var(--surface)",
-    trackEdge: "var(--border)",
-    clean: "var(--ok-bg)",
-    cleanEdge: "var(--ok)",
-    pause: "var(--pause)",
-    longPause: "var(--pause-long)",
-    filler: "var(--filler)",
-    restart: "var(--pause)",
+  const MAP_START_TEXT = "First word";
+  const MAP_END_TEXT = "Last word";
+  // Row kinds, each a .moment--<kind> modifier and a card label.
+  const FILLER_MOMENT = "filler";
+  const PAUSE_MOMENT = "pause";
+  const LONG_PAUSE_MOMENT = "long-pause";
+  const RESTART_MOMENT = "restart";
+  const CLEAN_MOMENT = "clean";
+  const MOMENT_LABEL = Object.freeze({
+    [FILLER_MOMENT]: (count) => (count === 1 ? "Filler" : count + " fillers"),
+    [PAUSE_MOMENT]: () => "Mid-sentence pause",
+    [LONG_PAUSE_MOMENT]: () => "Long pause",
+    [RESTART_MOMENT]: () => "Restart",
+    [CLEAN_MOMENT]: () => "Clean stretch",
   });
-  // Coordinates keep two decimals: a hundredth of a unit is far below a pixel.
-  const COORD_SCALE = 100;
-  // The long-pause and restart keys join the legend only when the strip draws one.
-  const LEGEND_KEYS = [
-    ["filler", "Filler"],
-    ["pause", "Mid-sentence pause"],
-    ["long-pause", "Long pause (5 s+)"],
-    ["restart", "Restart"],
-    ["clean", "Clean stretch"],
-  ];
-  const LONG_PAUSE_KEY = "long-pause";
-  const RESTART_KEY = "restart";
-  // The hidden list of moments, read in time order: "Filler “um” at 0:02". A restart is read
-  // where its abandoned first copy began, the moment its line marks on the strip.
-  const MOMENT = Object.freeze({
-    filler: (word, at) => "Filler “" + word + "” at " + at,
-    restart: (phrase, at) => "Restart “" + phrase + "” at " + at,
-    pause: (at, seconds) => "Mid-sentence pause at " + at + ", " + seconds + " seconds",
-    longPause: (at, seconds) => "Long pause at " + at + ", " + seconds + " seconds",
-    clean: (from, to, seconds) => "Clean stretch from " + from + " to " + to + ", " + seconds,
+  // The card's detail line: the words said, or the length and where it fell.
+  const MOMENT_DETAIL = Object.freeze({
+    words: (words) => words.map(quoted).join(", "),
+    pause: (seconds, afterWord) =>
+      seconds + " s" + (afterWord === null ? "" : " after " + quoted(afterWord)),
+    clean: (seconds, until) => seconds + " s without a filler or pause, to " + until,
   });
+  const QUOTE_OPEN = "“";
+  const QUOTE_CLOSE = "”";
 
   // Fixed copy for the bad-id state and the two actions (DESIGN.md sections 1 and 8).
   const NOT_FOUND_TITLE = "Session not found";
@@ -163,7 +149,7 @@
   const HISTORY_LABEL = "History";
   const META_SEPARATOR = " · ";
 
-  // Section titles between the metric grid and the actions.
+  // Section titles between the stat strip and the actions.
   const TRANSCRIPT_TITLE = "Transcript";
   const TIPS_TITLE = "Tips";
 
@@ -488,6 +474,129 @@
     return { start, seconds, fillers, pauses, restarts, cleanStretch };
   }
 
+  // The speech map's rows for a report, from its timelineSegments and the take's words: every
+  // moment in time order, each with its rail geometry, or null when the take has no timeline. A
+  // row is {kind, time, seconds, gap, height, ...}: `kind` one of filler, pause, long-pause,
+  // restart or clean; `time` its recording-time start; `seconds` how long it holds the rail (0
+  // for a filler or a restart); `gap` the pixels of rail between it and the moment before (the
+  // first word for the first row); `height` the pixels its length takes, the row's least height.
+  // A filler row adds `words` (every filler in its cluster, in order), `count` and `lastTime`
+  // (the cluster's last filler); a pause row `afterWord`, the word the pause followed (null
+  // before the first word); a restart row `phrase`, the words from the abandoned first copy
+  // through its second copy ("I kinda ner— I'm kinda nervous"), or the repeat's own text when
+  // the copy was not found; the clean row `endTime`. `endGap` is the rail from the last moment
+  // to the last word, and `pxPerSecond` the scale. Pure.
+  function speechMapRows(report, words) {
+    const segments = timelineSegments(report);
+    if (!segments) {
+      return null;
+    }
+    const wordList = Array.isArray(words) ? words : [];
+    const reportRestarts = listOf(report.restarts);
+    const pxPerSecond = Math.min(
+      MAP.maxPxPerSecond,
+      Math.max(MAP.minPxPerSecond, MAP.nominalHeight / segments.seconds),
+    );
+    const moments = [
+      ...segments.fillers.map((filler) => ({
+        kind: FILLER_MOMENT,
+        time: filler.time,
+        seconds: 0,
+        words: [filler.text],
+        count: 1,
+        lastTime: filler.time,
+      })),
+      ...segments.pauses.map((pause) => ({
+        kind: pause.long ? LONG_PAUSE_MOMENT : PAUSE_MOMENT,
+        time: pause.time,
+        seconds: pause.seconds,
+        afterWord: wordBefore(wordList, pause.time, pause.seconds),
+      })),
+      ...segments.restarts.map((restart, index) => ({
+        kind: RESTART_MOMENT,
+        time: restart.time,
+        seconds: 0,
+        phrase: restartPhrase(wordList, restart, listOf(reportRestarts[index].secondCopy)),
+      })),
+    ];
+    if (segments.cleanStretch) {
+      const clean = segments.cleanStretch;
+      moments.push({
+        kind: CLEAN_MOMENT,
+        time: clean.time,
+        seconds: clean.seconds,
+        endTime: clean.endTime,
+      });
+    }
+    moments.sort((a, b) => a.time - b.time);
+    const rows = [];
+    let railEnd = segments.start;
+    moments.forEach((moment) => {
+      const last = rows[rows.length - 1];
+      if (last && joinsCluster(last, moment)) {
+        last.words.push(moment.words[0]);
+        last.count += 1;
+        last.lastTime = moment.time;
+        railEnd = Math.max(railEnd, moment.time);
+        return;
+      }
+      const row = {
+        ...moment,
+        gap: pixels(Math.max(0, moment.time - railEnd), pxPerSecond),
+        height: pixels(moment.seconds, pxPerSecond),
+      };
+      railEnd = Math.max(railEnd, moment.time + moment.seconds);
+      rows.push(row);
+    });
+    const endGap = pixels(Math.max(0, segments.start + segments.seconds - railEnd), pxPerSecond);
+    return { pxPerSecond, rows, endGap };
+  }
+
+  // A filler joins the filler row before it when it starts within clusterSeconds of that row's
+  // last filler. Rows are built in time order, so any other moment between them is the row
+  // before instead.
+  function joinsCluster(row, moment) {
+    if (row.kind !== FILLER_MOMENT || moment.kind !== FILLER_MOMENT) {
+      return false;
+    }
+    return moment.time - row.lastTime <= MAP.clusterSeconds + MILLISECOND;
+  }
+
+  function pixels(seconds, pxPerSecond) {
+    return Math.round(seconds * pxPerSecond);
+  }
+
+  // The word a pause followed (app.delivery's own placing), bare of its punctuation ("sad." is
+  // “sad”), or null before the first word.
+  function wordBefore(wordList, at, length) {
+    const index = app.delivery.wordBeforePause(wordList, at, length);
+    return index >= 0 && index < wordList.length ? bareText(textOf(wordList[index])) : null;
+  }
+
+  // Text without punctuation at either end, its case kept: "I," reads “I”.
+  function bareText(text) {
+    return String(text || "").replace(EDGE_PUNCTUATION, "");
+  }
+
+  // "I kinda ner— I'm kinda nervous": from the first word at the repeat's `at` through the last
+  // word of the second copy (the report's `secondCopy` indexes), bare of the punctuation at its
+  // ends ("and I, uh, and I" loses its last comma). Without a second copy, the repeat's text as
+  // the backend gave it.
+  function restartPhrase(wordList, restart, secondCopy) {
+    const first = wordList.findIndex(
+      (word) => numberOr0(word && word.start) >= restart.time - MILLISECOND,
+    );
+    const last = secondCopy.length > 0 ? Math.max(...secondCopy) : -1;
+    if (first === -1 || last < first || last >= wordList.length) {
+      return String(restart.text || "");
+    }
+    return bareText(wordList.slice(first, last + 1).map(textOf).join(TOKEN_SEPARATOR));
+  }
+
+  function quoted(text) {
+    return QUOTE_OPEN + text + QUOTE_CLOSE;
+  }
+
   function listOf(value) {
     return Array.isArray(value) ? value : [];
   }
@@ -508,7 +617,7 @@
   }
 
   function normalizeWord(text) {
-    return String(text || "").toLowerCase().replace(EDGE_PUNCTUATION, "");
+    return bareText(text).toLowerCase();
   }
 
   // The transcript as a list of items to draw, in reading order: {type: "word", text, filler}
@@ -804,7 +913,7 @@
   }
 
   // What the screen draws for one take, worked out once per show() however often the take is
-  // drawn: its summary, transcript plan, timeline (null without words) and tips.
+  // drawn: its summary, transcript plan, speech map (null without words) and tips.
   function viewOf(session) {
     const summary = summarize(session);
     const plan = buildTranscriptPlan(
@@ -818,7 +927,7 @@
       summary,
       plan,
       hasTranscript,
-      segments: hasTranscript ? timelineSegments(summary.report) : null,
+      map: hasTranscript ? speechMapRows(summary.report, session.transcript) : null,
       tips: selectTips(summary.report, summary.target),
       // The coach notes, set by show() once they arrive.
       notes: null,
@@ -827,15 +936,16 @@
     };
   }
 
-  // Top to bottom: meta line, headline, the rank card once the store's list has rated the take,
-  // the four cards (each with its "vs last take" line when there is a last take, and then one
-  // note under the grid), the speech timeline and the transcript (both skipped when the session
-  // has no words; pause markers alone would mean nothing), the coach notes once they have arrived
-  // or else the tips (skipped when there are none), the two actions. `previous` is the last take,
-  // or null while there is none to compare with; it is summarized for the comparison only, so no
-  // tips are chosen for it. Returns the Coach notes heading, or null when the notes are not drawn.
+  // Top to bottom: meta line, headline, the speech map (skipped when the session has no words;
+  // pause markers alone would mean nothing), the stat strip (each stat with its "vs last take"
+  // line when there is a last take, and then one note under the strip), the rank card once the
+  // store's list has rated the take, the transcript (skipped without words too), the coach notes
+  // once they have arrived or else the tips (skipped when there are none), the two actions.
+  // `previous` is the last take, or null while there is none to compare with; it is summarized
+  // for the comparison only, so no tips are chosen for it. Returns the Coach notes heading, or
+  // null when the notes are not drawn.
   function renderSession(session, view, previous) {
-    const { summary, plan, hasTranscript, segments, tips, notes, rankCard } = view;
+    const { summary, plan, hasTranscript, map, tips, notes, rankCard } = view;
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
     let notesHeading = null;
@@ -843,15 +953,15 @@
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
     body.appendChild(buildHeadline(headlineFor(summary, previousSummary), summary.target));
+    if (map) {
+      body.appendChild(buildSpeechMap(map, timelineSegments(summary.report)));
+    }
+    body.appendChild(buildStatStrip(summary, deltas));
+    if (deltas) {
+      body.appendChild(app.ui.el("p", { class: "stat-strip__note", text: DELTA_NOTE }));
+    }
     if (rankCard) {
       body.appendChild(app.rankCard.build(rankCard, { screen: RANK_SCREEN }));
-    }
-    body.appendChild(buildMetricGrid(summary, deltas));
-    if (deltas) {
-      body.appendChild(app.ui.el("p", { class: "metric-grid__note", text: DELTA_NOTE }));
-    }
-    if (segments) {
-      body.appendChild(buildTimeline(segments));
     }
     if (hasTranscript) {
       body.appendChild(sectionTitle(TRANSCRIPT_TITLE));
@@ -872,8 +982,8 @@
     return notesHeading;
   }
 
-  // The pauses the pauses card counts (mid-sentence, or 5 s+ anywhere), as [at, length] pairs
-  // for the transcript, so the transcript, the card and the timeline always show the same pauses.
+  // The pauses the Pauses stat counts (mid-sentence, or 5 s+ anywhere), as [at, length] pairs
+  // for the transcript, so the transcript, the stat and the map always show the same pauses.
   function countedPauses(report) {
     return listOf(report.pauses)
       .filter(app.delivery.isCountedPause)
@@ -1113,10 +1223,10 @@
     ]);
   }
 
-  // Exactly four cards, in the order DESIGN.md fixes; the pace and fillers cards carry hints,
-  // and with a last take each card that can be compared carries its delta line.
-  function buildMetricGrid(summary, deltas) {
-    const cards = [
+  // Exactly four stats on one strip, in the order DESIGN.md fixes; the pace and fillers stats
+  // carry hints, and with a last take each stat that can be compared carries its delta line.
+  function buildStatStrip(summary, deltas) {
+    const stats = [
       { label: WPM_LABEL, value: summary.wpm, unit: WPM_UNIT, hint: summary.paceHint },
       {
         label: FILLERS_LABEL,
@@ -1129,30 +1239,30 @@
     ];
     return app.ui.el(
       "div",
-      { class: "metric-grid" },
-      cards.map((card, index) => metricCard(card, deltas ? deltas[index] : null)),
+      { class: "stat-strip" },
+      stats.map((stat, index) => statCell(stat, deltas ? deltas[index] : null)),
     );
   }
 
   // The unit sits inside the value line, after a space, so "162 wpm" reads as one phrase and
-  // the small unit shares the big number's baseline. The line never wraps (styles.css), so the
+  // the small unit shares the number's baseline. The line never wraps (styles.css), so the
   // unit cannot drop below its number.
-  function metricCard(card, delta) {
-    const valueParts = [String(card.value)];
-    if (card.unit) {
-      valueParts.push(" ", app.ui.el("span", { class: "metric-card__unit", text: card.unit }));
+  function statCell(stat, delta) {
+    const valueParts = [String(stat.value)];
+    if (stat.unit) {
+      valueParts.push(" ", app.ui.el("span", { class: "stat__unit", text: stat.unit }));
     }
     const parts = [
-      app.ui.el("div", { class: "metric-card__label", text: card.label }),
-      app.ui.el("div", { class: "metric-card__value num" }, valueParts),
+      app.ui.el("div", { class: "stat__label", text: stat.label }),
+      app.ui.el("div", { class: "stat__value num" }, valueParts),
     ];
-    if (card.hint) {
-      parts.push(hintLine(card.hint));
+    if (stat.hint) {
+      parts.push(hintLine(stat.hint));
     }
     if (delta) {
       parts.push(deltaLine(delta));
     }
-    return app.ui.el("div", { class: "metric-card" }, parts);
+    return app.ui.el("div", { class: "stat" }, parts);
   }
 
   // The hint's words, then its icon. The icon comes after the words in the DOM, so the line's
@@ -1162,7 +1272,7 @@
     const text = hint.text.replace(BAND_SPACES, BAND_UNBROKEN);
     return app.ui.el(
       "div",
-      { class: "metric-card__hint metric-card__hint--" + hint.tone, text },
+      { class: "stat__hint stat__hint--" + hint.tone, text },
       [app.ui.icon(HINT_ICONS[hint.tone], HINT_ICON_SIZE)],
     );
   }
@@ -1173,7 +1283,7 @@
     const ending = delta.direction === SAME ? FROM_LAST_TAKE : THAN_LAST_TAKE;
     return app.ui.el(
       "div",
-      { class: "metric-card__delta metric-card__delta--" + delta.direction, text: delta.text },
+      { class: "stat__delta stat__delta--" + delta.direction, text: delta.text },
       [
         app.ui.el("span", { class: "sr-only", text: ending }),
         app.ui.icon(DELTA_ICONS[delta.direction], DELTA_ICON_SIZE),
@@ -1181,114 +1291,87 @@
     );
   }
 
-  // The speech timeline section: heading, strip, axis, legend and the hidden list of moments.
-  function buildTimeline(segments) {
-    return app.ui.el("section", { class: "timeline" }, [
-      sectionTitle(TIMELINE_TITLE),
-      timelineStrip(segments),
-      timelineAxis(segments),
-      timelineLegend(segments),
-      timelineMoments(segments),
+  // The speech map section: the heading, then the stage: the first word's edge row, the list of
+  // moments and the last word's edge row, every row on the same three columns (clock, rail,
+  // card). The list's label sums the take up for screen readers; each row's own words say the
+  // rest, so the rail marks are decoration (aria-hidden).
+  function buildSpeechMap(map, segments) {
+    const clock = app.ui.formatClock;
+    return app.ui.el("section", { class: "speech-map" }, [
+      app.ui.el("h2", { class: "results__heading speech-map__heading", text: MAP_TITLE }),
+      app.ui.el("div", { class: "speech-map__stage" }, [
+        mapEdge("speech-map__edge speech-map__edge--start", clock(segments.start), MAP_START_TEXT),
+        app.ui.el(
+          "ol",
+          { class: "speech-map__moments", role: "list", "aria-label": mapLabel(segments) },
+          map.rows.map((row) => momentRow(row, clock)),
+        ),
+        mapEdge(
+          "speech-map__edge speech-map__edge--end",
+          clock(segments.start + segments.seconds),
+          MAP_END_TEXT,
+          map.endGap,
+        ),
+      ]),
     ]);
   }
 
-  // Bottom layer first: the track, the clean-stretch band and its base line, the pause blocks
-  // (long ones taller than the track), the restart lines, then the filler ticks on top.
-  function timelineStrip(segments) {
-    const strip = svgEl("svg", {
-      class: "timeline__strip",
-      viewBox: "0 0 " + STRIP.width + " " + STRIP.height,
-      preserveAspectRatio: "none",
-      role: "img",
-      "aria-label": timelineLabel(segments),
-    });
-    [
-      stripTrack(),
-      ...stripCleanStretch(segments.cleanStretch),
-      ...segments.pauses.map(stripPause),
-      ...segments.restarts.map(stripRestart),
-      ...segments.fillers.map(stripFiller),
-    ].forEach((mark) => strip.appendChild(mark));
-    return strip;
-  }
-
-  // The track runs from the first word to the last. Its 1px edge is inset half a unit so the
-  // strip's own edge never clips it, and it stays 1px however wide the column is.
-  function stripTrack() {
-    return svgEl("rect", {
-      class: "timeline__track",
-      x: "0.5",
-      y: coord(STRIP.trackY + 0.5),
-      width: coord(STRIP.width - 1),
-      height: coord(STRIP.trackHeight - 1),
-      rx: String(STRIP.trackRadius),
-      fill: STRIP_COLORS.track,
-      stroke: STRIP_COLORS.trackEdge,
-      "stroke-width": "1",
-      "vector-effect": "non-scaling-stroke",
-    });
-  }
-
-  function stripCleanStretch(cleanStretch) {
-    if (!cleanStretch) {
-      return [];
+  // "0:00 First word" or "1:02 Last word" on the rail's two ends; the end row sits `gap` px of
+  // rail under the last moment, the start row where the rail begins.
+  function mapEdge(className, time, text, gap) {
+    const attrs = { class: className };
+    if (gap !== undefined) {
+      attrs.style = railStyle(gap, 0);
     }
-    const x = cleanStretch.from * STRIP.width;
-    const width = (cleanStretch.to - cleanStretch.from) * STRIP.width;
-    const band = [x, STRIP.trackY, width, STRIP.trackHeight];
-    const edge = [x, STRIP.trackY + STRIP.trackHeight - STRIP.edgeHeight, width, STRIP.edgeHeight];
-    return [
-      stripRect("timeline__clean", band, STRIP_COLORS.clean),
-      stripRect("timeline__clean-edge", edge, STRIP_COLORS.cleanEdge),
-    ];
+    return app.ui.el("p", attrs, [
+      app.ui.el("span", { class: "speech-map__time num", text: time }),
+      app.ui.el("span", { class: "speech-map__dot", "aria-hidden": "true" }),
+      app.ui.el("span", { class: "speech-map__edge-text", text }),
+    ]);
   }
 
-  // A pause block is as wide as the pause, and never thinner than a filler tick. A long pause
-  // stands as tall as a filler tick, past the track, in its own color.
-  function stripPause(pause) {
-    const x = pause.from * STRIP.width;
-    const width = Math.max(STRIP.minBlockWidth, (pause.to - pause.from) * STRIP.width);
-    if (pause.long) {
-      const box = [x, STRIP.tickY, width, STRIP.tickHeight];
-      return stripRect("timeline__long-pause", box, STRIP_COLORS.longPause);
+  // One moment: its clock, its mark on the rail (a dot, a diamond or a block as long as the
+  // moment) and its card, the kind over the detail. The gap of rail before it and the length it
+  // holds are inline, the one way a per-second position can reach CSS.
+  function momentRow(row, clock) {
+    return app.ui.el(
+      "li",
+      { class: "moment moment--" + row.kind, style: railStyle(row.gap, row.height) },
+      [
+        app.ui.el("span", { class: "moment__time num", text: clock(row.time) }),
+        app.ui.el("span", { class: "moment__mark", "aria-hidden": "true" }),
+        app.ui.el("div", { class: "moment__card" }, [
+          app.ui.el("p", { class: "moment__kind", text: MOMENT_LABEL[row.kind](row.count) }),
+          app.ui.el("p", { class: "moment__detail", text: momentDetail(row, clock) }),
+        ]),
+      ],
+    );
+  }
+
+  function railStyle(gap, height) {
+    return "margin-top:" + gap + "px;min-height:" + height + "px";
+  }
+
+  // The detail line: the filler words, the pause's length and the word before it, the restarted
+  // phrase, or the clean stretch's length and end.
+  function momentDetail(row, clock) {
+    if (row.kind === FILLER_MOMENT) {
+      return MOMENT_DETAIL.words(row.words);
     }
-    const box = [x, STRIP.trackY, width, STRIP.trackHeight];
-    return stripRect("timeline__pause", box, STRIP_COLORS.pause);
+    if (row.kind === RESTART_MOMENT) {
+      return quoted(row.phrase);
+    }
+    if (row.kind === CLEAN_MOMENT) {
+      return MOMENT_DETAIL.clean(row.seconds, clock(row.endTime));
+    }
+    return MOMENT_DETAIL.pause(row.seconds.toFixed(1), row.afterWord);
   }
 
-  // A tick is centered on its filler's start and kept inside the strip at either end.
-  function stripFiller(filler) {
-    const box = [tickX(filler.at, STRIP.tickWidth), STRIP.tickY, STRIP.tickWidth, STRIP.tickHeight];
-    return stripRect("timeline__filler", box, STRIP_COLORS.filler);
-  }
-
-  // A restart line stands at the start of the abandoned first copy, the full strip tall.
-  function stripRestart(restart) {
-    const box = [tickX(restart.at, STRIP.restartWidth), 0, STRIP.restartWidth, STRIP.height];
-    return stripRect("timeline__restart", box, STRIP_COLORS.restart);
-  }
-
-  // The left edge of a mark `width` wide centered on `at`, kept inside the strip.
-  function tickX(at, width) {
-    return Math.min(STRIP.width - width, Math.max(0, at * STRIP.width - width / 2));
-  }
-
-  function stripRect(className, [x, y, width, height], fill) {
-    return svgEl("rect", {
-      class: className,
-      x: coord(x),
-      y: coord(y),
-      width: coord(width),
-      height: coord(height),
-      fill,
-    });
-  }
-
-  // "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
+  // "Speech map from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, a 4.9 second clean
   // stretch", in the recording-time clock the tips use. A take with long pauses adds "1 long
   // pause" after the mid-sentence count, which then leaves the long ones out, and a take with
-  // restarts adds "1 restart" after the pauses, the order of the legend.
-  function timelineLabel(segments) {
+  // restarts adds "1 restart" after the pauses, the order the cards use.
+  function mapLabel(segments) {
     const from = app.ui.formatClock(segments.start);
     const to = app.ui.formatClock(segments.start + segments.seconds);
     const longCount = segments.pauses.filter((pause) => pause.long).length;
@@ -1304,7 +1387,7 @@
       parts.push(countText(segments.restarts.length, "restart", "restarts"));
     }
     parts.push(cleanStretchText(segments.cleanStretch));
-    return TIMELINE_TITLE + " from " + from + " to " + to + ": " + parts.join(", ");
+    return MAP_TITLE + " from " + from + " to " + to + ": " + parts.join(", ");
   }
 
   // "no fillers", "1 filler", "11 fillers".
@@ -1327,87 +1410,6 @@
   // "an" for a number said with a leading vowel sound: 8, 11 and 18, eighty and eight hundred.
   function articleFor(numberText) {
     return /^(8|1[18](\.|$))/.test(numberText) ? "an" : "a";
-  }
-
-  // The first word, the midpoint and the last word in recording time. Hidden from screen
-  // readers: the strip's label already names the range.
-  function timelineAxis(segments) {
-    const { start, seconds } = segments;
-    const times = [start, start + seconds / 2, start + seconds];
-    return app.ui.el(
-      "div",
-      { class: "timeline__axis", "aria-hidden": "true" },
-      times.map((time) => app.ui.el("span", { text: app.ui.formatClock(time) })),
-    );
-  }
-
-  function timelineLegend(segments) {
-    const shown = {
-      [LONG_PAUSE_KEY]: segments.pauses.some((pause) => pause.long),
-      [RESTART_KEY]: segments.restarts.length > 0,
-    };
-    const keys = LEGEND_KEYS.filter(([kind]) => shown[kind] !== false);
-    return app.ui.el(
-      "p",
-      { class: "timeline__legend" },
-      keys.map(([kind, text]) =>
-        app.ui.el("span", { class: "timeline__key" }, [
-          app.ui.el("span", {
-            class: "timeline__swatch timeline__swatch--" + kind,
-            "aria-hidden": "true",
-          }),
-          text,
-        ]),
-      ),
-    );
-  }
-
-  // Every moment on the strip as a sentence, in time order, for screen readers.
-  function timelineMoments(segments) {
-    const clock = app.ui.formatClock;
-    const moments = [
-      ...segments.fillers.map((filler) => ({
-        time: filler.time,
-        text: MOMENT.filler(filler.text, clock(filler.time)),
-      })),
-      ...segments.pauses.map((pause) => ({
-        time: pause.time,
-        text: (pause.long ? MOMENT.longPause : MOMENT.pause)(
-          clock(pause.time),
-          pause.seconds.toFixed(1),
-        ),
-      })),
-      ...segments.restarts.map((restart) => ({
-        time: restart.time,
-        text: MOMENT.restart(restart.text, clock(restart.time)),
-      })),
-    ];
-    const clean = segments.cleanStretch;
-    if (clean) {
-      const seconds = secondsText(clean.seconds);
-      moments.push({
-        time: clean.time,
-        text: MOMENT.clean(clock(clean.time), clock(clean.endTime), seconds),
-      });
-    }
-    moments.sort((a, b) => a.time - b.time);
-    return app.ui.el(
-      "ul",
-      { class: "sr-only timeline__moments" },
-      moments.map((moment) => app.ui.el("li", { text: moment.text })),
-    );
-  }
-
-  // SVG elements need their own namespace and take every attribute, class included, through
-  // setAttribute.
-  function svgEl(tag, attrs) {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.keys(attrs).forEach((key) => node.setAttribute(key, attrs[key]));
-    return node;
-  }
-
-  function coord(value) {
-    return String(Math.round(value * COORD_SCALE) / COORD_SCALE);
   }
 
   // The bar CSS keeps stuck above the nav, or at the end of the page on a short or zoomed
@@ -1438,6 +1440,7 @@
     headlineFor,
     compareWithPrevious,
     timelineSegments,
+    speechMapRows,
     isSample,
   };
 })();

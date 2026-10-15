@@ -1346,7 +1346,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
-/* 8. Results screen: meta line, headline, metric cards, timeline, transcript, tips, actions */
+/* 8. Results screen: meta line, headline, speech map, stat strip, transcript, tips, actions */
 /* Every figure on the screen, in hints, headline, legend and tips too, uses tabular numbers. */
 #screen-results {
   font-variant-numeric: tabular-nums;
@@ -1376,16 +1376,13 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: nowrap;
 }
 
-/* The headline: one strength over one focus on a bordered surface card. */
+/* The headline: one strength over one focus, plain text on the page, the title of the speech
+   map under it. The strength is the screen's one big sentence; the focus a body line. */
 .headline {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   margin-top: var(--s-5);
-  padding: var(--s-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
 }
 
 .headline__strength,
@@ -1394,17 +1391,22 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   align-items: flex-start;
   gap: var(--s-2);
   margin: 0;
-  font-size: var(--fs-body);
-  line-height: 1.5;
   text-wrap: pretty;
 }
 
 .headline__strength {
-  font-weight: 600;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
+  font-weight: 700;
 }
 
-/* Each 16px icon follows its words in the DOM and is drawn first, centered on the first
-   24px line. */
+.headline__focus {
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+/* Each 16px icon follows its words in the DOM and is drawn first, centered on the first line:
+   --s-1 down centers it on a 24px body line and on the 23px strength line alike. */
 .headline__strength svg,
 .headline__focus svg {
   flex: none;
@@ -1420,35 +1422,234 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--accent);
 }
 
-/* The four cards sit 2 x 2 at every width. The --s-3 between the two rows of cards is the
-   second row's top margin rather than a grid row gap, because the cards' subgrid rows are grid
-   rows too: a row gap would also open up under a card row that has no hints or no deltas. */
-.metric-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: var(--s-3);
-  margin-top: var(--s-6);
+/* Speech map: the take top to bottom along a rail. Every row (the two edge rows and each
+   moment) is a grid on the same three columns: the clock (40px, right-aligned), the rail
+   (--s-3 wide) and the card. The rail line runs the stage's height behind the rows, through the
+   centre of the rail column; the rows' marks sit over it. Each moment's inline style sets the
+   rail above it (margin-top) and the rail it holds (min-height) in pixels per second
+   (results.js MAP), so the map is proportional where a card is shorter than its moment. */
+.speech-map__heading {
+  margin-top: var(--s-5);
 }
 
-.metric-card:nth-child(n + 3) {
+.speech-map__stage {
+  position: relative;
   margin-top: var(--s-3);
 }
 
-/* Without subgrid a card is a flex column whose value, hint and delta sink to the bottom.
-   min-width 0 lets a card shrink below its longest word, so the grid never widens the page. */
-.metric-card {
+.speech-map__stage::before {
+  content: "";
+  position: absolute;
+  top: var(--s-2);
+  bottom: var(--s-2);
+  left: calc(var(--s-6) + var(--s-2) + var(--s-2) + var(--s-3) / 2 - 1px);
+  width: 2px;
+  background: var(--border);
+}
+
+.speech-map__edge,
+.moment {
+  position: relative;
+  display: grid;
+  grid-template-columns: calc(var(--s-6) + var(--s-2)) var(--s-3) minmax(0, 1fr);
+  column-gap: var(--s-2);
+  align-items: start;
+  margin: 0;
+}
+
+.speech-map__moments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The rows never touch: --s-2 of rail at least between one card and the next, the inline gap
+   on top of it. */
+.moment {
+  padding-top: var(--s-2);
+}
+
+.speech-map__edge--end {
+  padding-top: var(--s-2);
+}
+
+/* Clocks and the edge words are micro, muted and tabular, on the line of the card's first row
+   (the card's --s-2 padding plus the kind line's half-leading). */
+.speech-map__time,
+.moment__time {
+  padding-top: calc(var(--s-2) + 1px);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.speech-map__edge .speech-map__time {
+  padding-top: 0;
+}
+
+.speech-map__edge-text {
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The rail's two ends: a hollow dot on the line. */
+.speech-map__dot {
+  width: var(--s-3);
+  height: var(--s-3);
+  margin-top: 1px;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+/* A mark takes the rail column: a point moment draws a 12px dot (a filler) or diamond (a
+   restart) on the card's first line; a span moment (a pause, the clean stretch) fills its row
+   from the card's top to the row's end, so its block is as long as the moment holds the rail. */
+.moment__mark {
+  position: relative;
+  align-self: stretch;
+  min-height: var(--s-3);
+}
+
+.moment__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--s-2) + 1px);
+  left: 0;
+  width: var(--s-3);
+  height: var(--s-3);
+  border-radius: 50%;
+}
+
+.moment--filler .moment__mark::before {
+  background: var(--filler);
+}
+
+.moment--restart .moment__mark::before {
+  border-radius: 2px;
+  background: var(--pause);
+  transform: rotate(45deg) scale(0.85);
+}
+
+.moment--pause .moment__mark::before {
+  background: var(--pause);
+}
+
+.moment--long-pause .moment__mark::before {
+  background: var(--pause-long);
+}
+
+.moment--clean .moment__mark::before {
+  background: var(--ok-bg);
+  border: 2px solid var(--ok);
+}
+
+/* A span moment's block runs from the card's first line to the row's end. */
+.moment--pause .moment__mark::before,
+.moment--long-pause .moment__mark::before,
+.moment--clean .moment__mark::before {
+  bottom: 0;
+  height: auto;
+  border-radius: var(--r-chip);
+}
+
+/* The card: a surface card with its moment's colour on the left edge, the kind in that colour
+   (every pair reads at 4.5:1 or better on --surface, DESIGN.md 4) over the detail in text
+   colour. A long phrase wraps anywhere, so a 320px column never overflows. */
+.moment__card {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--r-card);
+  overflow-wrap: anywhere;
+}
+
+.moment--filler .moment__card {
+  border-left-color: var(--filler);
+}
+
+.moment--pause .moment__card,
+.moment--restart .moment__card {
+  border-left-color: var(--pause);
+}
+
+.moment--long-pause .moment__card {
+  border-left-color: var(--pause-long);
+}
+
+.moment--clean .moment__card {
+  border-left-color: var(--ok);
+}
+
+.moment__kind {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.moment--filler .moment__kind {
+  color: var(--filler);
+}
+
+.moment--pause .moment__kind,
+.moment--restart .moment__kind {
+  color: var(--pause);
+}
+
+.moment--long-pause .moment__kind {
+  color: var(--pause-long);
+}
+
+.moment--clean .moment__kind {
+  color: var(--ok);
+}
+
+.moment__detail {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+/* The stat strip: the four numbers on one surface band, 2 x 2 on a phone and four across from
+   480px, hairlines between the cells instead of a card each. A cell is a flex column whose
+   value, hint and delta sink to the bottom; min-width 0 lets it shrink below its longest word,
+   so the strip never widens the page. */
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: var(--s-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
 }
 
+.stat {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3);
+}
+
+.stat:nth-child(even) {
+  border-left: 1px solid var(--border);
+}
+
+.stat:nth-child(n + 3) {
+  border-top: 1px solid var(--border);
+}
+
 /* Labels wrap onto a second line rather than truncate. */
-.metric-card__label {
+.stat__label {
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
@@ -1458,21 +1659,21 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 /* The number and its unit stay on one line and share a baseline. A flex line drops the space
    text node between them from layout (it stays in the DOM for copy and screen readers), so the
    gap alone sets the distance. */
-.metric-card__value {
+.stat__value {
   display: flex;
   align-items: baseline;
   gap: var(--s-1);
   margin-top: auto;
-  font-size: var(--fs-metric);
-  line-height: 1;
+  font-size: var(--fs-h2);
+  line-height: 1.3;
   font-weight: 700;
   white-space: nowrap;
 }
 
-/* The unit lives inside the value line, so it resets the big number's size and weight. */
-.metric-card__unit {
-  font-size: var(--fs-small);
-  line-height: 1.4;
+/* The unit lives inside the value line, so it resets the number's size and weight. */
+.stat__unit {
+  font-size: var(--fs-micro);
+  line-height: 1.3;
   font-weight: 500;
   color: var(--muted);
 }
@@ -1481,7 +1682,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    is drawn first. Two-line hints balance their lines rather than strand the last word. The
    icon's box is one line tall, so the 16px drawing centers on the first line, as in the
    headline. */
-.metric-card__hint {
+.stat__hint {
   display: flex;
   align-items: flex-start;
   gap: var(--s-1);
@@ -1491,23 +1692,23 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-wrap: balance;
 }
 
-.metric-card__hint svg {
+.stat__hint svg {
   flex: none;
   order: -1;
   height: 1.4em;
 }
 
-.metric-card__hint--ok {
+.stat__hint--ok {
   color: var(--ok);
 }
 
-.metric-card__hint--warn {
+.stat__hint--warn {
   color: var(--warn);
 }
 
 /* The "vs last take" line: one muted micro line with tabular figures, its triangle or dash
    drawn first. The hidden ending inside it is absolutely placed, so it takes no room here. */
-.metric-card__delta {
+.stat__delta {
   display: flex;
   align-items: center;
   gap: var(--s-1);
@@ -1519,12 +1720,12 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: nowrap;
 }
 
-.metric-card__delta svg {
+.stat__delta svg {
   flex: none;
   order: -1;
 }
 
-.metric-grid__note {
+.stat-strip__note {
   margin: var(--s-2) 0 0;
   font-size: var(--fs-micro);
   line-height: 1.3;
@@ -1532,134 +1733,41 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
-/* Where subgrid works, the two cards of a grid row share four rows (label, value, hint, delta),
-   so their values line up even when only one label wraps. */
-@supports (grid-template-rows: subgrid) {
-  .metric-card {
-    display: grid;
-    grid-row: span 4;
-    grid-template-rows: subgrid;
-    row-gap: var(--s-1);
+/* From 480px the four stats share one row, a hairline before each cell after the first. */
+@media (min-width: 480px) {
+  .stat-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .metric-card__label {
-    grid-row: 1;
+  .stat:nth-child(n + 2) {
+    border-left: 1px solid var(--border);
   }
 
-  .metric-card__value {
-    grid-row: 2;
-    align-self: end;
-  }
-
-  /* A one-line hint stays under its value when the other card's hint wraps. */
-  .metric-card__hint {
-    grid-row: 3;
-    align-self: start;
-  }
-
-  .metric-card__delta {
-    grid-row: 4;
+  .stat:nth-child(n + 3) {
+    border-top: 0;
   }
 }
 
-/* Under 360px a card's content box is about 112px: tighter padding and a smaller number keep
-   "21.4 /min" on one line. */
-@media (max-width: 359px) {
-  .metric-card {
-    padding: var(--s-3);
-  }
-
-  .metric-card__value {
-    font-size: var(--fs-metric-narrow);
-  }
-}
-
-/* 200% zoom on a phone leaves a 160 to 187px window, too narrow for two cards side by side:
-   the four cards stack, --s-3 apart. */
+/* 200% zoom on a phone leaves a 160 to 187px window, too narrow for two stats side by side:
+   the four stack, a hairline between each pair. */
 @media (max-width: 239px) {
-  .metric-grid {
+  .stat-strip {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .metric-card:nth-child(n + 2) {
-    margin-top: var(--s-3);
+  .stat:nth-child(even) {
+    border-left: 0;
+  }
+
+  .stat:nth-child(n + 2) {
+    border-top: 1px solid var(--border);
   }
 }
 
-/* Section titles for the timeline, the transcript and the tips; the section gap sits above
+/* Section titles for the speech map, the transcript and the tips; the section gap sits above
    each one. */
 .results__heading {
   margin-top: var(--s-6);
-}
-
-/* Speech timeline: a 40px strip stretched to the column (its marks are drawn in SVG with
-   token colors), the axis under it, then the legend. */
-.timeline__strip {
-  display: block;
-  width: 100%;
-  height: 40px;
-}
-
-.timeline__axis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: var(--s-1);
-  font-size: var(--fs-micro);
-  line-height: 1.3;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
-.timeline__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2) var(--s-4);
-  margin: var(--s-2) 0 0;
-  font-size: var(--fs-micro);
-  line-height: 1.3;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.timeline__key {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-}
-
-/* Each swatch echoes its mark: a thin tick, a block (the long-pause one in its own color), a
-   hairline for a restart, and the band with its base line. */
-.timeline__swatch {
-  flex: none;
-  display: inline-block;
-  height: 12px;
-}
-
-.timeline__swatch--filler {
-  width: 4px;
-  background: var(--filler);
-}
-
-.timeline__swatch--pause {
-  width: 12px;
-  background: var(--pause);
-}
-
-.timeline__swatch--long-pause {
-  width: 12px;
-  background: var(--pause-long);
-}
-
-.timeline__swatch--restart {
-  width: 2px;
-  background: var(--pause);
-}
-
-.timeline__swatch--clean {
-  width: 16px;
-  background: var(--ok-bg);
-  border-bottom: 3px solid var(--ok);
 }
 
 /* Transcript: a body-size paragraph; anywhere-wrapping keeps a long token inside 320px. */
@@ -3082,7 +3190,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* Progress: the first thing under the h1, a section gap above the metric switch (or above
-   "Need two sessions"). Results: under the headline, a section gap above the metric grid. */
+   "Need two sessions"). Results: under the stat strip, a section gap above the transcript. */
 #screen-progress .rank-card {
   margin-bottom: var(--s-6);
 }

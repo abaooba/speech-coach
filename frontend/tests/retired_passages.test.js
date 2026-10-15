@@ -254,7 +254,7 @@ test("an old read of a retired passage keeps its 150 to 170 band on every screen
   );
   // 165 wpm sits inside 150 to 170; against the default 140 to 160 it would read "Slow down".
   assert.equal(
-    fullText(findClass(results.body, "metric-card__hint")),
+    fullText(findClass(results.body, "stat__hint")),
     "Target 150 to 170",
   );
   const files = [...RESULTS_FILES, path.join("screens", "history.js")];

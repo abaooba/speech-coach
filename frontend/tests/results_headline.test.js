@@ -453,15 +453,20 @@ function rule(selector) {
   return declarations;
 }
 
-test("the headline is a bordered surface card with a bold strength and colored icons", () => {
-  const card = rule(".headline");
-  assert.equal(card.background, "var(--surface)");
-  assert.equal(card.border, "1px solid var(--border)");
-  assert.equal(card["border-radius"], "var(--r-card)");
-  assert.equal(card.padding, "var(--s-4)");
-  assert.equal(rule(".headline__strength")["font-weight"], "600");
-  assert.equal(rule(".headline__strength")["font-size"], "var(--fs-body)");
+test("the headline is plain text over the map: an h2-size bold strength, a body focus", () => {
+  const block = rule(".headline");
+  assert.equal(block.background, undefined, "no card: the map under it is the picture");
+  assert.equal(block.border, undefined);
+  assert.equal(block.padding, undefined);
+  assert.equal(block["margin-top"], "var(--s-5)");
+  assert.equal(rule(".headline__strength")["font-weight"], "700");
+  assert.equal(rule(".headline__strength")["font-size"], "var(--fs-h2)");
+  assert.equal(rule(".headline__strength")["line-height"], "1.3");
   assert.equal(rule(".headline__focus")["font-size"], "var(--fs-body)");
+  assert.equal(rule(".headline__focus")["line-height"], "1.5");
+  assert.equal(rule(".headline__strength")["text-wrap"], "pretty");
+  assert.equal(rule(".headline__focus")["text-wrap"], "pretty");
+  assert.equal(rule(".headline__strength svg")["margin-top"], "var(--s-1)");
   assert.equal(rule(".headline__strength svg").order, "-1");
   assert.equal(rule(".headline__focus svg").order, "-1");
   assert.equal(rule(".headline__strength svg").color, "var(--ok)");
