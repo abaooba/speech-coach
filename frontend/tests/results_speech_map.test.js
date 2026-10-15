@@ -829,6 +829,43 @@ test("a second tap within the flash takes the flash off the first mark", async (
   assert.ok(second.classList.contains("tok--shown"), "the same mark again keeps its flash");
 });
 
+test("Show all focuses the first card revealed, a BUTTON as a browser names it", async () => {
+  // A browser's tagName is "BUTTON"; the fake's is "button". This document names tags as a
+  // browser does and records every focus() call, so the choice cannot lean on the tag's case.
+  const focused = [];
+  const document = fakeDocument();
+  document.createElement = (tagName) => {
+    const node = new FakeElement(tagName.toUpperCase());
+    node.focus = () => focused.push(node);
+    return node;
+  };
+  const context = {
+    app: {
+      screens: {},
+      passages: PASSAGES.map((entry) => ({ ...entry })),
+      store: { get: () => Promise.resolve(CLIP_SESSION) },
+      router: { go() {} },
+    },
+    document,
+  };
+  vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
+  vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
+  vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
+  const root = new FakeElement("SECTION");
+  const body = new FakeElement("DIV");
+  body.className = "screen__body";
+  root.appendChild(body);
+  context.app.screens.results.mount(root);
+  await context.app.screens.results.show({ id: CLIP_SESSION.id });
+  const map = byClass(body, "speech-map");
+  byClass(map, "speech-map__more").click();
+  const [revealed] = momentsOf(body).children[8].children;
+  assert.equal(revealed.tagName, "BUTTON");
+  assert.deepEqual(focused, [revealed], "the ninth card, the first revealed, takes focus");
+  const heading = byClass(body, "speech-map").children[0];
+  assert.equal(heading.getAttribute("tabindex"), null, "the heading is not the fallback here");
+});
+
 test("Show all focuses the map's heading when the first card revealed is a still one", async () => {
   // Seven ums 7 s apart and the clean stretch between the last two make eight rows; a repeat
   // placed after the last word is the ninth, a still card with nothing to press.

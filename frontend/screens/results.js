@@ -985,7 +985,7 @@
     revealedCard = null;
     mapHeading = null;
     renderSession(session, view, previous);
-    if (revealedCard && revealedCard.tagName === "button") {
+    if (revealedCard && revealedIsButton) {
       focusIfPossible(revealedCard);
     } else if (mapHeading) {
       mapHeading.setAttribute("tabindex", "-1");
@@ -993,9 +993,11 @@
     }
   }
 
-  // The first card past the collapsed count and the map's heading, set while the expanded map
-  // is built.
+  // The first card past the collapsed count (and whether it is a button, decided where it is
+  // built: a tag name's case differs between browsers and test fakes) and the map's heading,
+  // set while the expanded map is built.
   let revealedCard = null;
+  let revealedIsButton = false;
   let mapHeading = null;
 
   // The third draw, with the coach notes in the tips' place. Like every draw it rebuilds the
@@ -1737,6 +1739,7 @@
     }
     if (row.index === MAP.shownCards) {
       revealedCard = card;
+      revealedIsButton = Boolean(row.target);
     }
     return app.ui.el("li", { class: "moment moment--" + row.kind }, [card]);
   }
