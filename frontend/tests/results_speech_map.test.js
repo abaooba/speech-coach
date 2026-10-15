@@ -1,10 +1,11 @@
 // Tests for the Results speech map (DESIGN.md section 6). The pure timelineSegments(report)
 // turns the app.delivery report into 0 to 1 positions measured from the first word, and the
-// pure speechMapRows(report, words) lays the take out along a rail: every moment a row in time
-// order with its pixels of rail (fillers close together share a row, a pause or the clean
-// stretch holds its length). show() draws them for a take with words: a heading, the first
-// word's edge row, the list of moment cards (clock, rail mark, kind over detail) and the last
-// word's edge row. Checked on the real clip and on the sample take that Practice offers.
+// pure speechMapRows(report, words) lays the take out as a stack of same-height cards beside a
+// rail that is linear in time: every moment a row with its card's place in the stack, its
+// second on the rail, the words around it and the transcript mark its button scrolls to.
+// show() draws them for a take with words: a heading, the first word's cap, the rail SVG beside
+// the list of cards (clock and kind, context, Show in transcript) and the last word's cap.
+// Checked on the real clip and on the sample take that Practice offers.
 "use strict";
 
 const test = require("node:test");
@@ -180,48 +181,125 @@ test("timelineSegments does not change the report it reads", () => {
   assert.equal(JSON.stringify(report), before);
 });
 
-// The pure rows: the rail laid out in pixels.
+// The pure rows: the stack and the rail in pixels.
 function rowsFor(words, metrics) {
   const app = loadPure();
   return plain(app.screens.results.speechMapRows(app.delivery.analyze(words, metrics), words));
+}
+
+// "…I play piano, [1.5 s] um, and I,…": a row's context as one string, marks in brackets.
+function contextText(context) {
+  if (!context) {
+    return null;
+  }
+  const words = context.tokens.map((token) => (token.mark ? "[" + token.text + "]" : token.text));
+  return (context.before ? "…" : "") + words.join(" ") + (context.after ? "…" : "");
 }
 
 test("results.js exports speechMapRows beside timelineSegments", () => {
   assert.equal(typeof loadPure().screens.results.speechMapRows, "function");
 });
 
-test("the real clip: ten rows in time order, clustered fillers, pauses with their word", () => {
+test("the real clip: ten cards in time order, each at its place in the stack", () => {
   const map = rowsFor(CLIP_WORDS, CLIP_METRICS);
-  // 360 px over 30.9 s would be 11.6 px a second; the scale caps at 8.
-  assert.equal(map.pxPerSecond, 8);
+  // Ten cards of 100px with 8px between: the rail is exactly as tall.
+  assert.equal(map.height, 1072);
   assert.deepEqual(
-    map.rows.map((row) => [row.kind, row.time, row.gap, row.height]),
+    map.rows.map((row) => [row.kind, row.time, row.index, row.cardTop, row.cardMid]),
     [
-      ["filler", 1.723, 3, 0],
-      ["clean", 5.436, 3, 39],
-      ["filler", 10.352, 0, 0],
-      ["pause", 14.567, 34, 12],
-      ["filler", 16.098, 0, 0],
-      ["restart", 16.515, 3, 0],
-      ["pause", 16.853, 3, 20],
-      ["filler", 19.327, 0, 0],
-      ["pause", 20.517, 6, 17],
-      ["filler", 26.112, 27, 0],
+      ["filler", 1.723, 0, 0, 50],
+      ["clean", 5.436, 1, 108, 158],
+      ["filler", 10.352, 2, 216, 266],
+      ["pause", 14.567, 3, 324, 374],
+      ["filler", 16.098, 4, 432, 482],
+      ["restart", 16.515, 5, 540, 590],
+      ["pause", 16.853, 6, 648, 698],
+      ["filler", 19.327, 7, 756, 806],
+      ["pause", 20.517, 8, 864, 914],
+      ["filler", 26.112, 9, 972, 1022],
     ],
   );
+});
+
+test("the real clip: every moment sits on the rail at its second, linear in time", () => {
+  const map = rowsFor(CLIP_WORDS, CLIP_METRICS);
+  // 1072 px over 30.908 s from the first word at 1.287: 34.68 px a second.
+  const at = (time) => Math.round(((time - 1.287) / 30.908) * 1072 * 10) / 10;
+  assert.deepEqual(
+    map.rows.map((row) => [row.railY, row.railEnd]),
+    [
+      [at(1.723), at(1.723)],
+      [at(5.436), at(10.352)],
+      [at(10.352), at(10.352)],
+      [at(14.567), at(14.567 + 1.531)],
+      [at(16.098), at(16.098)],
+      [at(16.515), at(16.515)],
+      [at(16.853), at(16.853 + 2.474)],
+      [at(19.327), at(19.327)],
+      [at(20.517), at(20.517 + 2.185)],
+      [at(26.112), at(26.112)],
+    ],
+  );
+  assert.equal(map.rows[1].railEnd, map.rows[2].railY, "the clean stretch ends at the um");
+});
+
+test("the real clip: clustered fillers, pauses with their word, the restarted phrase", () => {
+  const map = rowsFor(CLIP_WORDS, CLIP_METRICS);
   const [first, clean, , pause, , restart, , pair, , last] = map.rows;
   assert.deepEqual([first.words, first.count, first.lastTime], [
     ["so", "um", "basically", "um"],
     4,
     5,
   ]);
-  assert.deepEqual([clean.seconds, clean.endTime], [4.9, 10.352]);
-  assert.deepEqual([pause.seconds, pause.afterWord], [1.531, "piano"], "bare of its comma");
+  assert.deepEqual([clean.seconds, clean.endTime, clean.context], [4.9, 10.352, null]);
+  assert.deepEqual([pause.seconds, pause.afterWord, pause.pauseIndex], [1.531, "piano", 0]);
   assert.equal(restart.phrase, "and I, uh, and I", "first copy through the second");
   assert.deepEqual([pair.words, pair.lastTime], [["uh", "um"], 19.794]);
   assert.deepEqual([last.words, last.lastTime], [["uh", "um", "uh"], 31.451]);
-  // 32.195 is the last word's end; the last filler starts at 31.451: 0.744 s of rail.
-  assert.equal(map.endGap, 6);
+});
+
+test("the real clip: three words either side, the moment marked, an ellipsis where cut", () => {
+  const map = rowsFor(CLIP_WORDS, CLIP_METRICS);
+  assert.deepEqual(map.rows.map((row) => contextText(row.context)), [
+    "Hey, [so,] [um,] [basically,] [um,] m my day's…",
+    null,
+    "…is 10:21 PM. [Um,] I like to…",
+    "…I play piano, [1.5 s] um, and I,…",
+    "…I play piano, [um,] and I, uh,…",
+    "…piano, um, [and] [I,] [uh,] [and] [I,] um, studying…",
+    "…um, and I, [2.5 s] uh, and I,…",
+    "…um, and I, [uh,] and I, [um,] studying for a…",
+    "…and I, um, [2.2 s] studying for a…",
+    "…quiz right now. [Uh,] in statistics and, [um,] AP statistics. [Uh,] yeah.",
+  ]);
+  const marks = map.rows[3].context.tokens.map((token) => token.mark);
+  assert.deepEqual(marks, [null, null, null, "pause", null, null, null]);
+  assert.deepEqual(
+    map.rows[5].context.tokens.filter((token) => token.mark).map((token) => token.mark),
+    Array(5).fill("restart"),
+    "the restart marks both copies, as its phrase runs",
+  );
+});
+
+test("the real clip: every card points at the transcript mark it talks about", () => {
+  const map = rowsFor(CLIP_WORDS, CLIP_METRICS);
+  assert.deepEqual(
+    map.rows.map((row) => row.target),
+    [
+      "word-1",
+      "word-5",
+      "word-16",
+      "pause-0",
+      "word-25",
+      "word-29",
+      "pause-1",
+      "word-28",
+      "pause-2",
+      "word-39",
+    ],
+  );
+  assert.equal(CLIP_WORDS[29].text, "and", "the restart points at its second copy's first word");
+  assert.equal(CLIP_WORDS[1].text, "so,", "a cluster points at its first filler");
 });
 
 test("a filler joins the row before it within 4 seconds, never across another moment", () => {
@@ -237,41 +315,41 @@ test("a filler joins the row before it within 4 seconds, never across another mo
   assert.equal(fillers[1].time, 10.352, "the clean stretch sits between 5.0 and 10.352");
 });
 
-test("the gap of rail before a row counts from the end of the moment before", () => {
-  const map = rowsFor(CLIP_WORDS, CLIP_METRICS);
-  const [, clean, afterClean, pause] = map.rows;
-  // The first row's four fillers end at 5.0; the clean stretch starts 0.436 s later.
-  assert.equal(clean.gap, Math.round((5.436 - 5) * 8));
-  // The clean stretch holds 4.9 s of rail; the um at 10.352 starts right at its end.
-  assert.equal(afterClean.gap, 0);
-  assert.equal(pause.gap, Math.round((14.567 - 10.352) * 8));
-  assert.equal(pause.height, Math.round(1.531 * 8));
-});
-
 test("the sample take: the clean stretch first, then two filler rows", () => {
   const map = rowsFor(SAMPLE.transcript, SAMPLE.metrics);
+  assert.equal(map.height, 316);
   assert.deepEqual(
-    map.rows.map((row) => [row.kind, row.time, row.gap, row.height]),
+    map.rows.map((row) => [row.kind, row.time, row.cardTop, row.railY, row.railEnd, row.target]),
     [
-      ["clean", 1.794, 0, 110],
-      ["filler", 15.559, 0, 0],
-      ["filler", 23.571, 52, 0],
+      ["clean", 1.794, 0, 0, 151.6, "word-0"],
+      ["filler", 15.559, 108, 151.6, 151.6, "word-30"],
+      ["filler", 23.571, 216, 239.8, 239.8, "word-52"],
     ],
   );
   assert.deepEqual(map.rows[1].words, ["um", "like", "you know"]);
+  assert.equal(
+    contextText(map.rows[1].context),
+    "…the beans coarsely. [Um,] [like,] [you] [know,] fine powder makes…",
+    "both words of “you know” are marked",
+  );
   assert.deepEqual(map.rows[2].words, ["uh", "uh"]);
-  assert.equal(map.endGap, 27);
 });
 
-test("a long take shrinks to 2 px a second; a short one stretches to 8", () => {
-  const long = rowsFor(steady(400, 0.5, [399]).transcript, {});
-  assert.equal(long.pxPerSecond, 2, "200 s at 360 px would be 1.8");
-  const medium = rowsFor(steady(180, 0.5, [179]).transcript, {});
-  assert.equal(medium.pxPerSecond, 4, "90 s: 360 / 90");
-  assert.equal(rowsFor(steady(16, 0.5, [15]).transcript, {}).pxPerSecond, 8);
+test("a block on the rail is at least 10px tall and never runs past the rail", () => {
+  const words = timed("We win. The plan works today.");
+  words[5].start += 100;
+  words[5].end += 100;
+  const map = rowsFor(words, { pauses: [[words[3].end, 0.05], [words[4].end, 100]], repeats: [] });
+  const pause = map.rows.find((row) => row.kind === "pause");
+  assert.ok(pause, "the 0.05 s mid-sentence pause is counted");
+  const blockHeight = Math.round((pause.railEnd - pause.railY) * 10) / 10;
+  assert.equal(blockHeight, 10, "a 0.05 s pause still shows");
+  const long = map.rows.find((row) => row.kind === "long-pause");
+  assert.ok(long.railEnd > long.railY + 100, "the 100 s pause holds most of the rail");
+  assert.ok(long.railEnd <= map.height, "and never runs past it");
 });
 
-test("a long pause is its own kind, a pause before the first word names no word", () => {
+test("a long pause is its own kind, a pause before the first word has no word", () => {
   const words = timed("We win. The plan works today.");
   const metrics = { pauses: [[0, 1.6], [words[1].end, 6], [words[3].end, 1.5]], repeats: [] };
   const map = rowsFor(words, metrics);
@@ -288,7 +366,11 @@ test("a long pause is its own kind, a pause before the first word names no word"
     { text: "there", start: 4, end: 4.4 },
   ];
   const first = rowsFor(twoWords, { pauses: [[1.4, 2.6]], repeats: [] });
-  assert.equal(first.rows.find((row) => row.kind === "pause").afterWord, "Hi");
+  const pause = first.rows.find((row) => row.kind === "pause");
+  assert.equal(pause.afterWord, "Hi");
+  assert.equal(contextText(pause.context), "Hi [2.6 s] there");
+  const silent = rowsFor(twoWords, { pauses: [[0.2, 0.7]], repeats: [] });
+  assert.ok(!silent.rows.some((row) => row.kind === "pause"), "not counted before the first word");
 });
 
 test("a restart without a second copy in the words keeps the repeat's own text", () => {
@@ -296,6 +378,8 @@ test("a restart without a second copy in the words keeps the repeat's own text",
   const map = rowsFor(words, { pauses: [], repeats: [{ text: "We need", at: 0 }] });
   const restart = map.rows.find((row) => row.kind === "restart");
   assert.equal(restart.phrase, "We need");
+  assert.equal(restart.target, "word-0", "the word at its at");
+  assert.equal(contextText(restart.context), "[We] need a…");
 });
 
 test("no map without words, speaking time or a report", () => {
@@ -314,8 +398,9 @@ test("speechMapRows does not change the report or the words it reads", () => {
   assert.equal(JSON.stringify([report, CLIP_WORDS]), before);
 });
 
-// The DOM half: show() against the fake document.
-async function showSession(session) {
+// The DOM half: show() against the fake document. `byId` registers elements getElementById
+// should find, as a transcript mark the Show button scrolls to.
+async function showSession(session, byId, announcements) {
   const context = {
     app: {
       screens: {},
@@ -323,9 +408,14 @@ async function showSession(session) {
       store: { get: () => Promise.resolve(session) },
       router: { go() {} },
     },
-    document: fakeDocument(),
+    document: fakeDocument(byId),
+    setTimeout,
+    clearTimeout,
   };
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
+  if (announcements) {
+    context.app.ui.announce = (text) => announcements.push(text);
+  }
   vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
   vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
   const root = new FakeElement("section");
@@ -364,21 +454,31 @@ function stageOf(body) {
   return byClass(byClass(body, "speech-map"), "speech-map__stage");
 }
 
-function momentsOf(body) {
-  return byClass(stageOf(body), "speech-map__moments");
+function mapBodyOf(body) {
+  return byClass(stageOf(body), "speech-map__body");
 }
 
-// [kind, clock, label, detail, style] for one moment row.
-function rowShape(row) {
-  const [time, mark, card] = row.children;
-  const [kind, detail] = card.children;
-  assert.equal(mark.getAttribute("aria-hidden"), "true");
+function momentsOf(body) {
+  return byClass(mapBodyOf(body), "speech-map__moments");
+}
+
+function railOf(body) {
+  return mapBodyOf(body).children.find((node) => node.getAttribute("class") === "speech-map__rail");
+}
+
+const CLEAN_LINE = "Without a filler, pause or restart.";
+const PAUSE_0 = "pause-0";
+const PAUSE_2 = "pause-2";
+
+// [kind, head text, context text, button target] for one card.
+function cardShape(row) {
+  const [card] = row.children;
+  const [head, context, button] = card.children;
   return [
     row.className.replace("moment moment--", ""),
-    time.textContent,
-    kind.textContent,
-    detail.textContent,
-    row.getAttribute("style"),
+    head.children.map((part) => part.textContent).join(" "),
+    fullText(context),
+    button ? button.getAttribute("data-target") : null,
   ];
 }
 
@@ -395,9 +495,13 @@ test("the map sits between the headline and the stat strip, as one section", asy
   ]);
   assert.equal(map.children[0].textContent, "Speech map");
   assert.deepEqual(stageOf(body).children.map(outline), [
-    "p.speech-map__edge speech-map__edge--start",
+    "p.speech-map__cap speech-map__cap--start",
+    "div.speech-map__body",
+    "p.speech-map__cap speech-map__cap--end",
+  ]);
+  assert.deepEqual(mapBodyOf(body).children.map(outline), [
+    "svg.speech-map__rail",
     "ol.speech-map__moments",
-    "p.speech-map__edge speech-map__edge--end",
   ]);
 });
 
@@ -406,7 +510,7 @@ test("a take without words has no map", async () => {
   assert.equal(byClass(body, "speech-map"), undefined);
 });
 
-test("the list is labelled with the take's sums and counts its rows as items", async () => {
+test("the list is labelled with the take's sums and counts its cards as items", async () => {
   const list = momentsOf(await showSession(CLIP_SESSION));
   assert.equal(list.tagName, "ol");
   assert.equal(list.getAttribute("role"), "list");
@@ -419,61 +523,271 @@ test("the list is labelled with the take's sums and counts its rows as items", a
   list.children.forEach((row) => assert.equal(row.tagName, "li"));
 });
 
-test("the edge rows name the first and last word with their clocks", async () => {
+test("the caps name the first and last word with their clocks, a ring on the rail", async () => {
   const stage = stageOf(await showSession(CLIP_SESSION));
   const [start, , end] = stage.children;
-  for (const edge of [start, end]) {
-    assert.deepEqual(edge.children.map(outline), [
-      "span.speech-map__time num",
-      "span.speech-map__dot",
-      "span.speech-map__edge-text",
+  for (const cap of [start, end]) {
+    assert.deepEqual(cap.children.map(outline), [
+      "span.speech-map__ring",
+      "span.speech-map__cap-text",
     ]);
-    assert.equal(edge.children[1].getAttribute("aria-hidden"), "true");
+    assert.equal(cap.children[0].getAttribute("aria-hidden"), "true");
+    assert.equal(cap.children[1].children[0].className, "num");
   }
-  assert.deepEqual(
-    start.children.map((part) => part.textContent),
-    ["0:01", "", "First word"],
-  );
-  assert.equal(start.getAttribute("style"), null, "the rail starts here");
-  assert.deepEqual(end.children.map((part) => part.textContent), ["0:32", "", "Last word"]);
-  assert.equal(end.getAttribute("style"), "margin-top:6px;min-height:0px", "0.744 s of rail");
+  assert.equal(fullText(start), "0:01 · First word");
+  assert.equal(fullText(end), "0:32 · Last word");
 });
 
-test("every row is its clock, its mark and a card with the kind over the detail", async () => {
+test("every card is its head, context and button; the head is clock then kind", async () => {
   const list = momentsOf(await showSession(CLIP_SESSION));
   list.children.forEach((row) => {
-    assert.deepEqual(row.children.map(outline), [
-      "span.moment__time num",
-      "span.moment__mark",
-      "div.moment__card",
+    assert.deepEqual(row.children.map(outline), ["div.moment__card"]);
+    const [card] = row.children;
+    assert.deepEqual(card.children.map(outline), [
+      "p.moment__head",
+      "p.moment__context",
+      "button.moment__show",
     ]);
-    assert.deepEqual(row.children[2].children.map(outline), ["p.moment__kind", "p.moment__detail"]);
+    assert.deepEqual(card.children[0].children.map(outline), [
+      "span.moment__time num",
+      "span.moment__kind",
+    ]);
+    const button = card.children[2];
+    assert.equal(button.getAttribute("type"), "button");
+    assert.equal(button.textContent, "Show in transcript");
   });
-  const rail = (gap, height) => "margin-top:" + gap + "px;min-height:" + height + "px";
-  assert.deepEqual(list.children.map(rowShape), [
-    ["filler", "0:01", "4 fillers", "“so”, “um”, “basically”, “um”", rail(3, 0)],
-    ["clean", "0:05", "Clean stretch", "4.9 s without a filler or pause, to 0:10", rail(3, 39)],
-    ["filler", "0:10", "Filler", "“um”", rail(0, 0)],
-    ["pause", "0:14", "Mid-sentence pause", "1.5 s after “piano”", rail(34, 12)],
-    ["filler", "0:16", "Filler", "“um”", rail(0, 0)],
-    ["restart", "0:16", "Restart", "“and I, uh, and I”", rail(3, 0)],
-    ["pause", "0:16", "Mid-sentence pause", "2.5 s after “I”", rail(3, 20)],
-    ["filler", "0:19", "2 fillers", "“uh”, “um”", rail(0, 0)],
-    ["pause", "0:20", "Mid-sentence pause", "2.2 s after “um”", rail(6, 17)],
-    ["filler", "0:26", "3 fillers", "“uh”, “um”, “uh”", rail(27, 0)],
+  assert.deepEqual(list.children.map(cardShape), [
+    ["filler", "0:01 4 fillers", "Hey, so, um, basically, um, m my day's…", "word-1"],
+    ["clean", "0:05 to 0:10 Clean stretch · 4.9 s", CLEAN_LINE, "word-5"],
+    ["filler", "0:10 Filler", "…is 10:21 PM. Um, I like to…", "word-16"],
+    ["pause", "0:14 Mid-sentence pause · 1.5 s", "…I play piano, 1.5 s um, and I,…", PAUSE_0],
+    ["filler", "0:16 Filler", "…I play piano, um, and I, uh,…", "word-25"],
+    ["restart", "0:16 Restart", "…piano, um, and I, uh, and I, um, studying…", "word-29"],
+    ["pause", "0:16 Mid-sentence pause · 2.5 s", "…um, and I, 2.5 s uh, and I,…", "pause-1"],
+    ["filler", "0:19 2 fillers", "…um, and I, uh, and I, um, studying for a…", "word-28"],
+    ["pause", "0:20 Mid-sentence pause · 2.2 s", "…and I, um, 2.2 s studying for a…", PAUSE_2],
+    [
+      "filler",
+      "0:26 3 fillers",
+      "…quiz right now. Uh, in statistics and, um, AP statistics. Uh, yeah.",
+      "word-39",
+    ],
   ]);
 });
 
-test("a row reads as one sentence of visible text: clock, kind, detail", async () => {
+test("a card marks its moment in the transcript's own classes; plain words stay text", async () => {
   const list = momentsOf(await showSession(CLIP_SESSION));
-  assert.equal(fullText(list.children[5]), "0:16Restart“and I, uh, and I”");
-  assert.equal(
-    fullText(list.children[1]),
-    "0:05Clean stretch4.9 s without a filler or pause, to 0:10",
+  const contextOf = (index) => list.children[index].children[0].children[1];
+  const marks = (node) => node.children.filter((child) => child.nodeType !== 3);
+  assert.deepEqual(
+    marks(contextOf(0)).map((mark) => [mark.className, mark.textContent]),
+    [
+      ["tok tok--filler", "so,"],
+      ["tok tok--filler", "um,"],
+      ["tok tok--filler", "basically,"],
+      ["tok tok--filler", "um,"],
+    ],
+  );
+  assert.deepEqual(
+    marks(contextOf(3)).map((mark) => [mark.className, mark.textContent]),
+    [["tok--pause num", "1.5 s"]],
+  );
+  assert.deepEqual(
+    marks(contextOf(5)).map((mark) => mark.className),
+    Array(5).fill("tok tok--restart"),
+  );
+  const plain = contextOf(3).children.filter((child) => child.nodeType === 3);
+  assert.equal(plain.map((node) => node.textContent).join(""), "…I play piano,  um, and I,…");
+  assert.equal(fullText(contextOf(3)), "…I play piano, 1.5 s um, and I,…");
+  assert.equal(marks(contextOf(1)).length, 0, "the clean stretch's line is plain text");
+});
+
+test("the rail is an SVG as tall as the stack: the line, each elbow, each mark", async () => {
+  const body = await showSession(CLIP_SESSION);
+  const rail = railOf(body);
+  assert.equal(rail.namespaceURI, SVG_NS);
+  assert.equal(rail.getAttribute("aria-hidden"), "true");
+  assert.equal(rail.getAttribute("width"), "56");
+  assert.equal(rail.getAttribute("height"), "1072");
+  assert.equal(rail.getAttribute("viewBox"), "0 0 56 1072");
+  const names = rail.children.map((node) => node.tagName + "." + node.getAttribute("class"));
+  const kinds = [
+    "filler",
+    "clean",
+    "filler",
+    "pause",
+    "filler",
+    "restart",
+    "pause",
+    "filler",
+    "pause",
+    "filler",
+  ];
+  const markTags = { filler: "circle", clean: "rect", pause: "rect", restart: "rect" };
+  assert.deepEqual(names, [
+    "line.speech-map__line",
+    ...kinds.map((kind) => "path.speech-map__elbow speech-map__elbow--" + kind),
+    ...kinds.map((kind) => markTags[kind] + ".speech-map__mark speech-map__mark--" + kind),
+  ]);
+  rail.children.forEach((node) => {
+    assert.equal(node.namespaceURI, SVG_NS);
+    for (const name of ["fill", "stroke"]) {
+      const value = node.getAttribute(name);
+      assert.ok(value === null || value === "none" || /^var\(--[a-z-]+\)$/.test(value), value);
+    }
+  });
+  const line = rail.children[0];
+  assert.deepEqual(
+    ["x1", "y1", "x2", "y2", "stroke", "stroke-width"].map((name) => line.getAttribute(name)),
+    ["24", "0", "24", "1072", "var(--border)", "2"],
   );
 });
 
-test("the sample take's map: label, rows and the rail's end", async () => {
+test("an elbow runs from the second to a lane, down it to the card, then across", async () => {
+  const rail = railOf(await showSession(CLIP_SESSION));
+  const elbows = rail.children.filter((node) => node.tagName === "path");
+  assert.deepEqual(
+    elbows.map((path) => path.getAttribute("d")),
+    [
+      "M24 15.1 H40 V50 H56",
+      "M24 143.9 H40 V158 H56",
+      "M24 314.4 H40 V266 H56",
+      "M24 460.6 H40 V374 H56",
+      "M24 513.7 H40 V482 H56",
+      "M24 528.2 H40 V590 H56",
+      "M24 539.9 H40 V698 H56",
+      "M24 625.7 H40 V806 H56",
+      "M24 667 H40 V914 H56",
+      "M24 861 H40 V1022 H56",
+    ],
+  );
+  elbows.forEach((path) => {
+    assert.equal(path.getAttribute("fill"), "none");
+    assert.equal(path.getAttribute("stroke-width"), "2");
+  });
+  assert.deepEqual(
+    elbows.map((path) => path.getAttribute("stroke")),
+    [
+      "var(--filler)",
+      "var(--ok)",
+      "var(--filler)",
+      "var(--pause)",
+      "var(--filler)",
+      "var(--pause)",
+      "var(--pause)",
+      "var(--filler)",
+      "var(--pause)",
+      "var(--filler)",
+    ],
+  );
+});
+
+test("marks: a filler's dot, a restart's diamond, a block as long as a pause or run", async () => {
+  const rail = railOf(await showSession(CLIP_SESSION));
+  const marks = rail.children.filter((node) => /speech-map__mark/.test(node.getAttribute("class")));
+  const [dot, clean, , pause, , restart] = marks;
+  assert.deepEqual(
+    ["cx", "cy", "r", "fill"].map((name) => dot.getAttribute(name)),
+    ["24", "15.1", "5", "var(--filler)"],
+  );
+  assert.deepEqual(
+    ["x", "y", "width", "height", "rx", "fill", "stroke", "stroke-width"].map((name) =>
+      clean.getAttribute(name),
+    ),
+    ["19", "143.9", "10", "170.5", "5", "var(--ok-bg)", "var(--ok)", "2"],
+  );
+  assert.deepEqual(
+    ["x", "y", "width", "height", "fill"].map((name) => pause.getAttribute(name)),
+    ["19", "460.6", "10", "53.1", "var(--pause)"],
+  );
+  assert.deepEqual(
+    ["x", "y", "width", "height", "transform", "fill"].map((name) => restart.getAttribute(name)),
+    ["19", "523.2", "10", "10", "rotate(45 24 528.2)", "var(--pause)"],
+  );
+});
+
+test("a long pause's block, elbow and card take the long-pause colour", async () => {
+  // Six seconds of silence after "win.", then the rest of the sentence.
+  const words = timed("We win. The plan works today.").map((word, index) =>
+    index < 2 ? word : { ...word, start: word.start + 6, end: word.end + 6 },
+  );
+  const session = { ...CLIP_SESSION, transcript: words, metrics: { pauses: [[words[1].end, 6]] } };
+  const body = await showSession(session);
+  const rail = railOf(body);
+  const block = rail.children.find(
+    (node) => node.getAttribute("class") === "speech-map__mark speech-map__mark--long-pause",
+  );
+  assert.equal(block.getAttribute("fill"), "var(--pause-long)");
+  const elbow = rail.children.find(
+    (node) => node.getAttribute("class") === "speech-map__elbow speech-map__elbow--long-pause",
+  );
+  assert.equal(elbow.getAttribute("stroke"), "var(--pause-long)");
+  const [row] = momentsOf(body).children;
+  assert.deepEqual(cardShape(row), [
+    "long-pause",
+    "0:00 Long pause · 6.0 s",
+    "We win. 6.0 s The plan works…",
+    "pause-0",
+  ]);
+  const mark = row.children[0].children[1].children.find((child) => child.nodeType !== 3);
+  assert.equal(mark.className, "tok--pause tok--pause-long num");
+});
+
+test("Show in transcript scrolls to the mark, flashes it, focuses it and says so", async () => {
+  const mark = new FakeElement("span");
+  mark.className = "tok tok--filler";
+  const calls = [];
+  mark.scrollIntoView = (options) => calls.push(["scroll", options]);
+  mark.focus = (options) => calls.push(["focus", options]);
+  const said = [];
+  const body = await showSession(CLIP_SESSION, { "word-16": mark }, said);
+  const button = momentsOf(body).children[2].children[0].children[2];
+  assert.equal(button.getAttribute("data-target"), "word-16");
+  button.click();
+  assert.deepEqual(plain(calls), [
+    ["scroll", { block: "center", behavior: "smooth" }],
+    ["focus", { preventScroll: true }],
+  ]);
+  assert.equal(mark.getAttribute("tabindex"), "-1");
+  assert.ok(mark.classList.contains("tok--shown"), "the flash is on");
+  assert.deepEqual(said, ["Shown in transcript."]);
+  await new Promise((resolve) => setTimeout(resolve, 1600));
+  assert.ok(!mark.classList.contains("tok--shown"), "and off again after 1.5 s");
+});
+
+test("Show in transcript does nothing when the document has no such mark", async () => {
+  const said = [];
+  const body = await showSession(CLIP_SESSION, {}, said);
+  const button = momentsOf(body).children[0].children[0].children[2];
+  assert.doesNotThrow(() => button.click());
+  assert.deepEqual(said, []);
+});
+
+test("the transcript's words and pause markers carry the ids the cards point at", async () => {
+  const body = await showSession(CLIP_SESSION);
+  const spans = byClass(body, "transcript").children.filter((node) => node.tagName === "span");
+  const ids = spans.map((span) => span.getAttribute("id"));
+  assert.equal(ids[0], "word-0");
+  assert.equal(spans[1].textContent, "so,");
+  assert.equal(ids[1], "word-1");
+  const pauses = spans.filter((span) => span.classList.contains("tok--pause"));
+  assert.deepEqual(
+    pauses.map((span) => span.getAttribute("id")),
+    ["pause-0", "pause-1", "pause-2"],
+  );
+  const words = spans.filter((span) => span.classList.contains("tok"));
+  assert.deepEqual(
+    words.map((span) => span.getAttribute("id")),
+    words.map((_, index) => "word-" + index),
+    "every word, marked or plain, in order",
+  );
+  const targets = momentsOf(body).children.map(
+    (row) => row.children[0].children[2].getAttribute("data-target"),
+  );
+  targets.forEach((target) => assert.ok(ids.includes(target), target + " exists"));
+});
+
+test("the sample take's map: label, cards and the rail's height", async () => {
   const body = await showSession(SAMPLE_SESSION);
   const list = momentsOf(body);
   assert.equal(
@@ -481,16 +795,25 @@ test("the sample take's map: label, rows and the rail's end", async () => {
     "Speech map from 0:01 to 0:30: 5 fillers, no mid-sentence pauses, " +
       "a 13.8 second clean stretch",
   );
-  const rail = (gap, height) => "margin-top:" + gap + "px;min-height:" + height + "px";
-  assert.deepEqual(list.children.map(rowShape), [
-    ["clean", "0:01", "Clean stretch", "13.8 s without a filler or pause, to 0:15", rail(0, 110)],
-    ["filler", "0:15", "3 fillers", "“um”, “like”, “you know”", rail(0, 0)],
-    ["filler", "0:23", "2 fillers", "“uh”, “uh”", rail(52, 0)],
+  assert.deepEqual(list.children.map(cardShape), [
+    ["clean", "0:01 to 0:15 Clean stretch · 13.8 s", CLEAN_LINE, "word-0"],
+    [
+      "filler",
+      "0:15 3 fillers",
+      "…the beans coarsely. Um, like, you know, fine powder makes…",
+      "word-30",
+    ],
+    [
+      "filler",
+      "0:23 2 fillers",
+      "…wait four minutes, uh, exactly. So why does this work? Uh the metal filter…",
+      "word-52",
+    ],
   ]);
+  assert.equal(railOf(body).getAttribute("height"), "316");
   const [start, , end] = stageOf(body).children;
-  assert.equal(start.children[0].textContent, "0:01");
-  assert.equal(end.children[0].textContent, "0:30");
-  assert.equal(end.getAttribute("style"), "margin-top:27px;min-height:0px");
+  assert.equal(fullText(start), "0:01 · First word");
+  assert.equal(fullText(end), "0:30 · Last word");
 });
 
 // Back-to-back words, each `seconds` long; "um" at the indexes in `umAt`.
@@ -525,13 +848,11 @@ test("the label counts in words and picks a or an for the clean stretch", async 
   );
 });
 
-test("a take with no moments at all still has its edges and an empty list", async () => {
-  const words = [{ text: "um", start: 1, end: 1.4 }];
-  const body = await showSession({ ...steady(1, 0.4), transcript: words });
-  const list = momentsOf(body);
-  assert.equal(list.children.length, 1, "the one um is a row");
-  const quiet = { ...steady(2, 0.5), transcript: [] };
-  assert.equal(byClass(await showSession(quiet), "speech-map"), undefined);
+test("a take that is one um still has one card and a rail one card tall", async () => {
+  const um = [{ text: "um", start: 1, end: 1.4 }];
+  const body = await showSession({ ...steady(1, 0.4), transcript: um });
+  assert.equal(momentsOf(body).children.length, 1);
+  assert.equal(railOf(body).getAttribute("height"), "100");
 });
 
 // Every declaration styles.css gives this selector outside @-rules, later rules winning.
@@ -555,57 +876,29 @@ function rule(selector) {
   return declarations;
 }
 
-test("every row is a grid on the same three columns: clock, rail, card", () => {
-  const columns = "calc(var(--s-6) + var(--s-2)) var(--s-3) minmax(0, 1fr)";
-  for (const selector of [".speech-map__edge", ".moment"]) {
-    const row = rule(selector);
-    assert.equal(row.display, "grid");
-    assert.equal(row["grid-template-columns"], columns);
-    assert.equal(row["column-gap"], "var(--s-2)");
-    assert.equal(row["align-items"], "start");
-  }
-  assert.equal(rule(".moment")["padding-top"], "var(--s-2)", "rows never touch");
+test("every card is 100px tall with --s-2 between two, so the rail matches the stack", () => {
+  assert.equal(rule(".moment").height, "calc(var(--s-7) * 2 + var(--s-1))", "48 * 2 + 4");
+  assert.equal(rule(".moment + .moment")["margin-top"], "var(--s-2)");
+  const card = rule(".moment__card");
+  assert.equal(card.height, "100%");
+  assert.equal(card.display, "grid");
+  assert.equal(card["grid-template-rows"], "auto minmax(0, 1fr) auto");
   const list = rule(".speech-map__moments");
   assert.equal(list["list-style"], "none");
-  assert.equal(list.padding, "0");
-});
-
-test("the rail is a 2px --border line through the rail column, behind the marks", () => {
-  const rail = rule(".speech-map__stage::before");
+  assert.equal(list.margin, "0 0 0 calc(var(--s-7) + var(--s-2))", "past the 56px rail");
+  const rail = rule(".speech-map__rail");
   assert.equal(rail.position, "absolute");
-  assert.equal(rail.width, "2px");
-  assert.equal(rail.background, "var(--border)");
-  assert.equal(rail.left, "calc(var(--s-6) + var(--s-2) + var(--s-2) + var(--s-3) / 2 - 1px)");
-  assert.equal(rule(".speech-map__stage").position, "relative");
-  assert.equal(rule(".moment__mark").position, "relative");
-  assert.equal(rule(".moment__mark")["align-self"], "stretch");
+  assert.equal(rail.top, "0");
+  assert.equal(rail.left, "0");
+  assert.equal(rule(".speech-map__body").position, "relative");
 });
 
-test("marks keep the colours' meanings: amber filler, violet pause, pink freeze, green run", () => {
-  assert.equal(rule(".moment--filler .moment__mark::before").background, "var(--filler)");
-  assert.equal(rule(".moment--pause .moment__mark::before").background, "var(--pause)");
-  assert.equal(rule(".moment--long-pause .moment__mark::before").background, "var(--pause-long)");
-  const clean = rule(".moment--clean .moment__mark::before");
-  assert.equal(clean.background, "var(--ok-bg)");
-  assert.equal(clean.border, "2px solid var(--ok)");
-  assert.equal(rule(".moment--restart .moment__mark::before").background, "var(--pause)");
-  const point = rule(".moment__mark::before");
-  assert.equal(point.width, "var(--s-3)");
-  assert.equal(point.height, "var(--s-3)");
-  assert.equal(point["border-radius"], "50%");
-  // A span moment's block runs to the row's end, as long as the moment holds the rail.
-  const span = rule(".moment--pause .moment__mark::before");
-  assert.equal(span.bottom, "0");
-  assert.equal(span.height, "auto");
-});
-
-test("the card carries its moment's colour on its edge and its kind, the detail in text", () => {
+test("the card carries its moment's colour on its edge and its kind; the context clamps", () => {
   const card = rule(".moment__card");
   assert.equal(card.background, "var(--surface)");
   assert.equal(card.border, "1px solid var(--border)");
   assert.equal(card["border-left-width"], "4px");
   assert.equal(card["border-radius"], "var(--r-card)");
-  assert.equal(card["overflow-wrap"], "anywhere");
   for (const [kind, token] of [
     ["filler", "--filler"],
     ["pause", "--pause"],
@@ -616,23 +909,42 @@ test("the card carries its moment's colour on its edge and its kind, the detail 
     assert.equal(rule(`.moment--${kind} .moment__card`)["border-left-color"], `var(${token})`);
     assert.equal(rule(`.moment--${kind} .moment__kind`).color, `var(${token})`);
   }
-  const kind = rule(".moment__kind");
-  assert.equal(kind["font-size"], "var(--fs-micro)");
-  assert.equal(kind["font-weight"], "600");
-  const detail = rule(".moment__detail");
-  assert.equal(detail["font-size"], "var(--fs-small)");
-  assert.equal(detail.margin, "var(--s-1) 0 0");
+  const head = rule(".moment__head");
+  assert.equal(head["font-size"], "var(--fs-micro)");
+  assert.equal(head["white-space"], "nowrap");
+  assert.equal(rule(".moment__time").color, "var(--muted)");
+  const context = rule(".moment__context");
+  assert.equal(context["font-size"], "var(--fs-small)");
+  assert.equal(context["-webkit-line-clamp"], "2");
+  assert.equal(context.overflow, "hidden");
+  assert.equal(context["overflow-wrap"], "anywhere");
 });
 
-test("clocks and edge words are micro, muted and tabular, right-aligned on the rail", () => {
-  const time = rule(".moment__time");
-  assert.equal(time["font-size"], "var(--fs-micro)");
-  assert.equal(time.color, "var(--muted)");
-  assert.equal(time["text-align"], "right");
-  assert.equal(time["white-space"], "nowrap");
-  assert.equal(rule(".speech-map__edge-text")["font-size"], "var(--fs-micro)");
-  assert.equal(rule(".speech-map__edge-text").color, "var(--muted)");
-  assert.equal(rule(".speech-map__dot")["border-radius"], "50%");
-  assert.equal(rule(".speech-map__dot").border, "2px solid var(--muted)");
+test("Show in transcript is a 44px quiet control; the flash respects reduced motion", () => {
+  const show = rule(".moment__show");
+  assert.equal(show["min-height"], "44px");
+  assert.equal(show.padding, "var(--s-3) 0");
+  assert.equal(show.margin, "calc(-1 * var(--s-3)) 0");
+  assert.equal(show.color, "var(--accent)");
+  assert.equal(show.background, "none");
+  const shown = rule(".tok--shown");
+  assert.equal(shown.outline, "3px solid var(--accent)");
+  const css = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+  const base = css.match(/\.tok--shown\s*\{([^}]*)\}/)[1];
+  assert.ok(!base.includes("animation"), "no animation outside the motion query");
+  const motion = css.indexOf("@media (prefers-reduced-motion: no-preference)");
+  assert.ok(motion !== -1);
+  const block = css.slice(motion, css.indexOf("@keyframes tok-shown"));
+  assert.match(block, /\.tok--shown\s*\{\s*animation: tok-shown 1\.5s ease-in-out;\s*\}/);
+});
+
+test("the caps are micro, muted rings on the rail's x", () => {
+  const cap = rule(".speech-map__cap");
+  assert.equal(cap["font-size"], "var(--fs-micro)");
+  assert.equal(cap.color, "var(--muted)");
+  assert.equal(cap["padding-left"], "calc(var(--s-5) - var(--s-3) / 2)", "centred on 24px");
+  const ring = rule(".speech-map__ring");
+  assert.equal(ring["border-radius"], "50%");
+  assert.equal(ring.border, "2px solid var(--muted)");
   assert.equal(rule("#screen-results")["font-variant-numeric"], "tabular-nums");
 });

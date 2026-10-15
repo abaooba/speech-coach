@@ -119,20 +119,33 @@ function restartWords(body) {
     .map((span) => span.textContent);
 }
 
-// The speech map's list of moment rows and its label.
+// The speech map's list of moment cards and its label.
 function mapOf(body) {
   const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
-  return byClass(stage, "speech-map__moments");
+  return byClass(byClass(stage, "speech-map__body"), "speech-map__moments");
 }
 
 function restartRows(body) {
   return mapOf(body).children.filter((row) => row.classList.contains("moment--restart"));
 }
 
-// [clock, kind, detail] for one map row.
+// [clock, kind, context] for one card, the marked words of the context in brackets.
 function rowText(row) {
-  const [time, , card] = row.children;
-  return [time.textContent, ...card.children.map((part) => part.textContent)];
+  const [head, context] = row.children[0].children;
+  const words = context.children.map((node) =>
+    node.nodeType === 3 ? node.textContent : "[" + node.textContent + "]",
+  );
+  return [...head.children.map((part) => part.textContent), words.join("")];
+}
+
+// The restart marks on the rail SVG.
+function restartMarks(body) {
+  const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
+  const mapBody = byClass(stage, "speech-map__body");
+  const rail = mapBody.children.find((node) => node.getAttribute("class") === "speech-map__rail");
+  return rail.children.filter(
+    (node) => node.getAttribute("class") === "speech-map__mark speech-map__mark--restart",
+  );
 }
 
 function cssRule(selector) {
@@ -168,7 +181,7 @@ test("one repeat: its second copy's words carry tok--restart and a restart label
   assert.equal(spans[0].getAttribute("aria-label"), null, "the first copy is a plain word");
 });
 
-test("one repeat: a Restart row on the map at the repeat's at, with both copies", async () => {
+test("one repeat: a Restart card at the repeat's at, with both copies marked", async () => {
   const words = spoken("So today, we need, uh, we need a plan that works today.");
   const body = await showSession(sessionWith(words, [{ text: "we need", at: 1 }]));
   const rows = restartRows(body);
@@ -176,20 +189,25 @@ test("one repeat: a Restart row on the map at the repeat's at, with both copies"
   const [row] = rows;
   assert.equal(row.tagName, "li");
   assert.equal(row.className, "moment moment--restart");
-  assert.deepEqual(rowText(row), ["0:01", "Restart", "“we need, uh, we need”"]);
-  // The take runs from 0 to 5.75 s at 8 px a second: 1 s of rail above, none held.
-  assert.equal(row.getAttribute("style"), "margin-top:8px;min-height:0px");
-  assert.equal(row.children[1].className, "moment__mark");
-  assert.equal(row.children[1].getAttribute("aria-hidden"), "true");
+  assert.deepEqual(rowText(row), [
+    "0:01",
+    "Restart",
+    "So today, [we] [need,] [uh,] [we] [need] a plan…",
+  ]);
   assert.equal(mapOf(body).children[0], row, "first on the map: nothing comes before 0:01");
+  const button = row.children[0].children[2];
+  assert.equal(button.getAttribute("data-target"), "word-5", "the second copy's first word");
+  // The take runs 0 to 5.75 s over a 316px rail: 1 s in is 55 px, where the diamond sits.
+  const [diamond] = restartMarks(body);
+  assert.equal(diamond.tagName, "rect");
+  assert.equal(diamond.getAttribute("fill"), "var(--pause)");
+  assert.equal(diamond.getAttribute("transform"), "rotate(45 24 55)", "a diamond, not a dot");
+  assert.equal(diamond.getAttribute("width"), "10");
 });
 
-test("the restart row takes the pause colour: a diamond mark, the card's edge and its kind", () => {
-  const mark = cssRule(".moment--restart .moment__mark::before");
-  assert.ok(mark, ".moment--restart .moment__mark::before has a rule");
-  assert.match(mark, /background:\s*var\(--pause\)/);
-  assert.match(mark, /transform:\s*rotate\(45deg\)/, "a diamond, not a filler's dot");
+test("the restart card takes the pause colour on its edge and its kind", () => {
   assert.match(cssRule(".moment--restart .moment__kind"), /color:\s*var\(--pause\)/);
+  assert.match(cssRule(".moment--restart .moment__card"), /border-left-color:\s*var\(--pause\)/);
 });
 
 test("the transcript legend sentence adds a Restart entry when a restart is shown", async () => {
@@ -205,6 +223,7 @@ test("a take without repeats gets no restart class, row, count or legend entry",
   const body = await showSession(sessionWith(ONE_REPEAT_WORDS, []));
   assert.deepEqual(restartWords(body), []);
   assert.deepEqual(restartRows(body), []);
+  assert.deepEqual(restartMarks(body), []);
   assert.ok(!mapOf(body).children.map(rowText).some((text) => text.includes("Restart")));
   assert.ok(!byClass(body, "transcript__legend").textContent.includes("restart"));
   assert.ok(!mapOf(body).getAttribute("aria-label").includes("restart"));
@@ -222,7 +241,12 @@ test("the real uniforms take: the second 'the few decisions a' is underlined", a
     "the first copy and the abandoned 'day—' stay plain",
   );
   assert.deepEqual(restartRows(body).map(rowText), [
-    ["0:33", "Restart", "“the few decisions a day— uh, the few decisions a”"],
+    [
+      "0:33",
+      "Restart",
+      "…one of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a] " +
+        "student makes…",
+    ],
   ]);
 });
 
@@ -233,7 +257,11 @@ test("the real nervous take: a cut-off restart marks the words said after the cu
   const ner = spans.find((span) => span.textContent === "ner—");
   assert.equal(ner.className, "tok", "the cut-off fragment is the first copy");
   assert.deepEqual(restartRows(body).map(rowText), [
-    ["0:27", "Restart", "“I kinda ner— I'm kinda nervous”"],
+    [
+      "0:27",
+      "Restart",
+      "…first time. [I] [kinda] [ner—] [I'm] [kinda] [nervous] though for…",
+    ],
   ]);
 });
 
@@ -260,8 +288,8 @@ test("a phrase started three times marks each copy after the first", async () =>
   );
   assert.equal(spans[2].className, "tok", "a dash on its own is not part of either copy");
   assert.deepEqual(restartRows(body).map(rowText), [
-    ["0:00", "Restart", "“the few — the few”"],
-    ["0:01", "Restart", "“the few — the few”"],
+    ["0:00", "Restart", "[the] [few] [—] [the] [few] — the…"],
+    ["0:01", "Restart", "…few — [the] [few] [—] [the] [few] decisions a…"],
   ]);
 });
 
@@ -301,7 +329,7 @@ test("a repeat with no second copy in the words gets its row but marks no word",
   const words = spoken("We need a plan that works today and every day.");
   const body = await showSession(sessionWith(words, [{ text: "We need", at: 0 }]));
   assert.deepEqual(restartWords(body), []);
-  assert.deepEqual(restartRows(body).map(rowText), [["0:00", "Restart", "“We need”"]]);
+  assert.deepEqual(restartRows(body).map(rowText), [["0:00", "Restart", "[We] need a…"]]);
   assert.ok(!byClass(body, "transcript__legend").textContent.includes("restart"));
 });
 
@@ -320,7 +348,7 @@ test("a take saved without words still lists its restarts, with no words to mark
   assert.deepEqual(plain(report.restarts), [{ at: 0, text: "We need", secondCopy: [] }]);
 });
 
-test("styles: a dotted --pause underline on restart words and a --pause mark on the map", () => {
+test("styles: a dotted --pause underline on restart words, in the transcript and the cards", () => {
   const word = cssRule(".tok--restart");
   assert.ok(word, ".tok--restart has a rule");
   assert.match(word, /text-decoration:\s*underline dotted var\(--pause\)/);
@@ -329,6 +357,8 @@ test("styles: a dotted --pause underline on restart words and a --pause mark on 
   const edge = cssRule(".moment--restart .moment__card");
   assert.ok(edge, ".moment--restart .moment__card has a rule");
   assert.match(edge, /border-left-color:\s*var\(--pause\)/);
+  const resultsSource = SOURCES[2][1];
+  assert.ok(resultsSource.includes('[RESTART_MOMENT]: "tok tok--restart"'), "the card reuses it");
 });
 
 test("DESIGN.md lists the restart style and no longer says repeats are not styled", () => {

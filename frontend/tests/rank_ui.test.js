@@ -141,7 +141,7 @@ function visible(node) {
 
 // The tier spec's parts, in order. `current` is the speaker's tier, lowest first from 0.
 const TIER_LINE = ["rank-card__tier", "sr-only"];
-const RATING_LINE = ["rank-card__rating", "sr-only", "sr-only"];
+const RATING_LINE = ["rank-card__rating", "rank-card__rating-label", "sr-only"];
 const NEXT_LINE = ["rank-card__next", "sr-only", "sr-only"];
 
 function ladderParts(current) {
@@ -644,7 +644,7 @@ test("Progress puts the card first under the h1, a section gap above the switch"
   assert.deepEqual(partsOf(body).slice(0, 3), ["rank-card", "segmented", "progress__title"]);
   const card = body.children[0];
   assert.equal(visible(find(card, "rank-card__tier")), "Elite");
-  assert.equal(visible(find(card, "rank-card__rating")), "80.0");
+  assert.equal(visible(find(card, "rank-card__rating")), "Rating 80.0");
   assert.equal(find(card, "rank-card__change"), null, "no change line on Progress");
   assert.equal(visible(find(card, "rank-card__foot")), "Current streak 3 days, longest 3");
 });
@@ -654,7 +654,7 @@ test("with one rated take Progress puts the card above Need two sessions", async
   assert.deepEqual(partsOf(body), ["rank-card", "state"]);
   const [card, block] = body.children;
   assert.equal(visible(find(card, "rank-card__tier")), "Varsity");
-  assert.equal(visible(find(card, "rank-card__rating")), "64.0");
+  assert.equal(visible(find(card, "rank-card__rating")), "Rating 64.0");
   assert.equal(find(block, "state__title").textContent, "Need two sessions");
   assert.equal(find(block, "state__body").textContent, "Record one more to see a trend.");
 });
@@ -697,7 +697,7 @@ test("a reopened take's card shows the rank as it stood after that take", async 
   const { body } = await showResults(ELITE_TAKES, "day-2");
   const card = find(body, "rank-card");
   assert.equal(visible(find(card, "rank-card__tier")), "Varsity");
-  assert.equal(visible(find(card, "rank-card__rating")), "74.3");
+  assert.equal(visible(find(card, "rank-card__rating")), "Rating 74.3");
   assert.equal(visible(find(card, "rank-card__change")), "Up 10.3");
   assert.ok(find(card, "rank-card__notch"), "same tier, so the notch marks 64.0");
 });

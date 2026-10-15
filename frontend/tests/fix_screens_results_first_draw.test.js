@@ -169,7 +169,7 @@ test("the take is drawn as soon as it is read, before its last take is listed", 
 
   listed.resolve(newestFirst([previous, current]));
   await showing;
-  assert.deepEqual(deltaTexts(body), ["20 faster", "No change", "No change", null]);
+  assert.deepEqual(deltaTexts(body), ["20 faster", "No change", "No change", "Not compared"]);
   const grid = byClass(body, "stat-strip");
   assert.equal(body.children[body.children.indexOf(grid) + 1].className, "stat-strip__note");
   assert.equal(paceOf(body), "140");

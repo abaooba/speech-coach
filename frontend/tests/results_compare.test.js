@@ -231,18 +231,23 @@ test("each comparable card ends with its delta line, read as a full sentence", a
       "sr-only: than your last take",
       "triangle-up",
     ],
-    null,
+    [
+      "stat__delta stat__delta--none",
+      "Not compared",
+      "sr-only: with your last take",
+      "dash",
+    ],
   ]);
   const cards = byClass(body, "stat-strip").children;
   cards.forEach((card) => {
     const last = card.children[card.children.length - 1];
-    if (byClass(card, "stat__delta")) {
-      assert.equal(last.className.split(" ")[0], "stat__delta", "the delta comes last");
-    }
+    assert.equal(last.className.split(" ")[0], "stat__delta", "the delta comes last");
+    assert.deepEqual(
+      card.children.map((part) => part.className.split(" ")[0]),
+      ["stat__label", "stat__value", "stat__hint", "stat__delta"],
+      "every cell has the same four rows",
+    );
   });
-  for (const card of cards.slice(2)) {
-    assert.equal(byClass(card, "stat__hint"), undefined, "a delta is never a hint");
-  }
 });
 
 test("No change reads from your last take and draws a dash", async () => {

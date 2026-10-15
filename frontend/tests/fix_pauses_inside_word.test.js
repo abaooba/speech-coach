@@ -252,7 +252,8 @@ function pauseCard(body) {
 // How many speech-map rows carry the modifier (moment--pause, moment--long-pause).
 function mapRows(body, modifier) {
   const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
-  return byClass(stage, "speech-map__moments").children.filter((row) =>
+  const list = byClass(byClass(stage, "speech-map__body"), "speech-map__moments");
+  return list.children.filter((row) =>
     row.classList.contains(modifier),
   ).length;
 }

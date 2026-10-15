@@ -1,9 +1,9 @@
 // Tests that the speech map shows the restarts (Phase 1 loose end after T29). Each restart is a
-// row at the start of its abandoned first copy, "Restart" over the words from that copy through
-// the second ("the few decisions a day— uh, the few decisions a"); the list's label counts them
-// ("1 restart", after the pauses) and the rows sit among the other moments in time order. A
-// take without restarts reads as before. Checked on the owner's real 2026-10-11 uniforms take
-// and on a made-up take with two restarts.
+// card at the start of its abandoned first copy, "Restart" after its clock, the words from that
+// copy through the second marked in the context ("the few decisions a day— uh, the few decisions
+// a"); the list's label counts them ("1 restart", after the pauses) and the cards sit among the
+// other moments in time order. A take without restarts reads as before. Checked on the owner's
+// real 2026-10-11 uniforms take and on a made-up take with two restarts.
 "use strict";
 
 const test = require("node:test");
@@ -65,19 +65,25 @@ async function showMap(session) {
   root.appendChild(body);
   context.app.screens.results.mount(root);
   await context.app.screens.results.show({ id: session.id });
-  return byClass(byClass(byClass(body, "speech-map"), "speech-map__stage"), "speech-map__moments");
+  const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
+  return byClass(byClass(stage, "speech-map__body"), "speech-map__moments");
 }
 
 function mapLabel(list) {
   return list.getAttribute("aria-label");
 }
 
-// Each row as its clock, its kind and its detail, joined by spaces: "0:33 Restart “the few
-// decisions a day— uh, the few decisions a”".
+// Each card as its clock, its kind and its context, the marked words in brackets: "0:33
+// Restart …one of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] [decisions] [a]
+// student makes…".
 function rows(list) {
   return list.children.map((row) => {
-    const [time, , card] = row.children;
-    return [time.textContent, ...card.children.map((part) => part.textContent)].join(" ");
+    const [head, context] = row.children[0].children;
+    const words = context.children.map((node) =>
+      node.nodeType === 3 ? node.textContent : "[" + node.textContent + "]",
+    );
+    const text = (context.textContent || "") + words.join("");
+    return [...head.children.map((part) => part.textContent), text].join(" ");
   });
 }
 
@@ -86,7 +92,10 @@ test("the uniforms take: a Restart row where the first copy began, with both cop
   const restarts = list.children.filter((row) => row.classList.contains("moment--restart"));
   assert.equal(restarts.length, 1);
   assert.ok(
-    rows(list).includes("0:33 Restart “the few decisions a day— uh, the few decisions a”"),
+    rows(list).includes(
+      "0:33 Restart …one of [the] [few] [decisions] [a] [day—] [uh,] [the] [few] " +
+        "[decisions] [a] student makes…",
+    ),
     rows(list).join(" | "),
   );
 });
@@ -104,11 +113,11 @@ test("restarts sit among the other moments in time order", async () => {
   ];
   const list = await showMap(sessionWith(words, repeats));
   assert.deepEqual(rows(list), [
-    "0:00 Restart “We need, uh, we need”",
-    "0:01 Filler “uh”",
-    "0:01 Clean stretch 2 s without a filler or pause, to 0:03",
-    "0:03 Restart “The plan, um, the plan”",
-    "0:04 Filler “um”",
+    "0:00 Restart [We] [need,] [uh,] [we] [need] a plan.…",
+    "0:01 Filler We need, [uh,] we need a…",
+    "0:01 to 0:03 Clean stretch · 2 s Without a filler, pause or restart.",
+    "0:03 Restart …a plan. [The] [plan,] [um,] [the] [plan] works today.",
+    "0:04 Filler …plan. The plan, [um,] the plan works…",
   ]);
   assert.deepEqual(
     list.children.map((row) => row.className),

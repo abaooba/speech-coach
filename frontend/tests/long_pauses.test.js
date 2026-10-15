@@ -308,34 +308,45 @@ test("timelineSegments includes the long pause after a period and flags it", () 
   );
 });
 
-// The speech map's rows: [kind, clock, label, detail] each.
-function mapRows(body) {
+// The speech map's cards: [kind, clock, label, context (marks in brackets)] each.
+function mapBody(body) {
   const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
-  return byClass(stage, "speech-map__moments").children.map((row) => [
-    row.className.replace("moment moment--", ""),
-    row.children[0].textContent,
-    ...row.children[2].children.map((part) => part.textContent),
-  ]);
+  return byClass(stage, "speech-map__body");
+}
+
+function mapRows(body) {
+  return byClass(mapBody(body), "speech-map__moments").children.map((row) => {
+    const [head, context] = row.children[0].children;
+    const words = context.children.map((node) =>
+      node.nodeType === 3 ? node.textContent : "[" + node.textContent + "]",
+    );
+    return [
+      row.className.replace("moment moment--", ""),
+      ...head.children.map((part) => part.textContent),
+      (context.textContent || "") + words.join(""),
+    ];
+  });
 }
 
 function mapLabel(body) {
-  const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
-  return byClass(stage, "speech-map__moments").getAttribute("aria-label");
+  return byClass(mapBody(body), "speech-map__moments").getAttribute("aria-label");
 }
 
-test("the map draws a long pause as its own row, named and as long as the pause", async () => {
+function railMarks(body) {
+  const rail = mapBody(body).children.find(
+    (node) => node.getAttribute("class") === "speech-map__rail",
+  );
+  return rail.children.filter((node) => /speech-map__mark/.test(node.getAttribute("class")));
+}
+
+test("the map draws a long pause as its own card, named, with the words around it", async () => {
   const body = await showSession(longAfterPeriod());
   const rows = mapRows(body);
   assert.ok(!rows.some(([kind]) => kind === "pause"), "not a plain mid-sentence pause");
   assert.deepEqual(rows, [
-    ["long-pause", "0:00", "Long pause", "6.0 s after “win”"],
-    ["clean", "0:06", "Clean stretch", "1.5 s without a filler or pause, to 0:08"],
+    ["long-pause", "0:00", "Long pause · 6.0 s", "We win. [6.0 s] The plan works…"],
+    ["clean", "0:06 to 0:08", "Clean stretch · 1.5 s", "Without a filler, pause or restart."],
   ]);
-  const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
-  const [longRow, cleanRow] = byClass(stage, "speech-map__moments").children;
-  // 8 px a second: the pause holds 48 px of rail, 6 px (0.7 s) under the first word.
-  assert.equal(longRow.getAttribute("style"), "margin-top:6px;min-height:48px");
-  assert.equal(cleanRow.getAttribute("style"), "margin-top:0px;min-height:12px");
   assert.equal(
     mapLabel(body),
     "Speech map from 0:00 to 0:08: no fillers, no mid-sentence pauses, 1 long pause, " +
@@ -343,8 +354,23 @@ test("the map draws a long pause as its own row, named and as long as the pause"
   );
 });
 
-test("the long-pause row's mark, edge and kind take the long-pause colour", () => {
-  assert.equal(rule(".moment--long-pause .moment__mark::before").background, "var(--pause-long)");
+test("the long-pause block on the rail is as long as the pause, in its colour", async () => {
+  const session = longAfterPeriod();
+  const body = await showSession(session);
+  const [block, clean] = railMarks(body);
+  assert.equal(block.getAttribute("class"), "speech-map__mark speech-map__mark--long-pause");
+  assert.equal(block.getAttribute("fill"), "var(--pause-long)");
+  // Two cards make a 208px rail over the take; the pause runs from "win." for 6 s.
+  const words = session.transcript;
+  const start = words[0].start;
+  const seconds = words[words.length - 1].end - start;
+  const at = (time) => String(Math.round(((time - start) / seconds) * 208 * 10) / 10);
+  assert.equal(block.getAttribute("y"), at(words[1].end));
+  assert.equal(
+    Number(block.getAttribute("y")) + Number(block.getAttribute("height")),
+    Number(at(words[1].end + 6)),
+  );
+  assert.equal(clean.getAttribute("y"), at(words[1].end + 6), "the clean stretch starts there");
   assert.equal(rule(".moment--long-pause .moment__card")["border-left-color"], "var(--pause-long)");
   assert.equal(rule(".moment--long-pause .moment__kind").color, "var(--pause-long)");
 });
@@ -466,8 +492,8 @@ test("--pause-long is a token in light and in both identical dark blocks", () =>
   assert.ok(read("DESIGN.md").includes("| `--pause-long` |"));
 });
 
-test("the long-pause mark and transcript marker use the token", () => {
-  assert.equal(rule(".moment--long-pause .moment__mark::before").background, "var(--pause-long)");
+test("the long-pause card and transcript marker use the token", () => {
+  assert.equal(rule(".moment--long-pause .moment__kind").color, "var(--pause-long)");
   const marker = rule(".tok--pause-long");
   assert.equal(marker.color, "var(--pause-long)");
   assert.equal(marker.border, "1px solid var(--pause-long)");

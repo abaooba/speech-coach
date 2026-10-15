@@ -98,8 +98,8 @@ test("on the real clip the cards show pace without ums, breaks and the clean str
   assert.deepEqual(cards.map(hintOf), [
     ["Speed up", "stat__hint stat__hint--warn"],
     ["Aim for under 3", "stat__hint stat__hint--warn"],
-    null,
-    null,
+    ["0 over 5 s", "stat__hint stat__hint--ok"],
+    ["Aim past 15 s", "stat__hint stat__hint--warn"],
   ]);
 });
 

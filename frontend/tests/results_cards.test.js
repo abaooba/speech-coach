@@ -20,7 +20,7 @@ const SOURCES = ["ui.js", "delivery.js", path.join("screens", "results.js")].map
 ]);
 const CSS = fs.readFileSync(path.join(FRONTEND_DIR, "styles.css"), "utf8");
 
-const WIDE_MEDIA = "@media (min-width: 480px)";
+const WIDE_MEDIA = "@media (min-width: 600px)";
 const ZOOMED_MEDIA = "@media (max-width: 239px)";
 
 const SESSION = {
@@ -161,7 +161,7 @@ test("each value line is the number, one space and the unit, with /min for fille
   );
 });
 
-test("the strip is 2 x 2 on a phone, four across from 480px, stacked at 200% zoom", () => {
+test("the strip is 2 x 2 on a phone, four across from 600px, stacked at 200% zoom", () => {
   assert.equal(ruleFor(".stat-strip")["grid-template-columns"], "repeat(2, minmax(0, 1fr))");
   const overrides = RULES.filter(
     (rule) => rule.selector === ".stat-strip" && rule.at !== null,

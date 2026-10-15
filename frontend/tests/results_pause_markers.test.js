@@ -78,7 +78,8 @@ function pauseCard(body) {
 
 function mapPauses(body) {
   const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
-  return byClass(stage, "speech-map__moments").children.filter((row) =>
+  const list = byClass(byClass(stage, "speech-map__body"), "speech-map__moments");
+  return list.children.filter((row) =>
     row.classList.contains("moment--pause"),
   ).length;
 }

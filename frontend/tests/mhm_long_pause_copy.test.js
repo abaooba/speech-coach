@@ -97,7 +97,8 @@ test("on the church take the legend names mhm, and its Mhm is highlighted", asyn
   const body = await showChurchTake();
   assert.equal(
     byClass(body, "transcript__legend").textContent,
-    LEGEND_BASE + " Purple underlined words are restarts.",
+    LEGEND_BASE +
+      " Purple underlined words are restarts. Pink outlined pills are long pauses of 5 s or more.",
   );
   const spans = byClass(body, "transcript").children.filter((node) => node.tagName === "span");
   const mhm = spans.findIndex((span) => span.textContent === "Mhm.");

@@ -242,9 +242,12 @@ test("show({id}) builds the meta line, four metric cards in order and two action
   const fillersHint = byClass(cards[1], "stat__hint");
   assert.equal(fillersHint.textContent, "Aim for under 3");
   assert.ok(fillersHint.classList.contains("stat__hint--warn"));
-  for (const card of cards.slice(2)) {
-    assert.equal(byClass(card, "stat__hint"), undefined, "the last two cards have no hint");
-  }
+  const pausesHint = byClass(cards[2], "stat__hint");
+  assert.equal(pausesHint.textContent, "0 over 5 s", "no pause ran 5 s");
+  assert.ok(pausesHint.classList.contains("stat__hint--ok"));
+  const cleanHint = byClass(cards[3], "stat__hint");
+  assert.equal(cleanHint.textContent, "Aim past 15 s", "no words, so no clean stretch yet");
+  assert.ok(cleanHint.classList.contains("stat__hint--warn"));
 
   const actions = byClass(body, "results__actions");
   assert.deepEqual(

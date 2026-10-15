@@ -147,7 +147,7 @@ test("a real take after a sample compares with the real take before the sample",
   ];
   const body = await showResults(sessions, "b");
   // Against the sample's 146 wpm and 10.5 fillers this would be "6 slower" and "10.5 fewer".
-  assert.deepEqual(deltasOf(body), ["10 faster", "2 fewer", "No change", null]);
+  assert.deepEqual(deltasOf(body), ["10 faster", "2 fewer", "No change", "Not compared"]);
   assert.equal(headlineOf(body)[0], "Fillers are down from 2 to 0 a minute.");
 });
 

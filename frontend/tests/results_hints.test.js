@@ -187,8 +187,27 @@ test("in-target hints keep their words and class and end with the check icon", a
     "stat__hint stat__hint--ok",
     "check",
   ]);
-  assert.equal(hints[2], undefined);
-  assert.equal(hints[3], undefined);
+  assert.deepEqual(hintShape(hints[2]), ["0 over 5 s", "stat__hint stat__hint--ok", "check"]);
+  assert.deepEqual(hintShape(hints[3]), [
+    "Aim past 15 s",
+    "stat__hint stat__hint--warn",
+    "alert",
+  ]);
+});
+
+test("the pauses and clean stretch hints count freezes and the 15 s practice target", async () => {
+  const frozen = session({ pauses: [[9.9, 6], [20, 1.6]] });
+  const hints = hintsOf((await showResults({ s1: frozen }, "s1")).body);
+  assert.deepEqual(hintShape(hints[2]), ["1 over 5 s", "stat__hint stat__hint--warn", "alert"]);
+  // 40 clean words half a second each: a 20 s clean stretch reaches the target.
+  const clean = session({ pauses: [] });
+  clean.transcript = Array.from({ length: 40 }, (_, index) => ({
+    text: "word",
+    start: index * 0.5,
+    end: index * 0.5 + 0.5,
+  }));
+  const cleanHints = hintsOf((await showResults({ s1: clean }, "s1")).body);
+  assert.deepEqual(hintShape(cleanHints[3]), ["Target 15 s", "stat__hint stat__hint--ok", "check"]);
 });
 
 test("a hint icon is its only child: a decorative svg in the SVG namespace", async () => {
@@ -211,19 +230,20 @@ test("a pace band's numbers stay on one line; other hints keep plain spaces", as
   assert.equal(slow[0].textContent, "Slow down");
 });
 
-test("a hint that wraps keeps its icon on the first line", () => {
-  // The icon's box is one line tall (the hint's 1.4 line height), so the 16px drawing centers
-  // on the first line, as the headline's icons do.
+test("a hint is one micro line that never wraps, its icon centred on it", () => {
+  // The icon's box is the hint's one line tall (1.3), so the 16px drawing centers on it, and
+  // the line never wraps, so the four cells share the same rows.
   assert.equal(ruleFor(".stat__hint")["align-items"], "flex-start");
-  assert.equal(ruleFor(".stat__hint")["line-height"], "1.4");
-  assert.equal(ruleFor(".stat__hint svg").height, "1.4em");
+  assert.equal(ruleFor(".stat__hint")["line-height"], "1.3");
+  assert.equal(ruleFor(".stat__hint")["white-space"], "nowrap");
+  assert.equal(ruleFor(".stat__hint svg").height, "1.3em");
 });
 
 test("the hint is a 600-weight flex row whose icon is drawn before the words", () => {
   const hint = ruleFor(".stat__hint");
   assert.equal(hint.display, "flex");
   assert.equal(hint.gap, "var(--s-1)");
-  assert.equal(hint["font-size"], "var(--fs-small)");
+  assert.equal(hint["font-size"], "var(--fs-micro)");
   assert.equal(hint["font-weight"], "600");
   const icon = ruleFor(".stat__hint svg");
   assert.equal(icon.order, "-1");

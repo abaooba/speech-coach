@@ -75,15 +75,18 @@ async function churchMap() {
   context.app.screens.results.mount(root);
   await context.app.screens.results.show({ id: session.id });
   const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
-  const list = byClass(stage, "speech-map__moments");
+  const list = byClass(byClass(stage, "speech-map__body"), "speech-map__moments");
   return {
     kinds: list.children.map((row) => row.className.replace("moment moment--", "")),
     label: list.getAttribute("aria-label"),
-    rows: list.children.map((row) => ({
-      time: row.children[0].textContent,
-      kind: row.children[2].children[0].textContent,
-      detail: row.children[2].children[1].textContent,
-    })),
+    rows: list.children.map((row) => {
+      const [head, context] = row.children[0].children;
+      return {
+        time: head.children[0].textContent,
+        kind: head.children[1].textContent,
+        context: fullText(context),
+      };
+    }),
   };
 }
 
@@ -114,15 +117,13 @@ function designParagraph(name) {
   return line;
 }
 
-const LONG_KIND = "Long pause";
-// A long pause's detail as its card reads it: "5.2 s after “sad”".
-const LONG_DETAIL = /^\d+\.\d s after “[^”]+”$/;
+// A long pause's kind as its card reads it: "Long pause · 5.2 s".
+const LONG_KIND = /^Long pause · \d+\.\d s$/;
 
-// The church take's long-pause row, which the docs quote: the example is read from the screen.
+// The church take's long-pause card, which the docs quote: the example is read from the screen.
 function longRow(map) {
-  const row = map.rows.find((entry) => entry.kind === LONG_KIND);
-  assert.ok(row, "the church map has a long-pause row");
-  assert.match(row.detail, LONG_DETAIL);
+  const row = map.rows.find((entry) => LONG_KIND.test(entry.kind));
+  assert.ok(row, "the church map has a long-pause card");
   return row;
 }
 
@@ -134,8 +135,11 @@ test("on the church take the map draws its freeze as a named, timed long-pause r
     "the 5.19 s freeze after a period is the one pause drawn, as a long pause",
   );
   assert.match(map.label, /, no mid-sentence pauses, 1 long pause, /);
-  const row = map.rows.find((entry) => entry.kind === LONG_KIND);
-  assert.deepEqual(row, { time: "0:35", kind: LONG_KIND, detail: "5.2 s after “sad”" });
+  assert.deepEqual(longRow(map), {
+    time: "0:35",
+    kind: "Long pause · 5.2 s",
+    context: "…would be sad. 5.2 s Mhm. I didn't…",
+  });
 });
 
 test("frontend/README.md's speech map step shows the long pause the map draws", async () => {
@@ -147,12 +151,11 @@ test("frontend/README.md's speech map step shows the long pause the map draws", 
     ),
     "the map's long-pause block",
   );
-  assert.ok(step.includes('its card reads "' + LONG_KIND + '"'), "the row's label");
   assert.ok(step.includes('"1 long pause"'), "the label's count");
   const row = longRow(map);
   assert.ok(
-    step.includes('"' + LONG_KIND + '" with "' + row.detail + '"'),
-    "the step quotes the church take's own long-pause card: " + row.detail,
+    step.includes('its card reads "' + row.kind + '" over "' + row.context + '"'),
+    "the step quotes the church take's own long-pause card: " + row.kind,
   );
 });
 
@@ -163,11 +166,10 @@ test("DESIGN.md's Speech map paragraph draws, names and details the long pause",
   assert.ok(paragraph.includes("`--pause-long`"));
   assert.ok(paragraph.includes("as long as the pause"));
   assert.ok(paragraph.includes('adds "1 long pause" after the mid-sentence count'));
-  assert.ok(paragraph.includes('"' + LONG_KIND + '"'));
   const row = longRow(map);
   assert.ok(
-    paragraph.includes('"' + row.detail + '"'),
-    "the paragraph quotes the church take's own long-pause detail: " + row.detail,
+    paragraph.includes('"' + row.kind + '"') && paragraph.includes('"' + row.context + '"'),
+    "the paragraph quotes the church take's own long-pause card: " + row.kind,
   );
 });
 
@@ -178,8 +180,9 @@ test("DESIGN.md's fixed copy lists the long-pause row with the map's kinds", () 
   assert.ok(results, "DESIGN.md section 8 has the Results copy line");
   assert.ok(
     results.includes(
-      '"Speech map"; "First word", "Last word"; moment kinds "Filler" ("3 fillers"), ' +
-        '"Mid-sentence pause", "' + LONG_KIND + '", "Restart", "Clean stretch";',
+      '"Speech map"; "First word", "Last word"; card kinds "Filler" ("3 fillers"), ' +
+        '"Mid-sentence pause · 1.5 s", "Long pause · 5.2 s", "Restart", ' +
+        '"Clean stretch · 26.5 s";',
     ),
   );
 });

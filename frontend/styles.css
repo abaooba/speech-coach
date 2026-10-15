@@ -1422,153 +1422,91 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--accent);
 }
 
-/* Speech map: the take top to bottom along a rail. Every row (the two edge rows and each
-   moment) is a grid on the same three columns: the clock (40px, right-aligned), the rail
-   (--s-3 wide) and the card. The rail line runs the stage's height behind the rows, through the
-   centre of the rail column; the rows' marks sit over it. Each moment's inline style sets the
-   rail above it (margin-top) and the rail it holds (min-height) in pixels per second
-   (results.js MAP), so the map is proportional where a card is shorter than its moment. */
+/* Speech map: the take's moments as cards stacked in reading order beside a rail that is
+   linear in time. The stage is the first word's cap, the body and the last word's cap. In the
+   body the rail (an SVG results.js sizes to the stack: --s-7 plus --s-2 wide, as tall as the
+   cards) sits at the left and the list of cards to its right; a mark on the rail at each
+   moment's true second is joined to its card by an elbow drawn in the SVG. Every card is the
+   same height (results.js MAP.cardHeight, 100px), with --s-2 between two, so the rail is never
+   longer than the cards and a long take never grows the map past the rest of the screen. */
 .speech-map__heading {
   margin-top: var(--s-5);
 }
 
 .speech-map__stage {
-  position: relative;
   margin-top: var(--s-3);
 }
 
-.speech-map__stage::before {
-  content: "";
-  position: absolute;
-  top: var(--s-2);
-  bottom: var(--s-2);
-  left: calc(var(--s-6) + var(--s-2) + var(--s-2) + var(--s-3) / 2 - 1px);
-  width: 2px;
-  background: var(--border);
-}
-
-.speech-map__edge,
-.moment {
-  position: relative;
-  display: grid;
-  grid-template-columns: calc(var(--s-6) + var(--s-2)) var(--s-3) minmax(0, 1fr);
-  column-gap: var(--s-2);
-  align-items: start;
+/* A cap: a hollow ring centred on the rail's x (--s-5 in) and "0:00 · First word" beside it. */
+.speech-map__cap {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
   margin: 0;
-}
-
-.speech-map__moments {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* The rows never touch: --s-2 of rail at least between one card and the next, the inline gap
-   on top of it. */
-.moment {
-  padding-top: var(--s-2);
-}
-
-.speech-map__edge--end {
-  padding-top: var(--s-2);
-}
-
-/* Clocks and the edge words are micro, muted and tabular, on the line of the card's first row
-   (the card's --s-2 padding plus the kind line's half-leading). */
-.speech-map__time,
-.moment__time {
-  padding-top: calc(var(--s-2) + 1px);
-  font-size: var(--fs-micro);
-  line-height: 1.3;
-  font-weight: 500;
-  color: var(--muted);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.speech-map__edge .speech-map__time {
-  padding-top: 0;
-}
-
-.speech-map__edge-text {
+  padding-left: calc(var(--s-5) - var(--s-3) / 2);
   font-size: var(--fs-micro);
   line-height: 1.3;
   font-weight: 500;
   color: var(--muted);
 }
 
-/* The rail's two ends: a hollow dot on the line. */
-.speech-map__dot {
+.speech-map__cap--start {
+  padding-bottom: var(--s-1);
+}
+
+.speech-map__cap--end {
+  padding-top: var(--s-1);
+}
+
+.speech-map__ring {
+  flex: none;
   width: var(--s-3);
   height: var(--s-3);
-  margin-top: 1px;
   border: 2px solid var(--muted);
   border-radius: 50%;
   background: var(--bg);
 }
 
-/* A mark takes the rail column: a point moment draws a 12px dot (a filler) or diamond (a
-   restart) on the card's first line; a span moment (a pause, the clean stretch) fills its row
-   from the card's top to the row's end, so its block is as long as the moment holds the rail. */
-.moment__mark {
+.speech-map__body {
   position: relative;
-  align-self: stretch;
-  min-height: var(--s-3);
 }
 
-.moment__mark::before {
-  content: "";
+.speech-map__rail {
   position: absolute;
-  top: calc(var(--s-2) + 1px);
+  top: 0;
   left: 0;
-  width: var(--s-3);
-  height: var(--s-3);
-  border-radius: 50%;
+  display: block;
+  overflow: visible;
 }
 
-.moment--filler .moment__mark::before {
-  background: var(--filler);
+/* The cards start past the rail's width, --s-2 between two. */
+.speech-map__moments {
+  list-style: none;
+  margin: 0 0 0 calc(var(--s-7) + var(--s-2));
+  padding: 0;
 }
 
-.moment--restart .moment__mark::before {
-  border-radius: 2px;
-  background: var(--pause);
-  transform: rotate(45deg) scale(0.85);
+.moment {
+  height: calc(var(--s-7) * 2 + var(--s-1));
 }
 
-.moment--pause .moment__mark::before {
-  background: var(--pause);
+.moment + .moment {
+  margin-top: var(--s-2);
 }
 
-.moment--long-pause .moment__mark::before {
-  background: var(--pause-long);
-}
-
-.moment--clean .moment__mark::before {
-  background: var(--ok-bg);
-  border: 2px solid var(--ok);
-}
-
-/* A span moment's block runs from the card's first line to the row's end. */
-.moment--pause .moment__mark::before,
-.moment--long-pause .moment__mark::before,
-.moment--clean .moment__mark::before {
-  bottom: 0;
-  height: auto;
-  border-radius: var(--r-chip);
-}
-
-/* The card: a surface card with its moment's colour on the left edge, the kind in that colour
-   (every pair reads at 4.5:1 or better on --surface, DESIGN.md 4) over the detail in text
-   colour. A long phrase wraps anywhere, so a 320px column never overflows. */
+/* The card: a surface card with its moment's colour on the left edge; three rows, the head,
+   the words (which take the room left and clamp at two lines) and the button at the bottom. */
 .moment__card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  row-gap: var(--s-1);
+  height: 100%;
   min-width: 0;
   padding: var(--s-2) var(--s-3);
   background: var(--surface);
   border: 1px solid var(--border);
   border-left-width: 4px;
   border-radius: var(--r-card);
-  overflow-wrap: anywhere;
 }
 
 .moment--filler .moment__card {
@@ -1588,11 +1526,21 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-left-color: var(--ok);
 }
 
-.moment__kind {
+/* The head: the clock, muted, then the kind in the moment's colour (every pair reads at 4.5:1
+   or better on --surface, DESIGN.md 4). It never wraps. */
+.moment__head {
+  display: flex;
+  gap: var(--s-2);
   margin: 0;
   font-size: var(--fs-micro);
   line-height: 1.3;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.moment__time {
+  font-weight: 500;
+  color: var(--muted);
 }
 
 .moment--filler .moment__kind {
@@ -1612,17 +1560,67 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--ok);
 }
 
-.moment__detail {
-  margin: var(--s-1) 0 0;
+/* The words around the moment, marked as the transcript marks them, at most two lines; a long
+   token wraps anywhere, so a 320px column never overflows. */
+.moment__context {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
   font-size: var(--fs-small);
   line-height: 1.4;
-  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+/* The button: a quiet link-like control on a 44px target whose --s-3 padding is pulled back by
+   equal negative margins, so it takes one small line of the card. */
+.moment__show {
+  justify-self: start;
+  min-height: 44px;
+  margin: calc(-1 * var(--s-3)) 0;
+  padding: var(--s-3) 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* The mark the button scrolled to: an accent ring for a moment (results.js SHOWN_MS), which
+   fades in and out when motion is welcome and simply shows otherwise. */
+.tok--shown {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-tok);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tok--shown {
+    animation: tok-shown 1.5s ease-in-out;
+  }
+
+  @keyframes tok-shown {
+    0%,
+    100% {
+      outline-color: transparent;
+    }
+
+    20%,
+    80% {
+      outline-color: var(--accent);
+    }
+  }
 }
 
 /* The stat strip: the four numbers on one surface band, 2 x 2 on a phone and four across from
-   480px, hairlines between the cells instead of a card each. A cell is a flex column whose
-   value, hint and delta sink to the bottom; min-width 0 lets it shrink below its longest word,
-   so the strip never widens the page. */
+   600px, hairlines between the cells instead of a card each. Every cell has the same rows
+   (label, value, hint, delta), so the four stay level. A cell is a flex column whose value sinks
+   to the bottom; min-width 0 lets it shrink below its longest word, so the strip never widens
+   the page. */
 .stat-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1679,23 +1677,22 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* A hint is words plus an icon in the hint's color; the icon follows the words in the DOM and
-   is drawn first. Two-line hints balance their lines rather than strand the last word. The
-   icon's box is one line tall, so the 16px drawing centers on the first line, as in the
-   headline. */
+   is drawn first. One micro line that never wraps, so the four cells stay level; the icon's box
+   is that line tall, so the 16px drawing centers on it. */
 .stat__hint {
   display: flex;
   align-items: flex-start;
   gap: var(--s-1);
-  font-size: var(--fs-small);
-  line-height: 1.4;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
   font-weight: 600;
-  text-wrap: balance;
+  white-space: nowrap;
 }
 
 .stat__hint svg {
   flex: none;
   order: -1;
-  height: 1.4em;
+  height: 1.3em;
 }
 
 .stat__hint--ok {
@@ -1733,8 +1730,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
-/* From 480px the four stats share one row, a hairline before each cell after the first. */
-@media (min-width: 480px) {
+/* From 600px the four stats share one row, a hairline before each cell after the first; a cell
+   is then at least 112px wide, so the longest hint, "Target 140 to 160", still fits one line. */
+@media (min-width: 600px) {
   .stat-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1990,6 +1988,14 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   scroll-margin-bottom: calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom));
 }
 
+/* A short phone (320 x 568) has little room under the stuck bar: History leaves it, since the
+   nav has History too, and Record again keeps the bar alone. */
+@media (max-height: 600px) {
+  .results__actions .btn--ghost {
+    display: none;
+  }
+}
+
 /* Landscape phones and 200% zoom leave too little height for a stuck bar: with the nav it
    covered two thirds of a 160 x 284 window. There the bar stays in the page at its end, where
    main's bottom padding keeps it clear of the nav (at 200% zoom it wraps onto two rows).
@@ -2008,6 +2014,51 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
   .coach-notes__heading {
     scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+  }
+}
+
+/* A wide window (1024px and up) puts the speech map and the stat strip side by side: the
+   column doubles for Results alone, the body becomes a two-column grid, the meta line and the
+   headline span it, the map takes the left column while the strip, its note and the rank card
+   take the right, and everything after (the transcript, the notes or tips, the action bar)
+   spans both again. Rows 3 to 5 are the two columns' rows: the strip and its note size rows 3
+   and 4, and row 5 takes the rest of the map's height, so the rank card sits right under the
+   note; without a map the left stays empty beside the strip. */
+@media (min-width: 1024px) {
+  main:has(> #screen-results.screen--active) {
+    max-width: calc(var(--col-max) * 2 + var(--s-6));
+  }
+
+  #screen-results > .screen__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    column-gap: var(--s-6);
+    align-items: start;
+  }
+
+  #screen-results > .screen__body > * {
+    grid-column: 1 / -1;
+  }
+
+  #screen-results > .screen__body > .speech-map {
+    grid-column: 1;
+    grid-row: 3 / span 3;
+  }
+
+  #screen-results > .screen__body > .stat-strip {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  #screen-results > .screen__body > .stat-strip__note {
+    grid-column: 2;
+    grid-row: 4;
+  }
+
+  #screen-results > .screen__body > .rank-card {
+    grid-column: 2;
+    grid-row: 5;
   }
 }
 
@@ -3248,6 +3299,17 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   line-height: 1;
   font-weight: 700;
   color: var(--text);
+}
+
+/* The rating's label on its own line above the number, so the rolling rating is never taken
+   for the take's score in the foot. */
+.rank-card__rating-label {
+  display: block;
+  margin-bottom: var(--s-1);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 /* The speaker's tier from floor to ceiling, filled to the rating. */
