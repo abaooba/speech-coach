@@ -82,3 +82,32 @@ def test_main_exit_code_follows_the_checks(capsys) -> None:
     out = capsys.readouterr().out
     assert "PASS health" in out
     assert "FAIL accounts" in out
+
+
+def test_an_html_body_on_health_fails_the_check_without_raising() -> None:
+    def splash(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>Application loading</html>")
+
+    name, ok, detail = smoke.run(BASE, client_for(splash))[0]
+    assert (name, ok) == ("health", False)
+    assert detail == "GET /api/health answered 200 with a non-JSON body"
+
+
+def test_a_health_body_that_is_not_ok_fails_with_an_unexpected_body_detail() -> None:
+    def sleeping(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "sleeping"})
+
+    name, ok, detail = smoke.run(BASE, client_for(sleeping))[0]
+    assert (name, ok) == ("health", False)
+    assert detail == "GET /api/health answered 200 with an unexpected body"
+
+
+def test_an_html_body_on_advice_fails_coach_notes_without_raising() -> None:
+    def splash_on_advice(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/advice":
+            return httpx.Response(200, text="<html>Bad gateway</html>")
+        return healthy_deploy(request)
+
+    name, ok, detail = smoke.run(BASE, client_for(splash_on_advice))[2]
+    assert (name, ok) == ("coach notes", False)
+    assert detail == "POST /api/advice answered 200 with a non-JSON body"

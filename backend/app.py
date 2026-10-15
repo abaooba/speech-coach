@@ -160,12 +160,16 @@ async def analyze(
     if len(script) > MAX_SCRIPT_CHARACTERS:
         raise HTTPException(status_code=400, detail=SCRIPT_TOO_LONG_MESSAGE)
     content_type = audio.content_type or DEFAULT_CONTENT_TYPE
+    provider = None
     try:
         provider = get_provider()
         # Providers block on HTTP; a worker thread keeps the event loop free.
         words = await run_in_threadpool(provider.transcribe, audio_bytes, content_type)
     except (ProviderError, httpx.HTTPError) as exc:
         logger.warning("Transcription failed: %s", exc)
+        # A failed or timed-out job may still have left a transcript at the provider.
+        if provider is not None:
+            await run_in_threadpool(discard_provider_copy, provider)
         raise HTTPException(status_code=502, detail=PROVIDER_FAILED_MESSAGE) from exc
     # The provider's copy is deleted the moment the words are here, before the take is judged:
     # a take refused as too short has a copy to delete too. Off the event loop, as the upload was.
@@ -189,12 +193,18 @@ def discard_provider_copy(provider: object) -> None:
 
     AssemblyAI keeps the transcript and the uploaded audio until asked (its provider's
     delete_last_transcript); Deepgram keeps nothing this code can delete. A provider without the
-    method, the tests' fakes included, is left alone. The call never raises: the provider logs
-    its own failures, and the take is already in hand.
+    method, the tests' fakes included, is left alone. The call never raises: the take is already
+    in hand (or the job already failed), so a delete that goes wrong must not cost the speaker
+    the answer. Only the error's class is logged, because its message can hold the speaker's words.
     """
     delete = getattr(provider, "delete_last_transcript", None)
     if callable(delete):
-        delete()
+        try:
+            delete()
+        except Exception as error:  # noqa: BLE001 - best effort, see the docstring
+            logger.warning(
+                "Could not discard the provider's copy (%s)", type(error).__name__
+            )
 
 
 def advice_client() -> AsyncAnthropic | None:

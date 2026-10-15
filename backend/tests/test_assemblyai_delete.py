@@ -129,7 +129,7 @@ def test_nothing_is_sent_when_there_is_no_transcript_to_delete() -> None:
     assert fake.requests == []
 
 
-def test_a_failed_job_leaves_no_id_to_delete() -> None:
+def test_a_failed_job_keeps_its_id_so_the_route_can_delete_it() -> None:
     def failing(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v2/upload":
             return httpx.Response(200, json={"upload_url": "https://cdn/fake"})
@@ -142,4 +142,4 @@ def test_a_failed_job_leaves_no_id_to_delete() -> None:
 
     with pytest.raises(ProviderError, match="bad audio"):
         provider.transcribe(AUDIO, "audio/webm")
-    assert provider.last_transcript_id is None
+    assert provider.last_transcript_id == "t1"

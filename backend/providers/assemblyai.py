@@ -5,8 +5,8 @@ exchange, from the upload to the finished transcript, is held to TRANSCRIBE_DEAD
 
 transcribe() keeps the transcript's id, and delete_last_transcript() then asks AssemblyAI to
 delete it (DELETE /v2/transcript/{id}), which its docs say removes the uploaded audio with it.
-/api/analyze calls the second right after the first. It is best effort: the take is already in
-hand, so a failure is logged and never costs the speaker the take.
+/api/analyze calls the second right after the first, also when the job failed or timed out. It is
+best effort: a failure is logged and never costs the speaker the take.
 """
 
 import logging
@@ -70,16 +70,17 @@ class AssemblyAIProvider:
         documents, the job ends in status "error", or the job is still unfinished
         TRANSCRIBE_DEADLINE_SECONDS after the upload began. Each request's timeout is the time
         left, REQUEST_TIMEOUT_SECONDS at most, and no wait between polls runs past the deadline.
-        On success the transcript's id is kept in last_transcript_id for delete_last_transcript().
+        The transcript's id is kept in last_transcript_id as soon as the job is created, success
+        or not, for delete_last_transcript().
         """
         deadline = self._clock() + TRANSCRIBE_DEADLINE_SECONDS
         audio_url = self._upload(audio_bytes, deadline)
         transcript_id = self._create_transcript(audio_url, deadline)
+        # Kept as soon as the job exists, so a job that fails or times out can still be deleted.
+        self.last_transcript_id = transcript_id
         completed = self._wait_for_completion(transcript_id, deadline)
         with reading_reply("AssemblyAI poll"):
-            words = [to_word(w) for w in completed["words"]]
-        self.last_transcript_id = transcript_id
-        return words
+            return [to_word(w) for w in completed["words"]]
 
     def _upload(self, audio_bytes: bytes, deadline: float) -> str:
         response = self._client.post(

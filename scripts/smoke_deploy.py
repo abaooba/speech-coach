@@ -51,13 +51,32 @@ def run(base_url: str, client: httpx.Client) -> list[Check]:
     ]
 
 
+def body_json(reply: httpx.Response) -> dict | None:
+    """The reply's JSON object, or None when the body is not JSON or not an object."""
+    try:
+        body = reply.json()
+    except ValueError:
+        return None
+    return body if isinstance(body, dict) else None
+
+
 def check_health(base: str, client: httpx.Client) -> Check:
     try:
         reply = client.get(f"{base}/api/health", timeout=TIMEOUT_SECONDS)
     except httpx.HTTPError as error:
         return ("health", False, f"GET /api/health failed: {type(error).__name__}")
-    ok = reply.status_code == 200 and reply.json().get("status") == "ok"
-    return ("health", ok, f"GET /api/health answered {reply.status_code}")
+    if reply.status_code != 200:
+        return ("health", False, f"GET /api/health answered {reply.status_code}")
+    body = body_json(reply)
+    if body is None:
+        return ("health", False, f"GET /api/health answered {reply.status_code} with a non-JSON body")
+    if body.get("status") != "ok":
+        return (
+            "health",
+            False,
+            f"GET /api/health answered {reply.status_code} with an unexpected body",
+        )
+    return ("health", True, f"GET /api/health answered {reply.status_code}")
 
 
 def check_accounts(base: str, client: httpx.Client) -> Check:
@@ -83,7 +102,10 @@ def check_coach_notes(base: str, client: httpx.Client) -> Check:
         return ("coach notes", False, f"POST /api/advice failed: {type(error).__name__}")
     if reply.status_code != 200:
         return ("coach notes", False, f"POST /api/advice answered {reply.status_code}")
-    source = reply.json().get("source")
+    body = body_json(reply)
+    if body is None:
+        return ("coach notes", False, "POST /api/advice answered 200 with a non-JSON body")
+    source = body.get("source")
     if source == "ai":
         return (
             "coach notes",

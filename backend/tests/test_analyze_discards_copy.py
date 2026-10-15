@@ -2,11 +2,13 @@
 whether the take is then accepted or refused as too short, and leaves a provider that keeps no
 copy alone."""
 
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
 from backend import app as app_module
-from backend.providers.base import Word
+from backend.providers.base import ProviderError, Word
 
 LONG_ENOUGH = [Word("Hey", 0.5, 0.8), Word("there", 1.0, 1.4), Word("everyone", 5.2, 6.0)]
 TOO_SHORT = [Word("Hey", 0.5, 0.8)]
@@ -71,3 +73,41 @@ def test_discard_provider_copy_is_a_plain_function_on_the_provider() -> None:
     app_module.discard_provider_copy(provider)
     assert provider.calls == ["delete"]
     app_module.discard_provider_copy(KeepsNoCopy(LONG_ENOUGH))
+
+
+class RaisesOnDelete(KeepsACopy):
+    def delete_last_transcript(self) -> None:
+        self.calls.append("delete")
+        raise RuntimeError("boom")
+
+
+class FailsToTranscribe(KeepsACopy):
+    def transcribe(self, audio_bytes: bytes, content_type: str) -> list[Word]:
+        self.calls.append("transcribe")
+        raise ProviderError("job failed")
+
+
+def test_a_delete_that_raises_never_costs_the_take(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    provider = RaisesOnDelete(LONG_ENOUGH)
+    monkeypatch.setattr(app_module, "get_provider", lambda: provider)
+
+    with caplog.at_level(logging.WARNING, logger="backend.app"):
+        reply = post(TestClient(app_module.app))
+
+    assert reply.status_code == 200
+    assert "RuntimeError" in caplog.text
+    assert "boom" not in caplog.text
+
+
+def test_a_failed_job_is_still_deleted_and_answers_502(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = FailsToTranscribe(LONG_ENOUGH)
+    monkeypatch.setattr(app_module, "get_provider", lambda: provider)
+
+    reply = post(TestClient(app_module.app))
+
+    assert reply.status_code == 502
+    assert provider.calls == ["transcribe", "delete"]
