@@ -48,6 +48,9 @@ Phone width, light and dark. The history is seeded with two real takes
 4. The browser saves the session in IndexedDB on the device and draws a
    progress chart. No accounts, nothing stored on the server.
 
+The longer version, with a diagram and every module's job, is
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ### API
 
 `POST /api/analyze` takes a multipart form with the field `audio`, holding
