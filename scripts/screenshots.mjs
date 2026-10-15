@@ -46,7 +46,7 @@ const chrome = spawn(
 // Every exit path (errors, Ctrl-C, success) kills Chrome and deletes the profile.
 process.on("exit", () => {
   chrome.kill();
-  rmSync(PROFILE, { recursive: true, force: true });
+  rmSync(PROFILE, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); // Chrome may still be flushing
 });
 process.on("SIGINT", () => process.exit(130));
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
@@ -102,7 +102,10 @@ for (const view of VIEWS) {
   const hash = view.route === "@results" ? resultsRoute(lastId) : view.route;
   await send("Page.navigate", { url: BASE + "?v=" + Date.now() + "#" + hash });
   await sleep(1500);
-  const shot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+  // A full-page capture would paint the fixed nav and the sticky action bar mid-image: hide both
+  // for the capture only (the page reloads on the next view).
+  if (view.full) await evaluate('document.head.appendChild(Object.assign(document.createElement("style"), { textContent: ".nav, .results__actions { display: none !important; }" }))');
+  const shot = await send("Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: Boolean(view.full) });
   writeFileSync(join(OUT, view.name + ".png"), Buffer.from(shot.result.data, "base64"));
   if (view.route === "/onboarding") await evaluate('app.store.setFlag("onboarded", true)');
   console.log("wrote " + join(OUT, view.name + ".png"));

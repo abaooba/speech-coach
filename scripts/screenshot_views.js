@@ -7,7 +7,7 @@ const PHONE = { w: 375, h: 812 };
 const SCREENS = [
   { name: "onboarding", route: "/onboarding" },
   { name: "practice", route: "/practice" },
-  { name: "results", route: "@results" },
+  { name: "results", route: "@results", full: true },
   { name: "history", route: "/history" },
   { name: "progress", route: "/progress" },
 ];
@@ -15,7 +15,7 @@ const SCREENS = [
 const VIEWS = [];
 for (const theme of ["light", "dark"]) {
   for (const screen of SCREENS) {
-    VIEWS.push({ name: screen.name + "-" + theme, route: screen.route, theme, ...PHONE });
+    VIEWS.push({ name: screen.name + "-" + theme, route: screen.route, theme, full: Boolean(screen.full), ...PHONE });
   }
 }
 

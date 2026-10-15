@@ -41,3 +41,10 @@ test("seedExpression saves each session through app.store and sets the onboarded
 test("resultsRoute builds the Results hash for a saved id", () => {
   assert.equal(views.resultsRoute("abc"), "/results/abc");
 });
+
+test("only the two Results views are captured full page", () => {
+  for (const view of views.VIEWS) {
+    assert.equal(view.full === true, view.name.startsWith("results-"), view.name);
+  }
+  assert.equal(views.VIEWS.filter((v) => v.full === true).length, 2);
+});

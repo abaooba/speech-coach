@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-MAX_BYTES = 600_000
+MAX_BYTES = 800_000
 PHONE_WIDTH_AT_2X = 750
 
 

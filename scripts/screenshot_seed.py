@@ -21,6 +21,9 @@ from pathlib import Path
 
 import httpx
 
+# Run as a script from anywhere: the repo root goes on the path, as the tests already have it.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from backend import metrics
 from backend.providers.assemblyai import to_word
 from backend.providers.base import Word
@@ -29,9 +32,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "backend" / "tests" / "fixtures"
 SAMPLE = ROOT / "frontend" / "sample-session.json"
 
-# The 2026-10-11 take and the sample, three days apart, newest last.
-NERVOUS_AT = "2026-10-08T22:15:00.000Z"
-EXPLAIN_AT = "2026-10-11T19:07:00.000Z"
+# The sample and the 2026-10-11 take, three days apart, the real take newest so Results opens on it.
+NERVOUS_AT = "2026-10-11T22:15:00.000Z"
+EXPLAIN_AT = "2026-10-08T19:07:00.000Z"
 ANALYZE_TIMEOUT_SECONDS = 180.0
 
 
@@ -43,7 +46,6 @@ def sessions_from_fixtures() -> list[dict]:
     sample = json.loads(SAMPLE.read_text(encoding="utf-8"))
     sample_words = [Word(**entry) for entry in sample["transcript"]]
     return [
-        session(NERVOUS_AT, "free-talk", "Your day", words, metrics.analyze(words), topic=None),
         session(
             EXPLAIN_AT,
             sample["passageId"],
@@ -52,6 +54,7 @@ def sessions_from_fixtures() -> list[dict]:
             metrics.analyze(sample_words),
             topic=None,
         ),
+        session(NERVOUS_AT, "free-talk", "Your day", words, metrics.analyze(words), topic=None),
     ]
 
 
