@@ -403,6 +403,12 @@ h2 {
   margin: var(--s-4) 0 0;
 }
 
+/* With the preview the block is taller, and under the rank card on a 375 x 812 phone the large
+   padding pushed the page 44px past the window: --s-4 all round keeps it on one screen. */
+.screen--active .state:has(> .state__preview) {
+  padding: var(--s-4);
+}
+
 .progress-preview__chart {
   display: block;
   width: 100%;
