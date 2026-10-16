@@ -1,4 +1,10 @@
 # Speech Coach (working title)
+[![CI](https://github.com/abaooba/speech-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/abaooba/speech-coach/actions/workflows/ci.yml)
+Live app: <https://speech-coach-xz8c.onrender.com>
+
+Talk for a minute, get your pace, your pauses, your fillers and your restarts
+back in seconds, with coach notes that cite the research they come from.
+Then climb a practice path built from that research.
 
 A practice tool for speaking more fluently, for non-native speakers and
 anyone who wants to sound more articulate. Record yourself talking or reading
@@ -8,20 +14,30 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 
 ## Screenshots
 
+Phone width, light and dark. The history is seeded with two real takes
+(`scripts/screenshot_seed.py`), so Results and Progress have something to show.
+
+| Light | Dark |
+| --- | --- |
+| ![Practice screen](docs/screenshots/practice-light.png) | ![Practice screen, dark](docs/screenshots/practice-dark.png) |
+| ![Progress screen](docs/screenshots/progress-light.png) | ![Progress screen, dark](docs/screenshots/progress-dark.png) |
+| ![History screen](docs/screenshots/history-light.png) | ![History screen, dark](docs/screenshots/history-dark.png) |
+| ![Onboarding screen](docs/screenshots/onboarding-light.png) | ![Onboarding screen, dark](docs/screenshots/onboarding-dark.png) |
+
 - Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
   the take.
-  ![Practice screen](docs/screenshots/practice.png)
-- Results: a two-sentence headline, four metric cards, a speech timeline, the transcript with
-  fillers highlighted and one or two tips.
-  ![Results screen](docs/screenshots/results.png)
-- History: every session, newest first, with its pace, fillers per minute and a status word.
-  ![History screen](docs/screenshots/history.png)
+- Results: a two-sentence headline, your rank, four metric cards, a speech timeline, the
+  transcript with fillers and restarts marked, and two or three cited coach notes.
 - Progress: one metric charted across your takes, with your latest, your best and your change
-  from the average.
-  ![Progress screen](docs/screenshots/progress.png)
-- Onboarding, shown on first launch: what is measured, that audio is deleted after
-  analysis, and that take 1 of a Path level stays in memory for replay until the level ends.
-  ![Onboarding screen](docs/screenshots/onboarding.png)
+  from the average, under your rank and streak.
+- History: every take, newest first, with its pace, fillers per minute and a status word.
+- Onboarding, shown on first launch: what is measured and what happens to your audio.
+
+### Results, full page
+
+![Results screen](docs/screenshots/results-light.png)
+
+![Results screen, dark](docs/screenshots/results-dark.png)
 
 ## How it works
 
@@ -30,11 +46,15 @@ Built for the 2026 Congressional App Challenge (IL-06) by Ares Cajas.
 2. The audio is sent to a small FastAPI backend, which forwards it to a
    speech-to-text provider (Deepgram or AssemblyAI) with filler words kept.
 3. The backend computes the metrics from the word timestamps and returns
-   them with the transcript. Audio is discarded after analysis; during a
-   Path level the browser keeps take 1 in memory for replay until the
-   level ends (see Privacy below for exactly what that means).
+   them with the transcript. Audio is discarded after analysis, and the
+   backend asks AssemblyAI to delete its copy as soon as the words are back;
+   during a Path level the browser keeps take 1 in memory for replay until
+   the level ends (see Privacy below for exactly what that means).
 4. The browser saves the session in IndexedDB on the device and draws a
-   progress chart. No accounts, nothing stored on the server.
+   progress chart. Guests need no account. With an account, your takes sync to Postgres, so a second device sees them.
+
+The longer version, with a diagram and every module's job, is
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### API
 
@@ -120,6 +140,16 @@ Lint the Python code:
 ruff check .
 ```
 
+Check a deploy before a demo (this one reaches the network, so pytest never runs it):
+
+```bash
+.venv/bin/python scripts/smoke_deploy.py https://speech-coach-xz8c.onrender.com
+```
+
+It prints PASS or FAIL for health, accounts (`/api/me` answers 401 when
+`DATABASE_URL` is set) and coach notes (`/api/advice` says Claude wrote them
+when `ANTHROPIC_API_KEY` is set and the hourly budget lasts).
+
 Frontend tests (plain `node:test`, no dependencies; pytest also runs them when
 `node` is installed):
 
@@ -138,15 +168,21 @@ nothing else to host. `render.yaml` at the repo root describes the service.
    repo. Render reads `render.yaml` and proposes a web service named
    `speech-coach` (Python runtime, free plan, build `pip install -r
    requirements.txt`, start `uvicorn backend.app:app`).
-3. Before you apply the Blueprint, Render asks for the two secrets that
-   `render.yaml` marks `sync: false`: `ASSEMBLYAI_API_KEY` and
-   `DEEPGRAM_API_KEY`. Paste both. You can change them later under the
-   service's **Environment** tab. `STT_PROVIDER` is preset to `assemblyai`;
-   switch it to `deepgram` there if you want the other provider.
+3. Before you apply the Blueprint, Render asks for the secrets that
+   `render.yaml` marks `sync: false`. Two are required: `ASSEMBLYAI_API_KEY`
+   and `DEEPGRAM_API_KEY` (paste both; `STT_PROVIDER` is preset to
+   `assemblyai`, switch it to `deepgram` under the service's **Environment**
+   tab if you want the other provider). Three are optional and turn features
+   on: `ANTHROPIC_API_KEY` makes Claude write the coach notes on Results
+   (unset, the research library's own words stand in); `DATABASE_URL` (a
+   Neon Postgres connection string) and `SESSION_SECRET` (32 random bytes,
+   `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`) turn
+   accounts on (unset, the app is guest-only and every account route answers
+   503). Setting or changing `SESSION_SECRET` signs every account out.
 4. Apply. The first build takes a few minutes. Render polls the health check
    path `/api/health` and marks the deploy live once it answers 200.
-5. Open the service URL (`https://speech-coach.onrender.com` or whatever the
-   dashboard shows). Every later push to the connected branch redeploys
+5. Open the service URL (`https://speech-coach-xz8c.onrender.com`).
+   Every later push to the connected branch redeploys
    automatically.
 
 Things to know before testing or demoing on the deploy:
@@ -156,9 +192,13 @@ Things to know before testing or demoing on the deploy:
   pages but not on a laptop's LAN address. Test on a phone by opening the
   Render URL, which is HTTPS out of the box.
 - **Cold start.** The free tier spins the service down after about fifteen
-  minutes without traffic, and the first open after that can take up to a
-  minute while Render restarts it. Open the URL a minute before a demo, and
-  say so before the demo if someone else is clicking.
+  minutes without traffic, and the first open after that shows Render's own
+  "Application loading" page for up to a minute. For a demo or a judging
+  window, move the service to Render's Starter plan, which never sleeps. Change
+  `plan: free` to `plan: starter` in `render.yaml` as well, or the next push can put
+  the service back on the free plan. A pinger hitting `/api/health` every five
+  minutes is the fallback. Check a
+  deploy with `.venv/bin/python scripts/smoke_deploy.py <url>` (see Tests).
 - **Caching.** The backend sends `Cache-Control: no-cache` for the PWA shell
   (`/`, `/index.html`, `/sw.js`, `/manifest.json`) so a new deploy shows up
   on the next open, `public, max-age=3600` for the other static files, and
@@ -199,9 +239,13 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
   the operating system's temp directory while the request runs, and the
   file is deleted when the request ends. A long recording may therefore
   touch disk for a few seconds.
-- The audio is forwarded once to the speech-to-text provider you configure
-  (Deepgram or AssemblyAI) and is subject to that provider's retention
-  policy.
+- The audio is forwarded once to the speech-to-text provider you configure.
+  With AssemblyAI, the default, the backend asks AssemblyAI to delete the
+  transcript and the uploaded audio as soon as the words are back
+  (`DELETE /v2/transcript/{id}`, which AssemblyAI documents as removing both).
+  A failed delete is logged by its status alone, and the copy then expires
+  under the retention setting in the AssemblyAI dashboard. With Deepgram the
+  audio is subject to Deepgram's retention policy.
 - During a Path level, the browser keeps take 1's recording in memory
   after its upload, so the review step can play it back. It is never
   written to IndexedDB, uploaded again or saved anywhere else, and it is
@@ -223,3 +267,8 @@ Speech-to-text is provided by a third-party API. All metric calculations,
 pause detection, the user interface and the backend are hand-written.
 AI coding assistants were used during development; see
 [`docs/ai-disclosure.md`](docs/ai-disclosure.md) for details.
+
+## License
+
+[MIT](LICENSE). The research library in `backend/advice/library.json` quotes
+and cites published sources; each entry names its author and link.

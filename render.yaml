@@ -20,3 +20,11 @@ services:
         sync: false
       - key: DEEPGRAM_API_KEY
         sync: false
+      # Coach notes written by Claude (backend/advice/coach.py). Unset: the library's own words.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Optional accounts (backend/db.py, backend/auth.py). Unset: guests only, account routes 503.
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false

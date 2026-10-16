@@ -237,10 +237,12 @@
   }
 
   // Builds the shared empty / error / loading block (DESIGN.md section 6, "State block"). The
-  // children are always [icon or spinner, title, body, action?, secondary action?].
+  // children are always [icon or spinner, title, body, action?, secondary action?, preview?].
+  // Options: kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary, preview
+  // (a Node or an array of Nodes, placed last inside figure.state__preview).
   function renderState(root, options) {
     const { kind, title, body, actionLabel, onAction } = options;
-    const { icon: iconName, secondaryLabel, onSecondary } = options;
+    const { icon: iconName, secondaryLabel, onSecondary, preview } = options;
     clear(root);
 
     const block = el("div", { class: "state state--" + kind });
@@ -262,6 +264,11 @@
       block.appendChild(
         stateButton("state__secondary btn btn--ghost", secondaryLabel, onSecondary),
       );
+    }
+    // An optional preview under the words and actions: a figure the caller fills (Progress
+    // shows an example trend there), never a sentence of its own.
+    if (preview) {
+      block.appendChild(el("figure", { class: "state__preview" }, preview));
     }
 
     root.appendChild(block);
