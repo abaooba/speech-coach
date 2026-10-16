@@ -97,7 +97,8 @@ test("on the church take the legend names mhm, and its Mhm is highlighted", asyn
   const body = await showChurchTake();
   assert.equal(
     byClass(body, "transcript__legend").textContent,
-    LEGEND_BASE + " Purple underlined words are restarts.",
+    LEGEND_BASE +
+      " Purple underlined words are restarts. Pink outlined pills are long pauses of 5 s or more.",
   );
   const spans = byClass(body, "transcript").children.filter((node) => node.tagName === "span");
   const mhm = spans.findIndex((span) => span.textContent === "Mhm.");
@@ -152,7 +153,7 @@ test("frontend/README.md quotes the new legend and walks through a marked freeze
     readme.includes(
       "A pause of 5 s or more is marked wherever it falls, even after a period, as an " +
         'outlined pink pill such as "6.0 s long pause". A shorter pause after a period is not ' +
-        "marked, so the transcript, the Pauses card and the timeline always show the same pauses.",
+        "marked, so the transcript, the Pauses stat and the speech map always show the same pauses.",
     ),
   );
   assert.ok(!readme.includes("A pause after a period is not marked"));

@@ -1,9 +1,10 @@
-// Tests that the docs describe the long pause the Results timeline draws (docs/PLAN.md T32: a
+// Tests that the docs describe the long pause the Results speech map draws (docs/PLAN.md T32: a
 // pause of 5 s or more counts and is marked wherever it falls), as the transcript copy already
-// does (mhm_long_pause_copy.test.js). frontend/README.md's timeline step and DESIGN.md's Timeline
-// paragraph and fixed copy quote the chip, the label and the moment the strip shows on the real
-// church take, read from the screen rather than written out here. how.html keeps "long pause"
-// for 5 s or more: the tip for a mid-sentence pause past 3 seconds is named for what it is.
+// does (mhm_long_pause_copy.test.js). frontend/README.md's speech map step and DESIGN.md's
+// Speech map paragraph and fixed copy quote the row's label, the list's count and the detail
+// the map shows on the real church take, read from the screen rather than written out here.
+// how.html keeps "long pause" for 5 s or more: the tip for a mid-sentence pause past 3 seconds
+// is named for what it is.
 "use strict";
 
 const test = require("node:test");
@@ -47,7 +48,7 @@ const CHURCH_METRICS = {
 
 // The church take's timeline as Results draws it: its marks, its label, the legend's chips and
 // the hidden list of moments.
-async function churchTimeline() {
+async function churchMap() {
   const session = {
     id: "s1",
     createdAt: "2026-10-11T19:00:00.000Z",
@@ -73,13 +74,19 @@ async function churchTimeline() {
   root.appendChild(body);
   context.app.screens.results.mount(root);
   await context.app.screens.results.show({ id: session.id });
-  const timeline = byClass(body, "timeline");
-  const strip = timeline.children.find((node) => node.getAttribute("class") === "timeline__strip");
+  const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
+  const list = byClass(byClass(stage, "speech-map__body"), "speech-map__moments");
   return {
-    marks: strip.children.map((mark) => mark.getAttribute("class")),
-    label: strip.getAttribute("aria-label"),
-    chips: byClass(timeline, "timeline__legend").children.map(fullText),
-    moments: byClass(timeline, "timeline__moments").children.map(fullText),
+    kinds: list.children.map((row) => row.className.replace("moment moment--", "")),
+    label: list.getAttribute("aria-label"),
+    rows: list.children.map((row) => {
+      const [head, context] = row.children[0].children;
+      return {
+        time: head.children[0].textContent,
+        kind: head.children[1].textContent,
+        context: fullText(context),
+      };
+    }),
   };
 }
 
@@ -110,69 +117,72 @@ function designParagraph(name) {
   return line;
 }
 
-const LONG_CHIP = "Long pause (5 s+)";
-// A long pause as the hidden list reads it: "Long pause at 0:35, 5.2 seconds". The docs may give
-// their own example, in this shape.
-const LONG_MOMENT = /^Long pause at \d+:\d{2}, \d+\.\d seconds$/;
+// A long pause's kind as its card reads it: "Long pause · 5.2 s".
+const LONG_KIND = /^Long pause · \d+\.\d s$/;
 
-// The long-pause moments quoted in `text`, without their quotes.
-function quotedMoments(text) {
-  return [...text.matchAll(/"(Long pause at [^"]*)"/g)].map((match) => match[1]);
+// The church take's long-pause card, which the docs quote: the example is read from the screen.
+function longRow(map) {
+  const row = map.rows.find((entry) => LONG_KIND.test(entry.kind));
+  assert.ok(row, "the church map has a long-pause card");
+  return row;
 }
 
-test("on the church take the strip draws its freeze as a long pause, with chip and moment", async () => {
-  const timeline = await churchTimeline();
+test("on the church take the map draws its freeze as a named, timed long-pause row", async () => {
+  const map = await churchMap();
   assert.deepEqual(
-    timeline.marks.filter((mark) => /pause/.test(mark)),
-    ["timeline__long-pause"],
+    map.kinds.filter((kind) => /pause/.test(kind)),
+    ["long-pause"],
     "the 5.19 s freeze after a period is the one pause drawn, as a long pause",
   );
-  assert.ok(timeline.chips.includes(LONG_CHIP));
-  assert.match(timeline.label, /, no mid-sentence pauses, 1 long pause, /);
-  assert.ok(timeline.moments.includes("Long pause at 0:35, 5.2 seconds"));
+  assert.match(map.label, /, no mid-sentence pauses, 1 long pause, /);
+  assert.deepEqual(longRow(map), {
+    time: "0:34",
+    kind: "Long pause · 5.2 s",
+    context: "…sad. 5.2 s Mhm. I…",
+  });
 });
 
-test("frontend/README.md's timeline step shows the long pause the strip draws", async () => {
-  const timeline = await churchTimeline();
-  const step = readmeStep("4. Speech timeline:");
+test("frontend/README.md's speech map step shows the long pause the map draws", async () => {
+  const map = await churchMap();
+  const step = readmeStep("4. Speech map:");
   assert.ok(
-    step.includes("a taller pink block for each pause of 5 s or more, even after a period"),
-    "the strip's long-pause block",
+    step.includes(
+      "a pink block as long as the pause for each pause of 5 s or more, even after a period",
+    ),
+    "the map's long-pause block",
   );
-  assert.ok(step.includes('adds "' + LONG_CHIP + '"'), "the legend's chip");
-  assert.ok(timeline.chips.includes(LONG_CHIP));
   assert.ok(step.includes('"1 long pause"'), "the label's count");
-  assert.ok(timeline.moments.some((text) => LONG_MOMENT.test(text)));
-  const quoted = quotedMoments(step);
-  assert.equal(quoted.length, 1, "one long-pause moment quoted");
-  assert.match(quoted[0], LONG_MOMENT);
+  const row = longRow(map);
+  assert.ok(
+    step.includes('its card reads "' + row.kind + '" over "' + row.context + '"'),
+    "the step quotes the church take's own long-pause card: " + row.kind,
+  );
 });
 
-test("DESIGN.md's Timeline paragraph draws, labels, keys and lists the long pause", async () => {
-  const timeline = await churchTimeline();
-  const paragraph = designParagraph("Timeline");
-  assert.ok(paragraph.includes("`rect.timeline__long-pause`"));
+test("DESIGN.md's Speech map paragraph draws, names and details the long pause", async () => {
+  const map = await churchMap();
+  const paragraph = designParagraph("Speech map");
+  assert.ok(paragraph.includes("`.moment--long-pause`"));
   assert.ok(paragraph.includes("`--pause-long`"));
-  assert.ok(paragraph.includes("as tall as a filler tick"));
-  assert.ok(!paragraph.includes("each mid-sentence pause as a `--pause` block"));
+  assert.ok(paragraph.includes("as long as the pause"));
   assert.ok(paragraph.includes('adds "1 long pause" after the mid-sentence count'));
-  assert.ok(paragraph.includes('"' + LONG_CHIP + '" for a take with one'));
-  assert.ok(paragraph.includes("`.timeline__swatch--long-pause`"));
-  assert.ok(timeline.moments.some((text) => LONG_MOMENT.test(text)));
-  const quoted = quotedMoments(paragraph);
-  assert.equal(quoted.length, 1, "the moments list quotes one long pause");
-  assert.match(quoted[0], LONG_MOMENT);
+  const row = longRow(map);
+  assert.ok(
+    paragraph.includes('"' + row.kind + '"') && paragraph.includes('"' + row.context + '"'),
+    "the paragraph quotes the church take's own long-pause card: " + row.kind,
+  );
 });
 
-test("DESIGN.md's fixed copy lists the long-pause chip with the timeline legend", () => {
+test("DESIGN.md's fixed copy lists the long-pause row with the map's kinds", () => {
   const results = read("DESIGN.md")
     .split("\n")
     .find((line) => line.startsWith('- Results: "Arrows compare with your last take."'));
   assert.ok(results, "DESIGN.md section 8 has the Results copy line");
   assert.ok(
     results.includes(
-      'legend "Filler", "Mid-sentence pause", "Clean stretch", plus "' + LONG_CHIP +
-        '" and "Restart" when the strip draws one;',
+      '"Speech map"; "First word", "Last word"; card kinds "Filler" ("3 fillers"), ' +
+        '"Mid-sentence pause · 1.5 s", "Long pause · 5.2 s", "Restart", ' +
+        '"Clean stretch · 26.5 s";',
     ),
   );
 });

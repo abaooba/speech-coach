@@ -26,7 +26,7 @@ opens with a short comment, four to eight lines, saying what it owns and what it
 | `tips.js` | `app.tips` | `select(report, options)` returns at most two `{id, text}` rule tips in priority order; pure. `coachNotes(session, report, targetWpm, tier)` is the one request to `POST /api/advice` (docs/PLAN.md T41): it resolves `{tips: [{entryId, text, drill, citation: {label, url, type}}], source}` (`source` is `"ai"` when Claude wrote the notes for the take, `"library"` when the library's own words stand in) or null, and never rejects. It asks through `app.auth.request`, so a signed-in speaker's cookie goes along and the server keeps their shown entries; for everyone it keeps a reply Claude wrote under the flag `coachNotes:<id>`, so that take is asked about once (the library's own words are shown but not kept, so a later visit asks again), and the entry ids shown under `coachNotesShown`, oldest first and at most 2,000, which the next request sends so a guest sees each entry once while new ones remain. That list is read again when a reply lands and written one reply at a time, so two takes answered together both add their ids, and a take asked about again while its request is open gets that request's promise instead of a second request. `adviceRequest` and `parseCoachNotes` are the pure halves: the request body with whole counts, a real pace band and a 1,500-character excerpt, and the reply checked so only web links are drawn. |
 | `pauses.js` | `app.pauses` | Human-owned (T08); agents never edit it. `start(stream)` samples the microphone's loudness while a take records, `stop()` hands the samples back, and `reconcile(metrics, samples)` folds the quiet stretches into the backend's pauses. |
 | `screens/practice.js` | `app.screens.practice` | `mount`, `show`, `hide`, plus `startLevelTake(request)`, `render(state, detail)` (the one function that repaints the screen), the `state` string (`idle`, `recording`, `uploading` or `error`), `STATES`, `viewFor` and `selectedPassage`. Records a take, uploads it through `app.api` and saves it through `app.store`, with the topic on screen as its `topic` for a prompt with topics. `startLevelTake(request)` (spec section 7) holds one take's request from the Level screen and goes to `#/practice` in level mode: a banner with the request's eyebrow, title and body and "Leave level" takes the place of the Talk / Read switch and the chips; New topic, the script box and "See a sample result" hide; the card shows the request's material and the clock its `seconds`; with `liveTap`, "Heard one" counts taps while the take records. Record, Stop and every error behave as in normal mode. A saved level take never opens Results: Practice calls `request.judge` before the save and `request.onSaved` after it, with the blob, which it then keeps no reference to; "Leave level" calls `request.onLeave`. |
-| `screens/results.js` | `app.screens.results` | `mount`, `show({id})`, `hide`, plus the pure helpers `summarize`, `buildTranscriptPlan`, `headlineFor`, `compareWithPrevious`, `timelineSegments` and `isSample`, which touch no DOM. `show` draws the take at once with its rule tips, again with the "vs last take" lines and the rank card once `app.store.list()` answers, and a third time with the "Coach notes" from `app.tips.coachNotes` in the tips' place when they arrive. The one list rates the takes up to and including this one for the card (`app.rankCard`; a sample gets none, and a first take, with nothing to compare, is drawn again for its card alone) and gives the speaker's tier for the notes request (from `app.rank` when rank.js is loaded, else Novice). That third draw says "Coach notes ready." through `app.ui.announce` and, when keyboard focus was inside the body it rebuilds, moves focus to the Coach notes heading (`tabindex="-1"`). `hide` drops any draw still on its way, so a screen the speaker has left is never redrawn and never speaks. |
+| `screens/results.js` | `app.screens.results` | `mount`, `show({id})`, `hide`, plus the pure helpers `summarize`, `buildTranscriptPlan`, `headlineFor`, `compareWithPrevious`, `timelineSegments`, `speechMapRows` and `isSample`, which touch no DOM. `show` draws the take at once with its rule tips, again with the "vs last take" lines and the rank card once `app.store.list()` answers, and a third time with the "Coach notes" from `app.tips.coachNotes` in the tips' place when they arrive. The one list rates the takes up to and including this one for the card (`app.rankCard`; a sample gets none, and a first take, with nothing to compare, is drawn again for its card alone) and gives the speaker's tier for the notes request (from `app.rank` when rank.js is loaded, else Novice). That third draw says "Coach notes ready." through `app.ui.announce` and, when keyboard focus was inside the body it rebuilds, moves focus to the Coach notes heading (`tabindex="-1"`). `hide` drops any draw still on its way, so a screen the speaker has left is never redrawn and never speaks. |
 | `screens/history.js` | `app.screens.history` | `mount`, `show`, `hide`, plus `formatStats(session)` and the pure `statusFor(summary)`. Once the server has ended this device's account session (`app.auth.syncStatus`), a small line above the rows says to log in again from Account. |
 | `screens/progress.js` | `app.screens.progress` | `mount`, `show`, `hide`, plus the pure `series`, `scale` and `summaryFor`. `show` draws the rank card first (`app.rankCard`, its streak counted to now), above the metric switch, or above "Need two sessions" with one take; with no rated take, or a card that cannot be built, Progress draws as it did before the card. |
 | `screens/path.js` | `app.screens.path` | `#/path`, the Path: `mount`, `show`, `hide`, plus the pure layout helpers `nodeX`, `dropD` and `linkD`. Each `show` reads `app.store.list()` and `app.store.listClearedLevels()` and draws what `app.path` decides: this week's practice days and a chip for the check-backs due today, the benchmark, then one block per unit, weakest first, whose level nodes wind down the page, each a button that opens a small card; every Start opens `#/level/<playId>`. "Loading your path" shows only until a first path is drawn, and a store that fails shows "Path unavailable". It shows no rank, tier, rating or rank streak. |
@@ -383,65 +383,84 @@ sample result", which opens a sample take on this screen: "Sample: Explain somet
 explanation of making coffee.
 
 1. Under the "Results" heading: a muted line with the passage title and the date (for a timed
-   prompt such as Explain something it ends with "· m:ss of 2:00"). Then a headline card with
-   two sentences: a green check before one strength and a blue arrow before one focus, such
-   as "Your longest clean stretch is 4.9 seconds." and "Next take, cut fillers under 3 a
-   minute." Then the rank card (step 8) and exactly four cards, two per row, in this order:
-   "Pace", "Fillers", "Pauses", "Clean stretch". Hesitation sounds (um, uh) are not counted as
-   words. The Pace hint reads "Target lo to hi" in green with a check when the pace is inside
-   the passage's range, or "Slow down" / "Speed up" in rust with a warning triangle outside
-   it; the numbers come from the passage you recorded (Gettysburg and Patrick Henry are 130 to
-   150, the explainer and the story 150 to 170, Explain something 130 to 160, Your day 140 to
-   160). An old take saved on a retired debate entry keeps the band it was recorded under. The
-   Fillers card shows "/min" and its hint reads "Target under 3" in green at 3 or less and "Aim
-   for under 3" in rust above. The pauses card has no hint. The clean stretch card shows
-   seconds and has no hint. No nav item is highlighted.
+   prompt such as Explain something it ends with "· m:ss of 2:00"). Then the headline, two
+   sentences in plain text: a bold strength after a green check and a focus after a blue
+   arrow, such as "Your longest clean stretch is 4.9 seconds." and "Next take, cut fillers
+   under 3 a minute." Then the speech map (step 4), then one strip of four stats, two per row
+   on a phone and four across from 600px, in this order: "Pace", "Fillers", "Pauses", "Clean
+   stretch". Hesitation sounds (um, uh) are not counted as words. The Pace hint reads "Target
+   lo to hi" in green with a check when the pace is inside the passage's range, or "Slow
+   down" / "Speed up" in rust with a warning triangle outside it; the numbers come from the
+   passage you recorded (Gettysburg and Patrick Henry are 130 to 150, the explainer and the
+   story 150 to 170, Explain something 130 to 160, Your day 140 to 160). An old take saved on
+   a retired debate entry keeps the band it was recorded under. The Fillers stat shows "/min"
+   and its hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in rust
+   above. The Pauses stat reads "1 pause" or "3 pauses", and its hint counts the freezes,
+   "0 over 5 s" in green or "1 over 5 s" in rust. The Clean stretch stat shows seconds and reads "Target 15 s" in green from 15 s, or
+   "Aim past 15 s" in rust. Every cell has the same rows, so the four stay level. Then the
+   rank card (step 8), its big number labelled "Rating" above "This take scored 34.". No nav
+   item is highlighted.
 
 2. Compare with the last take: record a second take (the Practice happy path again), or run
-   the Progress seed snippet and open the newest row in History. Every card ends with a small
+   the Progress seed snippet and open the newest row in History. Every stat ends with a small
    grey line, a triangle or a dash and words such as "12 faster", "1.2 fewer" or "No change",
-   and "Arrows compare with your last take." sits under the cards. The very first session in
+   and "Arrows compare with your last take." sits under the strip. The very first session in
    the store shows neither. A take saved without words (the store round trip, or the seed)
-   has no clean-stretch line. The sample is never compared: tap "See a sample result" after
+   reads "Not compared" after a dash on the Clean stretch cell. The sample is never compared: tap "See a sample result" after
    your takes, even twice, and its Results shows no grey lines, no note, no rank card and no
    "Fillers are down" headline. The next take you record compares with your take before the
    sample.
 
-3. "History" and "Record again" sit in one bar stuck above the nav while the page scrolls under
-   it. Tap "Record again": Practice opens in idle. Use the browser's back button to return,
-   then tap "History": the hash becomes `#/history`. With a keyboard, press Tab from the top
-   of the page: the "How we count" link scrolls up above the bar with its whole focus ring in
-   view, and the next Tab moves to "History" without moving the page. In landscape
-   (568 x 320) or at 200% zoom on a phone (DevTools at 187 x 333 or 160 x 284) the bar is not
-   stuck: the transcript and tips read through the whole window above the nav, and the bar
-   sits at the end of the page. At 187px it wraps: "History" on one line, "Record again"
-   under it, both inside the screen. Tabbing through the page there keeps every focused
-   control, the bar's two included, with its whole ring clear of the nav.
+3. "Record again" sits alone in a bar stuck above the nav while the page scrolls under it;
+   History is the nav's tab under the bar. Tap "Record again": Practice opens in idle. Use
+   the browser's back button to return. With a keyboard, press Tab from the top of the page:
+   the "How we count" link scrolls up above the bar with its whole focus ring in view, and
+   the next Tab moves to "Record again" without moving the page. In landscape (568 x 320) or
+   at 200% zoom on a phone (DevTools at 187 x 333 or 160 x 284) the bar is not stuck: the
+   transcript and tips read through the whole window above the nav, and the bar sits at the
+   end of the page, "Record again" inside the screen. Tabbing through the page there keeps
+   every focused control, the bar's own included, with its whole ring clear of the nav.
 
-4. Speech timeline: under the cards, a "Speech timeline" heading and a strip from the first
-   word to the last: amber ticks for fillers, purple blocks for mid-sentence pauses, a taller
-   pink block for each pause of 5 s or more, even after a period, and a pale green band with a
-   darker green base line for the longest clean stretch. Under it, the first word's time, the
-   midpoint and the last word's time (the same clock as the tips), then a legend, which adds
-   "Long pause (5 s+)" when the strip has one. A screen reader reads the strip as one image,
-   "Speech timeline from 0:01 to 0:32: 11 fillers, 3 mid-sentence pauses, 1 restart, a 4.9
-   second clean stretch", with "1 long pause" after the mid-sentence count when there is one,
-   and then a list of every moment, a restart included ("Restart “and I” at 0:16"). End a
-   sentence and stay silent for 6 seconds: the strip draws the pink block, and the list reads
-   "Long pause at 0:04, 6.0 seconds". A session saved with an empty transcript shows no
-   timeline.
+4. Speech map: under the headline, a "Speech map" heading, then "0:00 · First word" beside a
+   hollow ring, a grey rail that is linear in time with the take's moments stacked as two-line
+   cards beside it, and "1:01 · Last word" beside a ring at the bottom, the same speaking time
+   the meta line counts; every clock on the map counts from the first word. Every card is 56px
+   tall, so six fit about one phone screen, the rail is exactly as tall as the stack, and a
+   take with more than eight moments shows eight and a "Show all 12 moments" button that draws
+   the rest (the moments past eight still mark the rail). Each moment's mark sits on the rail
+   at its true second and a curve in its colour joins it to its card; the card's first line is
+   the clock and the kind in that colour, its second the words around the moment with the
+   moment marked as the transcript marks it, and a chevron sits at its right edge: the whole
+   card is the control; its words start at the moment after at most one lead-in word, so the
+   mark is in view on a 320px phone. An amber dot and "Filler" with the words around it,
+   "…because, um, I put…" (fillers within 5 s of each other share a card, "3 fillers" over
+   "um · like · you know"); a purple block as long as the pause and "Mid-sentence pause ·
+   1.5 s" with "…piano, 1.5 s um, and…"; a pink block as long as the pause for each pause of
+   5 s or more, even after a period, and its card reads "Long pause · 5.2 s" over "…sad. 5.2 s
+   Mhm. I…"; a purple diamond and "Restart" with the abandoned start and the restart marked,
+   "…I kinda ner— I'm kinda nervous though…"; a pale green block with a green edge for the
+   longest clean stretch, "0:00 to 0:26 Clean stretch · 26.5 s" over "No filler, pause or
+   restart." Tap a card: the page scrolls so the mark sits mid-window, the mark
+   flashes a blue ring for a moment (no fade with reduced motion), focus lands on it, and
+   VoiceOver says "Shown in transcript." (each card's hidden text names the action). A screen
+   reader hears the list's label, "Speech map from 0:00 to 0:30: 11 fillers, 3 mid-sentence
+   pauses, 1 restart, a 4.9 second clean stretch", with "1 long pause" after the mid-sentence
+   count when there is one, and then every card as one sentence. End a sentence and stay
+   silent for 6 seconds: the map draws the pink block and the card reads "Long pause · 6.0 s".
+   A session saved with an empty transcript shows no map.
 
-5. Transcript: under the timeline, a "Transcript" heading, a small legend and every word of the
+5. Transcript: under the rank card, a "Transcript" heading, a small legend and every word of the
    take. The legend reads "Highlighted words are hesitations: um, uh, mhm. Underlined words
    are verbal habits.", names the most-used habit (for example "Most used: “like”, 4 times.")
    and ends with a "How we count" link to `how.html`. Hesitations ("um", "uh", "er", "ah",
    "hm", and "mhm", "uh-huh", "mm-hmm") get an amber highlight. Verbal habits ("like", "so",
    "you know", "actually", "basically") get a dotted underline, and only where the context
-   rules count them: "I like this plan" is not marked. Each mid-sentence pause of 1.5 s or
+   rules count them: "I like this plan" is not marked. When a long pause is marked the legend
+   adds "Pink outlined pills are long pauses of 5 s or more.". Each mid-sentence pause of 1.5 s or
    more is a purple pill such as "2.1 s pause" right after the word before the gap. A pause
    of 5 s or more is marked wherever it falls, even after a period, as an outlined pink pill
    such as "6.0 s long pause". A shorter pause after a period is not marked, so the
-   transcript, the Pauses card and the timeline always show the same pauses.
+   transcript, the Pauses stat and the speech map always show the same pauses.
    Record 10 seconds, say "um" five times and stop talking for 3 seconds mid-sentence: five
    amber "um" tokens and one "x.x s pause" pill. A session saved with an empty transcript
    (the store round trip) shows no Transcript section at all.
@@ -489,16 +508,18 @@ explanation of making coffee.
    heading and VoiceOver says "Coach notes ready."; leave for History first and nothing is said.
    Stop uvicorn and reopen a take without kept notes (a fresh id): the Tips stay, with no error.
 
-7. Narrow the window to 320px (DevTools device toolbar): two cards per row with each number
-   and its unit on one line, the date in the meta line never split, the timeline and its
-   legend inside the column, the transcript wrapping with the pause pills staying on their
-   line, no horizontal scroll, no console errors. At 1024px the cards are still two per row
-   and "Record again" is at most 320px wide. Switch the OS theme (or DevTools "Emulate CSS
+7. Narrow the window to 320px (DevTools device toolbar): two stats per row with each number
+   and its unit on one line, the date in the meta line never split, the speech map's cards
+   inside the column with their clocks on the cards, the transcript wrapping with the pause
+   pills staying on their line, no horizontal scroll, no console errors. At 1024px the column
+   doubles into two: the speech map, the stat strip (four across) and the rank card on the
+   left, the transcript and the coach notes on the right, and "Record again" is at most
+   320px wide at the column's end. Switch the OS theme (or DevTools "Emulate CSS
    prefers-color-scheme: dark", or the theme toggle): the rust warnings, amber
    and purple marks and the green band stay readable on both backgrounds.
 
 8. Rank card: empty the store, run the Progress seed snippet and open the newest row in
-   History. Between the headline and the cards sits the rank card. On the left: "Contender",
+   History. Between the stat strip and the transcript sits the rank card. On the left: "Contender",
    "Up 3.0" in green after an up triangle, "53.3" at the metric size, a thin ruler of seven
    slices with Contender's taller and blue, a pale wedge from that slice down to a bar filled
    about two thirds of the way from "40" to "60", with a dark notch where the rating stood

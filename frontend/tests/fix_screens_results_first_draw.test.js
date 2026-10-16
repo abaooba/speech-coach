@@ -129,13 +129,13 @@ function newestFirst(sessions) {
 }
 
 function paceOf(body) {
-  const grid = byClass(body, "metric-grid");
-  return grid ? byClass(grid.children[0], "metric-card__value").children[0].textContent : null;
+  const grid = byClass(body, "stat-strip");
+  return grid ? byClass(grid.children[0], "stat__value").children[0].textContent : null;
 }
 
 function deltaTexts(body) {
-  return byClass(body, "metric-grid").children.map((card) => {
-    const delta = byClass(card, "metric-card__delta");
+  return byClass(body, "stat-strip").children.map((card) => {
+    const delta = byClass(card, "stat__delta");
     return delta ? delta.textContent : null;
   });
 }
@@ -160,18 +160,18 @@ test("the take is drawn as soon as it is read, before its last take is listed", 
   await flush();
   assert.deepEqual(
     body.children.map((child) => child.className),
-    ["results__meta num", "headline", "metric-grid", "results__actions"],
+    ["results__meta num", "headline", "stat-strip", "results__actions"],
     "drawn while the list still waits",
   );
   assert.equal(paceOf(body), "140");
   assert.deepEqual(deltaTexts(body), [null, null, null, null], "no comparison yet");
-  assert.equal(byClass(body, "metric-grid__note"), undefined);
+  assert.equal(byClass(body, "stat-strip__note"), undefined);
 
   listed.resolve(newestFirst([previous, current]));
   await showing;
-  assert.deepEqual(deltaTexts(body), ["20 faster", "No change", "No change", null]);
-  const grid = byClass(body, "metric-grid");
-  assert.equal(body.children[body.children.indexOf(grid) + 1].className, "metric-grid__note");
+  assert.deepEqual(deltaTexts(body), ["20 faster", "No change", "No change", "Not compared"]);
+  const grid = byClass(body, "stat-strip");
+  assert.equal(body.children[body.children.indexOf(grid) + 1].className, "stat-strip__note");
   assert.equal(paceOf(body), "140");
 });
 

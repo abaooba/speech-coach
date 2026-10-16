@@ -1,8 +1,9 @@
-// Tests for the revamped Results metric cards (DESIGN.md sections 3, 5 and 6; audit H4, H5 and
-// H7): short sentence-case labels, the "/min" unit, a value line that never wraps apart from
-// its unit, and the card layout in styles.css (a subgrid inside @supports with a flex-column
-// fallback, 2 x 2 at every width, tighter cards under 360px). The DOM half mounts the real
-// ui.js, delivery.js and results.js against the shared fake DOM; the CSS half reads styles.css.
+// Tests for the Results stat strip (DESIGN.md sections 3, 5 and 6): short sentence-case labels,
+// the "/min" unit, a value line that never wraps apart from its unit, and the strip's layout in
+// styles.css (one surface band with hairlines between its cells: 2 x 2 on a phone, four across
+// from 600px, stacked at 200% zoom), plus the wide window's two-column Results. The DOM half
+// mounts the real ui.js, delivery.js and results.js against the shared fake DOM; the CSS half
+// reads styles.css.
 "use strict";
 
 const test = require("node:test");
@@ -20,8 +21,8 @@ const SOURCES = ["ui.js", "delivery.js", path.join("screens", "results.js")].map
 ]);
 const CSS = fs.readFileSync(path.join(FRONTEND_DIR, "styles.css"), "utf8");
 
-const SUBGRID_SUPPORTS = "@supports (grid-template-rows: subgrid)";
-const NARROW_MEDIA = "@media (max-width: 359px)";
+const WIDE_MEDIA = "@media (min-width: 600px)";
+const ZOOMED_MEDIA = "@media (max-width: 239px)";
 
 const SESSION = {
   id: "s1",
@@ -61,7 +62,7 @@ async function showCards(session) {
   root.appendChild(body);
   context.app.screens.results.mount(root);
   await context.app.screens.results.show({ id: session.id });
-  return byClass(body, "metric-grid").children;
+  return byClass(body, "stat-strip").children;
 }
 
 // One string per child: "#<text>" for a text node, the class list for an element.
@@ -134,10 +135,10 @@ function ruleFor(selector, at = null) {
   return rule.declarations;
 }
 
-test("the four cards read Pace, Fillers, Pauses and Clean stretch", async () => {
+test("the four stats read Pace, Fillers, Pauses and Clean stretch", async () => {
   const cards = await showCards(SESSION);
   assert.deepEqual(
-    cards.map((card) => byClass(card, "metric-card__label").textContent),
+    cards.map((card) => byClass(card, "stat__label").textContent),
     ["Pace", "Fillers", "Pauses", "Clean stretch"],
   );
 });
@@ -145,84 +146,145 @@ test("the four cards read Pace, Fillers, Pauses and Clean stretch", async () => 
 test("each value line is the number, one space and the unit, with /min for fillers", async () => {
   const cards = await showCards(SESSION);
   assert.deepEqual(
-    cards.map((card) => childShape(byClass(card, "metric-card__value"))),
+    cards.map((card) => childShape(byClass(card, "stat__value"))),
     [
-      ["#162", "# ", "metric-card__unit"],
-      ["#18", "# ", "metric-card__unit"],
-      ["#2"],
-      ["#0", "# ", "metric-card__unit"],
+      ["#162", "# ", "stat__unit"],
+      ["#18", "# ", "stat__unit"],
+      ["#2", "# ", "stat__unit"],
+      ["#0", "# ", "stat__unit"],
     ],
   );
-  const values = cards.map((card) => byClass(card, "metric-card__value"));
-  const units = values.map((value) => byClass(value, "metric-card__unit"));
+  const values = cards.map((card) => byClass(card, "stat__value"));
+  const units = values.map((value) => byClass(value, "stat__unit"));
   assert.deepEqual(
     units.map((unit) => (unit ? unit.textContent : null)),
-    ["wpm", "/min", null, "s"],
+    ["wpm", "/min", "pauses", "s"],
   );
 });
 
-test("the grid is 2 x 2 from 240px up; only 200% zoom on a phone stacks the cards", () => {
-  assert.equal(ruleFor(".metric-grid")["grid-template-columns"], "1fr 1fr");
-  const zoomed = "@media (max-width: 239px)";
+test("the strip is 2 x 2 on a phone, four across from 600px, stacked at 200% zoom", () => {
+  assert.equal(ruleFor(".stat-strip")["grid-template-columns"], "repeat(2, minmax(0, 1fr))");
   const overrides = RULES.filter(
-    (rule) => rule.selector === ".metric-grid" && rule.at !== null,
+    (rule) => rule.selector === ".stat-strip" && rule.at !== null,
   ).filter((rule) => "grid-template-columns" in rule.declarations);
   assert.deepEqual(
     overrides.map((rule) => [rule.at, rule.declarations["grid-template-columns"]]),
-    [[zoomed, "minmax(0, 1fr)"]],
-    "the 600px four-up rule is gone; a 160 to 187px window stacks the cards",
+    [
+      [WIDE_MEDIA, "repeat(4, minmax(0, 1fr))"],
+      [ZOOMED_MEDIA, "minmax(0, 1fr)"],
+    ],
   );
-  const stacked = RULES.find(
-    (rule) => rule.selector === ".metric-card:nth-child(n + 2)" && rule.at === zoomed,
+});
+
+test("the strip is one surface band; hairlines, not cards, divide its cells", () => {
+  const strip = ruleFor(".stat-strip");
+  assert.equal(strip.display, "grid");
+  assert.equal(strip.background, "var(--surface)");
+  assert.equal(strip.border, "1px solid var(--border)");
+  assert.equal(strip["border-radius"], "var(--r-card)");
+  assert.equal(strip["margin-top"], "var(--s-5)");
+  const cell = ruleFor(".stat");
+  assert.equal(cell.padding, "var(--s-3)");
+  assert.equal(cell.background, undefined, "a cell draws no card of its own");
+  assert.equal(cell.border, undefined);
+  // 2 x 2: the right cell of each row has a line on its left, the second row one on top.
+  assert.equal(ruleFor(".stat:nth-child(even)")["border-left"], "1px solid var(--border)");
+  assert.equal(ruleFor(".stat:nth-child(n + 3)")["border-top"], "1px solid var(--border)");
+  // Four across: every cell after the first has a line on its left and none on top.
+  assert.equal(
+    ruleFor(".stat:nth-child(n + 2)", WIDE_MEDIA)["border-left"],
+    "1px solid var(--border)",
   );
-  assert.ok(stacked, "stacked cards keep the --s-3 the second grid row gets");
-  assert.equal(stacked.declarations["margin-top"], "var(--s-3)");
+  assert.equal(ruleFor(".stat:nth-child(n + 3)", WIDE_MEDIA)["border-top"], "0");
+  // Stacked: a line on top of every cell after the first, none on the left.
+  assert.equal(ruleFor(".stat:nth-child(even)", ZOOMED_MEDIA)["border-left"], "0");
+  assert.equal(
+    ruleFor(".stat:nth-child(n + 2)", ZOOMED_MEDIA)["border-top"],
+    "1px solid var(--border)",
+  );
 });
 
 test("a value never wraps apart from its unit, and labels wrap instead of truncating", () => {
-  const value = ruleFor(".metric-card__value");
+  const value = ruleFor(".stat__value");
   assert.equal(value["white-space"], "nowrap");
   assert.equal(value.display, "flex", "one flex line: the space node never becomes a break");
   assert.equal(value["align-items"], "baseline");
   assert.equal(value.gap, "var(--s-1)");
-  const label = ruleFor(".metric-card__label");
+  const label = ruleFor(".stat__label");
   assert.equal(label["font-size"], "var(--fs-small)");
   assert.equal(label.color, "var(--muted)");
-  const labelRules = RULES.filter((rule) => rule.selector.includes(".metric-card__label"));
+  const labelRules = RULES.filter((rule) => rule.selector.includes(".stat__label"));
   labelRules.forEach((rule) => {
     assert.ok(!("text-overflow" in rule.declarations), "labels never truncate");
     assert.notEqual(rule.declarations["white-space"], "nowrap", "labels wrap");
   });
 });
 
-test("cards share a four-row subgrid inside @supports, with a flex-column fallback", () => {
-  const fallback = ruleFor(".metric-card");
-  assert.equal(fallback.display, "flex");
-  assert.equal(fallback["flex-direction"], "column");
-
-  const card = ruleFor(".metric-card", SUBGRID_SUPPORTS);
-  assert.equal(card.display, "grid");
-  assert.equal(card["grid-row"], "span 4");
-  assert.equal(card["grid-template-rows"], "subgrid");
-  const rows = ["label", "value", "hint", "delta"].map(
-    (part) => ruleFor(".metric-card__" + part, SUBGRID_SUPPORTS)["grid-row"],
-  );
-  assert.deepEqual(rows, ["1", "2", "3", "4"]);
-  assert.equal(ruleFor(".metric-card__value", SUBGRID_SUPPORTS)["align-self"], "end");
-  assert.equal(
-    ruleFor(".metric-card__hint", SUBGRID_SUPPORTS)["align-self"],
-    "start",
-    "a one-line hint stays under its value when the other card's hint wraps",
-  );
+test("a cell is a flex column whose value sinks to the bottom, so values line up", () => {
+  const cell = ruleFor(".stat");
+  assert.equal(cell.display, "flex");
+  assert.equal(cell["flex-direction"], "column");
+  assert.equal(cell.gap, "var(--s-1)");
+  assert.equal(cell["min-width"], "0", "a cell shrinks below its longest word");
+  assert.equal(ruleFor(".stat__value")["margin-top"], "auto");
 });
 
-test("under 360px the cards pad --s-3 and the values drop to --fs-metric-narrow", () => {
-  assert.equal(ruleFor(".metric-card", NARROW_MEDIA).padding, "var(--s-3)");
-  const narrowValue = ruleFor(".metric-card__value", NARROW_MEDIA);
-  assert.equal(narrowValue["font-size"], "var(--fs-metric-narrow)");
-  assert.equal(ruleFor(".metric-card__value")["font-size"], "var(--fs-metric)");
+test("the value is a compact --fs-h2 figure at 700 with a micro muted unit", () => {
+  const value = ruleFor(".stat__value");
+  assert.equal(value["font-size"], "var(--fs-h2)");
+  assert.equal(value["font-weight"], "700");
+  assert.equal(value["line-height"], "1.3");
+  const unit = ruleFor(".stat__unit");
+  assert.equal(unit["font-size"], "var(--fs-micro)");
+  assert.equal(unit["font-weight"], "500");
+  assert.equal(unit.color, "var(--muted)");
+  const narrow = RULES.filter(
+    (rule) => rule.selector.startsWith(".stat") && rule.at === "@media (max-width: 359px)",
+  );
+  assert.deepEqual(narrow, [], "no narrow-phone size step: the figure is small already");
 });
 
 test("every figure on Results uses tabular numbers, hints and headline included", () => {
   assert.equal(ruleFor("#screen-results")["font-variant-numeric"], "tabular-nums");
+});
+
+// The wide window (DESIGN.md section 3): from 1024px Results flows into two columns. The block
+// sits inside @supports selector(:has(a)), since only :has widens main for Results; the parser
+// records the innermost @-rule, the media query, as a rule's `at`.
+const WIDE_WINDOW = "@media (min-width: 1024px)";
+const BODY = "#screen-results > .screen__body";
+
+test("from 1024px Results is two columns that break only at the Transcript heading", () => {
+  assert.equal(ruleFor(BODY, WIDE_WINDOW).columns, "2");
+  assert.equal(ruleFor(BODY, WIDE_WINDOW)["column-gap"], "var(--s-6)");
+  assert.equal(
+    ruleFor("main:has(> #screen-results.screen--active)", WIDE_WINDOW)["max-width"],
+    "calc(var(--col-max) * 2 + var(--s-6))",
+  );
+  const spanning = [".results__meta", ".headline", ".results__actions"]
+    .map((part) => BODY + " > " + part)
+    .join(", ");
+  assert.equal(ruleFor(spanning, WIDE_WINDOW)["column-span"], "all");
+  const heading = ruleFor(BODY + " > .transcript__heading", WIDE_WINDOW);
+  assert.equal(heading["break-before"], "column");
+  assert.equal(heading["margin-top"], "0");
+  assert.equal(ruleFor(BODY + " > *", WIDE_WINDOW)["break-inside"], "avoid");
+  assert.equal(
+    ruleFor(BODY + " > .transcript, " + BODY + " > .coach-notes", WIDE_WINDOW)["break-inside"],
+    "auto",
+    "only the two tall paragraphs may split between the columns",
+  );
+});
+
+test("the two-column block waits for :has, so a browser without it keeps one column", () => {
+  const css = withoutComments(CSS);
+  const supports = css.indexOf("@supports selector(:has(a))");
+  assert.ok(supports !== -1, "styles.css has the @supports wrapper");
+  const open = css.indexOf("{", supports);
+  const block = css.slice(open + 1, closingBrace(css, open));
+  assert.ok(block.includes(WIDE_WINDOW), "the 1024px media query sits inside it");
+  assert.ok(block.includes("columns: 2"), "and so do the columns");
+  const outside = css.slice(0, supports) + css.slice(closingBrace(css, open) + 1);
+  assert.ok(!outside.includes("columns: 2"), "no two-column rule outside the wrapper");
+  assert.ok(!outside.includes(":has(> #screen-results"), "nor the widened main");
 });

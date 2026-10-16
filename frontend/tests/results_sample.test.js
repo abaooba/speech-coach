@@ -94,8 +94,8 @@ async function showResults(sessions, id) {
 }
 
 function deltasOf(body) {
-  return byClass(body, "metric-grid")
-    .children.map((card) => byClass(card, "metric-card__delta"))
+  return byClass(body, "stat-strip")
+    .children.map((card) => byClass(card, "stat__delta"))
     .map((delta) => (delta ? delta.textContent : null));
 }
 
@@ -134,7 +134,7 @@ test("a sample reads as a first take, even after the speaker's own takes", async
   // to 10.5 a minute." and every card would carry a delta line.
   const busy = await showResults([take("t", OCT_9, { fillers: 214 }), sample("s", OCT_10)], "s");
   assert.deepEqual(deltasOf(busy), [null, null, null, null]);
-  assert.equal(byClass(busy, "metric-grid__note"), undefined, "no note about arrows");
+  assert.equal(byClass(busy, "stat-strip__note"), undefined, "no note about arrows");
   assert.deepEqual(headlineOf(busy), headlineOf(alone));
   assert.doesNotMatch(headlineOf(busy)[0], /^Fillers are down/);
 });
@@ -147,7 +147,7 @@ test("a real take after a sample compares with the real take before the sample",
   ];
   const body = await showResults(sessions, "b");
   // Against the sample's 146 wpm and 10.5 fillers this would be "6 slower" and "10.5 fewer".
-  assert.deepEqual(deltasOf(body), ["10 faster", "2 fewer", "No change", null]);
+  assert.deepEqual(deltasOf(body), ["10 faster", "2 fewer", "No change", "Not compared"]);
   assert.equal(headlineOf(body)[0], "Fillers are down from 2 to 0 a minute.");
 });
 
@@ -157,6 +157,6 @@ test("a real take with only samples before it has no last take", async () => {
     "b",
   );
   assert.deepEqual(deltasOf(body), [null, null, null, null]);
-  assert.equal(byClass(body, "metric-grid__note"), undefined);
+  assert.equal(byClass(body, "stat-strip__note"), undefined);
   assert.doesNotMatch(headlineOf(body)[0], /^Fillers are down/, "not from the sample's 10.5");
 });

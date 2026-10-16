@@ -141,6 +141,7 @@
       ["circle", { cx: "12", cy: "7", r: "4" }],
       ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }],
     ],
+    "chevron-right": [["path", { d: "m9 18 6-6-6-6" }]],
   });
 
   // The theme is the one setting kept in localStorage, because it must apply before the first

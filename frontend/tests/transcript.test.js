@@ -210,15 +210,15 @@ test("buildTranscriptPlan returns [] for nothing, copes with missing input, chan
   assert.equal(JSON.stringify({ transcript, pauses }), before);
 });
 
-test("show draws Transcript and Tips between the metric grid and the actions", async () => {
+test("show draws Transcript and Tips between the stat strip and the actions", async () => {
   const { results, body } = mountResults({ s1: sessionWith() }, "fake");
   await results.show({ id: "s1" });
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
     "section.headline",
-    "div.metric-grid",
-    "section.timeline",
-    "h2.results__heading",
+    "section.speech-map",
+    "div.stat-strip",
+    "h2.results__heading transcript__heading",
     "p.transcript__legend",
     "p.transcript",
     "h2.results__heading",
@@ -226,7 +226,7 @@ test("show draws Transcript and Tips between the metric grid and the actions", a
     "div.tip-card",
     "div.results__actions",
   ]);
-  const headings = body.children.filter((node) => node.className === "results__heading");
+  const headings = body.children.filter((node) => node.classList.contains("results__heading"));
   assert.deepEqual(
     headings.map((heading) => heading.textContent),
     ["Transcript", "Tips"],
@@ -236,7 +236,7 @@ test("show draws Transcript and Tips between the metric grid and the actions", a
     tipCards.map((card) => card.textContent),
     ["First fake tip.", "Second fake tip."],
   );
-  assert.equal(byClass(body, "metric-grid").children.length, 4, "the cards are untouched");
+  assert.equal(byClass(body, "stat-strip").children.length, 4, "the stats are untouched");
 });
 
 test("the transcript alternates tokens and spaces, marking fillers and the pause", async () => {
@@ -334,7 +334,7 @@ test("no words means no Transcript section, even with pauses; a clean take still
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
     "section.headline",
-    "div.metric-grid",
+    "div.stat-strip",
     "h2.results__heading",
     "div.tip-card",
     "div.results__actions",
@@ -352,9 +352,9 @@ test("without app.tips the screen still renders, just with no Tips section", asy
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
     "section.headline",
-    "div.metric-grid",
-    "section.timeline",
-    "h2.results__heading",
+    "section.speech-map",
+    "div.stat-strip",
+    "h2.results__heading transcript__heading",
     "p.transcript__legend",
     "p.transcript",
     "div.results__actions",

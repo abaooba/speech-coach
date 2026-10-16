@@ -113,10 +113,10 @@ function progressSession(id, createdAt, pauseCount) {
 }
 
 test("the Results pauses card reads Pauses and counts the freeze after a full stop", async () => {
-  const cards = byClass(await showResults(SESSION), "metric-grid").children;
+  const cards = byClass(await showResults(SESSION), "stat-strip").children;
   const card = cards[2];
-  assert.equal(byClass(card, "metric-card__label").textContent, "Pauses");
-  assert.equal(fullText(byClass(card, "metric-card__value")), "2");
+  assert.equal(byClass(card, "stat__label").textContent, "Pauses");
+  assert.equal(fullText(byClass(card, "stat__value")), "2 pauses");
 });
 
 test("the Progress pauses chart is titled Pauses and labelled with it", async () => {

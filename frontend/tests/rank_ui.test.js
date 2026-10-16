@@ -141,7 +141,7 @@ function visible(node) {
 
 // The tier spec's parts, in order. `current` is the speaker's tier, lowest first from 0.
 const TIER_LINE = ["rank-card__tier", "sr-only"];
-const RATING_LINE = ["rank-card__rating", "sr-only", "sr-only"];
+const RATING_LINE = ["rank-card__rating", "rank-card__rating-label", "sr-only"];
 const NEXT_LINE = ["rank-card__next", "sr-only", "sr-only"];
 
 function ladderParts(current) {
@@ -537,7 +537,7 @@ test("the speaker's tier is accent on accent-soft, and an Up line is --ok", () =
   assert.equal(declared(".rank-card__next strong").color, "var(--text)");
 });
 
-test("the card sits 24px under the Results headline and 32px above Progress's switch", () => {
+test("the card sits 24px under the Results stat strip and 32px above Progress's switch", () => {
   assert.equal(declared("#screen-results .rank-card")["margin-top"], "var(--s-5)");
   assert.equal(declared("#screen-progress .rank-card")["margin-bottom"], "var(--s-6)");
 });
@@ -644,7 +644,7 @@ test("Progress puts the card first under the h1, a section gap above the switch"
   assert.deepEqual(partsOf(body).slice(0, 3), ["rank-card", "segmented", "progress__title"]);
   const card = body.children[0];
   assert.equal(visible(find(card, "rank-card__tier")), "Elite");
-  assert.equal(visible(find(card, "rank-card__rating")), "80.0");
+  assert.equal(visible(find(card, "rank-card__rating")), "Rating 80.0");
   assert.equal(find(card, "rank-card__change"), null, "no change line on Progress");
   assert.equal(visible(find(card, "rank-card__foot")), "Current streak 3 days, longest 3");
 });
@@ -654,7 +654,7 @@ test("with one rated take Progress puts the card above Need two sessions", async
   assert.deepEqual(partsOf(body), ["rank-card", "state"]);
   const [card, block] = body.children;
   assert.equal(visible(find(card, "rank-card__tier")), "Varsity");
-  assert.equal(visible(find(card, "rank-card__rating")), "64.0");
+  assert.equal(visible(find(card, "rank-card__rating")), "Rating 64.0");
   assert.equal(find(block, "state__title").textContent, "Need two sessions");
   assert.equal(find(block, "state__body").textContent, "Record one more to see a trend.");
 });
@@ -674,13 +674,16 @@ test("a sample never counts toward Progress's card", async () => {
   assert.deepEqual(snapshot(withSample.body.children[0]), snapshot(without.body.children[0]));
 });
 
-test("Results puts the card under the headline and above the metric grid", async () => {
+test("Results puts the card under the stat strip and above the transcript", async () => {
   const { body } = await showResults(ELITE_TAKES, "day-3");
-  assert.deepEqual(partsOf(body).slice(0, 4), [
+  assert.deepEqual(partsOf(body).slice(0, 7), [
     "results__meta",
     "headline",
+    "speech-map",
+    "stat-strip",
+    "stat-strip__note",
     "rank-card",
-    "metric-grid",
+    "results__heading",
   ]);
   const card = find(body, "rank-card");
   assert.equal(visible(find(card, "rank-card__change")), "Up 5.7, now Elite");
@@ -694,7 +697,7 @@ test("a reopened take's card shows the rank as it stood after that take", async 
   const { body } = await showResults(ELITE_TAKES, "day-2");
   const card = find(body, "rank-card");
   assert.equal(visible(find(card, "rank-card__tier")), "Varsity");
-  assert.equal(visible(find(card, "rank-card__rating")), "74.3");
+  assert.equal(visible(find(card, "rank-card__rating")), "Rating 74.3");
   assert.equal(visible(find(card, "rank-card__change")), "Up 10.3");
   assert.ok(find(card, "rank-card__notch"), "same tier, so the notch marks 64.0");
 });
@@ -703,7 +706,7 @@ test("Results draws no card for a sample", async () => {
   const sample = sampleTake("sample", "2026-10-14T12:00:00");
   const { body } = await showResults([...ELITE_TAKES, sample], "sample");
   assert.equal(find(body, "rank-card"), null);
-  assert.equal(find(body, "metric-grid__note"), null, "a sample compares with nothing");
+  assert.equal(find(body, "stat-strip__note"), null, "a sample compares with nothing");
 });
 
 test("a first take's card comes with the store's list, in one more draw", async () => {
@@ -730,7 +733,13 @@ test("the card stays in place when the coach notes redraw Results", async () => 
   const tips = { select: () => [], coachNotes: () => Promise.resolve(notes) };
   const { body, calls } = await showResults(ELITE_TAKES, "day-3", { tips });
   assert.equal(calls.draws, 3, "the take, the comparison and card, then the notes");
-  assert.deepEqual(partsOf(body).slice(1, 4), ["headline", "rank-card", "metric-grid"]);
+  assert.deepEqual(partsOf(body).slice(1, 6), [
+    "headline",
+    "speech-map",
+    "stat-strip",
+    "stat-strip__note",
+    "rank-card",
+  ]);
   assert.ok(find(body, "coach-notes"), "the notes arrived");
 });
 

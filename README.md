@@ -26,8 +26,9 @@ Phone width, light and dark. The history is seeded with two real takes
 
 - Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
   the take.
-- Results: a two-sentence headline, your rank, four metric cards, a speech timeline, the
-  transcript with fillers and restarts marked, and two or three cited coach notes.
+- Results: a speech map pins each restart, freeze and filler to its second. Tap a card to
+  see that moment in the transcript. Four stats, your rank, the marked transcript and two or
+  three cited coach notes follow.
 - Progress: one metric charted across your takes, with your latest, your best and your change
   from the average, under your rank and streak.
 - History: every take, newest first, with its pace, fillers per minute and a status word.

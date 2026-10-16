@@ -61,10 +61,12 @@
 
   // The words screen readers hear that the eye does not need (the tier spec, section 10). The
   // caption keeps its number and "to" together with a no-break space.
+  // The rating's visible label, on its own line above the number; its trailing space keeps
+  // "Rating 80.0" one phrase for screen readers.
+  const RATING_LABEL = "Rating ";
   const HIDDEN = Object.freeze({
     title: "Your rank",
     tier: "Tier: ",
-    rating: "Rating ",
     outOf: " out of 100",
     points: " points",
     startsAt: ", which starts at ",
@@ -442,7 +444,7 @@
       el("p", { class: "rank-card__tier" }, [hidden(HIDDEN.tier), card.tier]),
       buildChange(card.change),
       el("p", { class: "rank-card__rating" }, [
-        hidden(HIDDEN.rating),
+        el("span", { class: "rank-card__rating-label", text: RATING_LABEL }),
         card.rating.toFixed(1),
         hidden(HIDDEN.outOf),
       ]),

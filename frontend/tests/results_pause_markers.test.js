@@ -1,7 +1,7 @@
 // Tests for the Results transcript section (DESIGN.md section 6). The transcript marks only the
-// pauses the card counts: a pause after a sentence ends, or before the first word or after the
-// last, gets no marker, so the transcript, the Mid-sentence pauses card and the speech timeline
-// show the same pauses, and how.html says so. The legend's "How we count" link follows its text
+// pauses the stat counts: a pause after a sentence ends, or before the first word or after the
+// last, gets no marker, so the transcript, the Pauses stat and the speech map show the same
+// pauses, and how.html says so. The legend's "How we count" link follows its text
 // after a plain space.
 "use strict";
 
@@ -72,13 +72,16 @@ function transcriptTokens(body) {
 }
 
 function pauseCard(body) {
-  const card = byClass(body, "metric-grid").children[2];
-  return byClass(card, "metric-card__value").children[0].textContent;
+  const card = byClass(body, "stat-strip").children[2];
+  return byClass(card, "stat__value").children[0].textContent;
 }
 
-function timelinePauses(body) {
-  const strip = byClass(body, "timeline").children[1];
-  return strip.children.filter((mark) => mark.getAttribute("class") === "timeline__pause").length;
+function mapPauses(body) {
+  const stage = byClass(byClass(body, "speech-map"), "speech-map__stage");
+  const list = byClass(byClass(stage, "speech-map__body"), "speech-map__moments");
+  return list.children.filter((row) =>
+    row.classList.contains("moment--pause"),
+  ).length;
 }
 
 test("a pause after a period gets no marker; a mid-sentence one does", async () => {
@@ -95,7 +98,7 @@ test("a pause after a period gets no marker; a mid-sentence one does", async () 
     "today.",
   ]);
   assert.equal(pauseCard(body), "1", "the card counts the same single pause");
-  assert.equal(timelinePauses(body), 1, "and so does the timeline");
+  assert.equal(mapPauses(body), 1, "and so does the speech map");
 });
 
 test("pauses before the first word or after the last get no marker either", async () => {
@@ -104,7 +107,7 @@ test("pauses before the first word or after the last get no marker either", asyn
   const body = await showSession(sessionWith([beforeFirst, afterLast]));
   assert.deepEqual(transcriptTokens(body), ["We", "win.", "The", "plan", "works", "today."]);
   assert.equal(pauseCard(body), "0");
-  assert.equal(timelinePauses(body), 0);
+  assert.equal(mapPauses(body), 0);
 });
 
 test("a malformed pause never becomes a marker", async () => {
