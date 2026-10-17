@@ -48,8 +48,7 @@ are optional and only sync what the phone already has.
 | `frontend/app.js` | The `app` namespace, hash router, boot |
 | `frontend/ui.js` | DOM helpers, state blocks, icons, theme |
 | `frontend/api.js` | `app.api.analyze` with a 180 s deadline and typed errors |
-| `frontend/store.js` | IndexedDB sessions, flags and Path progress; write-through to the server when signed in |
-| `frontend/auth.js` | Sign up, log in, log out, delete account |
+| `frontend/store.js` | IndexedDB sessions, flags and Path progress, on the device only |
 | `frontend/passages.js` | Talk prompts, Read passages, cold reads, the benchmark |
 | `frontend/delivery.js` | Filler rules, pause classes, clean stretch, restarts: the delivery report |
 | `frontend/pauses.js` | Browser-side pause detection with Web Audio (human-owned) |
@@ -65,7 +64,6 @@ are optional and only sync what the phone already has.
 | `frontend/screens/progress.js` | One metric charted across takes; the rank card and streak |
 | `frontend/screens/path.js` | The winding Path with its units and nodes |
 | `frontend/screens/level.js` | One Loop Path level: goal, take 1, review, take 2, result |
-| `frontend/screens/account.js` | Sign up, log in, import guest history, delete |
 | `frontend/screens/onboarding.js` | First launch: what is measured, what happens to audio |
 
 ## Where data lives

@@ -13,7 +13,6 @@ Every screen is built from this file. Angle: **drill-first**. A speaker who want
 | Progress | `#/progress` | Metric switch, summary row, hand-rolled SVG line chart with the target band and the personal best. |
 | Path | `#/path` | The skill map: the four units weakest first, each a winding line of level nodes with its crown and checkpoint; the week and due check-back chips; the benchmark when due. No rank. |
 | Level | `#/level/:playId` | One play step by step: Goal, takes through Practice's level mode, the review of take 1, Result. Its back link returns to the Path, whose nav item stays active. No rank. |
-| Account | `#/account` | The optional account: sign up or log in; signed in, add this device's takes once, log out, or delete the account after a second tap. Linked from History's header; no nav item. |
 
 **Flow.** On boot, if `app.store.getFlag("onboarded")` is false the router opens Onboarding; its single button sets the flag and goes to Practice. Practice is home: the empty hash, the left nav item, where "Record again" returns. It opens on the Talk tab with "Your day" selected; the tab, the option and the topic stay as the speaker left them while the app is open. Stop uploads immediately (no submit step); on success the session is saved and the router goes to `#/results/<id>`. Results keeps an action bar stuck above the nav with "History" (`.btn--ghost`) and "Record again" (`.btn--primary`), or at the end of the page on a short or zoomed window; History rows open Results by id. The nav shows Practice · Path · Progress · History; on Results no item is active, and on a level (`#/level/<playId>`) the Path item is. The nav is hidden on Onboarding and while the active Practice is `recording` or `uploading`, in level mode too, so a stray thumb cannot abandon a take.
 
@@ -27,16 +26,14 @@ Routing is hash-based in `app.js`. Exactly one `.screen` has `.screen--active`; 
 
 ```
 frontend/
-  index.html          eight <section class="screen">, <nav>, scripts in the order below,
+  index.html          seven <section class="screen">, <nav>, scripts in the order below,
                       one inline theme script in <head>
   styles.css          tokens, base, components, screens, one file
   app.js              creates window.app, hash router, boots on DOMContentLoaded
   ui.js               app.ui: el, renderState, clear, announce, formatClock, formatDate,
                       formatDay, icon, getTheme, applyTheme, setTheme, nextTheme
-  auth.js             app.auth: the optional account (signUp, logIn, logOut,
-                      deleteAccount, me) and the sync store.js connects to it
   store.js            app.store: IndexedDB sessions + flags + skill-path progress,
-                      kept on the server too for a signed-in speaker
+                      on this device only
   api.js              app.api.analyze
   passages.js         app.passages: [{id, kind, title, text, targetWpm: [lo, hi], source?,
                       timeLimitSeconds?, topics?}], app.passages.coldReads(),
@@ -51,7 +48,7 @@ frontend/
                       tap matching, clips, days in words)
   tips.js             app.tips.select(report, options) -> up to two {id, text}
   pauses.js           app.pauses, human-owned (T08); agents never touch it
-  screens/practice.js results.js history.js progress.js path.js level.js account.js onboarding.js
+  screens/practice.js results.js history.js progress.js path.js level.js onboarding.js
   how.html            static "How we measure" page: each metric's rule, band and source
   sample-session.json one sample take, loaded by Practice's "See a sample result": its
                       timings and fillers come from a real take, its words are an everyday
@@ -59,7 +56,7 @@ frontend/
   manifest.json  sw.js  icons/   (T10)
 ```
 
-Script order: `app.js`, `ui.js`, `auth.js`, `store.js`, `api.js`, `passages.js`, `delivery.js`, `rank.js`, `rankcard.js`, `path.js`, `loop.js`, `tips.js`, `pauses.js`, then the eight screens. Classic `<script>` tags, no modules, no build, no CDN. The list is fixed by `backend/tests/test_frontend_shell.py`, so a new helper lives in the module that owns its data. A new file comes only when `docs/PLAN.md` names one, as it named `path.js`, and then joins this list, that test, `SHELL` in `sw.js` (with a `CACHE_NAME` bump) and `index.html` together. The Loop Path's scripts joined them that way (docs/superpowers/specs/2026-10-14-loop-path.md section 0). Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`, and SVG with `createElementNS`.
+Script order: `app.js`, `ui.js`, `store.js`, `api.js`, `passages.js`, `delivery.js`, `rank.js`, `rankcard.js`, `path.js`, `loop.js`, `tips.js`, `pauses.js`, then the seven screens. Classic `<script>` tags, no modules, no build, no CDN. The list is fixed by `backend/tests/test_frontend_shell.py`, so a new helper lives in the module that owns its data. A new file comes only when `docs/PLAN.md` names one, as it named `path.js`, and then joins this list, that test, `SHELL` in `sw.js` (with a `CACHE_NAME` bump) and `index.html` together. The Loop Path's scripts joined them that way (docs/superpowers/specs/2026-10-14-loop-path.md section 0). Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`, and SVG with `createElementNS`.
 
 Contracts (exact names):
 

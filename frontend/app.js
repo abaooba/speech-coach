@@ -14,7 +14,6 @@
     "progress",
     "path",
     "level",
-    "account",
   ];
   const DEFAULT_SCREEN = "practice";
   const ACTIVE_SCREEN_CLASS = "screen--active";

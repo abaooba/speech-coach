@@ -1,8 +1,8 @@
 // Tests that DESIGN.md sections 1 and 2 describe the shell index.html is: a row in the screen
 // table for every <section class="screen">, the number of those sections in the file layout, and
 // every <script src> in the layout and in the script order. DESIGN.md's own rule says a new file
-// "joins this list, that test, SHELL in sw.js ... and index.html together"; T49 added auth.js and
-// screens/account.js (the #/account screen) to the other three.
+// "joins this list, that test, SHELL in sw.js ... and index.html together". The account screen and
+// auth.js are gone (owner decision 2026-10-17).
 "use strict";
 
 const test = require("node:test");
@@ -34,10 +34,10 @@ function section(number) {
   return DESIGN.slice(start, end === -1 ? undefined : end);
 }
 
-test("index.html has the account screen and loads auth.js and screens/account.js", () => {
-  assert.ok(SCREENS.includes("account"));
-  assert.ok(HELPER_SCRIPTS.includes("auth.js"));
-  assert.ok(SCREEN_SCRIPTS.includes("screens/account.js"));
+test("index.html has no account screen and loads no auth.js or screens/account.js", () => {
+  assert.ok(!SCREENS.includes("account"));
+  assert.ok(!HELPER_SCRIPTS.includes("auth.js"));
+  assert.ok(!SCREEN_SCRIPTS.includes("screens/account.js"));
 });
 
 test("DESIGN.md's screen table has a row for every screen index.html holds", () => {
