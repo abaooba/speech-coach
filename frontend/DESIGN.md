@@ -53,6 +53,7 @@ frontend/
   tips.js             app.tips.select(report, options) -> up to two {id, text}
   pauses.js           app.pauses, human-owned (T08); agents never touch it
   screens/practice.js results.js history.js progress.js path.js level.js onboarding.js
+  screens/coachcard.js app.screens.coachCard: the Coach card at the top of Results (not a screen)
   how.html            static "How we measure" page: each metric's rule, band and source
   sample-session.json one sample take, loaded by Practice's "See a sample result": its
                       timings and fillers come from a real take, its words are an everyday
@@ -60,7 +61,7 @@ frontend/
   manifest.json  sw.js  icons/   (T10)
 ```
 
-Script order: `app.js`, `ui.js`, `store.js`, `sheet.js`, `api.js`, `passages.js`, `delivery.js`, `rank.js`, `rankcard.js`, `path.js`, `loop.js`, `coach.js`, `nextmove.js`, `language.js`, `tips.js`, `pauses.js`, then the seven screens. Classic `<script>` tags, no modules, no build, no CDN. The list is fixed by `backend/tests/test_frontend_shell.py`, so a new helper lives in the module that owns its data. A new file comes only when `docs/PLAN.md` names one, as it named `path.js`, and then joins this list, that test, `SHELL` in `sw.js` (with a `CACHE_NAME` bump) and `index.html` together. The Loop Path's scripts joined them that way (docs/superpowers/specs/2026-10-14-loop-path.md section 0). Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`, and SVG with `createElementNS`.
+Script order: `app.js`, `ui.js`, `store.js`, `sheet.js`, `api.js`, `passages.js`, `delivery.js`, `rank.js`, `rankcard.js`, `path.js`, `loop.js`, `coach.js`, `nextmove.js`, `language.js`, `tips.js`, `pauses.js`, then the seven screens, with `screens/coachcard.js` (the Results Coach card, not a screen) right after `screens/results.js`. Classic `<script>` tags, no modules, no build, no CDN. The list is fixed by `backend/tests/test_frontend_shell.py`, so a new helper lives in the module that owns its data. A new file comes only when `docs/PLAN.md` names one, as it named `path.js`, and then joins this list, that test, `SHELL` in `sw.js` (with a `CACHE_NAME` bump) and `index.html` together. The Loop Path's scripts joined them that way (docs/superpowers/specs/2026-10-14-loop-path.md section 0). Every file is an IIFE assigning exactly one `app.<name>`; `window.app` is the only global. Each file opens with a two-to-four line comment saying what it owns. Transcript and user text never go through `innerHTML`; build nodes with `app.ui.el`, and SVG with `createElementNS`.
 
 Contracts (exact names):
 

@@ -28,7 +28,6 @@ const OCT_9 = "2026-10-09T15:30:00Z";
 const OCT_10 = "2026-10-10T15:30:00Z";
 const OCT_11 = "2026-10-11T15:30:00Z";
 
-const FILLERS_DOWN = "Fillers are down from 4 to 1 a minute.";
 
 // A take saved without words, ten minutes long, so `fillers` ums make fillers / 10 a minute.
 function tallies(id, createdAt, { wpm = 140, fillers = 0 } = {}) {
@@ -140,10 +139,6 @@ function deltaTexts(body) {
   });
 }
 
-function strengthOf(body) {
-  return byClass(byClass(body, "headline"), "headline__strength").textContent;
-}
-
 // The body still holds the very nodes of the first draw, in order: nothing was drawn again.
 function assertSameNodes(body, drawn) {
   assert.equal(body.children.length, drawn.length);
@@ -160,7 +155,7 @@ test("the take is drawn as soon as it is read, before its last take is listed", 
   await flush();
   assert.deepEqual(
     body.children.map((child) => child.className),
-    ["results__meta num", "headline", "stat-strip", "results__actions"],
+    ["results__meta num", "stat-strip", "results__actions"],
     "drawn while the list still waits",
   );
   assert.equal(paceOf(body), "140");
@@ -194,7 +189,7 @@ test("a new take replaces the one shown before at once, while the list still wai
   assert.equal(deltaTexts(body)[0], "40 faster");
 });
 
-test("the second draw lets the headline count a fillers drop against the last take", async () => {
+test("the second draw counts a fillers drop against the last take", async () => {
   const previous = spoken("p", OCT_9, 120, [10, 40, 70, 100]);
   const current = spoken("c", OCT_10, 120, [60]);
   const listed = deferred();
@@ -202,11 +197,11 @@ test("the second draw lets the headline count a fillers drop against the last ta
 
   const showing = results.show({ id: "c" });
   await flush();
-  assert.notEqual(strengthOf(body), FILLERS_DOWN, "no last take to compare with yet");
+  assert.equal(deltaTexts(body)[1], null, "no last take to compare with yet");
 
   listed.resolve(newestFirst([previous, current]));
   await showing;
-  assert.equal(strengthOf(body), FILLERS_DOWN);
+  assert.equal(deltaTexts(body)[1], "3 fewer", "4 fillers a minute down to 1");
 });
 
 test("tips are chosen once for the take, though it is drawn twice", async () => {
@@ -230,7 +225,7 @@ test("a first take is drawn once: a list with nothing earlier leaves it as it is
   const showing = results.show({ id: "c" });
   await flush();
   const drawn = [...body.children];
-  assert.equal(drawn.length, 4);
+  assert.equal(drawn.length, 3);
 
   listed.resolve(newestFirst([current, later]));
   await showing;

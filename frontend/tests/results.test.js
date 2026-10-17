@@ -204,7 +204,8 @@ test("show({id}) builds the meta line, four stats in order and the one action", 
 
   assert.deepEqual(
     body.children.map((child) => child.className),
-    ["results__meta num", "headline", "stat-strip", "results__actions"],
+    ["results__meta num", "stat-strip", "results__actions"],
+    "no headline: the Coach card (coachcard.js, not loaded here) took its place",
   );
 
   const meta = body.children[0];
@@ -318,11 +319,11 @@ test("show rebuilds the body each time and hide leaves it alone", async () => {
   await results.show({ id: "nope" });
   assert.equal(body.children.length, 1);
   await results.show({ id: "s1" });
-  assert.equal(body.children.length, 4);
+  assert.equal(body.children.length, 3);
   await results.show({ id: "s2" });
-  assert.equal(body.children.length, 4, "a second session replaces the first, never stacks");
+  assert.equal(body.children.length, 3, "a second session replaces the first, never stacks");
   assert.doesNotThrow(() => results.hide());
-  assert.equal(body.children.length, 4);
+  assert.equal(body.children.length, 3);
 });
 
 test("when two loads overlap, the later show wins", async () => {

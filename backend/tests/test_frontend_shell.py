@@ -50,6 +50,7 @@ SCRIPT_LOAD_ORDER = [
     "pauses.js",
     "screens/practice.js",
     "screens/results.js",
+    "screens/coachcard.js",
     "screens/history.js",
     "screens/progress.js",
     "screens/path.js",

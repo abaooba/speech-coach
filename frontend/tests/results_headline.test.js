@@ -1,8 +1,8 @@
-// Tests for the Results headline (DESIGN.md sections 6 and 8; queue feature T21): the pure
+// Tests for the pure Results headline helper (DESIGN.md section 8; queue feature T21):
 // headlineFor(summary, previousSummary) picks one strength and one focus, first match wins,
-// with the same thresholds as the cards, and show() draws them in section.headline right after
-// the meta line. The pure half loads delivery.js and results.js with no document and a stub
-// app.ui; the DOM half adds the real ui.js and the shared fake DOM.
+// with the same thresholds as the cards. Results no longer draws it: the Coach card took the
+// headline's place (guided-coach owner decision 2026-10-17). delivery.js and results.js load
+// with no document and a stub app.ui.
 "use strict";
 
 const test = require("node:test");
@@ -11,15 +11,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const { FakeElement, fakeDocument, byClass } = require("./fake-dom");
-
 const FRONTEND_DIR = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
-const UI_SOURCE = read("ui.js");
 const DELIVERY_SOURCE = read("delivery.js");
 const RESULTS_SOURCE = read(path.join("screens", "results.js"));
 const TIPS_SOURCE = read("tips.js");
-const CSS = read("styles.css");
 
 const CLIP_WORDS = JSON.parse(
   fs.readFileSync(
@@ -343,132 +339,6 @@ test("every headline sentence is short, calm and fully filled in", () => {
   }
 });
 
-// The DOM half: show() against the fake document. With `earlier` sessions the store can list,
-// so the headline can compare with the last of them.
-async function showHeadline(session, earlier) {
-  const store = { get: () => Promise.resolve(session) };
-  if (earlier) {
-    store.list = () => Promise.resolve([session, ...earlier]);
-  }
-  const context = {
-    app: {
-      screens: {},
-      passages: PASSAGES.map((entry) => ({ ...entry })),
-      store,
-      router: { go() {} },
-    },
-    document: fakeDocument(),
-  };
-  vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
-  vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
-  vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
-  const root = new FakeElement("section");
-  const body = new FakeElement("div");
-  body.className = "screen__body";
-  root.appendChild(body);
-  context.app.screens.results.mount(root);
-  await context.app.screens.results.show({ id: session.id });
-  return body;
-}
-
-test("show() draws section.headline right after the meta line", async () => {
-  const body = await showHeadline(CLIP);
-  const [meta, section] = body.children;
-  assert.equal(meta.className, "results__meta num");
-  assert.equal(section.tagName, "section");
-  assert.equal(section.className, "headline");
-  const [strength, focus] = section.children;
-  assert.equal(section.children.length, 2);
-  assert.deepEqual(
-    [strength.tagName, strength.className, strength.textContent],
-    ["p", "headline__strength", "Your longest clean stretch is 4.9 seconds."],
-  );
-  assert.deepEqual(
-    [focus.tagName, focus.className, focus.textContent],
-    ["p", "headline__focus", "Next take, cut fillers under 3 a minute."],
-  );
-});
-
-test("each headline line ends with its icon: a check, then an arrow", async () => {
-  const body = await showHeadline(CLIP);
-  const [strength, focus] = byClass(body, "headline").children;
-  for (const [line, name] of [
-    [strength, "check"],
-    [focus, "arrow-right"],
-  ]) {
-    assert.equal(line.children.length, 1);
-    const [icon] = line.children;
-    assert.equal(icon.tagName, "svg");
-    assert.equal(icon.getAttribute("data-icon"), name);
-    assert.equal(icon.getAttribute("aria-hidden"), "true");
-  }
-});
-
-// The text of each drawn headline line, strength first.
-async function drawnHeadline(session, earlier) {
-  const body = await showHeadline(session, earlier);
-  return byClass(body, "headline").children.map((line) => line.textContent);
-}
-
-test("the take's band never splits across lines; other numbers wrap as usual", async () => {
-  // As in the Pace hint, the spaces around the band's "to" do not break once drawn, so a
-  // narrow screen breaks "slow toward / 130 to 150 wpm", never "130 to / 150". headlineFor
-  // itself keeps plain spaces.
-  assert.deepEqual(await drawnHeadline(tallies({ wpm: 140, pauses: 2 })), [
-    "Your pace is inside the 130\u00a0to\u00a0150 target.",
-    "Next take, save pauses for the ends of sentences.",
-  ]);
-  const previous = { ...tallies({ wpm: 165, fillers: 4 }), id: "p" };
-  previous.createdAt = "2026-10-08T10:00:00.000Z";
-  assert.deepEqual(await drawnHeadline(tallies({ wpm: 165, fillers: 1 }), [previous]), [
-    "Fillers are down from 4 to 1 a minute.",
-    "Next take, slow toward 130\u00a0to\u00a0150 wpm.",
-  ]);
-  assert.equal(
-    (await drawnHeadline(tallies({ wpm: 120, fillers: 3 })))[1],
-    "Next take, lift your pace toward 130\u00a0to\u00a0150 wpm.",
-  );
+test("headlineFor keeps plain spaces around the band", () => {
   assert.equal(headline(tallies({ wpm: 165 })).focus, "Next take, slow toward 130 to 150 wpm.");
-});
-
-// Every declaration styles.css gives this selector, later rules winning as in the cascade.
-// The headline rules sit outside any @-rule, so a flat scan is enough here.
-function rule(selector) {
-  const css = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
-  const declarations = {};
-  let found = false;
-  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const selectors = match[1].split(",").map((part) => part.replace(/\s+/g, " ").trim());
-    if (selectors.includes(selector)) {
-      found = true;
-      match[2].split(";").forEach((part) => {
-        const colon = part.indexOf(":");
-        if (colon !== -1) {
-          declarations[part.slice(0, colon).trim()] = part.slice(colon + 1).trim();
-        }
-      });
-    }
-  }
-  assert.ok(found, `styles.css needs a rule for ${selector}`);
-  return declarations;
-}
-
-test("the headline is plain text over the map: an h2-size bold strength, a body focus", () => {
-  const block = rule(".headline");
-  assert.equal(block.background, undefined, "no card: the map under it is the picture");
-  assert.equal(block.border, undefined);
-  assert.equal(block.padding, undefined);
-  assert.equal(block["margin-top"], "var(--s-5)");
-  assert.equal(rule(".headline__strength")["font-weight"], "700");
-  assert.equal(rule(".headline__strength")["font-size"], "var(--fs-h2)");
-  assert.equal(rule(".headline__strength")["line-height"], "1.3");
-  assert.equal(rule(".headline__focus")["font-size"], "var(--fs-body)");
-  assert.equal(rule(".headline__focus")["line-height"], "1.5");
-  assert.equal(rule(".headline__strength")["text-wrap"], "pretty");
-  assert.equal(rule(".headline__focus")["text-wrap"], "pretty");
-  assert.equal(rule(".headline__strength svg")["margin-top"], "var(--s-1)");
-  assert.equal(rule(".headline__strength svg").order, "-1");
-  assert.equal(rule(".headline__focus svg").order, "-1");
-  assert.equal(rule(".headline__strength svg").color, "var(--ok)");
-  assert.equal(rule(".headline__focus svg").color, "var(--accent)");
 });

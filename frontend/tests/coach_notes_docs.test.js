@@ -1,6 +1,6 @@
 // Tests that the coach notes (docs/PLAN.md T41) are explained where a reader looks: how.html
 // says who writes them, what the model is told and what is sent to Anthropic, and that the tips
-// show first, in short sentences; styles.css styles every class results.js draws them with,
+// show first, in short sentences; styles.css styles every class the Coach card draws them with,
 // from tokens only; frontend/README.md names them.
 "use strict";
 
@@ -97,67 +97,63 @@ test("how.html keeps one numbered section per rule, 1 to 8, in order", () => {
   assert.deepEqual(headings, [1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
-test("styles.css draws the notes as one card, split by dividers, from tokens only", () => {
+test("styles.css draws the Coach card's notes and their sources from tokens only", () => {
+  // The notes live in the Coach card at the top of Results (guided-coach owner decision
+  // 2026-10-17), no longer in a card of their own under the transcript.
   const css = read("styles.css");
-  const lead = ruleFor(css, ".coach-notes__lead");
-  assert.match(lead, /font-size: var\(--fs-small\)/);
-  assert.match(lead, /color: var\(--muted\)/);
+  const by = ruleFor(css, ".coach-card__by");
+  assert.match(by, /font-size: var\(--fs-micro\)/);
+  assert.match(by, /color: var\(--muted\)/);
 
-  // One surface card, as the headline is: the list it is loses its bullets and indent.
-  const card = ruleFor(css, ".coach-notes");
-  assert.match(card, /background: var\(--surface\)/);
-  assert.match(card, /border: 1px solid var\(--border\)/);
-  assert.match(card, /border-radius: var\(--r-card\)/);
-  assert.match(card, /list-style: none/);
-  assert.match(card, /padding: 0/);
-  assert.match(card, /overflow-wrap: anywhere/, "a long title stays inside 320px");
-  assert.match(ruleFor(css, ".coach-notes__note"), /padding: var\(--s-4\)/);
+  const tips = ruleFor(css, ".coach-card__tips");
+  assert.match(tips, /list-style: none/, "the list loses its bullets and indent");
+  assert.match(tips, /padding: 0/);
   assert.match(
-    ruleFor(css, ".coach-notes__note + .coach-notes__note"),
+    ruleFor(css, ".coach-tip:not(.coach-tip--open)"),
     /border-top: 1px solid var\(--border\)/,
-    "a 1px divider between two notes, none along the card's edge",
+    "a 1px line above each folded tip",
   );
 
-  assert.match(ruleFor(css, ".coach-notes__text"), /margin: 0/);
-  assert.match(ruleFor(css, ".coach-notes__drill"), /font-size: var\(--fs-small\)/);
-  assert.match(ruleFor(css, ".coach-notes__drill-label"), /font-weight: 600/);
+  assert.match(ruleFor(css, ".coach-tip__text"), /margin: 0/);
+  assert.match(ruleFor(css, ".coach-tip__drill-text"), /font-size: var\(--fs-small\)/);
+  assert.match(ruleFor(css, ".coach-tip__drill-title"), /font-weight: 600/);
 
-  // "Source:" and the link run on as text: no flex row that drops the link below the label.
-  const source = ruleFor(css, ".coach-notes__source");
-  assert.match(source, /font-size: var\(--fs-micro\)/);
-  assert.match(source, /color: var\(--muted\)/);
-  assert.doesNotMatch(source, /display:/);
+  // The citation and its badge wrap as one row of micro text, so a long title stays inside
+  // 320px.
+  const cite = ruleFor(css, ".coach-tip__cite");
+  assert.match(cite, /font-size: var\(--fs-micro\)/);
+  assert.match(cite, /flex-wrap: wrap/);
+  assert.match(cite, /overflow-wrap: anywhere/);
 
-  // An inline link whose padding makes a 44px tap target: 12px of text and 16px above and below.
-  // The source line sits as far under the line above, so that target never covers the drill.
-  const link = ruleFor(css, ".coach-notes__link");
-  assert.doesNotMatch(link, /display:/, "inline, so it wraps like the words around it");
+  // The link's padding makes a 44px tap target (12px of text and 16px above and below); the
+  // matching negative margin keeps it from moving the lines around it.
+  const link = ruleFor(css, ".coach-tip__cite a");
   assert.match(link, /padding: var\(--s-4\) 0/);
+  assert.match(link, /margin: calc\(-1 \* var\(--s-4\)\) 0/);
   assert.match(link, /color: var\(--accent\)/);
-  assert.match(source, /margin: var\(--s-4\) 0 0/);
 
-  const badge = ruleFor(css, ".coach-notes__badge");
+  const badge = ruleFor(css, ".badge-peer");
   assert.match(badge, /background: var\(--ok-bg\)/);
   assert.match(badge, /color: var\(--ok\)/);
   assert.match(badge, /border-radius: var\(--r-chip\)/);
   assert.match(badge, /font-size: var\(--fs-micro\)/);
   assert.match(badge, /white-space: nowrap/);
 
-  [lead, card, source, link, badge].forEach((rule) => {
+  [by, tips, cite, link, badge].forEach((rule) => {
     assert.doesNotMatch(rule, /#[0-9a-f]{3,8}\b/i, "no raw hex color");
   });
-  assert.ok(!/\.tip-card__/.test(css), "the notes no longer borrow the tip card's parts");
+  assert.ok(!/\.tip-card__/.test(css), "the notes never borrow the tip card's parts");
 });
 
-test("focus moved to the Coach notes heading scrolls clear of the action bar and the nav", () => {
+test("focus moved to the Coach heading scrolls clear of the action bar and the nav", () => {
   const css = read("styles.css");
   assert.match(
-    ruleFor(css, ".coach-notes__heading"),
+    ruleFor(css, ".coach-card__title"),
     /scroll-margin-bottom: calc\(var\(--nav-h\) \+ var\(--s-7\) \+ var\(--s-6\) \+ env\(safe-area-inset-bottom\)\)/,
     "the room every link and button above the stuck bar asks for",
   );
   const short = css.slice(css.indexOf("@media (max-height: 480px), (max-width: 319px)"));
-  const where = /\n {2}\.coach-notes__heading \{([^}]*)\}/.exec(short);
+  const where = /\n {2}\.coach-card__title \{([^}]*)\}/.exec(short);
   assert.ok(where, "the short or zoomed window, where the bar sits at the end of the page");
   assert.match(
     where[1],

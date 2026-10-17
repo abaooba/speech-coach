@@ -1,9 +1,9 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
    show({id}) reads the take and the speaker's take before it from app.store, never writing, and
-   draws the meta line, headline, speech map, stat strip, rank card (app.rankCard), transcript,
-   tips and actions node by node, never from markup; the cited coach notes (app.tips.coachNotes)
-   take the tips' place when they arrive. summarize, headlineFor and the other pure helpers touch
-   no DOM or app.ui. */
+   draws the meta line, the Coach card (app.screens.coachCard), speech map, stat strip, rank card
+   (app.rankCard), words to check, transcript and actions node by node, never from markup; the
+   cited coach notes (app.tips.coachNotes) upgrade the card when they arrive. summarize,
+   headlineFor and the other pure helpers touch no DOM or app.ui. */
 (function () {
   "use strict";
 
@@ -79,9 +79,6 @@
     stretchClean: (seconds) => "Next take, stretch your clean run past " + seconds + ".",
     holdDelivery: "Next take, hold this delivery on a longer topic.",
   });
-  const STRENGTH_ICON = "check";
-  const FOCUS_ICON = "arrow-right";
-  const HEADLINE_ICON_SIZE = 16;
 
   // "vs last take" lines, one per stat in strip order: the summary key, the stat's precision
   // (decimal places) and the words for a rise or a fall. The clean stretch compares only
@@ -199,27 +196,10 @@
   const HISTORY_LABEL = "History";
   const META_SEPARATOR = " · ";
 
-  // Section titles between the stat strip and the actions.
   const TRANSCRIPT_TITLE = "Transcript";
-  const TIPS_TITLE = "Tips";
 
-  // Coach notes (docs/PLAN.md T41): the cited notes from POST /api/advice take the Tips section's
-  // place once they arrive, together in one card. The lead names who wrote them, by the reply's
-  // `source` (tips.js SOURCES): Claude for this take, or the library's own words while the AI is
-  // off or its hourly budget is spent. A note's source is a link that opens in a new tab, and a
-  // peer-reviewed source carries a badge, so the evidence behind each note is one tap away.
-  const COACH_NOTES_TITLE = "Coach notes";
-  const NOTES_LEAD = Object.freeze({
-    ai: "Written for this take by Claude, from the research library.",
-    library: "The research library's own words, picked for this take.",
-  });
-  const DRILL_LABEL = "Drill:";
-  const SOURCE_LABEL = "Source:";
-  const PEER_REVIEWED_TYPE = "peer_reviewed";
-  const PEER_REVIEWED_BADGE = "Peer reviewed";
-  // Read after the link's text, so a screen reader hears where the link goes.
-  const NEW_TAB_NOTE = ", opens in a new tab";
-  // Said in the live region when the notes take the tips' place, a swap nothing else would say.
+  // Said in the live region when the coach notes replace the Coach card's rule content, a swap
+  // nothing else would say.
   const NOTES_READY_ANNOUNCEMENT = "Coach notes ready.";
   // The tier the request names while rank.js is not loaded: the server's own default
   // (backend/advice/select.py DEFAULT_TIER). rank.js joins index.html with the rank badge (T37);
@@ -297,6 +277,9 @@
 
   // Counts show() calls so a slow load from an earlier visit cannot paint over a newer one.
   let showCount = 0;
+
+  // The view of the take on show (viewOf), for startLanguageCheck.
+  let currentView = null;
 
   function mount(root) {
     body = root.querySelector(".screen__body");
@@ -1012,15 +995,16 @@
     return String((word && word.text) || "");
   }
 
-  // The take is drawn as soon as app.store.get() has it, with no comparison. Its last take, which
-  // only the "vs last take" lines need, comes from app.store.list(), and the list can take
-  // a moment; once that take is found, the screen is
-  // drawn again with the comparison. The same list rates the takes up to this one for the rank
-  // card, which joins that second draw (a first take, with no comparison, is drawn again for its
-  // card alone), and gives the speaker's tier for the coach notes, which are asked for last and,
-  // when they come, take the tips' place in a third draw. A ticket check before each draw means a
-  // slow earlier visit can never paint over a newer one, whichever read is the slow one, and a
-  // take the speaker has left (hide) asks for no notes and draws none.
+  // The take is drawn as soon as app.store.get() has it, with no comparison: the Coach card
+  // shows the rule takeaway and rule tips at once, with "Writing notes on this take…". Its last
+  // take, which only the "vs last take" lines need, comes from app.store.list(), and the list can
+  // take a moment; once that take is found, the screen is drawn again with the comparison. The
+  // same list rates the takes up to this one for the rank card, which joins that second draw (a
+  // first take, with no comparison, is drawn again for its card alone), and gives the speaker's
+  // tier for the coach notes, which are asked for last and, when they come, upgrade the Coach card
+  // in a third draw; when none come, the card's status goes and its rule content stays. A ticket
+  // check before each draw means a slow earlier visit can never paint over a newer one, whichever
+  // read is the slow one, and a take the speaker has left (hide) asks for no notes and draws none.
   async function show(params) {
     const ticket = ++showCount;
     const session = await loadSession(params && params.id);
@@ -1032,6 +1016,8 @@
       return;
     }
     const view = viewOf(session);
+    view.isCurrent = () => ticket === showCount;
+    currentView = view;
     renderSession(session, view, null);
     const sessions = await loadSessions();
     if (ticket !== showCount) {
@@ -1043,10 +1029,30 @@
       renderSession(session, view, previous);
     }
     const notes = await loadCoachNotes(session, view.summary, sessions);
-    if (notes !== null && ticket === showCount) {
+    if (ticket !== showCount) {
+      return;
+    }
+    view.notesPending = false;
+    if (notes !== null) {
       view.notes = notes;
       drawNotes(session, view, previous);
+    } else if (view.coachCard) {
+      view.coachCard.clearStatus();
     }
+  }
+
+  // Runs the grammar check of the take on show from outside its Coach card (the sheet's "Check
+  // grammar & vocabulary" link): the card scrolls into view, and focus goes to the result.
+  function startLanguageCheck() {
+    const card = currentView && currentView.coachCard;
+    if (!card) {
+      return;
+    }
+    if (typeof card.node.scrollIntoView === "function") {
+      const behavior = prefersReducedMotion() ? "auto" : "smooth";
+      card.node.scrollIntoView({ block: "start", behavior });
+    }
+    card.startCheck(true);
   }
 
   // Show all: the map is drawn again with every card, and focus moves to the first card the tap
@@ -1072,11 +1078,11 @@
   let revealedIsButton = false;
   let mapHeading = null;
 
-  // The third draw, with the coach notes in the tips' place. Like every draw it rebuilds the
+  // The third draw, with the coach notes in the Coach card. Like every draw it rebuilds the
   // body, so a link or button the speaker was on inside it is gone: focus then moves to the
-  // Coach notes heading, where the next Tab carries on, instead of falling to the page. Focus
-  // anywhere else (the h1, the nav) stays put. Either way the live region says the notes are
-  // ready, since the tips change under the speaker without a sound.
+  // Coach heading, where the next Tab carries on, instead of falling to the page. Focus
+  // anywhere else (the h1, the nav, an open sheet) stays put. Either way the live region says the
+  // notes are ready, since the card changes under the speaker without a sound.
   function drawNotes(session, view, previous) {
     const focusWasInBody = holdsFocus(body);
     const heading = renderSession(session, view, previous);
@@ -1215,6 +1221,7 @@
   // Nothing else to release: show() rebuilds the body from the stored session every time.
   function hide() {
     showCount += 1;
+    currentView = null;
   }
 
   function renderNotFound() {
@@ -1229,7 +1236,8 @@
   }
 
   // What the screen draws for one take, worked out once per show() however often the take is
-  // drawn: its summary, transcript plan, speech map (null without words) and tips.
+  // drawn: its summary, transcript plan, speech map (null without words), rule tips and the
+  // coach's moments and rule takeaway (app.coach; none while coach.js is not loaded).
   function viewOf(session) {
     const summary = summarize(session);
     const plan = buildTranscriptPlan(
@@ -1239,6 +1247,7 @@
       { misreads: summary.report.misreads, skips: summary.report.skips },
     );
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
+    const moments = momentsOf(summary.report, session.transcript);
     return {
       summary,
       plan,
@@ -1247,30 +1256,38 @@
       // Set once Show all is tapped: the map then shows every card, not its first shownCards.
       mapExpanded: false,
       tips: selectTips(summary.report, summary.target),
-      // The coach notes, set by show() once they arrive.
+      moments,
+      takeaway: takeawayOf(moments, summary.report),
+      // The coach notes, set by show() once they arrive, and whether they may still come.
       notes: null,
+      notesPending: Boolean(app.tips) && typeof app.tips.coachNotes === "function",
+      // The Coach card's state across draws (its open tip and grammar check), and the card
+      // drawn last.
+      coachState: {},
+      coachCard: null,
       // The rank card's model, set by show() once the store's list has rated the take.
       rankCard: null,
     };
   }
 
-  // Top to bottom: meta line, headline, the speech map (skipped when the session has no words;
-  // pause markers alone would mean nothing), the stat strip (each stat with its "vs last take"
-  // line when there is a last take, and then one note under the strip), the rank card once the
-  // store's list has rated the take, the transcript (skipped without words too), the coach notes
-  // once they have arrived or else the tips (skipped when there are none), the two actions.
-  // `previous` is the last take, or null while there is none to compare with; it is summarized
-  // for the comparison only, so no tips are chosen for it. Returns the Coach notes heading, or
-  // null when the notes are not drawn.
+  // Top to bottom: meta line, the Coach card (when coachcard.js is loaded), the speech map
+  // (skipped when the session has no words; pause markers alone would mean nothing), the stat
+  // strip (each stat with its "vs last take" line when there is a last take, and then one note
+  // under the strip), the rank card once the store's list has rated the take, words to check and
+  // the transcript (both skipped without words too), the action bar. `previous` is the last
+  // take, or null while there is none to compare with; it is summarized for the comparison only.
+  // Returns the Coach heading, or null without a card.
   function renderSession(session, view, previous) {
-    const { summary, plan, hasTranscript, map, tips, notes, rankCard } = view;
+    const { summary, plan, hasTranscript, map, rankCard } = view;
     const previousSummary = previous ? summarize(previous) : null;
     const deltas = compareWithPrevious(summary, previousSummary);
-    let notesHeading = null;
 
     app.ui.clear(body);
     body.appendChild(buildMeta(session, summary.timeUsed));
-    body.appendChild(buildHeadline(headlineFor(summary, previousSummary), summary.target));
+    view.coachCard = buildCoachCard(session, view);
+    if (view.coachCard) {
+      body.appendChild(view.coachCard.node);
+    }
     if (map) {
       const shownMap = view.mapExpanded
         ? map
@@ -1296,18 +1313,120 @@
       body.appendChild(buildLegend(summary.topHabit, plan));
       body.appendChild(buildTranscript(plan));
     }
-    if (notes) {
-      notesHeading = buildNotesHeading();
-      body.appendChild(notesHeading);
-      const lead = NOTES_LEAD[notes.source];
-      body.appendChild(app.ui.el("p", { class: "coach-notes__lead", text: lead }));
-      body.appendChild(buildNotesCard(notes.tips));
-    } else if (tips.length > 0) {
-      body.appendChild(sectionTitle(TIPS_TITLE));
-      tips.forEach((tip) => body.appendChild(buildTipCard(tip)));
-    }
     body.appendChild(buildActions());
-    return notesHeading;
+    return view.coachCard ? view.coachCard.heading : null;
+  }
+
+  // The Coach card for this draw (app.screens.coachCard), or null while coachcard.js is not
+  // loaded or the coach has nothing to say: Results then draws without it. A card that cannot
+  // be built never stops the screen.
+  function buildCoachCard(session, view) {
+    const coachCard = app.screens.coachCard;
+    if (!coachCard || typeof coachCard.build !== "function") {
+      return null;
+    }
+    const { summary } = view;
+    const targets = momentTargets(summary.report, session.transcript, view.moments);
+    try {
+      return coachCard.build({
+        session,
+        moments: view.moments,
+        takeaway: view.takeaway,
+        ruleTips: view.tips,
+        topHabit: summary.topHabit,
+        notes: view.notes,
+        seconds: summary.report.speakingSeconds,
+        pending: view.notesPending,
+        targetOf: (id) => targets.get(id) || null,
+        onShowMoment: showInTranscript,
+        isCurrent: view.isCurrent,
+        state: view.coachState,
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  // The take's moments for the coach (app.coach.coachMoments), or [] while coach.js is not
+  // loaded or cannot read the take.
+  function momentsOf(report, words) {
+    try {
+      return app.coach && typeof app.coach.coachMoments === "function"
+        ? app.coach.coachMoments(report, words)
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // The coach's rule line for the take ({text, momentId}), or null without app.coach.
+  function takeawayOf(moments, report) {
+    try {
+      return app.coach && typeof app.coach.coachTakeaway === "function"
+        ? app.coach.coachTakeaway(moments, report)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Moment id -> the transcript id its chip scrolls to ("word-12", "pause-0"), for `moments` as
+  // app.coach lists them: kind-n is the n-th of its kind in time order, so the same list in the
+  // same order is read here (a skip has no mark, so none). Pure.
+  function momentTargets(report, words, moments) {
+    const wordList = Array.isArray(words) ? words : [];
+    const byTime = (list, timeOf) =>
+      list
+        .map((item, order) => ({ item, order }))
+        .sort((a, b) => timeOf(a.item) - timeOf(b.item) || a.order - b.order)
+        .map((entry) => entry.item);
+    const wordTarget = (index) =>
+      Number.isInteger(index) && index >= 0 ? WORD_ID_PREFIX + index : null;
+    const counted = listOf(report && report.pauses)
+      .filter(app.delivery.isCountedPause)
+      .map((pause, pauseIndex) => ({ pause, pauseIndex }));
+    const lists = {
+      filler: byTime(listOf(report && report.fillers), (filler) => numberOr0(filler.start)).map(
+        (filler) => wordTarget(filler.index),
+      ),
+      pause: byTime(
+        counted.filter((entry) => !entry.pause.long),
+        (entry) => entry.pause.at,
+      ).map((entry) => PAUSE_ID_PREFIX + entry.pauseIndex),
+      "long-pause": byTime(
+        counted.filter((entry) => entry.pause.long),
+        (entry) => entry.pause.at,
+      ).map((entry) => PAUSE_ID_PREFIX + entry.pauseIndex),
+      restart: byTime(listOf(report && report.restarts), (restart) => restart.at).map((restart) =>
+        wordTarget(restartSpan(wordList, restart).markIndex),
+      ),
+      misread: byTime(listOf(report && report.misreads), (misread) => misread.at).map((misread) =>
+        wordTarget(misread.wordIndex),
+      ),
+      stumble: byIndexTime(wordList, app.delivery.findStumbles(wordList)).map(wordTarget),
+      unclear: byIndexTime(wordList, unclearIndexes(wordList)).map(wordTarget),
+    };
+    const targets = new Map();
+    listOf(moments).forEach((moment) => {
+      const number = Number(String(moment && moment.id).split("-").pop());
+      const list = lists[moment && moment.kind];
+      const target = list && Number.isInteger(number) ? list[number - 1] : null;
+      if (target) {
+        targets.set(moment.id, target);
+      }
+    });
+    return targets;
+  }
+
+  // Word indexes in the order of their words' start times.
+  function byIndexTime(wordList, indexes) {
+    return listOf(indexes)
+      .slice()
+      .sort((a, b) => startOf(wordList[a]) - startOf(wordList[b]) || a - b);
+  }
+
+  function startOf(word) {
+    return numberOr0(word && word.start);
   }
 
   // The pauses the Pauses stat counts (mid-sentence, or 5 s+ anywhere), as [at, length] pairs
@@ -1362,20 +1481,6 @@
       text += " Most used: “" + topHabit.text + "”, " + topHabit.count + times;
     }
     return app.ui.el("p", { class: "transcript__legend", text }, [TOKEN_SEPARATOR, link]);
-  }
-
-  function sectionTitle(text) {
-    return app.ui.el("h2", { class: "results__heading", text });
-  }
-
-  // The section title over the coach notes. Focus moves to it when the notes replace the control
-  // the speaker was on (drawNotes), so script can focus it (tabindex="-1"), but Tab never stops.
-  function buildNotesHeading() {
-    return app.ui.el("h2", {
-      class: "results__heading coach-notes__heading",
-      tabindex: "-1",
-      text: COACH_NOTES_TITLE,
-    });
   }
 
   // Every item is followed by a space text node, so the words keep their breaks when the
@@ -1520,65 +1625,6 @@
     });
   }
 
-  function buildTipCard(tip) {
-    return app.ui.el("div", { class: "tip-card", text: tip.text });
-  }
-
-  // The one Coach notes card, every note in it with a divider between two. It is a list, so a
-  // screen reader says how many notes it holds; Safari drops that role with the list style, so
-  // the role is set, as on History's session list.
-  function buildNotesCard(notes) {
-    return app.ui.el("ul", { class: "coach-notes", role: "list" }, notes.map(buildNote));
-  }
-
-  // One note in the card: the note, its drill when the entry has one, then its source.
-  function buildNote(note) {
-    const parts = [app.ui.el("p", { class: "coach-notes__text", text: note.text })];
-    if (note.drill) {
-      parts.push(
-        app.ui.el("p", { class: "coach-notes__drill" }, [
-          app.ui.el("span", { class: "coach-notes__drill-label", text: DRILL_LABEL }),
-          TOKEN_SEPARATOR + note.drill,
-        ]),
-      );
-    }
-    parts.push(buildSourceLine(note.citation));
-    return app.ui.el("li", { class: "coach-notes__note" }, parts);
-  }
-
-  // "Source: " and the citation as one run of text, so the two share a line when they fit and
-  // wrap like any words when they do not: a link to the source when it has a web url (tips.js
-  // keeps only those), plain text otherwise, then the badge for a peer-reviewed source. The link
-  // opens in a new tab, since the speaker is mid-review of a take, with rel="noopener" so the
-  // page it opens gets no handle on this one.
-  function buildSourceLine(citation) {
-    const parts = [SOURCE_LABEL + TOKEN_SEPARATOR];
-    if (citation.url) {
-      parts.push(
-        app.ui.el(
-          "a",
-          {
-            class: "coach-notes__link",
-            href: citation.url,
-            target: "_blank",
-            rel: "noopener",
-            text: citation.label,
-          },
-          [app.ui.el("span", { class: "sr-only", text: NEW_TAB_NOTE })],
-        ),
-      );
-    } else {
-      parts.push(citation.label);
-    }
-    if (citation.type === PEER_REVIEWED_TYPE) {
-      parts.push(
-        TOKEN_SEPARATOR,
-        app.ui.el("span", { class: "coach-notes__badge", text: PEER_REVIEWED_BADGE }),
-      );
-    }
-    return app.ui.el("p", { class: "coach-notes__source" }, parts);
-  }
-
   // "Gettysburg Address, opening · Oct 10, 10:30 AM", plus " · 2:41 of 3:00" for a timed
   // preset. The date and the time used sit in no-wrap spans, so a narrow screen breaks the line
   // between the parts, never inside "Oct 10, 10:30 AM".
@@ -1593,26 +1639,6 @@
       parts.push(META_SEPARATOR, used);
     }
     return app.ui.el("p", { class: "results__meta num" }, parts);
-  }
-
-  // The strength over the focus. Each icon follows its words in the DOM, so each line's text
-  // is exactly its sentence, and CSS draws it first (order: -1). Wherever a sentence names the
-  // take's own band it keeps that band on one line, as the Pace hint does; any other "4 to 1"
-  // wraps as usual.
-  function buildHeadline(headline, target) {
-    const band = bandText(target, TARGET_JOINER);
-    const unbroken = bandText(target, UNBROKEN_JOINER);
-    const draw = (sentence) => sentence.split(band).join(unbroken);
-    return app.ui.el("section", { class: "headline" }, [
-      headlineLine("headline__strength", draw(headline.strength), STRENGTH_ICON),
-      headlineLine("headline__focus", draw(headline.focus), FOCUS_ICON),
-    ]);
-  }
-
-  function headlineLine(className, sentence, iconName) {
-    return app.ui.el("p", { class: className, text: sentence }, [
-      app.ui.icon(iconName, HEADLINE_ICON_SIZE),
-    ]);
   }
 
   // Exactly four stats on one strip, in the order DESIGN.md fixes, each with its hint, and with
@@ -1933,12 +1959,9 @@
       shownMark.classList.remove(SHOWN_CLASS);
     }
     shownMark = mark;
-    const reduced =
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia(REDUCED_MOTION_QUERY).matches;
     if (typeof mark.scrollIntoView === "function") {
-      mark.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+      const behavior = prefersReducedMotion() ? "auto" : "smooth";
+      mark.scrollIntoView({ block: "center", behavior });
     }
     mark.setAttribute("tabindex", "-1");
     if (typeof mark.focus === "function") {
@@ -1950,6 +1973,14 @@
       shownTimer = setTimeout(() => mark.classList.remove(SHOWN_CLASS), SHOWN_MS);
     }
     app.ui.announce(SHOWN_ANNOUNCEMENT);
+  }
+
+  function prefersReducedMotion() {
+    return (
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(REDUCED_MOTION_QUERY).matches
+    );
   }
 
   // SVG elements need their own namespace and take every attribute, class included, through
@@ -2032,5 +2063,7 @@
     bareText,
     isSample,
     wordsToCheck,
+    momentTargets,
+    startLanguageCheck,
   };
 })();

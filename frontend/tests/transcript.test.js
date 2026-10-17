@@ -1,7 +1,8 @@
 // Tests for the transcript and tips half of frontend/screens/results.js: the pure helpers
-// isFiller and buildTranscriptPlan, and what show() draws between the metric grid and the
-// actions. Same stub context as results.test.js (bare app, fake store and router, the real
-// ui.js against the fake DOM) plus an app.tips that records what select() is asked.
+// isFiller and buildTranscriptPlan, what show() draws between the metric grid and the actions,
+// and the rule tips the Coach card (screens/coachcard.js) shows. Same stub context as
+// results.test.js (bare app, fake store and router, the real ui.js against the fake DOM) plus
+// an app.tips that records what select() is asked.
 "use strict";
 
 const test = require("node:test");
@@ -17,6 +18,10 @@ const RESULTS_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "screens", "resul
 const DELIVERY_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "delivery.js"), "utf8");
 const UI_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "ui.js"), "utf8");
 const TIPS_SOURCE = fs.readFileSync(path.join(FRONTEND_DIR, "tips.js"), "utf8");
+const COACH_CARD_SOURCE = fs.readFileSync(
+  path.join(FRONTEND_DIR, "screens", "coachcard.js"),
+  "utf8",
+);
 
 // The real AssemblyAI word list for samples/test-clip.m4a. Its fourth word "basically," ends
 // at 3.692 and the fifth starts at 5.0, so the backend reports the pause [3.692, 1.308].
@@ -107,6 +112,7 @@ function mountResults(sessions, tips) {
   }
   vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
   vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
+  vm.runInNewContext(COACH_CARD_SOURCE, context, { filename: "coachcard.js" });
 
   const root = new FakeElement("section");
   const body = new FakeElement("div");
@@ -119,6 +125,24 @@ function mountResults(sessions, tips) {
 
 function outline(node) {
   return node.nodeType === 3 ? "#text" : `${node.tagName}.${node.className}`;
+}
+
+// The rule tips as the Coach card shows them, in order: each tip's words, the open tip's and
+// each folded tip's hidden body.
+function tipTexts(body) {
+  const card = byClass(body, "coach-card");
+  const found = [];
+  const walk = (node) =>
+    (node.children || []).forEach((child) => {
+      if (child.classList && child.classList.contains("coach-tip__text")) {
+        found.push(child.textContent);
+      }
+      walk(child);
+    });
+  if (card) {
+    walk(card);
+  }
+  return found;
 }
 
 function planShape(plan) {
@@ -210,32 +234,25 @@ test("buildTranscriptPlan returns [] for nothing, copes with missing input, chan
   assert.equal(JSON.stringify({ transcript, pauses }), before);
 });
 
-test("show draws Transcript and Tips between the stat strip and the actions", async () => {
+test("show draws the Transcript; the tips go in the Coach card", async () => {
   const { results, body } = mountResults({ s1: sessionWith() }, "fake");
   await results.show({ id: "s1" });
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
-    "section.headline",
+    "section.coach-card",
     "section.speech-map",
     "div.stat-strip",
     "h2.results__heading transcript__heading",
     "p.transcript__legend",
     "p.transcript",
-    "h2.results__heading",
-    "div.tip-card",
-    "div.tip-card",
     "div.results__actions",
   ]);
   const headings = body.children.filter((node) => node.classList.contains("results__heading"));
   assert.deepEqual(
     headings.map((heading) => heading.textContent),
-    ["Transcript", "Tips"],
+    ["Transcript"],
   );
-  const tipCards = body.children.filter((node) => node.className === "tip-card");
-  assert.deepEqual(
-    tipCards.map((card) => card.textContent),
-    ["First fake tip.", "Second fake tip."],
-  );
+  assert.deepEqual(tipTexts(body), ["First fake tip.", "Second fake tip."]);
   assert.equal(byClass(body, "stat-strip").children.length, 4, "the stats are untouched");
 });
 
@@ -316,9 +333,8 @@ test("tips come from app.tips.select with the delivery report and the passage ta
 test("with the real tips.js, the six-word fixture gets the pace and fillers tips", async () => {
   const { results, body } = mountResults({ s1: sessionWith() }, "real");
   await results.show({ id: "s1" });
-  const cards = body.children.filter((node) => node.className === "tip-card");
   assert.deepEqual(
-    cards.map((card) => card.textContent),
+    tipTexts(body),
     [
       "You are under target pace. Shorten the pauses between ideas.",
       "Fillers at 0:01, 0:02, 0:03 and 1 more. Next take, close your mouth and pause instead.",
@@ -333,25 +349,18 @@ test("no words means no Transcript section, even with pauses; a clean take still
   await results.show({ id: "s1" });
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
-    "section.headline",
+    "section.coach-card",
     "div.stat-strip",
-    "h2.results__heading",
-    "div.tip-card",
     "div.results__actions",
   ]);
-  const tipCards = body.children.filter((node) => node.className === "tip-card");
-  assert.deepEqual(
-    tipCards.map((card) => card.textContent),
-    ["Clean run. No filler, habit or long pause stood out."],
-  );
+  assert.deepEqual(tipTexts(body), ["Clean run. No filler, habit or long pause stood out."]);
 });
 
-test("without app.tips the screen still renders, just with no Tips section", async () => {
+test("without app.tips or app.coach the screen still renders, with no Coach card", async () => {
   const { results, body } = mountResults({ s1: sessionWith() }, "none");
   await assert.doesNotReject(() => results.show({ id: "s1" }));
   assert.deepEqual(body.children.map(outline), [
     "p.results__meta num",
-    "section.headline",
     "section.speech-map",
     "div.stat-strip",
     "h2.results__heading transcript__heading",

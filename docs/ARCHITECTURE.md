@@ -60,7 +60,8 @@ are no accounts and the server keeps nothing: every take stays on the phone.
 | `frontend/tips.js` | Rule-based tips and the coach-notes request |
 | `frontend/sw.js` | Service worker: caches the app shell, never audio, never `/api` |
 | `frontend/screens/practice.js` | Record, upload, level mode, the sample |
-| `frontend/screens/results.js` | Headline, rank card, metric cards, timeline, transcript, coach notes |
+| `frontend/screens/results.js` | Coach card, speech map, metric cards, rank card, words to check, transcript |
+| `frontend/screens/coachcard.js` | The Coach card at the top of Results: headline, moment-linked tips, the grammar check |
 | `frontend/screens/history.js` | Every take, newest first, with delete |
 | `frontend/screens/progress.js` | One metric charted across takes; the rank card and streak |
 | `frontend/screens/path.js` | The winding Path with its units and nodes |

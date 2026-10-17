@@ -23,7 +23,14 @@ const SCREENS = [...INDEX_HTML.matchAll(/<section class="screen" id="screen-([a-
   (match) => match[1],
 );
 const SCRIPTS = [...INDEX_HTML.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
-const SCREEN_SCRIPTS = SCRIPTS.filter((file) => file.startsWith("screens/"));
+// A screen's own script is screens/<name>.js for a <section> index.html holds; any other file
+// under screens/ is part of a screen (screens/coachcard.js, the Results Coach card).
+const SCREEN_SCRIPTS = SCRIPTS.filter((file) =>
+  SCREENS.some((name) => file === "screens/" + name + ".js"),
+);
+const PART_SCRIPTS = SCRIPTS.filter(
+  (file) => file.startsWith("screens/") && !SCREEN_SCRIPTS.includes(file),
+);
 const HELPER_SCRIPTS = SCRIPTS.filter((file) => !file.startsWith("screens/"));
 
 // The text of DESIGN.md's section `number`, up to the next "## " heading.
@@ -63,6 +70,9 @@ test("DESIGN.md's file layout counts the sections and names every script", () =>
     screensLine.trim(),
     "screens/" + SCREEN_SCRIPTS.map((file) => file.slice("screens/".length)).join(" "),
   );
+  PART_SCRIPTS.forEach((file) => {
+    assert.match(layout, new RegExp("^  " + file.replace(".", "\\.") + " ", "m"), file);
+  });
 });
 
 test("DESIGN.md's script order is index.html's", () => {
@@ -75,8 +85,12 @@ test("DESIGN.md's script order is index.html's", () => {
     [...order.matchAll(/`([^`]+)`/g)].map((match) => match[1]),
     HELPER_SCRIPTS,
   );
-  assert.ok(
-    sentence.includes(", then the " + NUMBER_WORDS[SCREEN_SCRIPTS.length] + " screens."),
+  assert.match(
+    sentence,
+    new RegExp(", then the " + NUMBER_WORDS[SCREEN_SCRIPTS.length] + " screens[.,]"),
     "then the screens, as many as index.html loads",
   );
+  PART_SCRIPTS.forEach((file) => {
+    assert.ok(sentence.includes("`" + file + "`"), file + " is named in the script order");
+  });
 });

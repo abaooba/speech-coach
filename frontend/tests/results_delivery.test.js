@@ -13,7 +13,13 @@ const vm = require("node:vm");
 const { FakeElement, fakeDocument, byClass } = require("./fake-dom");
 
 const FRONTEND_DIR = path.join(__dirname, "..");
-const SOURCES = ["ui.js", "delivery.js", "tips.js", path.join("screens", "results.js")].map(
+const SOURCES = [
+  "ui.js",
+  "delivery.js",
+  "tips.js",
+  path.join("screens", "results.js"),
+  path.join("screens", "coachcard.js"),
+].map(
   (file) => [file, fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8")],
 );
 
@@ -123,11 +129,24 @@ test("habits are underlined tokens read as verbal habits; ums keep the filler st
   assert.equal(byText("like").className, "tok", "'I like to play tennis' is not flagged");
 });
 
+// Every node under `node` carrying the class `name`, in document order.
+function allWithClass(node, name, found = []) {
+  (node.children || []).forEach((child) => {
+    if (child.classList && child.classList.contains(name)) {
+      found.push(child);
+    }
+    allWithClass(child, name, found);
+  });
+  return found;
+}
+
 test("the tips on the real clip name the moments", async () => {
   const { body } = await showSession(clipSession());
-  const tips = body.children.filter((node) => node.className === "tip-card");
+  const card = byClass(body, "coach-card");
+  // Each tip's words, in the Coach card: the open tip's, then each folded tip's hidden body.
+  const tips = allWithClass(card, "coach-tip__text");
   assert.deepEqual(
-    tips.map((card) => card.textContent),
+    tips.map((text) => text.textContent),
     [
       "You are under target pace. Shorten the pauses between ideas.",
       "Fillers at 0:01, 0:02, 0:03 and 8 more. Next take, close your mouth and pause instead.",

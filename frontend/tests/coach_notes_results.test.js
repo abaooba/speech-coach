@@ -1,8 +1,10 @@
-// Tests for the coach notes on Results (docs/PLAN.md T41): the rule tips are drawn at once, the
-// cited notes from POST /api/advice take their place when they arrive, a failed request keeps
-// the tips, a slow reply never paints over a newer take, the request names the speaker's tier,
-// and the notes' arrival keeps keyboard focus and is announced. ui.js, delivery.js, tips.js and
-// results.js run for real; app.store, app.api and the document are fakes.
+// Tests for the coach notes on Results (docs/PLAN.md T41): the rule tips are drawn at once in
+// the Coach card, the cited notes from POST /api/advice take their place there when they arrive
+// (guided-coach owner decision 2026-10-17: the card at the top replaced the Tips and Coach notes
+// sections), a failed request keeps the tips, a slow reply never paints over a newer take, the
+// request names the speaker's tier, and the notes' arrival keeps keyboard focus and is
+// announced. ui.js, delivery.js, tips.js, results.js and coachcard.js run for real; app.store,
+// app.api and the document are fakes.
 "use strict";
 
 const test = require("node:test");
@@ -50,9 +52,13 @@ function focusDocument(focusLog, live) {
 
 const FRONTEND_DIR = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
-const SOURCES = ["ui.js", "delivery.js", "tips.js", path.join("screens", "results.js")].map(
-  (file) => [file, read(file)],
-);
+const SOURCES = [
+  "ui.js",
+  "delivery.js",
+  "tips.js",
+  path.join("screens", "results.js"),
+  path.join("screens", "coachcard.js"),
+].map((file) => [file, read(file)]);
 const RANK_SOURCE = read("rank.js");
 
 const PASSAGES = [{ id: "gettysburg", targetWpm: [130, 150] }];
@@ -190,28 +196,28 @@ function fullText(node) {
   return (node.textContent || "") + (node.children || []).map(fullText).join("");
 }
 
-// The section headings that are direct children of the body: Transcript, then Tips or Coach
-// notes. The timeline's heading sits inside its own section.
-function headingsOf(body) {
-  return body.children.filter((node) => node.tagName === "h2").map((node) => node.textContent);
-}
-
-// The rule tips' cards: one each.
-function cardsOf(body) {
-  return body.children.filter((node) => node.classList.contains("tip-card"));
-}
-
-// The one Coach notes card in the body, or undefined while the tips show.
-function notesCardOf(body) {
-  const cards = body.children.filter((node) => node.classList.contains("coach-notes"));
-  assert.ok(cards.length <= 1, "never more than one Coach notes card");
+// The Coach card at the top of the body (exactly one).
+function cardOf(body) {
+  const cards = body.children.filter((node) => node.classList.contains("coach-card"));
+  assert.equal(cards.length, 1, "exactly one Coach card");
   return cards[0];
 }
 
-// The notes in that card, or [] while the tips show.
-function notesOf(body) {
-  const card = notesCardOf(body);
-  return card ? card.children : [];
+// True once the coach notes are in the card: their by-line says who wrote them. While the rule
+// tips show, the card has no by-line.
+function notesShown(body) {
+  return Boolean(byClass(cardOf(body), "coach-card__by"));
+}
+
+// The card's tips, rule tips or notes: one li each.
+function tipsOf(body) {
+  const list = byClass(cardOf(body), "coach-card__tips");
+  return list ? list.children : [];
+}
+
+// Where a tip's own parts are: the open tip itself, or a folded tip's hidden body.
+function partsOf(tip) {
+  return tip.classList.contains("coach-tip--open") ? tip : byClass(tip, "coach-tip__body");
 }
 
 const CURRENT = takeOf("current", OCT(10, "10"), 40, [2, 5, 9]);
@@ -222,14 +228,14 @@ test("the tips are drawn at once and the coach notes take their place on arrival
   const { results, body, calls } = mount([EARLIER, CURRENT], () => replied.promise);
   const shown = results.show({ id: "current" });
   await flush();
-  assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
-  assert.ok(cardsOf(body).length >= 1, "the rule tips show while the notes are on their way");
+  assert.equal(notesShown(body), false);
+  assert.ok(tipsOf(body).length >= 1, "the rule tips show while the notes are on their way");
 
   replied.resolve({ status: 200, body: REPLY });
   await shown;
-  assert.deepEqual(headingsOf(body), ["Transcript", "Coach notes"]);
+  assert.equal(notesShown(body), true);
   assert.equal(
-    byClass(body, "coach-notes__lead").textContent,
+    byClass(cardOf(body), "coach-card__by").textContent,
     "Written for this take by Claude, from the research library.",
   );
   assert.equal(calls.lists, 1, "one list serves the last take and the tier");
@@ -237,37 +243,33 @@ test("the tips are drawn at once and the coach notes take their place on arrival
   assert.equal(calls.requests[0].method, "POST");
   assert.equal(calls.requests[0].url, "/api/advice");
 
-  assert.deepEqual(cardsOf(body), [], "no tip card is left");
-  const card = notesCardOf(body);
-  assert.equal(card.tagName, "ul", "one card holds every note");
-  assert.equal(card.getAttribute("role"), "list", "Safari drops a list's role with its style");
-  const notes = notesOf(body);
-  assert.equal(notes.length, 3);
+  const list = byClass(cardOf(body), "coach-card__tips");
+  assert.equal(list.tagName, "ol", "one list holds every note");
+  assert.equal(list.getAttribute("role"), "list", "Safari drops a list's role with its style");
+  const notes = tipsOf(body);
+  assert.equal(notes.length, 3, "the notes, and no rule tip left");
   notes.forEach((note) => {
     assert.equal(note.tagName, "li");
-    assert.equal(note.className, "coach-notes__note");
+    assert.ok(note.classList.contains("coach-tip"));
   });
+  const parts = notes.map(partsOf);
   assert.deepEqual(
-    notes.map((note) => byClass(note, "coach-notes__text").textContent),
+    parts.map((part) => byClass(part, "coach-tip__text").textContent),
     REPLY.tips.map((tip) => tip.text),
   );
-  assert.equal(byClass(notes[0], "coach-notes__text").tagName, "p");
+  assert.equal(byClass(parts[0], "coach-tip__text").tagName, "p");
 
-  const drill = byClass(notes[0], "coach-notes__drill");
-  assert.equal(fullText(drill), "Drill: Read one paragraph aloud and pause at each comma.");
-  assert.equal(byClass(drill, "coach-notes__drill-label").textContent, "Drill:");
-  assert.equal(byClass(notes[1], "coach-notes__drill"), undefined, "no drill line without one");
-
-  // "Source:" and the citation run on as one line of text, wrapping like words.
-  const source = byClass(notes[0], "coach-notes__source");
-  assert.equal(source.tagName, "p");
+  const drill = byClass(parts[0], "coach-tip__drill");
+  assert.equal(byClass(drill, "coach-tip__drill-title").textContent, "Try this");
   assert.equal(
-    fullText(source),
-    "Source: Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab",
+    byClass(drill, "coach-tip__drill-text").textContent,
+    "Read one paragraph aloud and pause at each comma.",
   );
-  assert.equal(source.children[0].textContent, "Source: ", "the label, then a space");
-  const link = byClass(source, "coach-notes__link");
-  assert.equal(source.children[1], link, "the link right after the label");
+  assert.equal(byClass(parts[1], "coach-tip__drill"), undefined, "no drill block without one");
+
+  const source = byClass(parts[0], "coach-tip__cite");
+  assert.equal(source.tagName, "p");
+  const link = source.children[0];
   assert.equal(link.tagName, "a");
   assert.equal(link.getAttribute("href"), "https://example.org/um");
   assert.equal(link.getAttribute("target"), "_blank");
@@ -279,21 +281,21 @@ test("the tips are drawn at once and the coach notes take their place on arrival
     "Lisa B. Marshall, Um, How Do I Stop (2017), opens in a new tab",
     "the new-tab note is inside the link",
   );
-  assert.equal(byClass(source, "coach-notes__badge"), undefined, "no pill for an organization");
+  assert.equal(byClass(source, "badge-peer"), undefined, "no pill for an organization");
 
-  const reviewed = byClass(notes[1], "coach-notes__source");
+  const reviewed = byClass(parts[1], "coach-tip__cite");
   assert.equal(
     fullText(reviewed),
-    "Source: Smith and Lee, Pausing (2019), opens in a new tab Peer reviewed",
+    "Smith and Lee, Pausing (2019), opens in a new tabPeer-reviewed",
     "the pill comes after the link",
   );
-  assert.equal(byClass(reviewed, "coach-notes__badge").textContent, "Peer reviewed");
-  assert.equal(byClass(reviewed, "coach-notes__link").getAttribute("href"), "https://example.org/p");
+  assert.equal(fullText(byClass(reviewed, "badge-peer")), "Peer-reviewed");
+  assert.equal(reviewed.children[0].getAttribute("href"), "https://example.org/p");
 
-  const unlinked = byClass(notes[2], "coach-notes__source");
-  assert.equal(byClass(unlinked, "coach-notes__link"), undefined, "an ftp url is not a link");
-  assert.equal(fullText(unlinked), "Source: A Debate Coach, Openings (n.d.)");
-  assert.equal(byClass(unlinked, "coach-notes__badge"), undefined);
+  const unlinked = byClass(parts[2], "coach-tip__cite");
+  assert.ok(!unlinked.children.some((child) => child.tagName === "a"), "an ftp url is not a link");
+  assert.equal(fullText(unlinked), "A Debate Coach, Openings (n.d.)");
+  assert.equal(byClass(unlinked, "badge-peer"), undefined);
 
   const last = body.children[body.children.length - 1];
   assert.ok(last.classList.contains("results__actions"), "the action bar still ends the page");
@@ -340,7 +342,7 @@ test("a sample is listed too, for the tier, and asks for notes like any take", a
   assert.equal(calls.lists, 1);
   assert.equal(calls.requests.length, 1);
   assert.equal(byClass(body, "stat-strip__note"), undefined, "a sample compares with nothing");
-  assert.ok(headingsOf(body).includes("Coach notes"));
+  assert.equal(notesShown(body), true);
 });
 
 test("the library's own words get their own lead", async () => {
@@ -348,7 +350,7 @@ test("the library's own words get their own lead", async () => {
   const { results, body } = mount([CURRENT], () => ({ status: 200, body: library }));
   await results.show({ id: "current" });
   assert.equal(
-    byClass(body, "coach-notes__lead").textContent,
+    byClass(cardOf(body), "coach-card__by").textContent,
     "The research library's own words, picked for this take.",
   );
 });
@@ -363,8 +365,7 @@ test("a failed or empty request keeps the tips and draws the take twice at most"
     const { results, body, calls } = mount([EARLIER, CURRENT], () => reply);
     await results.show({ id: "current" });
     assert.equal(calls.requests.length, 1);
-    assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
-    assert.equal(byClass(body, "coach-notes__lead"), undefined);
+    assert.equal(notesShown(body), false);
     assert.ok(byClass(body, "stat-strip__note"), "the comparison with the last take still drew");
     assert.equal(calls.draws, 2, "the take at once, then with the comparison; no third draw");
   }
@@ -385,8 +386,8 @@ test("notes kept from an earlier visit show without a request", async () => {
   const { results, body, calls } = mount([CURRENT], () => ({ status: 0, body: null }), { flags });
   await results.show({ id: "current" });
   assert.equal(calls.requests.length, 0);
-  assert.deepEqual(headingsOf(body), ["Transcript", "Coach notes"]);
-  assert.equal(notesOf(body).length, 3);
+  assert.equal(notesShown(body), true);
+  assert.equal(tipsOf(body).length, 3);
 });
 
 test("the reply is kept and the ids shown are recorded for the next take", async () => {
@@ -407,7 +408,7 @@ test("the library's own words are not kept: reopening the take asks again", asyn
     body: library,
   }));
   await results.show({ id: "current" });
-  assert.deepEqual(headingsOf(body), ["Transcript", "Coach notes"]);
+  assert.equal(notesShown(body), true);
   assert.equal(flags.get("coachNotes:current"), undefined);
   assert.deepEqual(JSON.parse(JSON.stringify(flags.get("coachNotesShown"))), [
     "filler-001",
@@ -429,12 +430,12 @@ test("a slow reply from an earlier visit never draws over a newer take", async (
   const first = results.show({ id: "current" });
   await flush();
   await results.show({ id: "earlier" });
-  assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
+  assert.equal(notesShown(body), false);
   const pace = fullText(byClass(byClass(body, "stat-strip").children[0], "stat__value"));
 
   slow.resolve({ status: 200, body: REPLY });
   await first;
-  assert.deepEqual(headingsOf(body), ["Transcript", "Tips"]);
+  assert.equal(notesShown(body), false);
   const after = fullText(byClass(byClass(body, "stat-strip").children[0], "stat__value"));
   assert.equal(after, pace, "the earlier take is still the one shown");
   assert.equal(calls.requests.length, 2);
@@ -464,12 +465,12 @@ test("without tips.js's coachNotes, or without app.api, the screen keeps the tip
   const bare = mount([CURRENT], () => ({ status: 200, body: REPLY }));
   delete bare.app.tips.coachNotes;
   await bare.results.show({ id: "current" });
-  assert.deepEqual(headingsOf(bare.body), ["Transcript", "Tips"]);
+  assert.equal(notesShown(bare.body), false);
 
   const guestless = mount([CURRENT], () => ({ status: 200, body: REPLY }));
   delete guestless.app.api;
   await guestless.results.show({ id: "current" });
-  assert.deepEqual(headingsOf(guestless.body), ["Transcript", "Tips"]);
+  assert.equal(notesShown(guestless.body), false);
   assert.equal(guestless.calls.requests.length, 0);
 });
 
@@ -478,7 +479,7 @@ function historyButton(body) {
   return byClass(body, "results__actions").children[0];
 }
 
-test("focus in the body moves to the Coach notes heading, and the notes are announced", async () => {
+test("focus in the body moves to the Coach heading, and the notes are announced", async () => {
   const replied = deferred();
   const page = mount([EARLIER, CURRENT], () => replied.promise);
   const shown = page.results.show({ id: "current" });
@@ -490,9 +491,9 @@ test("focus in the body moves to the Coach notes heading, and the notes are anno
   await shown;
   const heading = page.focused();
   assert.equal(heading.tagName, "h2");
-  assert.equal(heading.textContent, "Coach notes");
+  assert.equal(heading.textContent, "Coach");
   assert.equal(heading.getAttribute("tabindex"), "-1", "focusable, never a Tab stop");
-  assert.ok(page.body.children.includes(heading), "the heading the third draw put in the body");
+  assert.ok(page.body.contains(heading), "the heading the third draw put in the body");
   assert.equal(page.live.textContent, "Coach notes ready.");
 });
 
@@ -509,7 +510,7 @@ test("focus outside the body stays put, and the notes are announced all the same
     replied.resolve({ status: 200, body: REPLY });
     await shown;
     assert.equal(page.focused(), focusTitle ? page.title : null);
-    assert.deepEqual(headingsOf(page.body), ["Transcript", "Coach notes"]);
+    assert.equal(notesShown(page.body), true);
     assert.equal(page.live.textContent, "Coach notes ready.");
   }
 });
@@ -546,11 +547,11 @@ test("notes that arrive after the speaker left Results draw nothing and say noth
   replied.resolve({ status: 200, body: REPLY });
   await shown;
   assert.equal(page.calls.draws, 2, "the hidden screen is not drawn again");
-  assert.deepEqual(headingsOf(page.body), ["Transcript", "Tips"]);
+  assert.equal(notesShown(page.body), false);
   assert.equal(page.live.textContent, "", "nothing is announced over another screen");
 
   await page.results.show({ id: "current" });
   assert.equal(page.calls.requests.length, 1, "Claude's notes were kept while the speaker was away");
-  assert.deepEqual(headingsOf(page.body), ["Transcript", "Coach notes"]);
+  assert.equal(notesShown(page.body), true);
   assert.equal(page.live.textContent, "Coach notes ready.");
 });

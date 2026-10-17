@@ -2,7 +2,7 @@
 // result" saves sample-session.json as an ordinary session, so History lists it, but it is not
 // one of the speaker's takes: app.screens.results.isSample(session) marks it by its "Sample: "
 // title, a sample's Results compares it with nothing, and a real take's last take skips it. So
-// no delta line, note or fillers-drop headline ever involves a sample. The pure half loads
+// no delta line or note ever involves a sample. The pure half loads
 // results.js with no document; the DOM half adds ui.js, delivery.js and the shared fake DOM.
 "use strict";
 
@@ -99,11 +99,6 @@ function deltasOf(body) {
     .map((delta) => (delta ? delta.textContent : null));
 }
 
-function headlineOf(body) {
-  const headline = byClass(body, "headline");
-  return headline.children.map((line) => line.textContent);
-}
-
 test("isSample is true only for the bundled sample's 'Sample: ' title", () => {
   const { isSample } = loadPure();
   assert.equal(typeof isSample, "function");
@@ -130,13 +125,11 @@ test("isSample is true only for the bundled sample's 'Sample: ' title", () => {
 
 test("a sample reads as a first take, even after the speaker's own takes", async () => {
   const alone = await showResults([sample("s", OCT_10)], "s");
-  // Against this take the sample's 10.5 fillers a minute would read "Fillers are down from 21.4
-  // to 10.5 a minute." and every card would carry a delta line.
+  // Against this take every card would carry a delta line.
   const busy = await showResults([take("t", OCT_9, { fillers: 214 }), sample("s", OCT_10)], "s");
   assert.deepEqual(deltasOf(busy), [null, null, null, null]);
   assert.equal(byClass(busy, "stat-strip__note"), undefined, "no note about arrows");
-  assert.deepEqual(headlineOf(busy), headlineOf(alone));
-  assert.doesNotMatch(headlineOf(busy)[0], /^Fillers are down/);
+  assert.deepEqual(deltasOf(busy), deltasOf(alone), "drawn as the sample alone is");
 });
 
 test("a real take after a sample compares with the real take before the sample", async () => {
@@ -148,7 +141,6 @@ test("a real take after a sample compares with the real take before the sample",
   const body = await showResults(sessions, "b");
   // Against the sample's 146 wpm and 10.5 fillers this would be "6 slower" and "10.5 fewer".
   assert.deepEqual(deltasOf(body), ["10 faster", "2 fewer", "No change", "Not compared"]);
-  assert.equal(headlineOf(body)[0], "Fillers are down from 2 to 0 a minute.");
 });
 
 test("a real take with only samples before it has no last take", async () => {
@@ -158,5 +150,4 @@ test("a real take with only samples before it has no last take", async () => {
   );
   assert.deepEqual(deltasOf(body), [null, null, null, null]);
   assert.equal(byClass(body, "stat-strip__note"), undefined);
-  assert.doesNotMatch(headlineOf(body)[0], /^Fillers are down/, "not from the sample's 10.5");
 });
