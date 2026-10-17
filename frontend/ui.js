@@ -142,6 +142,10 @@
       ["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }],
     ],
     "chevron-right": [["path", { d: "m9 18 6-6-6-6" }]],
+    compass: [
+      ["circle", { cx: "12", cy: "12", r: "10" }],
+      ["polygon", { points: "16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" }],
+    ],
   });
 
   // The theme is the one setting kept in localStorage, because it must apply before the first

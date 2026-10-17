@@ -35,6 +35,7 @@ SCRIPT_LOAD_ORDER = [
     "ui.js",
     "auth.js",
     "store.js",
+    "sheet.js",
     "api.js",
     "passages.js",
     "delivery.js",

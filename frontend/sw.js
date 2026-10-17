@@ -16,6 +16,7 @@ const SHELL = [
   "app.js",
   "ui.js",
   "store.js",
+  "sheet.js",
   "api.js",
   "passages.js",
   "delivery.js",

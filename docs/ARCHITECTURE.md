@@ -44,6 +44,7 @@ are no accounts and the server keeps nothing: every take stays on the phone.
 | `backend/nul_free.py` | Refuses NUL bytes in any text a route stores |
 | `frontend/app.js` | The `app` namespace, hash router, boot |
 | `frontend/ui.js` | DOM helpers, state blocks, icons, theme |
+| `frontend/sheet.js` | The bottom sheet after a take or level, and the first-visit guides |
 | `frontend/api.js` | `app.api.analyze` with a 180 s deadline and typed errors |
 | `frontend/store.js` | IndexedDB sessions, flags and Path progress, on the device only |
 | `frontend/passages.js` | Talk prompts, Read passages, cold reads, the benchmark |
