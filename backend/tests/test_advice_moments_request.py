@@ -185,13 +185,16 @@ def test_forty_moments_are_taken_and_forty_one_refused() -> None:
         {"expected": "x" * 41},
         {"hint": "yes"},
         {"text": None},
+        {"id": "restart-\u0661"},
+        {"clock": "0:\u0663\u0662"},
     ],
     ids=[
         "capital in the id", "no number", "four digits", "space after the id", "unknown kind",
         "id of another kind", "kind not listed", "negative start", "start not a number",
         "negative length", "clock without a colon", "clock with one digit of seconds",
         "space after the clock", "text over 120", "before over 60", "after over 60",
-        "expected over 40", "hint not a boolean", "no text",
+        "expected over 40", "hint not a boolean", "no text", "a non-ASCII digit in the id",
+        "non-ASCII digits in the clock",
     ],
 )
 def test_a_moment_that_breaks_a_rule_is_refused(changes: dict[str, object]) -> None:

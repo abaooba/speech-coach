@@ -99,6 +99,14 @@ def test_every_tip_must_name_a_listed_moment_by_its_words_or_clock() -> None:
     assert "1 to 3" in rules
 
 
+def test_every_tip_and_the_headline_give_the_clock_of_a_moment_they_name() -> None:
+    rules = coach.MOMENT_RULES
+
+    assert "In every tip, give the clock time of at least one listed moment it names" in rules
+    assert "gives the clock time of the listed moment it names" in rules
+    assert "welcome too" in rules
+
+
 def test_the_entry_gives_the_technique_and_the_moment_shows_where() -> None:
     rules = coach.MOMENTS_SYSTEM_PROMPT[len(coach.SYSTEM_PROMPT):].lower()
 

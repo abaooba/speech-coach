@@ -281,6 +281,71 @@ def test_a_tip_may_quote_a_cited_moment_by_its_clock_or_a_word(
     assert body["tips"][0]["text"] == text
 
 
+@pytest.mark.parametrize(
+    ("text", "moment_ids"),
+    [
+        ('That "uh" broke the line. Pause silently instead.', ["filler-1"]),
+        ("You said UH, then went on. Pause silently instead.", ["filler-1"]),
+    ],
+    ids=["a quoted filler", "a filler in capitals with punctuation"],
+)
+def test_a_tip_may_quote_a_short_moment_by_its_whole_text(
+    client: TestClient, text: str, moment_ids: list[str]
+) -> None:
+    install_model(with_tip(text, moment_ids))
+
+    body = ask(client)
+
+    assert body["source"] == "ai"
+    assert body["tips"][0]["text"] == text
+
+
+def test_a_short_restart_is_quoted_by_its_whole_text_in_order() -> None:
+    i_i = coach.Moment.model_validate(moment("restart-2", "0:09", "I I"))
+    and_the = coach.Moment.model_validate(moment("restart-3", "0:14", "and the, and the"))
+
+    assert coach.quotes_moment('You said "I I" before the verb.', i_i)
+    assert coach.quotes_moment('You said "and the and the" there.', and_the)
+    assert not coach.quotes_moment("I think you can breathe first.", i_i)
+    assert not coach.quotes_moment("Breathe and the line lands.", and_the)
+
+
+def test_a_headline_may_quote_a_filler_by_its_word() -> None:
+    um = coach.Moment.model_validate(moment("filler-2", "0:15", "um"))
+
+    assert coach.quotes_moment('Your "um" broke the line: pause silently next take.', um)
+
+
+def test_a_headline_quoting_um_is_kept(client: TestClient) -> None:
+    moments = [*MOMENTS, moment("filler-2", "0:15", "um", before="So", after="we")]
+    headline = {"text": 'Your "um" broke the line: pause silently next take.', "moment_id": "filler-2"}
+    install_model(moment_reply(headline))
+
+    body = ask(client, moments=moments)
+
+    assert body["source"] == "ai"
+    assert body["headline"] == headline
+
+
+@pytest.mark.parametrize(
+    ("text", "moment_text"),
+    [
+        ("Take an umbrella of calm into the line.", "um"),
+        ("Hum the line first, then say it.", "um"),
+        ("Say the line once, then breathe.", "the"),
+        ("You said and, then the rest.", "and the, and the"),
+    ],
+    ids=[
+        "um inside umbrella", "um inside hum", "a lone common word",
+        "the words of a short restart out of order",
+    ],
+)
+def test_a_short_text_counts_only_as_whole_words_in_order(text: str, moment_text: str) -> None:
+    short = coach.Moment.model_validate(moment("filler-3", "0:44", moment_text))
+
+    assert not coach.quotes_moment(text, short)
+
+
 def test_the_headline_and_tip_texts_are_trimmed(client: TestClient) -> None:
     headline = {"text": f"  {HEADLINE['text']}\n", "moment_id": "restart-1"}
     first, second = offered_ids()[:2]
@@ -328,13 +393,13 @@ def test_a_tip_that_names_its_moments_wrongly_falls_back(
         ("At 10:21 the line broke. Breathe and go on.", ["restart-1"]),
         ("At 0:211 the line broke. Breathe and go on.", ["restart-1"]),
         ("You said the same thing again. Breathe and go on.", ["restart-1"]),
-        ("You said uh there. Breathe and go on.", ["filler-1"]),
+        ("You said um there. Breathe and go on.", ["filler-1"]),
         ("You were fewer than you think. Breathe and go on.", ["restart-1"]),
     ],
     ids=[
         "quotes nothing", "another moment's clock", "another moment's word",
         "a clock that only ends with the moment's", "a clock that only starts with it",
-        "only a common word", "a word under 3 letters", "a word that only starts with one",
+        "only a common word", "another short filler", "a word that only starts with one",
     ],
 )
 def test_a_tip_that_does_not_quote_a_moment_it_names_falls_back(
