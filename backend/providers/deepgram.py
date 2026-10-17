@@ -39,4 +39,6 @@ def to_word(raw: dict) -> Word:
 
     Raises KeyError, AttributeError or ValueError for a word of another shape (checked_word).
     """
-    return checked_word(raw.get("punctuated_word", raw["word"]), raw["start"], raw["end"])
+    return checked_word(
+        raw.get("punctuated_word", raw["word"]), raw["start"], raw["end"], raw.get("confidence")
+    )

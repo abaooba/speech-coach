@@ -29,7 +29,7 @@ def test_fixture_sessions_have_the_store_fields_and_real_timings() -> None:
         assert set(session) == SESSION_FIELDS
         datetime.fromisoformat(session["createdAt"])
         assert session["durationSeconds"] > 20
-        assert session["transcript"][0].keys() == {"text", "start", "end"}
+        assert session["transcript"][0].keys() - {"confidence"} == {"text", "start", "end"}
         assert "words_per_minute" in session["metrics"]
     assert sessions[0]["createdAt"] < sessions[1]["createdAt"]
 

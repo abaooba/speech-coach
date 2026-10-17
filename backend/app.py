@@ -2,7 +2,6 @@
 
 import logging
 import os
-from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
 
@@ -150,7 +149,15 @@ async def analyze(
         take_metrics = await run_in_threadpool(analyze_reading, words, script)
     else:
         take_metrics = metrics.analyze(words)
-    return {"transcript": [asdict(word) for word in words], "metrics": take_metrics}
+    return {"transcript": [_transcript_entry(word) for word in words], "metrics": take_metrics}
+
+
+def _transcript_entry(word: Word) -> dict:
+    """A word as the browser gets it: text and times, plus confidence when the provider gave one."""
+    entry = {"text": word.text, "start": word.start, "end": word.end}
+    if word.confidence is not None:
+        entry["confidence"] = word.confidence
+    return entry
 
 
 def speech_end_seconds(words: list[Word]) -> float:
@@ -172,9 +179,7 @@ def discard_provider_copy(provider: object) -> None:
         try:
             delete()
         except Exception as error:  # noqa: BLE001 - best effort, see the docstring
-            logger.warning(
-                "Could not discard the provider's copy (%s)", type(error).__name__
-            )
+            logger.warning("Could not discard the provider's copy (%s)", type(error).__name__)
 
 
 def advice_client() -> AsyncAnthropic | None:

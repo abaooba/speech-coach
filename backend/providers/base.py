@@ -24,6 +24,9 @@ class Word:
     text: str
     start: float
     end: float
+    # The service's own 0-1 confidence in this word, None when it sent none. It only marks words
+    # that may have been unclear; no metric, score or rank reads it.
+    confidence: float | None = None
 
 
 class ProviderError(Exception):
@@ -63,17 +66,24 @@ def reading_reply(provider_name: str) -> Iterator[None]:
         ) from error
 
 
-def checked_word(text: object, start: object, end: object) -> Word:
+def checked_word(text: object, start: object, end: object, confidence: object = None) -> Word:
     """A Word from the fields of a reply: its text must be a string, its times finite numbers.
 
     Otherwise ValueError. A word with no text, or a time that is text or not finite, would get
     past the provider and break the metrics or the answer; inside reading_reply it is a
-    ProviderError instead.
+    ProviderError instead. A confidence that is missing, not a finite number or a bool becomes
+    None; any other is clamped to 0-1 and rounded to 2 decimals.
     """
     if isinstance(text, str) and _is_finite_number(start) and _is_finite_number(end):
-        return Word(text=text, start=start, end=end)
+        return Word(text=text, start=start, end=end, confidence=_clean_confidence(confidence))
     raise ValueError("a word needs its text as a string and its times as finite numbers")
 
 
 def _is_finite_number(value: object) -> TypeIs[int | float]:
     return isinstance(value, int | float) and math.isfinite(value)
+
+
+def _clean_confidence(value: object) -> float | None:
+    if isinstance(value, bool) or not _is_finite_number(value):
+        return None
+    return round(min(1.0, max(0.0, float(value))), 2)
