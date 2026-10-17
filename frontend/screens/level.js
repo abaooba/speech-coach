@@ -1233,16 +1233,13 @@
   const PLAIN_QUOTE = "pause";
   const RETRY_KIND = "retry";
 
-  // Reads what the coach can say about a loop take: its moments and the rule takeaway at once, and
-  // (take 1 and the scored take) the notes request, which upgrades the lines when it answers.
-  // Without app.coach there is nothing to say and nothing is asked for.
+  // Reads what the coach can say about a take (coachesTake): its moments and the rule takeaway at
+  // once, and the notes request, which upgrades the lines when it answers. Without app.coach
+  // there is nothing to say and nothing is asked for.
   function startCoach(target, takeIndex) {
     const take = target.takes[takeIndex];
     const coach = app.coach;
-    if (target.play.kind !== LOOP || !coach || typeof coach.coachMoments !== "function") {
-      return;
-    }
-    if (takeIndex !== 0 && take.evaluation.scored !== true) {
+    if (!coach || typeof coach.coachMoments !== "function" || !coachesTake(target, takeIndex)) {
       return;
     }
     const entry = { moments: [], takeaway: null, notes: null, onNotes: null };
@@ -1274,6 +1271,20 @@
           entry.onNotes();
         }
       });
+  }
+
+  // The takes the coach reads: a loop's take 1 (for the Review) and every scored take of any
+  // play, whose result the sheet follows; the benchmark scores none, so its last take, the talk
+  // its Done ends on.
+  function coachesTake(target, takeIndex) {
+    const play = target.play;
+    if (play.kind === BENCHMARK) {
+      return takeIndex === play.takes.length - 1;
+    }
+    if (play.kind === LOOP && takeIndex === 0) {
+      return true;
+    }
+    return target.takes[takeIndex].evaluation.scored === true;
   }
 
   // The headline shown for an entry: Claude's once it is in, else the rule takeaway.
@@ -1327,16 +1338,17 @@
     return el("div", { class: "tip-card level-tip level-coach" }, parts);
   }
 
-  // The sheet after a loop level's result: the coach's line for the final take, the pass or miss
-  // pill, and the one move app.nextMove picks. "See full results" only closes it, since the
-  // result stays on the page under the sheet; there is no grammar link in a level. Once per result.
+  // The sheet after every Path play's result (a level, check-back, crown, checkpoint or the
+  // benchmark): the coach's line for the final take, or the result's own verdict sentence, the
+  // pass or "Not yet" pill, and the one move app.nextMove picks. "See full results" only closes
+  // it, since the result stays on the page under the sheet; there is no grammar link in a level.
+  // Once per result.
   function openResultSheet(target) {
     const sheetApi = app.sheet;
     if (
       !sheetApi ||
       typeof sheetApi.open !== "function" ||
       typeof app.nextMove !== "function" ||
-      target.play.kind !== LOOP ||
       target.sheetFor === target.last
     ) {
       return;
@@ -1353,7 +1365,7 @@
         history: historyNow(target),
         cleared: savedCleared(target),
         today: today(),
-        after: { type: AFTER_LEVEL, levelId: target.play.level, passed },
+        after: { type: AFTER_LEVEL, levelId: target.play.id, passed },
       });
     } catch {
       return;
@@ -1382,24 +1394,62 @@
     }
   }
 
-  // "Level 3 cleared" (ok), or "Not yet · 2 tries left".
+  // The pill for the result, by play kind: "Level 3 cleared", "Check-back 1 passed", "Crown
+  // earned", "Checkpoint cleared" or "Benchmark done" (ok), or "Not yet" ("Not yet · 2 tries
+  // left" for a level, the one play with attempts a day).
   function sheetStatus(target, passed) {
-    if (passed) {
-      return { kind: "ok", text: "Level " + target.play.number + " cleared" };
+    const play = target.play;
+    if (play.kind === BENCHMARK) {
+      return { kind: "ok", text: BENCHMARK_DONE };
     }
-    const left = app.path.attemptsLeft(target.play.level, historyNow(target), today());
+    if (passed) {
+      return { kind: "ok", text: passPillOf(target) };
+    }
+    if (play.kind !== LOOP) {
+      return { kind: "pill", text: NOT_YET };
+    }
+    const left = app.path.attemptsLeft(play.level, historyNow(target), today());
     const tries = left === 1 ? "1 try left" : left + " tries left";
-    return { kind: "pill", text: left > 0 ? "Not yet · " + tries : "Not yet" };
+    return { kind: "pill", text: left > 0 ? NOT_YET + " · " + tries : NOT_YET };
   }
 
-  // A retry goes straight to the next take of this run; anything else opens its route.
+  function passPillOf(target) {
+    const play = target.play;
+    if (play.kind === CHECKBACK) {
+      return "Check-back " + target.takes[target.last].evaluation.stage + " passed";
+    }
+    if (play.kind === CROWN) {
+      return CROWN_EARNED;
+    }
+    if (play.kind === CHECKPOINT) {
+      return CHECKPOINT_CLEARED;
+    }
+    return "Level " + play.number + " cleared";
+  }
+
+  // A retry of a level goes straight to the next take of this run; a crown's or a checkpoint's
+  // starts a new run at its Goal, as opening it again would (its tier or material may change);
+  // anything else opens its route.
   function goToMove(target, move) {
     if (move.kind === RETRY_KIND && run === target) {
-      startTake(target, target.last + 1);
+      if (target.play.kind === LOOP) {
+        startTake(target, target.last + 1);
+      } else {
+        restartRun(target);
+      }
       return;
     }
     const [name, id] = String(move.href || "").replace(/^#\/?/, "").split("/");
     app.router.go(name || PRACTICE_ROUTE, id ? { id: decodeURIComponent(id) } : undefined);
+  }
+
+  // A new run of the same play from what the store holds now, drawn at its Goal.
+  function restartRun(target) {
+    const history = historyNow(target);
+    const cleared = savedCleared(target);
+    endRun();
+    run = startRun(target.playId, history, cleared);
+    render();
   }
 
   // --- Feedback (the Review step, after take 1) ------------------------------------------------

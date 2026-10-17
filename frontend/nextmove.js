@@ -2,12 +2,21 @@
    today, after}) reads the speaker's saved takes (`history`, as app.store.list() resolves them,
    including the take just saved), the cleared records (app.store.listClearedLevels(), read after
    the save), the local day `today` ("YYYY-MM-DD") and optionally what was just done, `after`:
-   {type: "level", levelId, passed} after a Path level's final take, or {type: "take"} (or
-   nothing) after a free-talk take. It answers {kind, label, href, why}: `label` the button's
-   words, `href` the hash route it opens ("#/practice" when the button only goes back to
-   recording) and `why` the line under the headline. The first rule that fits wins:
-     1. a level just missed with attempts left today  -> "Try again"
-     2. a level just passed                           -> the unit's next level, or its checkpoint
+   {type: "level", levelId, passed} after a Path play's result, where `levelId` is the play's
+   route id ("fillers-2", "fillers-2_checkback", "fillers_crown", "fillers_checkpoint" or
+   "benchmark", read with app.path.playById), or {type: "take"} (or nothing) after a free-talk
+   take. It answers {kind, label, href, why}: `label` the button's words, `href` the hash route it
+   opens ("#/practice" when the button only goes back to recording) and `why` the line under the
+   headline. The first rule that fits wins:
+     1. a play just missed that can be played again today -> "Try again" (a level with attempts
+        left; a crown or checkpoint, which have no daily limit; never a check-back, which comes
+        back days later)
+     2. a play just done:
+        a level passed       -> the unit's next level, or its checkpoint
+        a check-back passed  -> the next due check-back, else the unit's current level
+        a crown earned       -> the unit's current level, or its checkpoint
+        a checkpoint cleared -> the weakest unit's current level (rule 6, this one counted)
+        the benchmark        -> the weakest unit's current level (rule 6)
      3. at most one take of your own so far           -> level 1 of the weakest unit
      4. a check-back is due                           -> "Start: Fillers 2 check-back"
      5. the benchmark is due and 3+ takes exist       -> "Start benchmark"
@@ -26,6 +35,12 @@
   const CHECKBACK_SUFFIX = "_checkback";
   const RESTING = "resting";
   const LEVEL_TYPE = "level";
+  // Play kinds as app.path names them.
+  const LOOP = "loop";
+  const CHECKBACK = "checkback";
+  const CROWN = "crown";
+  const CHECKPOINT = "checkpoint";
+  const BENCHMARK = "benchmark";
 
   const KIND = Object.freeze({
     retry: "retry",
@@ -45,6 +60,11 @@
   const RECORD_LABEL = "Record another take";
   const RECORD_WHY = "Every take adds a point to your trend.";
   const CHECKBACK_WHY = "A check-back keeps a cleared level locked in.";
+  // Crowns and checkpoints can be played again at once (path.js counts no attempts for them).
+  const RETRY_WHY = Object.freeze({
+    [CROWN]: "A crown has no daily limit. One clean run earns it.",
+    [CHECKPOINT]: "A checkpoint has no daily limit. One clean take clears it.",
+  });
 
   function nextMove(options) {
     const given = options && typeof options === "object" ? options : {};
@@ -70,37 +90,81 @@
     return { kind: KIND.record, label: RECORD_LABEL, href: PRACTICE_ROUTE, why: RECORD_WHY };
   }
 
-  // 1. The level just played was missed and today still has an attempt left.
+  // 1. The play just done was missed and can be played again today: a level with an attempt
+  // left today, or a crown or checkpoint. A missed check-back comes back days later.
   function retryMove(after, context) {
-    const level = levelAfter(after);
-    if (level === null || after.passed !== false) {
+    const play = playAfter(after);
+    if (play === null || after.passed !== false) {
       return null;
     }
-    if (app.path.attemptsLeft(level.id, context.history, context.today) === 0) {
-      return null;
+    if (play.kind === LOOP) {
+      if (app.path.attemptsLeft(play.id, context.history, context.today) === 0) {
+        return null;
+      }
+      return { kind: KIND.retry, label: TRY_AGAIN, href: LEVEL_ROUTE + play.id, why: ONE_CLEAN_TAKE };
     }
-    return { kind: KIND.retry, label: TRY_AGAIN, href: LEVEL_ROUTE + level.id, why: ONE_CLEAN_TAKE };
+    const why = RETRY_WHY[play.kind];
+    return why ? { kind: KIND.retry, label: TRY_AGAIN, href: LEVEL_ROUTE + play.id, why } : null;
   }
 
-  // 2. The level just played was passed: the next level of its unit that can be played today, or
-  // the unit's checkpoint after level 5.
+  // 2. What follows the play just done: a pass of a level, check-back, crown or checkpoint, or
+  // the benchmark (which is never passed or missed).
   function passedMove(after, context) {
-    const level = levelAfter(after);
-    if (level === null || after.passed !== true) {
+    const play = playAfter(after);
+    if (play === null) {
       return null;
     }
+    if (play.kind === BENCHMARK) {
+      return weakestMove(context);
+    }
+    if (after.passed !== true) {
+      return null;
+    }
+    if (play.kind === CHECKBACK) {
+      return checkbackPassedMove(play, context);
+    }
+    if (play.kind === CROWN) {
+      return unitMove(unitOf(play.unit), context);
+    }
+    if (play.kind === CHECKPOINT) {
+      // The checkpoint's record may not be saved yet, so count it as cleared here.
+      return weakestMove(withCleared(context, play.id));
+    }
+    return levelPassedMove(app.path.levelById(play.level), context);
+  }
+
+  // The next level of the passed level's unit that can be played today, or the unit's
+  // checkpoint after level 5.
+  function levelPassedMove(level, context) {
     const unit = unitOf(level.unit);
     // The pass may not be in the cleared records yet, so count it as cleared here.
-    const passedContext = Object.assign({}, context, {
-      cleared: context.cleared.concat([{ levelId: level.id }]),
-    });
+    const passedContext = withCleared(context, level.id);
     const next = unit.levels.find(
       (entry) => entry.number > level.number && !isCleared(entry, passedContext),
     );
     if (next !== undefined) {
-      return levelMove(KIND.next, unit, next, passedContext, "Next in " + unit.title + ".");
+      return levelMove(KIND.next, unit, next, passedContext, nextInWhy(unit));
     }
     return checkpointMove(unit, passedContext, "Next: the " + unit.title + " checkpoint.");
+  }
+
+  // A passed check-back: the next check-back that is due (never the one just passed, whose
+  // record may not be saved yet), else the unit's current level.
+  function checkbackPassedMove(play, context) {
+    const due = dueCheckbacks(context).find((entry) => entry.levelId !== play.level);
+    if (due !== undefined) {
+      return checkbackEntryMove(due);
+    }
+    return unitMove(unitOf(play.unit), context);
+  }
+
+  // The unit's current level, or its checkpoint once every level is cleared.
+  function unitMove(unit, context) {
+    const current = app.path.currentLevel(unit, context.cleared);
+    if (current === null) {
+      return checkpointMove(unit, context, "Next: the " + unit.title + " checkpoint.");
+    }
+    return levelMove(KIND.next, unit, current, context, nextInWhy(unit));
   }
 
   // 3. A speaker with at most one take of their own starts the weakest unit from level 1.
@@ -121,11 +185,19 @@
 
   // 4. The first check-back that has come due.
   function checkbackMove(context) {
-    const due = app.path.checkbacks(context.cleared, context.history, context.today).find((entry) => entry.due);
-    if (due === undefined) {
-      return null;
-    }
-    const level = app.path.levelById(due.levelId);
+    const due = dueCheckbacks(context)[0];
+    return due === undefined ? null : checkbackEntryMove(due);
+  }
+
+  function dueCheckbacks(context) {
+    return app.path
+      .checkbacks(context.cleared, context.history, context.today)
+      .filter((entry) => entry.due);
+  }
+
+  // "Start: Fillers 2 check-back" for an entry of app.path.checkbacks.
+  function checkbackEntryMove(entry) {
+    const level = app.path.levelById(entry.levelId);
     const unit = unitOf(level.unit);
     return {
       kind: KIND.checkback,
@@ -191,12 +263,24 @@
     return unit.title + " is your weakest unit right now.";
   }
 
-  // The Path level `after` names, or null for a free-talk take or an unknown level.
-  function levelAfter(after) {
+  function nextInWhy(unit) {
+    return "Next in " + unit.title + ".";
+  }
+
+  // The Path play `after` names (app.path.playById), or null for a free-talk take or an unknown
+  // play.
+  function playAfter(after) {
     if (after === null || after.type !== LEVEL_TYPE) {
       return null;
     }
-    return app.path.levelById(after.levelId);
+    return app.path.playById(after.levelId);
+  }
+
+  // The context with `recordId` counted as cleared, for a pass whose record may not be saved yet.
+  function withCleared(context, recordId) {
+    return Object.assign({}, context, {
+      cleared: context.cleared.concat([{ levelId: recordId }]),
+    });
   }
 
   function unitOf(unitId) {
