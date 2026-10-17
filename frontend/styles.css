@@ -2977,6 +2977,31 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--accent);
 }
 
+/* The Review's coach block (guided coach): the tip card's look with a label, the coach line (two
+   lines kept, so the AI line swaps in without moving the button) and the level's tip. */
+.level-coach__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.level-coach__line {
+  margin: var(--s-2) 0 0;
+  min-height: calc(var(--fs-body) * 1.4 * 2);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.level-coach__tip {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
 /* The review: its title with the time it takes, a card per moment, the fix and the privacy
    line. */
 .level-review__header {
