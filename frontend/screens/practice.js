@@ -1287,6 +1287,11 @@
     }
     app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
     render("idle");
+    // A take just recorded gets the coach's sheet on Results; one opened again never does.
+    const results = app.screens.results;
+    if (results && typeof results.markFresh === "function") {
+      results.markFresh(id);
+    }
     app.router.go("results", { id });
   }
 

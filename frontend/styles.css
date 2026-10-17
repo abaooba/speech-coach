@@ -4255,6 +4255,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-decoration: none;
 }
 
+/* The grammar link's text-check icon follows its words in the DOM and is drawn first. */
+.sheet__grammar svg {
+  order: -1;
+}
+
 @media (max-width: 359px) {
   .sheet__links .btn {
     flex: 0 0 100%;

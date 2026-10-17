@@ -201,6 +201,17 @@
   // Said in the live region when the coach notes replace the Coach card's rule content, a swap
   // nothing else would say.
   const NOTES_READY_ANNOUNCEMENT = "Coach notes ready.";
+  // The sheet after a take (spec Phase 5 item 6; the design's sheet copy table).
+  const SHEET_LABEL = "Coach";
+  const SHEET_READING = "Reading your take…";
+  const SEE_FULL_RESULTS = "See full results";
+  const CHECK_LANGUAGE_LABEL = "Check grammar & vocabulary";
+  const AFTER_A_TAKE = Object.freeze({ type: "take" });
+  const FALLBACK_SCREEN = "practice";
+  // How a quoted phrase in the coach's line is marked, by its moment's kind (app.sheet.quoteParts).
+  const QUOTE_KINDS = Object.freeze({ restart: "restart", filler: "filler" });
+  const PLAIN_QUOTE = "pause";
+
   // The tier the request names while rank.js is not loaded: the server's own default
   // (backend/advice/select.py DEFAULT_TIER). rank.js joins index.html with the rank badge (T37);
   // until then every speaker is coached at the beginner level.
@@ -280,6 +291,10 @@
 
   // The view of the take on show (viewOf), for startLanguageCheck.
   let currentView = null;
+
+  // The id of the take Practice has just saved and is opening (markFresh), until the next
+  // show() uses it up: that take, and only that one, gets the sheet after a take.
+  let freshTakeId = null;
 
   function mount(root) {
     body = root.querySelector(".screen__body");
@@ -1002,11 +1017,14 @@
   // same list rates the takes up to this one for the rank card, which joins that second draw (a
   // first take, with no comparison, is drawn again for its card alone), and gives the speaker's
   // tier for the coach notes, which are asked for last and, when they come, upgrade the Coach card
-  // in a third draw; when none come, the card's status goes and its rule content stays. A ticket
-  // check before each draw means a slow earlier visit can never paint over a newer one, whichever
-  // read is the slow one, and a take the speaker has left (hide) asks for no notes and draws none.
+  // in a third draw; when none come, the card's status goes and its rule content stays. A take
+  // Practice just saved (markFresh) also gets the sheet after a take, once the list is in, with
+  // the rule line at once and Claude's headline from the same notes. A ticket check before each
+  // draw means a slow earlier visit can never paint over a newer one, whichever read is the slow
+  // one, and a take the speaker has left (hide) asks for no notes and draws none.
   async function show(params) {
     const ticket = ++showCount;
+    const fresh = takeFresh(params && params.id);
     const session = await loadSession(params && params.id);
     if (ticket !== showCount) {
       return;
@@ -1028,7 +1046,9 @@
     if (previous !== null || view.rankCard !== null) {
       renderSession(session, view, previous);
     }
-    const notes = await loadCoachNotes(session, view.summary, sessions);
+    const asked = loadCoachNotes(session, view.summary, sessions);
+    const sheet = fresh && !isSample(session) ? await openTakeSheet(session, view, sessions) : null;
+    const notes = await asked;
     if (ticket !== showCount) {
       return;
     }
@@ -1039,6 +1059,112 @@
     } else if (view.coachCard) {
       view.coachCard.clearStatus();
     }
+    if (sheet) {
+      upgradeSheet(sheet, view);
+    }
+  }
+
+  // Practice calls this with the id of the take it just saved, right before it opens Results
+  // for it, so that take gets the sheet after a take. Samples and takes opened again (from
+  // History, a reload) never come through here.
+  function markFresh(id) {
+    freshTakeId = id === undefined || id === null ? null : String(id);
+  }
+
+  // True when `id` is the take just marked fresh. Any show() uses the mark up.
+  function takeFresh(id) {
+    const fresh = freshTakeId !== null && freshTakeId === String(id);
+    freshTakeId = null;
+    return fresh;
+  }
+
+  // The sheet after a take (app.sheet): the coach's rule line about this take at once, with
+  // "Reading your take…", the one next move app.nextMove picks from the saved takes (this one
+  // included) and the cleared levels, "See full results", and for a take the grammar check fits,
+  // "Check grammar & vocabulary". Null, and no sheet, while sheet.js, nextmove.js or coach.js is
+  // not loaded, or once the speaker has left.
+  async function openTakeSheet(session, view, sessions) {
+    const loaded =
+      app.sheet &&
+      typeof app.sheet.open === "function" &&
+      typeof app.nextMove === "function" &&
+      view.takeaway;
+    if (!loaded) {
+      return null;
+    }
+    const cleared = await loadCleared();
+    if (!view.isCurrent()) {
+      return null;
+    }
+    let move = null;
+    try {
+      move = app.nextMove({ history: sessions, cleared, today: today(), after: AFTER_A_TAKE });
+    } catch {
+      return null;
+    }
+    const options = {
+      label: SHEET_LABEL,
+      line: sheetLine(view.takeaway, view.moments),
+      why: move.why,
+      status: { kind: "loading", text: SHEET_READING },
+      primary: { label: move.label, icon: "arrow-right", onSelect: () => goTo(move.href) },
+      secondary: { label: SEE_FULL_RESULTS },
+    };
+    const language = app.language;
+    if (language && typeof language.canCheck === "function" && language.canCheck(session)) {
+      options.extra = {
+        label: CHECK_LANGUAGE_LABEL,
+        icon: "text-check",
+        onSelect: startLanguageCheck,
+      };
+    }
+    return app.sheet.open(options);
+  }
+
+  // Claude's headline in the sheet's line once the notes are in; without one, the rule line
+  // stays and only the "Reading your take…" status goes.
+  function upgradeSheet(sheet, view) {
+    const headline = view.notes ? view.notes.headline : null;
+    if (headline) {
+      sheet.update(sheetLine(headline, view.moments));
+    } else {
+      sheet.clearStatus();
+    }
+  }
+
+  // The coach's line as the sheet's parts: its quoted words in the mark of the moment it names.
+  function sheetLine(headline, moments) {
+    const moment = listOf(moments).find((entry) => entry && entry.id === headline.momentId);
+    const kind = (moment && QUOTE_KINDS[moment.kind]) || PLAIN_QUOTE;
+    return typeof app.sheet.quoteParts === "function"
+      ? app.sheet.quoteParts(headline.text, kind)
+      : headline.text;
+  }
+
+  // Opens a hash route as app.nextMove names it ("#/level/fillers-2", "#/practice").
+  function goTo(href) {
+    const [name, id] = String(href || "").replace(/^#\/?/, "").split("/");
+    app.router.go(name || FALLBACK_SCREEN, id ? { id: decodeURIComponent(id) } : undefined);
+  }
+
+  // The cleared Path records (app.store.listClearedLevels), or [] from a store without them.
+  async function loadCleared() {
+    if (!app.store || typeof app.store.listClearedLevels !== "function") {
+      return [];
+    }
+    try {
+      const cleared = await app.store.listClearedLevels();
+      return Array.isArray(cleared) ? cleared : [];
+    } catch {
+      return [];
+    }
+  }
+
+  // The local day ("YYYY-MM-DD") app.nextMove counts check-backs and attempts from.
+  function today() {
+    return app.path && typeof app.path.localDay === "function"
+      ? app.path.localDay(new Date())
+      : null;
   }
 
   // Runs the grammar check of the take on show from outside its Coach card (the sheet's "Check
@@ -2065,5 +2191,6 @@
     wordsToCheck,
     momentTargets,
     startLanguageCheck,
+    markFresh,
   };
 })();
