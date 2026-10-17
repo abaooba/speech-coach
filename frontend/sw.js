@@ -23,6 +23,8 @@ const SHELL = [
   "rankcard.js",
   "path.js",
   "loop.js",
+  "coach.js",
+  "nextmove.js",
   "tips.js",
   "pauses.js",
   "screens/practice.js",

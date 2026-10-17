@@ -53,6 +53,8 @@ are no accounts and the server keeps nothing: every take stays on the phone.
 | `frontend/rankcard.js` | The rank card on Progress and Results |
 | `frontend/path.js` | The Loop Path: units, levels, rules, check-backs, crowns, the benchmark |
 | `frontend/loop.js` | The Level screen's pure helpers: steps, feedback, moments, tap matching |
+| `frontend/coach.js` | The take's moments for the coach and the rule-based takeaway line |
+| `frontend/nextmove.js` | The one next thing to do: retry, next level, check-back, benchmark |
 | `frontend/tips.js` | Rule-based tips and the coach-notes request |
 | `frontend/sw.js` | Service worker: caches the app shell, never audio, never `/api` |
 | `frontend/screens/practice.js` | Record, upload, level mode, the sample |

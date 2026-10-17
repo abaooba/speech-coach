@@ -1916,6 +1916,8 @@
     compareWithPrevious,
     timelineSegments,
     speechMapRows,
+    restartSpan,
+    bareText,
     isSample,
   };
 })();
