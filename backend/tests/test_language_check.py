@@ -237,7 +237,7 @@ def test_caps_trim_extra_items_and_keep_the_first_valid_ones(
     assert [word["said"] for word in result["words"]] == phrases[:2]
     assert all(word["options"] == ["a", "b", "c"] for word in result["words"])
     assert [item["said"] for item in result["rewrites"]] == phrases[:2]
-    assert result["praise"] == "Great job, clear and steady."
+    assert result["praise"] is None, "praise is only for a take with nothing to improve"
 
 
 @pytest.mark.parametrize(
@@ -446,3 +446,59 @@ def test_success_logs_nothing_private(
 
     for record in app_logs(caplog):
         assert "market" not in record.getMessage() and SESSION not in record.getMessage()
+
+
+# --- praise only for a clean take; nothing to check costs nothing (final review finding 11) ------
+
+FIX = GOOD["fixes"][0]
+WORD = GOOD["words"][0]
+REWRITE = GOOD["rewrites"][0]
+
+
+@pytest.mark.parametrize(
+    "parts",
+    [{"fixes": [FIX]}, {"words": [WORD]}, {"rewrites": [REWRITE]}],
+    ids=["a fix", "a stronger word", "a rewrite"],
+)
+def test_praise_is_null_beside_anything_to_improve(
+    model: FakeAnthropic, budget: AICallBudget, parts: dict[str, Any]
+) -> None:
+    result = answer(model, praise="Your grammar was clear and natural.", **parts)
+
+    assert result["praise"] is None
+    assert any(result[key] for key in ("fixes", "words", "rewrites")), "the item stays"
+
+
+def test_praise_stays_when_every_item_the_model_wrote_was_dropped(
+    model: FakeAnthropic, budget: AICallBudget
+) -> None:
+    not_said = {"said": "a phrase nobody said", "better": "a better one", "why": "Clearer."}
+
+    result = answer(model, fixes=[not_said], praise="Your grammar was clear and natural.")
+
+    assert result["fixes"] == []
+    assert result["praise"] == "Your grammar was clear and natural."
+
+
+@pytest.mark.parametrize("transcript", ["um, uh... like, you know", "   ", "... ?!", "Um. Uh. Hmm."])
+def test_a_transcript_of_only_fillers_is_ok_and_empty_without_a_call(
+    model: FakeAnthropic, budget: AICallBudget, transcript: str
+) -> None:
+    response = post(transcript)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok", "fixes": [], "words": [], "rewrites": [], "praise": None,
+    }
+    assert model.messages.requests == [], "the model is not asked"
+    assert budget.try_to_spend() and budget.try_to_spend(), "no budget call is spent"
+
+
+def test_a_transcript_of_only_fillers_is_ok_and_empty_without_a_key(budget: AICallBudget) -> None:
+    app_module.app.dependency_overrides[app_module.advice_client] = lambda: None
+    try:
+        response = post("um uh")
+    finally:
+        app_module.app.dependency_overrides.pop(app_module.advice_client, None)
+
+    assert response.json()["status"] == "ok"

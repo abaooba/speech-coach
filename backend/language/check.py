@@ -4,13 +4,15 @@ POST /api/language-check (backend/app.py) hands check_language() the take's tran
 speaker asks for it with a button, so it is opt-in and nothing is saved. Like the coach notes
 (backend/advice/coach.py) it uses an injected client, a deadline, structured JSON output and the
 server's one hourly budget of AI calls (backend/advice/budget.py). Unlike them it has no
-fallback: a check that cannot be made answers {"status": "unavailable"} and the page says so.
+fallback: a check that cannot be made answers {"status": "unavailable"} and the page says so. A
+transcript of nothing but fillers has nothing to check and is an empty "ok", with no call.
 
 What the model writes is checked before it is shown (checked_check):
 - every `said` must be in the transcript, compared as lower-case words without punctuation and
   without fillers, so "we buyed, some" matches "we, um, buyed some";
 - `better` must differ from `said` in the same comparison;
-- a `why` runs at most 15 words and praise at most 20 (praise over that becomes null);
+- a `why` runs at most 15 words and praise at most 20 (praise over that becomes null), and praise
+  is kept only when no fix, word or rewrite is (the prompt asks for it only then);
 - the caps (3 fixes, 2 words, 2 rewrites, 3 options per word) trim: an item that breaks a rule is
   dropped, and extra valid items past the cap are dropped from the end. One bad item never costs
   the speaker the good ones. A reply that is not the right shape at all is unavailable.
@@ -231,11 +233,14 @@ async def check_language(
 ) -> LanguageCheck | Unavailable:
     """The language check for one take, or Unavailable.
 
-    Unavailable without a client (no key), once `budget`'s calls are spent (the same budget as
-    the coach notes), when the model has not answered within TIMEOUT_SECONDS, when it declined
-    and when its reply cannot be used. The caller has already held the transcript to
-    MAX_TRANSCRIPT_CHARACTERS.
+    A transcript with no words once its fillers are left out has nothing to check: it is an
+    empty "ok" at once, with no model call and no budget spent. Otherwise unavailable without a
+    client (no key), once `budget`'s calls are spent (the same budget as the coach notes), when
+    the model has not answered within TIMEOUT_SECONDS, when it declined and when its reply
+    cannot be used. The caller has already held the transcript to MAX_TRANSCRIPT_CHARACTERS.
     """
+    if not spoken_words(request.transcript):
+        return LanguageCheck(fixes=[], words=[], rewrites=[], praise=None)
     if client is None:
         return Unavailable()
     if not budget.try_to_spend():
@@ -345,11 +350,13 @@ def checked_check(reply_text: str, transcript: str) -> LanguageCheck:
         and len(rewrite.better) <= MAX_PHRASE_CHARACTERS
         and differs(rewrite.said, rewrite.better)
     ]
+    # Praise is for a take with nothing to improve: beside any item kept it is dropped.
     praise = (reply.praise or "").strip()
+    kept_praise = 1 <= len(praise.split()) <= MAX_PRAISE_WORDS and not (fixes or words or rewrites)
     return LanguageCheck(
         fixes=fixes[:MAX_FIXES],
         words=words[:MAX_WORDS],
         rewrites=rewrites[:MAX_REWRITES],
-        praise=praise if 1 <= len(praise.split()) <= MAX_PRAISE_WORDS else None,
+        praise=praise if kept_praise else None,
     )
 
