@@ -2,8 +2,8 @@
    show({id}) reads the take and the speaker's take before it from app.store, never writing, and
    draws the meta line, the Coach card (app.screens.coachCard), speech map, stat strip, rank card
    (app.rankCard), words to check, transcript and actions node by node, never from markup; the
-   cited coach notes (app.tips.coachNotes) upgrade the card when they arrive. summarize,
-   headlineFor and the other pure helpers touch no DOM or app.ui. */
+   cited coach notes (app.tips.coachNotes) upgrade the card when they arrive. summarize and
+   the other pure helpers touch no DOM or app.ui. */
 (function () {
   "use strict";
 
@@ -42,7 +42,7 @@
   const TIME_USED_JOINER = " of ";
   // Pauses hint: how many of the counted pauses ran 5 s or more ("0 over 5 s" is the good news).
   const LONG_PAUSES_SUFFIX = " over 5 s";
-  // Clean stretch hint, against the 15 s practice target the headline uses too.
+  // Clean stretch hint, against the 15 s practice target.
   const CLEAN_OK = "Target 15 s";
   const CLEAN_SHORT = "Aim past 15 s";
 
@@ -51,34 +51,15 @@
   const HINT_ICONS = { [TONE_OK]: "check", [TONE_WARN]: "alert" };
   const HINT_ICON_SIZE = 16;
 
-  // A pace band ("130 to 160") is drawn with non-breaking spaces around its "to", in the Pace
-  // hint and in the headline, so it never splits across lines.
+  // A pace band ("130 to 160") is drawn with non-breaking spaces around its "to" in the Pace
+  // hint, so it never splits across lines.
   const UNBROKEN_JOINER = "\u00a0to\u00a0";
   const BAND_SPACES = /(\d+) to (\d+)/;
   const BAND_UNBROKEN = "$1" + UNBROKEN_JOINER + "$2";
 
-  // The headline's thresholds beyond the cards' own: a fillers drop counts from half a filler a
-  // minute, and a clean stretch under 15 seconds has room to grow (15 clean seconds is the
-  // beginners' practice target how.html names).
-  const MIN_FILLER_DROP = 0.5;
+  // A clean stretch under 15 seconds has room to grow (15 clean seconds is the beginners'
+  // practice target how.html names): the Clean stretch card's hint.
   const CLEAN_STRETCH_GOAL_SECONDS = 15;
-
-  // Headline copy (DESIGN.md section 8): one strength and one focus, each under 15 words.
-  const HEADLINE = Object.freeze({
-    fillersDown: (from, to) => "Fillers are down from " + from + " to " + to + " a minute.",
-    paceInside: (band) => "Your pace is inside the " + band + " target.",
-    fillersUnder: "Your fillers are under 3 a minute.",
-    noBreaks: "No pause breaks a sentence.",
-    cleanStretch: (seconds) => "Your longest clean stretch is " + seconds + ".",
-    onChart: "This take is on your progress chart.",
-    cutFillers: "Next take, cut fillers under 3 a minute.",
-    slowDown: (band) => "Next take, slow toward " + band + " wpm.",
-    speedUp: (band) => "Next take, lift your pace toward " + band + " wpm.",
-    movePauses: "Next take, save pauses for the ends of sentences.",
-    shortenFreezes: "Next take, keep every pause under 5 seconds.",
-    stretchClean: (seconds) => "Next take, stretch your clean run past " + seconds + ".",
-    holdDelivery: "Next take, hold this delivery on a longer topic.",
-  });
 
   // "vs last take" lines, one per stat in strip order: the summary key, the stat's precision
   // (decimal places) and the words for a rise or a fall. The clean stretch compares only
@@ -379,82 +360,6 @@
       return { text: SPEED_UP, tone: TONE_WARN };
     }
     return { text: TARGET_PREFIX + lo + TARGET_JOINER + hi, tone: TONE_OK };
-  }
-
-  // The two headline sentences for a take, from its summary and, when there is one, the
-  // summary of the take before it (or null). Pure. Each list below is checked top to bottom
-  // and the first match wins; the thresholds are the cards', so the headline never contradicts
-  // a card: the band ends count as inside and fillers over 3 a minute are high.
-  function headlineFor(summary, previousSummary) {
-    const band = bandText(summary.target, TARGET_JOINER);
-    return {
-      strength: strengthFor(summary, previousSummary, band),
-      focus: focusFor(summary, band),
-    };
-  }
-
-  function strengthFor(summary, previousSummary, band) {
-    if (fillersDropped(summary, previousSummary)) {
-      return HEADLINE.fillersDown(previousSummary.fillersPerMinute, summary.fillersPerMinute);
-    }
-    if (paceIsInside(summary)) {
-      return HEADLINE.paceInside(band);
-    }
-    if (summary.fillersPerMinute <= MAX_FILLERS_PER_MINUTE) {
-      return HEADLINE.fillersUnder;
-    }
-    if (summary.pauseCount === 0) {
-      return HEADLINE.noBreaks;
-    }
-    if (summary.cleanStretchSeconds > 0) {
-      return HEADLINE.cleanStretch(secondsText(summary.cleanStretchSeconds));
-    }
-    return HEADLINE.onChart;
-  }
-
-  function focusFor(summary, band) {
-    const [lo, hi] = summary.target;
-    const clean = summary.cleanStretchSeconds;
-    if (summary.fillersPerMinute > MAX_FILLERS_PER_MINUTE) {
-      return HEADLINE.cutFillers;
-    }
-    if (summary.wpm > hi) {
-      return HEADLINE.slowDown(band);
-    }
-    if (summary.wpm < lo) {
-      return HEADLINE.speedUp(band);
-    }
-    if (summary.longPauseCount > 0) {
-      return HEADLINE.shortenFreezes;
-    }
-    if (summary.pauseCount > 0) {
-      return HEADLINE.movePauses;
-    }
-    if (clean > 0 && clean < CLEAN_STRETCH_GOAL_SECONDS) {
-      return HEADLINE.stretchClean(secondsText(clean));
-    }
-    return HEADLINE.holdDelivery;
-  }
-
-  // A drop of at least half a filler a minute since the last take (DESIGN.md section 8), on the
-  // same numbers the Fillers card compares: a take saved without words counts its backend
-  // tallies there too, so the headline never contradicts the card's "4.2 fewer".
-  function fillersDropped(summary, previousSummary) {
-    if (!previousSummary) {
-      return false;
-    }
-    const drop = roundTo(previousSummary.fillersPerMinute - summary.fillersPerMinute, 1);
-    return drop >= MIN_FILLER_DROP;
-  }
-
-  function paceIsInside(summary) {
-    const [lo, hi] = summary.target;
-    return summary.wpm >= lo && summary.wpm <= hi;
-  }
-
-  // "130 to 150" for a [lo, hi] target, with `joiner` (" to ", or its unbroken form) between.
-  function bandText(target, joiner) {
-    return target[0] + joiner + target[1];
   }
 
   // True for the bundled sample: History lists it, but it is not one of the speaker's takes, so
@@ -835,11 +740,6 @@
   function roundTo(value, digits) {
     const factor = 10 ** digits;
     return (Math.sign(value) * Math.round(Math.abs(value) * factor)) / factor;
-  }
-
-  // "4.9 seconds", or "1 second".
-  function secondsText(seconds) {
-    return seconds === 1 ? "1 second" : seconds + " seconds";
   }
 
   function normalizeWord(text) {
@@ -2167,7 +2067,6 @@
     hide,
     summarize,
     buildTranscriptPlan,
-    headlineFor,
     compareWithPrevious,
     timelineSegments,
     speechMapRows,

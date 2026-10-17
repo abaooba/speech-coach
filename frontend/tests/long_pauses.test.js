@@ -1,7 +1,7 @@
 // Tests for T32: a pause of 5 seconds or more counts wherever it falls, even after a full stop,
 // while shorter pauses still count only mid-sentence. Checked in the app.delivery report, on the
 // owner's real 2026-10-11 church take, and in every place that reads the report: the Results
-// cards, headline, timeline and transcript, the tips, the styles and the docs.
+// cards, timeline and transcript, the tips, the styles and the docs.
 "use strict";
 
 const test = require("node:test");
@@ -266,35 +266,6 @@ test("the pauses card shows the long pause after a period", async () => {
   const body = await showSession(longAfterPeriod());
   const card = byClass(body, "stat-strip").children[2];
   assert.equal(byClass(card, "stat__value").children[0].textContent, "1");
-});
-
-test("the headline never calls a take with a freeze pause-free, and asks to shorten it", () => {
-  const results = screenContext(null).screens.results;
-  const summary = results.summarize(longAfterPeriod());
-  summary.wpm = 140;
-  const headline = results.headlineFor(summary, null);
-  assert.notEqual(headline.strength, "No pause breaks a sentence.");
-  assert.equal(headline.focus, "Next take, keep every pause under 5 seconds.");
-
-  // A take saved without words: its pause cannot be placed, but it is still long.
-  const tallies = results.summarize(
-    sessionWith([], [[10, 6]], { words_per_minute: 140, duration: 60, word_count: 140 }),
-  );
-  assert.equal(
-    results.headlineFor(tallies, null).focus,
-    "Next take, keep every pause under 5 seconds.",
-  );
-});
-
-test("a short mid-sentence pause keeps the old focus", () => {
-  const results = screenContext(null).screens.results;
-  const words = spoken(SENTENCE, { 3: 2 });
-  const summary = results.summarize(sessionWith(words, [[words[3].end, 2]]));
-  summary.wpm = 140;
-  assert.equal(
-    results.headlineFor(summary, null).focus,
-    "Next take, save pauses for the ends of sentences.",
-  );
 });
 
 test("timelineSegments includes the long pause after a period and flags it", () => {

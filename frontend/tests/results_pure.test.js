@@ -1,5 +1,5 @@
 // Tests for the contract DESIGN.md section 2 sets on the helpers app.screens.results exports:
-// summarize, buildTranscriptPlan, headlineFor, compareWithPrevious and timelineSegments touch
+// summarize, buildTranscriptPlan, compareWithPrevious and timelineSegments touch
 // no DOM and no app.ui. They load here with app.delivery and no `document` at all, beside an
 // app.ui that throws the moment anything reads it, and run on timed and untimed takes, with
 // and without words. summarize hands the time used on a timed preset back as seconds; the
@@ -142,8 +142,6 @@ test("the other pure helpers also run without app.ui or a document", () => {
   const results = loadStrict();
   const current = results.summarize(clip(TIMED));
   const previous = results.summarize(tallies(TIMED));
-  assert.doesNotThrow(() => results.headlineFor(current, previous));
-  assert.doesNotThrow(() => results.headlineFor(previous, null));
   assert.doesNotThrow(() => results.compareWithPrevious(current, previous));
   assert.doesNotThrow(() => results.timelineSegments(current.report));
   assert.doesNotThrow(() => results.timelineSegments(previous.report));
