@@ -165,13 +165,10 @@ nothing else to host. `render.yaml` at the repo root describes the service.
    `render.yaml` marks `sync: false`. Two are required: `ASSEMBLYAI_API_KEY`
    and `DEEPGRAM_API_KEY` (paste both; `STT_PROVIDER` is preset to
    `assemblyai`, switch it to `deepgram` under the service's **Environment**
-   tab if you want the other provider). Three are optional and turn features
-   on: `ANTHROPIC_API_KEY` makes Claude write the coach notes on Results
-   (unset, the research library's own words stand in); `DATABASE_URL` (a
-   Neon Postgres connection string) and `SESSION_SECRET` (32 random bytes,
-   `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`) turn
-   accounts on (unset, the app is guest-only and every account route answers
-   503). Setting or changing `SESSION_SECRET` signs every account out.
+   tab if you want the other provider). One is optional and turns a
+   feature on: `ANTHROPIC_API_KEY` makes Claude write the coach notes on
+   Results (unset, the research library's own words stand in). There is no
+   database and nothing else to set.
 4. Apply. The first build takes a few minutes. Render polls the health check
    path `/api/health` and marks the deploy live once it answers 200.
 5. Open the service URL (`https://speech-coach-xz8c.onrender.com`).

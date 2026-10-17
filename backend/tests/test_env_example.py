@@ -15,8 +15,6 @@ SECRETS = [
     "ASSEMBLYAI_API_KEY",
     "DEEPGRAM_API_KEY",
     "ANTHROPIC_API_KEY",
-    "DATABASE_URL",
-    "SESSION_SECRET",
 ]
 
 
@@ -45,7 +43,9 @@ def test_readme_deploy_step_names_every_secret() -> None:
 def test_readme_says_what_each_optional_secret_turns_on() -> None:
     section = deploy_section()
     assert "coach notes" in section.lower()
-    assert "accounts" in section.lower()
+    assert "accounts" not in section.lower().replace("no accounts", "")
+    assert "DATABASE_URL" not in section
+    assert "SESSION_SECRET" not in section
     assert "Starter" in section, "the deploy section names the plan that stops the cold start"
 
 
