@@ -208,11 +208,13 @@ async def advice(
 ) -> coach.Advice:
     """Coach notes for one take: 2-3 tips, each with its library entry's drill and citation.
 
-    The body is the take's numbers with a transcript excerpt, the speaker's tier and the ids of
-    the advice already shown (coach.AdviceRequest). Claude Haiku writes the tips from library
-    advice when a key is set, the hour's budget of calls for the whole server is not spent
-    (backend/advice/budget.py) and its reply keeps the rules; otherwise they are the library's
-    own words. `source` says which ("ai" or "library"), and the shape is the same either way.
+    The body is the take's numbers with a transcript excerpt, the take's moments when the
+    frontend sends them, the speaker's tier and the ids of the advice already shown
+    (coach.AdviceRequest). Claude Haiku writes the tips from library advice, each pointing at
+    the moments it quotes, and a headline quoting one moment, when a key is set, the hour's
+    budget of calls for the whole server is not spent (backend/advice/budget.py) and its reply
+    keeps the rules; otherwise they are the library's own words with no headline. `source` says
+    which ("ai" or "library"), and the shape, {headline, tips, source}, is the same either way.
 
     Everyone is served the same way: the advice already shown is the `shown_ids` the request
     sends, and nothing is recorded on the server. No cookie or header changes the answer.

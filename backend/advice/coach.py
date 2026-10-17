@@ -1,23 +1,31 @@
 """Coach notes for one take (PLAN T40): 2-3 tips that Claude Haiku writes from library advice.
 
 POST /api/advice (backend/app.py) hands advise() the take's numbers, an excerpt of its
-transcript, the speaker's tier and the ids of the advice the speaker has already been shown.
-candidates() (select.py) picks the library entries the notes may draw on, never one written for
-debate, and Claude Haiku rewrites 2-3 of them for this speaker, coaching everyday speech: in the
-second person, about this take, with nothing added to what the entries and the numbers say. Its
-reply is used only when it keeps every rule in checked_tips(). The drill and the citation of
-each tip are copied here from its library entry, never taken from the model.
+transcript, the take's moments (each restart, filler, pause, misread and the like, with its
+words and clock time), the speaker's tier and the ids of the advice the speaker has already been
+shown. candidates() (select.py) picks the library entries the notes may draw on, never one
+written for debate, and Claude Haiku rewrites 2-3 of them for this speaker, coaching everyday
+speech: in the second person, about this take, with nothing added to what the entries, the
+numbers and the moments say. With moments, each tip names the moments it points at and quotes
+one, and a one-line headline quotes one real moment: the entry gives the technique, the moment
+the place to use it. Its reply is used only when it keeps every rule in checked_tips(), or in
+checked_reply() with moments. The drill and the citation of each tip are copied here from its
+library entry, never taken from the model.
 
 When the model cannot be used (no API key, the hour's budget of calls spent (budget.py), no
 reply within 8 s, an API error, a refusal, or a reply that is not a message or breaks a rule),
-the first candidates are shown word for word instead, cited the same way. Either way the answer
-has one shape: {tips: [{entry_id, text, drill, citation}], source: "ai" | "library"}. The API key
-and the transcript are never logged.
+the first candidates are shown word for word instead, cited the same way, each pointing at the
+take's moments of its entry's skills (MOMENT_KIND_TARGETS). Either way the answer has one shape:
+{headline: {text, moment_id} | null, tips: [{entry_id, text, drill, citation, moment_ids}],
+source: "ai" | "library"}. Without moments (the frontend in a browser's cache sends none) the
+model is asked as before, the headline is null and every moment_ids is empty. The API key, the
+transcript and the moments are never logged.
 """
 
 import asyncio
 import html
 import logging
+import re
 from collections.abc import Collection, Sequence
 from functools import cache
 from typing import Annotated, Literal
@@ -107,6 +115,35 @@ CLOCK_PATTERN = r"^\d{1,3}:[0-5]\d$"
 MAX_MOMENT_TEXT_CHARACTERS = 120
 MAX_MOMENT_CONTEXT_CHARACTERS = 60
 MAX_EXPECTED_CHARACTERS = 40
+# A tip names 1 to 3 of the take's moments: one place to use its advice, or a few of a kind.
+MIN_TIP_MOMENTS = 1
+MAX_TIP_MOMENTS = 3
+# The headline is one line of the next-step sheet. The prompt asks for 20 words or fewer; the
+# check leaves room for a quote that runs a few words long.
+MAX_HEADLINE_WORDS = 25
+MAX_HEADLINE_CHARACTERS = 200
+# A text quotes a moment when it holds the moment's clock time or one of its words: a run of 3
+# letters or more, read without case or punctuation, and not one of COMMON_WORDS, which any tip
+# holds whether it quotes the moment or not ("you", "the").
+MIN_QUOTED_WORD_LETTERS = 3
+COMMON_WORDS = frozenset(
+    {
+        "the", "and", "you", "your", "that", "this", "with", "for", "are", "was", "were",
+        "but", "not", "have", "has", "had", "its", "they", "them", "their", "there",
+        "then", "than", "what", "when", "which", "who", "how", "all", "can", "will", "just",
+        "from", "into", "out", "our", "she", "her", "him", "his", "one", "say", "said",
+    }
+)
+# The library's skill tag for each kind of moment, so a library tip can point at the take's
+# moments of the skills its entry helps with. A misread, a skipped word, a stumble or an unclear
+# word has no tag of its own in library.json (its tags: restart, filler, mid_pause, long_pause,
+# pace_fast, pace_slow, general), so no library tip points at one.
+MOMENT_KIND_TARGETS: dict[str, str] = {
+    "restart": "restart",
+    "filler": "filler",
+    "pause": "mid_pause",
+    "long-pause": "long_pause",
+}
 
 # Who wrote the tips, as the answer's `source` says.
 AI_SOURCE = "ai"
@@ -428,18 +465,33 @@ class Citation(BaseModel):
 
 
 class Tip(BaseModel):
-    """One coach note, and the library entry it draws on."""
+    """One coach note, the library entry it draws on, and the take's moments it points at."""
 
     entry_id: str
     text: str
     # The entry's practice exercise, word for word; empty when the entry has none.
     drill: str
     citation: Citation
+    # The ids of the request's moments the tip points at, in the order given; empty when the
+    # request sent no moments, or none of the skills the entry helps with.
+    moment_ids: list[str] = Field(default_factory=list)
+
+
+class Headline(BaseModel):
+    """The notes' one line: a real moment of the take and one thing to try next take."""
+
+    text: str
+    moment_id: str
 
 
 class Advice(BaseModel):
-    """The answer to POST /api/advice. `source` says who wrote the tips: "ai" or "library"."""
+    """The answer to POST /api/advice. `source` says who wrote the tips: "ai" or "library".
 
+    Its keys are always headline, tips and source. The headline is the model's, so it is None
+    for the library's tips and whenever the request sent no moments.
+    """
+
+    headline: Headline | None = None
     tips: list[Tip]
     source: Literal["ai", "library"]
 
@@ -462,6 +514,34 @@ class WrittenTips(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     tips: list[WrittenTip]
+
+
+class WrittenMomentTip(BaseModel):
+    """One tip of the model's reply, exactly as MOMENT_TIPS_SCHEMA describes it."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    entry_id: str
+    text: str
+    moment_ids: list[str]
+
+
+class WrittenHeadline(BaseModel):
+    """The headline of the model's reply, exactly as MOMENT_TIPS_SCHEMA describes it."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    text: str
+    moment_id: str
+
+
+class WrittenMomentReply(BaseModel):
+    """The model's whole reply when moments were sent: nothing missing or extra."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    headline: WrittenHeadline
+    tips: list[WrittenMomentTip]
 
 
 class UnusableReply(Exception):
@@ -515,51 +595,75 @@ async def advise(
     spending one of `budget`'s (budget.py: the server's own unless a test brings one). Without a
     client, once the budget's calls are spent, when the model has not answered within
     TIMEOUT_SECONDS, or when its reply cannot be used, the first candidates are shown word for
-    word. A failure is logged by its kind only, never with the prompt or the reply, and a spent
-    budget by its count of calls alone.
+    word, each pointing at the take's moments of its entry's skills. A failure is logged by its
+    kind only, never with the prompt, the moments or the reply, and a spent budget by its count
+    of calls alone.
+
+    With the take's moments the model is sent MOMENTS_SYSTEM_PROMPT and MOMENT_TIPS_SCHEMA, and
+    its reply must also keep checked_reply()'s moment rules. A request with no moments (None
+    from the frontend in a browser's cache, or an empty list) is asked as before moments were
+    sent, and its answer has no headline and no moment ids.
     """
+    moments = request.moments or []
     weak_skills = weakest_skills(request.summary.report_summary())
     offered = candidates(
         library, weak_skills, request.tier, request.shown_ids, session_id=request.session_id
     )
     if client is None or len(offered) < MIN_TIPS:
-        return library_advice(offered)
+        return library_advice(offered, moments)
     if not budget.try_to_spend():
         logger.warning(
             "Coach notes fell back to the library tips: the budget of %d AI calls an hour is spent",
             budget.calls_per_window,
         )
-        return library_advice(offered)
-    prompt = take_prompt(request.summary, weak_skills, offered)
+        return library_advice(offered, moments)
+    prompt = take_prompt(request.summary, weak_skills, offered, moments)
+    system = MOMENTS_SYSTEM_PROMPT if moments else SYSTEM_PROMPT
+    schema = MOMENT_TIPS_SCHEMA if moments else TIPS_SCHEMA
     try:
         # The whole call, not each network step as the client's own timeout is.
         async with asyncio.timeout(TIMEOUT_SECONDS):
             reply = await client.messages.create(
                 model=MODEL,
                 max_tokens=MAX_OUTPUT_TOKENS,
-                system=SYSTEM_PROMPT,
+                system=system,
                 messages=[{"role": "user", "content": prompt}],
                 output_config={
                     "effort": EFFORT,
-                    "format": {"type": "json_schema", "schema": TIPS_SCHEMA},
+                    "format": {"type": "json_schema", "schema": schema},
                 },
             )
-        tips = tips_from_reply(reply, offered)
+        return advice_from_reply(reply, offered, moments)
     except MODEL_FAILURES as failure:
         # Not only the SDK's errors: an HTML page, broken JSON or a message without content
         # fails as it is read. The library tips are always ready.
         logger.warning("Coach notes fell back to the library tips: %s", fallback_reason(failure))
-        return library_advice(offered)
-    return Advice(tips=tips, source=AI_SOURCE)
+        return library_advice(offered, moments)
 
 
-def library_advice(offered: Sequence[AdviceEntry]) -> Advice:
-    """The notes without the model: the first candidates, their advice word for word."""
-    tips = [cited_tip(entry, entry.advice) for entry in offered[:LIBRARY_TIP_COUNT]]
+def library_advice(offered: Sequence[AdviceEntry], moments: Sequence[Moment] = ()) -> Advice:
+    """The notes without the model: the first candidates, their advice word for word.
+
+    Each tip points at the take's moments of the skills its entry helps with
+    (MOMENT_KIND_TARGETS), in the order they happened, MAX_TIP_MOMENTS at most. There is no
+    headline: only the model writes one.
+    """
+    tips = [
+        cited_tip(entry, entry.advice, moments_for_entry(entry, moments))
+        for entry in offered[:LIBRARY_TIP_COUNT]
+    ]
     return Advice(tips=tips, source=LIBRARY_SOURCE)
 
 
-def cited_tip(entry: AdviceEntry, text: str) -> Tip:
+def moments_for_entry(entry: AdviceEntry, moments: Sequence[Moment]) -> list[str]:
+    """The ids of the first MAX_TIP_MOMENTS moments of a kind the entry's targets cover."""
+    fitting = [
+        moment.id for moment in moments if MOMENT_KIND_TARGETS.get(moment.kind) in entry.targets
+    ]
+    return fitting[:MAX_TIP_MOMENTS]
+
+
+def cited_tip(entry: AdviceEntry, text: str, moment_ids: Sequence[str] = ()) -> Tip:
     """A tip saying `text`, with the drill and the citation of the entry it draws on."""
     source = entry.source
     return Tip(
@@ -567,6 +671,7 @@ def cited_tip(entry: AdviceEntry, text: str) -> Tip:
         text=text,
         drill=entry.drill,
         citation=Citation(label=citation(entry), url=source.url, type=source.type),
+        moment_ids=list(moment_ids),
     )
 
 
@@ -646,7 +751,8 @@ def moment_line(moment: Moment) -> str:
     around = f"before: {_quoted(moment.before)}, after: {_quoted(moment.after)}"
     if moment.expected is not None:
         around += f", expected: {_quoted(moment.expected)}"
-    return f"- [{moment.id}] {moment.clock} {moment.kind}{detail}: {_quoted(moment.text)} ({around})"
+    heading = f"- [{moment.id}] {moment.clock} {moment.kind}{detail}"
+    return f"{heading}: {_quoted(moment.text)} ({around})"
 
 
 def _quoted(text: str) -> str:
@@ -680,14 +786,17 @@ def _count_line(name: str, count: int, minutes: float, target: str) -> str:
     return f"- {name}: {count}{rate} (target: {target})"
 
 
-def tips_from_reply(reply: Message, offered: Sequence[AdviceEntry]) -> list[Tip]:
-    """The tips of a finished reply, each cited from its library entry.
+def advice_from_reply(
+    reply: Message, offered: Sequence[AdviceEntry], moments: Sequence[Moment]
+) -> Advice:
+    """The notes in a finished reply, each tip cited from its library entry.
 
     Raises UnusableReply when the model declined (stop_reason "refusal"), when the reply was cut
-    off before it finished, or when its text breaks a rule of checked_tips(). An answer that is
-    not a well-formed message raises as it is read, and advise() falls back on that too. The
-    text is read from the reply's text blocks only: Claude Haiku 5.5 thinks first by default, so
-    a reply can open with a thinking block.
+    off before it finished, or when its text breaks a rule: checked_reply()'s when the take's
+    moments were sent, checked_tips()'s when not. An answer that is not a well-formed message
+    raises as it is read, and advise() falls back on that too. The text is read from the reply's
+    text blocks only: Claude Haiku 5.5 thinks first by default, so a reply can open with a
+    thinking block.
     """
     if reply.stop_reason == "refusal":
         category = reply.stop_details.category if reply.stop_details else None
@@ -696,7 +805,17 @@ def tips_from_reply(reply: Message, offered: Sequence[AdviceEntry]) -> list[Tip]
         raise UnusableReply(f"the reply stopped early ({reply.stop_reason})")
     text = "".join(block.text for block in reply.content if block.type == "text")
     by_id = {entry.id: entry for entry in offered}
-    return [cited_tip(by_id[tip.entry_id], tip.text) for tip in checked_tips(text, by_id)]
+    if not moments:
+        tips = [cited_tip(by_id[tip.entry_id], tip.text) for tip in checked_tips(text, by_id)]
+        return Advice(tips=tips, source=AI_SOURCE)
+    written = checked_reply(text, by_id, moments)
+    return Advice(
+        headline=Headline(text=written.headline.text, moment_id=written.headline.moment_id),
+        tips=[
+            cited_tip(by_id[tip.entry_id], tip.text, tip.moment_ids) for tip in written.tips
+        ],
+        source=AI_SOURCE,
+    )
 
 
 def checked_tips(reply_text: str, candidate_ids: Collection[str]) -> list[WrittenTip]:
@@ -713,25 +832,117 @@ def checked_tips(reply_text: str, candidate_ids: Collection[str]) -> list[Writte
     except ValidationError:
         # from None: pydantic's error quotes the reply, which may echo the transcript.
         raise UnusableReply("the reply does not match the tips schema") from None
-    if not MIN_TIPS <= len(tips) <= MAX_TIPS:
-        raise UnusableReply(f"the reply holds {len(tips)} tips, not {MIN_TIPS} to {MAX_TIPS}")
+    _check_entries([tip.entry_id for tip in tips], candidate_ids)
+    return [WrittenTip(entry_id=tip.entry_id, text=_checked_tip_text(tip.text)) for tip in tips]
+
+
+def checked_reply(
+    reply_text: str, candidate_ids: Collection[str], moments: Sequence[Moment]
+) -> WrittenMomentReply:
+    """The headline and tips of a reply to a take with moments, trimmed, if it keeps every rule.
+
+    The reply must match MOMENT_TIPS_SCHEMA exactly, and its tips keep every rule of
+    checked_tips(). The headline, trimmed, must run 1 to MAX_HEADLINE_WORDS words and
+    MAX_HEADLINE_CHARACTERS at most, hold a letter or a digit, name one of `moments` and quote it
+    (quotes_moment). Each tip must name MIN_TIP_MOMENTS to MAX_TIP_MOMENTS of `moments`, none
+    twice, and quote at least one of them. The first broken rule raises UnusableReply, whose
+    message never quotes the reply or a moment.
+    """
+    try:
+        written = WrittenMomentReply.model_validate_json(reply_text)
+    except ValidationError:
+        # from None: pydantic's error quotes the reply, which may echo the moments.
+        raise UnusableReply("the reply does not match the moments schema") from None
+    by_id = {moment.id: moment for moment in moments}
+    _check_entries([tip.entry_id for tip in written.tips], candidate_ids)
+    headline_text = written.headline.text.strip()
+    headline_words = len(headline_text.split())
+    if not 1 <= headline_words <= MAX_HEADLINE_WORDS:
+        raise UnusableReply(
+            f"the headline runs {headline_words} words, not 1 to {MAX_HEADLINE_WORDS}"
+        )
+    if len(headline_text) > MAX_HEADLINE_CHARACTERS:
+        raise UnusableReply(
+            f"the headline runs {len(headline_text)} characters, over {MAX_HEADLINE_CHARACTERS}"
+        )
+    if not any(character.isalnum() for character in headline_text):
+        raise UnusableReply("the headline has no letter or digit")
+    headline_moment = by_id.get(written.headline.moment_id)
+    if headline_moment is None:
+        raise UnusableReply("the headline names a moment that was not listed")
+    if not quotes_moment(headline_text, headline_moment):
+        raise UnusableReply("the headline does not quote the moment it names")
+    tips = []
+    for tip in written.tips:
+        text = _checked_tip_text(tip.text)
+        if not MIN_TIP_MOMENTS <= len(tip.moment_ids) <= MAX_TIP_MOMENTS:
+            raise UnusableReply(
+                f"a tip names {len(tip.moment_ids)} moments, "
+                f"not {MIN_TIP_MOMENTS} to {MAX_TIP_MOMENTS}"
+            )
+        if len(set(tip.moment_ids)) != len(tip.moment_ids):
+            raise UnusableReply("a tip names one moment twice")
+        if any(moment_id not in by_id for moment_id in tip.moment_ids):
+            raise UnusableReply("a tip names a moment that was not listed")
+        if not any(quotes_moment(text, by_id[moment_id]) for moment_id in tip.moment_ids):
+            raise UnusableReply("a tip quotes none of the moments it names")
+        tips.append(WrittenMomentTip(entry_id=tip.entry_id, text=text, moment_ids=tip.moment_ids))
+    headline = WrittenHeadline(text=headline_text, moment_id=headline_moment.id)
+    return WrittenMomentReply(headline=headline, tips=tips)
+
+
+def quotes_moment(text: str, moment: Moment) -> bool:
+    """True when `text` holds the moment's clock time or one of its own words.
+
+    The clock must stand alone: "0:21" is not in "10:21" or "0:211". A word is a run of
+    MIN_QUOTED_WORD_LETTERS letters or more in the moment's text, not one of COMMON_WORDS, and
+    must be a whole word of `text`; neither is read with its case or its punctuation, so "Few,"
+    quotes "the few". A pause between words has no text: only its clock can quote it.
+    """
+    if re.search(rf"(?<![\d:]){re.escape(moment.clock)}(?!\d)", text):
+        return True
+    quotable = {
+        word
+        for word in _words(moment.text)
+        if len(word) >= MIN_QUOTED_WORD_LETTERS and word not in COMMON_WORDS
+    }
+    return not quotable.isdisjoint(_words(text))
+
+
+def _words(text: str) -> set[str]:
+    """The words of `text`: its runs of letters, without case. "Day—uh," is "day" and "uh"."""
+    return set(re.findall(r"[^\W\d_]+", text.casefold()))
+
+
+def _check_entries(entry_ids: Sequence[str], candidate_ids: Collection[str]) -> None:
+    """MIN_TIPS to MAX_TIPS tips, each drawn from an offered entry, no entry twice."""
+    if not MIN_TIPS <= len(entry_ids) <= MAX_TIPS:
+        raise UnusableReply(f"the reply holds {len(entry_ids)} tips, not {MIN_TIPS} to {MAX_TIPS}")
     drawn_on: set[str] = set()
-    for tip in tips:
-        if tip.entry_id not in candidate_ids:
+    for entry_id in entry_ids:
+        if entry_id not in candidate_ids:
             raise UnusableReply("a tip draws on an entry that was not offered")
-        if tip.entry_id in drawn_on:
+        if entry_id in drawn_on:
             raise UnusableReply("two tips draw on the same entry")
-        drawn_on.add(tip.entry_id)
-        word_count = len(tip.text.split())
-        if not 1 <= word_count <= MAX_TIP_WORDS:
-            raise UnusableReply(f"a tip runs {word_count} words, not 1 to {MAX_TIP_WORDS}")
-        text = tip.text.strip()
-        if len(text) > MAX_TIP_CHARACTERS:
-            raise UnusableReply(f"a tip runs {len(text)} characters, over {MAX_TIP_CHARACTERS}")
-        # A zero-width space, an emoji or a row of dots is one "word", but not a tip.
-        if not any(character.isalnum() for character in text):
-            raise UnusableReply("a tip has no letter or digit")
-    return [WrittenTip(entry_id=tip.entry_id, text=tip.text.strip()) for tip in tips]
+        drawn_on.add(entry_id)
+
+
+def _checked_tip_text(text: str) -> str:
+    """A tip's text, trimmed, if it runs 1 to MAX_TIP_WORDS words and holds a letter or digit.
+
+    Words are counted between spaces; MAX_TIP_CHARACTERS also bounds a text written without
+    them.
+    """
+    word_count = len(text.split())
+    if not 1 <= word_count <= MAX_TIP_WORDS:
+        raise UnusableReply(f"a tip runs {word_count} words, not 1 to {MAX_TIP_WORDS}")
+    trimmed = text.strip()
+    if len(trimmed) > MAX_TIP_CHARACTERS:
+        raise UnusableReply(f"a tip runs {len(trimmed)} characters, over {MAX_TIP_CHARACTERS}")
+    # A zero-width space, an emoji or a row of dots is one "word", but not a tip.
+    if not any(character.isalnum() for character in trimmed):
+        raise UnusableReply("a tip has no letter or digit")
+    return trimmed
 
 
 def fallback_reason(failure: Exception) -> str:
