@@ -243,6 +243,7 @@
   const HABIT_LABEL_SUFFIX = ", verbal habit";
   const RESTART_LABEL_SUFFIX = ", restart";
   const STUMBLE_LABEL_SUFFIX = ", possible stumble";
+  const UNCLEAR_LABEL_SUFFIX = ", may have been unclear";
   // "make, misread, script says makes": the label names the word the script has there.
   const MISREAD_LABEL_SUFFIX = ", misread, script says ";
   // A skipped script word is drawn struck through and read as "skipped: lose".
@@ -270,6 +271,17 @@
   // Added only when the transcript marks a possible stumble (app.delivery.findStumbles).
   const LEGEND_STUMBLE_TEXT =
     " Gray dashed words ran long, maybe a small stumble. A hint only: they are not counted.";
+  // Added only when the transcript boxes a word the transcriber was unsure of
+  // (app.delivery.findUnclear).
+  const LEGEND_UNCLEAR_TEXT = " Dotted boxes: may have been unclear — a hint, not counted.";
+
+  // "Words to check" (spec Phase 5 item 2): the unclear words and the misread script words, at
+  // most this many, each a chip that says the word with the phone's built-in voice.
+  const WORDS_CHECK_TITLE = "Words to check";
+  const MAX_WORDS_TO_CHECK = 5;
+  const HEAR_PREFIX = "Hear ";
+  const PLAYING_CLASS = "word-chip--playing";
+  const SPEAKER_ICON_SIZE = 16;
   const HOW_HREF = "how.html";
   const HOW_LINK_TEXT = "How we count";
   const PAUSE_TEXT_SUFFIX = " s pause";
@@ -867,6 +879,7 @@
     const misreadWords = misreadsByWord(slips.misreads);
     const kinds = app.delivery.classify(wordList);
     const stumbles = new Set(app.delivery.findStumbles(wordList));
+    const unclear = new Set(unclearIndexes(wordList));
 
     // Slot 0 holds the skips and pauses that go before the first word; slot i + 1 those after
     // word i.
@@ -898,10 +911,61 @@
       if (misreadWords.has(index)) {
         item.misread = misreadWords.get(index).join(" ");
       }
+      if (unclear.has(index) && !item.filler) {
+        item.unclear = true;
+      }
       plan.push(item);
       plan.push(...slots[index + 1]);
     });
     return plan;
+  }
+
+  // The words app.delivery.findUnclear hints at (a delivery.js without it hints none).
+  function unclearIndexes(wordList) {
+    return typeof app.delivery.findUnclear === "function" ? app.delivery.findUnclear(wordList) : [];
+  }
+
+  // The words a "Words to check" chip says, in transcript order: every misread script word, as
+  // the script has it, and every word the transcriber was unsure of, bare of its punctuation,
+  // each once (compared without case; a misread comes first where both fall on one word), at
+  // most MAX_WORDS_TO_CHECK. `report` is the app.delivery report. Pure.
+  function wordsToCheck(words, report) {
+    const wordList = Array.isArray(words) ? words : [];
+    const misreads = listOf(report && report.misreads).map((misread) => ({
+      place: placeOf(wordList, misread),
+      order: 0,
+      text: bareText(misread && misread.word),
+    }));
+    const unclear = unclearIndexes(wordList).map((index) => ({
+      place: index,
+      order: 1,
+      text: bareText(textOf(wordList[index])),
+    }));
+    const seen = new Set();
+    return [...misreads, ...unclear]
+      .filter((entry) => entry.text !== "")
+      .sort((a, b) => a.place - b.place || a.order - b.order)
+      .filter((entry) => {
+        const key = entry.text.toLowerCase();
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      })
+      .slice(0, MAX_WORDS_TO_CHECK)
+      .map((entry) => entry.text);
+  }
+
+  // Where a misread sits among the words: the word that said it, else the first word at or
+  // after its time.
+  function placeOf(wordList, misread) {
+    const index = misread ? misread.wordIndex : -1;
+    if (Number.isInteger(index) && index >= 0) {
+      return index;
+    }
+    const after = wordAt(wordList, numberOr0(misread && misread.at));
+    return after === -1 ? wordList.length : after;
   }
 
   // The plan items for the script words skipped in one place, in script order: one per word, or
@@ -1222,6 +1286,10 @@
       body.appendChild(app.rankCard.build(rankCard, { screen: RANK_SCREEN }));
     }
     if (hasTranscript) {
+      const toCheck = wordsToCheck(session.transcript, summary.report);
+      if (toCheck.length > 0 && canSpeak()) {
+        body.appendChild(buildWordsCheck(toCheck));
+      }
       body.appendChild(
         app.ui.el("h2", { class: "results__heading transcript__heading", text: TRANSCRIPT_TITLE }),
       );
@@ -1285,6 +1353,9 @@
     }
     if (plan.some((item) => item.stumble)) {
       text += LEGEND_STUMBLE_TEXT;
+    }
+    if (plan.some((item) => item.unclear)) {
+      text += LEGEND_UNCLEAR_TEXT;
     }
     if (topHabit) {
       const times = topHabit.count === 1 ? " time." : " times.";
@@ -1355,6 +1426,10 @@
       classes.push("tok--stumble");
       label += STUMBLE_LABEL_SUFFIX;
     }
+    if (item.unclear) {
+      classes.push("tok--unclear");
+      label += UNCLEAR_LABEL_SUFFIX;
+    }
     if (classes.length === 1) {
       return app.ui.el("span", { class: "tok", id, text: item.text });
     }
@@ -1364,6 +1439,43 @@
       "aria-label": label,
       text: item.text,
     });
+  }
+
+  // True when the phone has a voice to say a word with (app.ui.canSpeak).
+  function canSpeak() {
+    return typeof app.ui.canSpeak === "function" && app.ui.canSpeak();
+  }
+
+  // "Words to check": a small title and one chip per word, the speaker icon before the word.
+  // A tap says the word, cutting off any word still being said; the chip carries
+  // PLAYING_CLASS until the voice ends, and only one chip carries it at a time.
+  function buildWordsCheck(texts) {
+    let playing = null;
+    const stopPlaying = (chip) => {
+      if (playing === chip) {
+        chip.classList.remove(PLAYING_CLASS);
+        playing = null;
+      }
+    };
+    const chips = texts.map((text) => {
+      const attrs = { class: "word-chip", type: "button", "aria-label": HEAR_PREFIX + text };
+      const chip = app.ui.el("button", attrs, [app.ui.icon("speaker", SPEAKER_ICON_SIZE), text]);
+      chip.addEventListener("click", () => {
+        if (playing) {
+          playing.classList.remove(PLAYING_CLASS);
+        }
+        playing = chip;
+        chip.classList.add(PLAYING_CLASS);
+        if (!app.ui.speak(text, () => stopPlaying(chip))) {
+          stopPlaying(chip);
+        }
+      });
+      return chip;
+    });
+    return app.ui.el("section", { class: "words-check" }, [
+      app.ui.el("h3", { class: "words-check__title", text: WORDS_CHECK_TITLE }),
+      app.ui.el("div", { class: "words-check__row" }, chips),
+    ]);
   }
 
   // A script word the speaker skipped, struck through where it belonged. Not a .tok: it was
@@ -1919,5 +2031,6 @@
     restartSpan,
     bareText,
     isSample,
+    wordsToCheck,
   };
 })();

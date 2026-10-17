@@ -1852,6 +1852,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-underline-offset: var(--s-1);
 }
 
+/* A word the transcriber was unsure of (app.delivery.findUnclear): a hint, never counted. A 1px
+   dotted --muted box is a different shape from the three underlines (restart, stumble, misread),
+   so it never differs by colour alone, and it sets no colour, so it combines with any of them. */
+.tok--unclear {
+  outline: 1px dotted var(--muted);
+  outline-offset: 0;
+  border-radius: var(--r-tok);
+  padding: 0 2px;
+}
+
 /* A script word the speaker skipped, never said: muted and struck through, no weight. */
 .tok--skipped {
   color: var(--muted);
@@ -1863,6 +1873,57 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    the struck-through words after it, but not struck, so the number stays easy to read. */
 .skip-run__count {
   color: var(--muted);
+}
+
+/* Words to check: the unclear and misread words above the Transcript heading, each a chip that
+   says the word with the phone's voice. A chip looks like Practice's .chip: 44px, a surface
+   fill, a 1px border, the speaker icon before the word. While its word is said the border and
+   icon turn --accent. */
+.words-check {
+  margin-top: var(--s-6);
+}
+
+.words-check__title {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.words-check__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.word-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.word-chip svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.word-chip--playing {
+  border-color: var(--accent);
+}
+
+.word-chip--playing svg {
+  color: var(--accent);
 }
 
 /* One small muted line under the Transcript heading that explains the two highlight styles. */
@@ -2076,6 +2137,17 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
     #screen-results > .screen__body > .transcript__heading {
       break-before: column;
       margin-top: 0;
+    }
+
+    /* Words to check, when the take has any, heads the right column instead. */
+    #screen-results > .screen__body > .words-check {
+      break-before: column;
+      margin-top: 0;
+    }
+
+    #screen-results > .screen__body > .words-check + .transcript__heading {
+      break-before: auto;
+      margin-top: var(--s-6);
     }
 
     /* The paragraphs are the right column's tall parts: they may run on past a page of the

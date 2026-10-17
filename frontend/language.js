@@ -338,8 +338,8 @@
     const ui = app.ui;
     const better = changedWords(fix.said, fix.better).flatMap((run, index) => {
       const gap = index > 0 ? [SPACE] : [];
-      const words = run.changed ? ui.el("mark", { class: "lang-fix__hl", text: run.text }) : run.text;
-      return [...gap, words];
+      const mark = () => ui.el("mark", { class: "lang-fix__hl", text: run.text });
+      return [...gap, run.changed ? mark() : run.text];
     });
     const parts = [
       ui.el("p", { class: "lang-fix__line" }, [
