@@ -107,7 +107,17 @@
     return Array.isArray(target) && target.length === 2 && target.every(Number.isFinite);
   }
 
+
+  // The first-visit guide for this screen (app.sheet.firstVisit, once ever, never over another
+  // sheet): nothing happens while sheet.js is not loaded.
+  function showGuide() {
+    if (app.sheet && typeof app.sheet.firstVisit === "function") {
+      app.sheet.firstVisit("history");
+    }
+  }
+
   function show() {
+    showGuide();
     return draw(++showCount);
   }
 

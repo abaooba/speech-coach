@@ -218,6 +218,9 @@
     addIcon(label, options.icon || (isGuide ? "compass" : "mic"), 20);
     label.appendChild(document.createTextNode(options.label || ""));
     let status = null;
+    // Only the "Reading your take…" spinner goes when the line arrives; a pill ("Level 1
+    // cleared") says something that stays true.
+    const statusLoads = !options.status || (options.status.kind !== "ok" && options.status.kind !== "pill");
     if (options.status) {
       status = statusNode(options.status);
       status.className += " sheet__label-end";
@@ -364,7 +367,9 @@
           return;
         }
         setLine(line, text);
-        clearStatus();
+        if (statusLoads) {
+          clearStatus();
+        }
         if (animates()) {
           line.classList.remove("sheet__line--fresh");
           void line.offsetWidth;
@@ -383,12 +388,16 @@
 
   // Shows a guide sheet the first time `name` is seen. Resolves true when it was shown.
   async function guideOnce(name, content) {
-    if (!document.body || !app.store || !content) {
+    if (!document.body || !app.store || !content || current !== null) {
       return false;
     }
     const flag = GUIDE_FLAG_PREFIX + name;
     try {
       if (await app.store.getFlag(flag)) {
+        return false;
+      }
+      // Another sheet may have opened while the flag was read; a guide never stacks on it.
+      if (current !== null) {
         return false;
       }
     } catch (error) {
@@ -412,5 +421,93 @@
     return true;
   }
 
-  app.sheet = { open, guideOnce, quoteParts };
+  // --- First-visit guides ---------------------------------------------------------------------
+
+  // The copy of each guide (fluency language only). The sheet's label is "Guide", and closing it
+  // any way counts as seen.
+  const GUIDES = Object.freeze({
+    practice: {
+      title: "Your first take",
+      line:
+        "Pick a topic, tap the red button and talk for a minute. Results show every pause, " +
+        "um and restart at the second it happened.",
+      primary: "Got it",
+    },
+    path: {
+      title: "Your path",
+      line:
+        "Each level is one short drill: two takes with a quick review between them. " +
+        "Clear a level to open the next one.",
+      primary: "Got it",
+    },
+    progress: {
+      title: "Your progress",
+      line:
+        "Every take adds a point to these charts. Practice on a few different days to see " +
+        "your trend.",
+      primary: "Got it",
+    },
+    history: {
+      title: "Your takes",
+      line: "Every take stays on this phone, and only there. Tap one to open its results again.",
+      primary: "Got it",
+    },
+    level: {
+      title: "How a level works",
+      line:
+        "Take 1, then a 30-second look at your moments, then take 2 with one fix in mind. " +
+        "Take 2 decides the level.",
+      primary: "Start take 1",
+    },
+  });
+  const LOOP_STEPS = Object.freeze(["Take 1", "Review", "Take 2"]);
+  const ONBOARDED_FLAG = "onboarded";
+
+  // The take 1 -> review -> take 2 diagram of the level guide; take 2 is marked as the one that
+  // counts. Decorative, not interactive.
+  function loopDiagram() {
+    const loop = el("div", "loop");
+    loop.setAttribute("aria-hidden", "true");
+    LOOP_STEPS.forEach((name, index) => {
+      if (index > 0) {
+        addIcon(loop, "arrow-right", 20);
+      }
+      const counts = index === LOOP_STEPS.length - 1;
+      const node = el("div", "loop__node" + (counts ? " loop__node--counts" : ""));
+      node.appendChild(el("span", "loop__pill", name));
+      node.appendChild(el("span", "loop__note", counts ? "counts" : ""));
+      loop.appendChild(node);
+    });
+    return loop;
+  }
+
+  // Shows the named guide the first time it is visited. Never while another sheet is open, never
+  // before onboarding is done, never without a page. `options.primary` ({label, onSelect}) may
+  // replace the guide's button (the level guide's "Start take 1" starts it). Resolves whether the
+  // guide was shown; never rejects.
+  async function firstVisit(name, options) {
+    const guide = GUIDES[name];
+    if (!guide || !document.body || !app.store || current !== null) {
+      return false;
+    }
+    try {
+      if ((await app.store.getFlag(ONBOARDED_FLAG)) !== true) {
+        return false;
+      }
+      const given = options || {};
+      const content = {
+        title: guide.title,
+        line: guide.line,
+        primary: given.primary || guide.primary,
+      };
+      if (name === "level") {
+        content.content = loopDiagram();
+      }
+      return await guideOnce(name, content);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  app.sheet = { open, guideOnce, firstVisit, quoteParts, GUIDES };
 })();

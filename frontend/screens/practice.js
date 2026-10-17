@@ -905,6 +905,15 @@
     nodes.themeToggle.setAttribute("aria-label", look.label);
   }
 
+
+  // The first-visit guide for this screen (app.sheet.firstVisit, once ever, never over another
+  // sheet): nothing happens while sheet.js is not loaded.
+  function showGuide() {
+    if (app.sheet && typeof app.sheet.firstVisit === "function") {
+      app.sheet.firstVisit("practice");
+    }
+  }
+
   // Coming back to the screen starts a fresh take at 0:00 unless one is already in flight, or a
   // failed upload still holds its take: then its Upload failed block is drawn again, clock and
   // all, whether the upload failed before the speaker left or while they were away.
@@ -919,6 +928,9 @@
     }
     resetClock();
     render("idle");
+    if (levelRequest === null) {
+      showGuide();
+    }
   }
 
   // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer and pause

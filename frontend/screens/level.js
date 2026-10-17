@@ -234,6 +234,25 @@
     }
     run = startRun(known.id, history, cleared);
     render();
+    showLevelGuide(run);
+  }
+
+  // The first loop level ever opened explains take 1, review, take 2 (app.sheet.firstVisit, once
+  // ever). Its button starts take 1, unless a prep countdown comes first; then it only closes.
+  function showLevelGuide(target) {
+    if (!app.sheet || typeof app.sheet.firstVisit !== "function" || target.play.kind !== LOOP) {
+      return;
+    }
+    const startsTake = target.play.prepSeconds > 0 ? null : () => {
+      if (run === target && target.view === GOAL_VIEW) {
+        startTake(target, 0);
+      }
+    };
+    app.sheet.firstVisit("level", {
+      primary: startsTake === null
+        ? { label: "Got it" }
+        : { label: "Start take 1", onSelect: startsTake },
+    });
   }
 
   // Leaving stops the countdown and anything playing. The run lives on only while the route
