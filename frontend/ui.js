@@ -390,6 +390,10 @@
       const utterance = new globalThis.SpeechSynthesisUtterance(String(text));
       utterance.lang = SPEECH_LANG;
       utterance.rate = SPEECH_RATE;
+      const voice = deviceVoice(synth);
+      if (voice !== null) {
+        utterance.voice = voice;
+      }
       if (typeof onDone === "function") {
         utterance.onend = onDone;
         utterance.onerror = onDone;
@@ -399,6 +403,22 @@
     } catch {
       return false;
     }
+  }
+
+  // An English voice that runs on the device (localService), US English first, or null: a
+  // desktop browser may also offer network voices, which send the text to a speech service, and
+  // the app never picks one. With none on the device the browser's default speaks.
+  function deviceVoice(synth) {
+    const listed = typeof synth.getVoices === "function" ? synth.getVoices() : [];
+    const local = (Array.isArray(listed) ? listed : []).filter(
+      (voice) => voice && voice.localService === true && typeof voice.lang === "string",
+    );
+    const english = local.filter((voice) => /^en\b/i.test(voice.lang));
+    return (
+      english.find((voice) => voice.lang.replace("_", "-").toLowerCase() === "en-us") ||
+      english[0] ||
+      null
+    );
   }
 
   function formatClock(seconds) {

@@ -42,7 +42,7 @@ def test_privacy_says_there_is_no_account_and_no_backup() -> None:
 def test_privacy_says_unclear_word_hints_are_never_counted() -> None:
     section = privacy_section()
     assert "never counted" in section
-    assert "nothing is sent" in section
+    assert "the app sends nothing" in section
 
 
 def test_architecture_doc_says_where_the_moments_and_the_check_go() -> None:

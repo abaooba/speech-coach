@@ -269,8 +269,8 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
   tap "Check grammar & vocabulary". Nothing is saved on the server.
 - "Words to check" and the dotted boxes in the transcript come from the
   transcriber's word confidence. They are hints, never counted in any card,
-  tip or score. Tapping a word plays it with the phone's built-in voice, and
-  nothing is sent.
+  tip or score. Tapping a word plays it with the device's built-in voice, and
+  the app sends nothing.
 
 ## AI disclosure
 

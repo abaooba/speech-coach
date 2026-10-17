@@ -311,7 +311,7 @@ keyboard.
   `languageCheck:<id>` flag keeps an answer, so reopening the take makes no second call.
 - Words the transcriber was unsure of (word `confidence`, `delivery.findUnclear`) get a dotted
   box and a "Words to check" chip. They are hints, never counted in a card, tip, score or rank.
-  A chip plays the word with `speechSynthesis`, the phone's built-in voice, and sends nothing.
+  A chip plays the word with `speechSynthesis`, the device's built-in voice (an English voice that runs on the device when the browser lists one), and the app sends nothing.
 
 ## Screen walkthroughs
 
