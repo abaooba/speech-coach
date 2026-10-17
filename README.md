@@ -150,8 +150,10 @@ Check a deploy before a demo (this one reaches the network, so pytest never runs
 .venv/bin/python scripts/smoke_deploy.py https://speech-coach-xz8c.onrender.com
 ```
 
-It prints PASS or FAIL for health and coach notes (`/api/advice` says Claude wrote them
-when `ANTHROPIC_API_KEY` is set and the hourly budget lasts).
+It prints PASS or FAIL for health, coach notes (`/api/advice` says Claude wrote them
+when `ANTHROPIC_API_KEY` is set and the hourly budget lasts), coach moments (`/api/advice`
+with a take's moments answers with a `headline` key) and the language check
+(`/api/language-check` answers `ok`, or `unavailable` without a key or budget).
 
 Frontend tests (plain `node:test`, no dependencies; pytest also runs them when
 `node` is installed):

@@ -19,7 +19,13 @@ def healthy_deploy(request: httpx.Request) -> httpx.Response:
     if path == "/api/health":
         return httpx.Response(200, json={"status": "ok"})
     if path == "/api/advice" and request.method == "POST":
-        return httpx.Response(200, json={"tips": [{"entry_id": "filler-001"}], "source": "ai"})
+        return httpx.Response(
+            200, json={"headline": None, "tips": [{"entry_id": "filler-001"}], "source": "ai"}
+        )
+    if path == "/api/language-check" and request.method == "POST":
+        return httpx.Response(
+            200, json={"status": "ok", "fixes": [], "words": [], "rewrites": [], "praise": None}
+        )
     return httpx.Response(404)
 
 
@@ -34,7 +40,9 @@ def guest_only_deploy(request: httpx.Request) -> httpx.Response:
 
 def test_a_fully_configured_deploy_passes_every_check() -> None:
     checks = smoke.run(BASE, client_for(healthy_deploy))
-    assert [name for name, _, _ in checks] == ["health", "coach notes"]
+    assert [name for name, _, _ in checks] == [
+        "health", "coach notes", "coach moments", "language check",
+    ]
     assert all(ok for _, ok, _ in checks), checks
 
 
