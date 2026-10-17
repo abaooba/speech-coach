@@ -58,3 +58,11 @@ def test_the_diagram_shows_both_anthropic_calls() -> None:
     assert "language-check" in text
     assert "moments" in text
     assert "only on tap" in text
+
+
+def test_render_blueprint_pins_the_provider_the_privacy_copy_names() -> None:
+    """Onboarding and how.html name AssemblyAI; the deployed provider must be AssemblyAI."""
+    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+    match = re.search(r"key: STT_PROVIDER\s*\n\s*value: (\S+)", blueprint)
+    assert match is not None, "render.yaml sets STT_PROVIDER with a value"
+    assert match.group(1) == "assemblyai"
