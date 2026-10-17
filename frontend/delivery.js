@@ -90,6 +90,13 @@
   const STUMBLE_MIN_PACE_WORDS = 20;
   const LETTER = /\p{L}/gu;
 
+  // The transcriber rated a word this sure or less: a coin flip or worse. Tuned after phone
+  // tests (spec 2026-10-17, Phase 0 decisions); at most MAX_UNCLEAR_WORDS words are hinted.
+  const UNCLEAR_CONFIDENCE = 0.5;
+  const MAX_UNCLEAR_WORDS = 5;
+  // A word under three letters ("to", "of") has too little to judge.
+  const UNCLEAR_MIN_LETTERS = 3;
+
   function normalizeWord(text) {
     return String(text || "").toLowerCase().replace(EDGE_PUNCTUATION, "");
   }
@@ -192,6 +199,35 @@
       }
     });
     return stumbles;
+  }
+
+  // The indexes of the words the transcriber was unsure of, the least sure first (a tie keeps
+  // the earlier word first): at most MAX_UNCLEAR_WORDS words rated below UNCLEAR_CONFIDENCE. A
+  // word with no confidence (the provider gave none) is never listed. Left out, as for
+  // findStumbles: fillers, habit words, words under UNCLEAR_MIN_LETTERS letters and cut-offs.
+  // A hint in the transcript only: analyze() never reads it, so no report field, score, rank or
+  // tip changes with or without confidence.
+  function findUnclear(words) {
+    const raw = Array.isArray(words) ? words : [];
+    const list = toWords(raw);
+    const kinds = classify(list);
+    const unsure = [];
+    list.forEach((word, i) => {
+      const confidence = raw[i] ? raw[i].confidence : undefined;
+      const rated = isFiniteNumber(confidence) && confidence >= 0 && confidence <= 1;
+      if (
+        rated &&
+        confidence < UNCLEAR_CONFIDENCE &&
+        kinds[i] === null &&
+        !HABIT_WORDS.includes(normalizeWord(word.text)) &&
+        (word.text.match(LETTER) || []).length >= UNCLEAR_MIN_LETTERS &&
+        !CUTOFF_MARK.test(word.text)
+      ) {
+        unsure.push({ index: i, confidence });
+      }
+    });
+    unsure.sort((a, b) => a.confidence - b.confidence || a.index - b.index);
+    return unsure.slice(0, MAX_UNCLEAR_WORDS).map((entry) => entry.index);
   }
 
   function median(values) {
@@ -765,6 +801,7 @@
     analyze,
     classify,
     findStumbles,
+    findUnclear,
     isHesitation,
     isCountedPause,
     isLongPause,
@@ -773,5 +810,7 @@
     HABIT,
     HABIT_WORDS,
     LONG_PAUSE_SECONDS,
+    UNCLEAR_CONFIDENCE,
+    MAX_UNCLEAR_WORDS,
   };
 })();
