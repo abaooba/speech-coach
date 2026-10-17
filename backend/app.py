@@ -19,6 +19,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from backend import metrics
 from backend.advice import coach, load_library
 from backend.advice.budget import ADVICE_CALL_BUDGET, AICallBudget
+from backend.language import check
 from backend.limits import RequestBodyLimit
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
@@ -220,6 +221,25 @@ async def advice(
     sends, and nothing is recorded on the server. No cookie or header changes the answer.
     """
     return await coach.advise(advice_request, load_library(), client, budget)
+
+
+@app.post("/api/language-check")
+async def language_check(
+    check_request: check.LanguageCheckRequest,
+    client: Annotated[AsyncAnthropic | None, Depends(advice_client)],
+    budget: Annotated[AICallBudget, Depends(advice_call_budget)],
+) -> check.LanguageCheck | check.Unavailable:
+    """Grammar fixes, stronger words and sentence rewrites for one take's transcript.
+
+    The speaker asks for it with a button; nothing is saved. A transcript over 8,000 characters
+    is refused with 400. Claude Haiku writes the suggestions while a key is set and the hour's
+    budget of AI calls, shared with /api/advice, is not spent; every `said` it quotes is checked
+    against the transcript (backend/language/check.py). The answer is {status: "ok", fixes, words,
+    rewrites, praise}, or {status: "unavailable"} when the check could not be made.
+    """
+    if len(check_request.transcript) > check.MAX_TRANSCRIPT_CHARACTERS:
+        raise HTTPException(status_code=400, detail=check.TRANSCRIPT_TOO_LONG)
+    return await check.check_language(check_request, client, budget)
 
 
 # Mounted last so /api routes take priority.

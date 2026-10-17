@@ -38,6 +38,11 @@ RECORDING_TOO_LARGE = (
 # 2,000 shown library ids and a 1,500-character excerpt, is under 45,000 bytes.
 MAX_SMALL_BODY_BYTES = 64_000
 SMALL_BODY_TOO_LARGE = f"send at most {MAX_SMALL_BODY_BYTES:,} bytes in one request"
+# /api/language-check: 8,000 characters of transcript, each at most 6 bytes (a character from the
+# basic multilingual plane written as a JSON escape; as UTF-8 it is 3 at most), plus the take's
+# id and the JSON around them, which are under 1,000. A transcript of more characters is a 400
+# from the route, so this limit only has to let every allowed one through.
+MAX_LANGUAGE_CHECK_BODY_BYTES = 8_000 * 6 + 8_000
 
 
 @dataclass(frozen=True)
@@ -50,11 +55,16 @@ class BodyLimit:
 
 RECORDING_LIMIT = BodyLimit(MAX_RECORDING_BODY_BYTES, RECORDING_TOO_LARGE)
 SMALL_BODY_LIMIT = BodyLimit(MAX_SMALL_BODY_BYTES, SMALL_BODY_TOO_LARGE)
+LANGUAGE_CHECK_LIMIT = BodyLimit(
+    MAX_LANGUAGE_CHECK_BODY_BYTES,
+    f"send at most {MAX_LANGUAGE_CHECK_BODY_BYTES:,} bytes in one request",
+)
 
 # Each route's limit, by the path it covers along with every path under it. The first that covers
 # a request's path is its limit, so the one for /api as a whole comes last.
 BODY_LIMITS: tuple[tuple[str, BodyLimit], ...] = (
     ("/api/analyze", RECORDING_LIMIT),
+    ("/api/language-check", LANGUAGE_CHECK_LIMIT),
     ("/api", SMALL_BODY_LIMIT),
 )
 

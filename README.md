@@ -81,6 +81,7 @@ The other routes:
 | --- | --- |
 | `GET /api/health` | Liveness check that Render polls: `{"status": "ok"}` |
 | `POST /api/advice` | Coach notes for one take: tips Claude Haiku writes from the tip library while `ANTHROPIC_API_KEY` is set and the server's hourly budget of AI calls lasts, the library's own words otherwise |
+| `POST /api/language-check` | Opt-in grammar and vocabulary check of one take's transcript (8,000 characters at most, else 400): up to 3 grammar fixes, 2 stronger words and 2 sentence rewrites from Claude Haiku, or `{"status": "unavailable"}` when no key is set, the hourly AI budget is spent or the check fails. Nothing is saved |
 
 There are no accounts: takes stay in the browser, and `/api/advice` serves
 every request the same way, by the `shown_ids` it sends.
