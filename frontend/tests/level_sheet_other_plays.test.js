@@ -25,6 +25,8 @@ const {
   visibleText,
 } = require("./level-harness");
 
+const { FakeTextNode } = require("./fake-dom");
+
 const FRONTEND = path.join(__dirname, "..");
 const load = (file) => fs.readFileSync(path.join(FRONTEND, file), "utf8");
 const FILLER_LEVELS = ["fillers-1", "fillers-2", "fillers-3", "fillers-4", "fillers-5"];
@@ -48,13 +50,20 @@ function coachedWorld({ cleared, coach = true, notes = null }) {
   const world = createWorld({ history: fillersYesterday(), cleared });
   const app = world.app;
   const log = { notes: [], sheets: [], pending: [] };
-  const context = { app, document: {} };
+  // sheet.js draws the coach line with the world's own fake elements.
+  const Element = world.body.constructor;
+  const document = {
+    createElement: (tag) => new Element(tag, null, world),
+    createTextNode: (text) => new FakeTextNode(text),
+  };
+  const context = { app, document };
   if (coach) {
     vm.runInNewContext(load("screens/results.js"), context, { filename: "results.js" });
     vm.runInNewContext(load("coach.js"), context, { filename: "coach.js" });
   }
   vm.runInNewContext(load("nextmove.js"), context, { filename: "nextmove.js" });
   vm.runInNewContext(load("sheet.js"), context, { filename: "sheet.js" });
+  vm.runInNewContext(load("tips.js"), context, { filename: "tips.js" });
   app.sheet = Object.assign({}, app.sheet, {
     firstVisit: () => Promise.resolve(false),
     open(options) {
@@ -67,6 +76,7 @@ function coachedWorld({ cleared, coach = true, notes = null }) {
     },
   });
   app.tips = {
+    DEFAULT_TIER: app.tips.DEFAULT_TIER,
     coachNotes(...args) {
       log.notes.push(args);
       if (notes !== "pending") {

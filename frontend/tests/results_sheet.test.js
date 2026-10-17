@@ -389,12 +389,15 @@ test("Record another take goes back to Practice", async () => {
   // The fallback move's href is #/practice: Practice, with no id.
   const page = mount([TAKE]);
   page.results.markFresh("t1");
-  page.app.nextMove = () => ({
-    kind: "record",
-    label: "Record another take",
-    href: "#/practice",
-    why: "Every take adds a point to your trend.",
-  });
+  page.app.nextMove = Object.assign(
+    () => ({
+      kind: "record",
+      label: "Record another take",
+      href: "#/practice",
+      why: "Every take adds a point to your trend.",
+    }),
+    { go: page.app.nextMove.go },
+  );
   await page.results.show({ id: "t1" });
   find(sheetOf(page.doc), "sheet__primary").click();
   assert.deepEqual(page.calls.go, [{ name: "practice", params: undefined }]);

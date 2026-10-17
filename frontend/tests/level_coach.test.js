@@ -23,6 +23,8 @@ const {
   control,
 } = require("./level-harness");
 
+const { FakeTextNode } = require("./fake-dom");
+
 const FRONTEND = path.join(__dirname, "..");
 const load = (file) => fs.readFileSync(path.join(FRONTEND, file), "utf8");
 
@@ -41,7 +43,13 @@ async function coached({ coach = true, notes = "pending" } = {}) {
   const world = createWorld({ history: fillersYesterday(), cleared: clearedOn(["fillers-1", "fillers-2"]) });
   const app = world.app;
   const log = { notes: [], sheets: [], pending: [] };
-  const context = { app, document: {} };
+  // sheet.js draws the coach line with the world's own fake elements.
+  const Element = world.body.constructor;
+  const document = {
+    createElement: (tag) => new Element(tag, null, world),
+    createTextNode: (text) => new FakeTextNode(text),
+  };
+  const context = { app, document };
   if (coach) {
     // coach.js reads the speech map's helpers from the Results screen, as in the app.
     vm.runInNewContext(load("screens/results.js"), context, { filename: "results.js" });
@@ -49,9 +57,11 @@ async function coached({ coach = true, notes = "pending" } = {}) {
   }
   vm.runInNewContext(load("nextmove.js"), context, { filename: "nextmove.js" });
   vm.runInNewContext(load("sheet.js"), context, { filename: "sheet.js" });
-  const quoteParts = app.sheet.quoteParts;
+  vm.runInNewContext(load("tips.js"), context, { filename: "tips.js" });
   app.sheet = {
-    quoteParts,
+    quoteParts: app.sheet.quoteParts,
+    lineParts: app.sheet.lineParts,
+    fillLine: app.sheet.fillLine,
     firstVisit: () => Promise.resolve(false),
     open(options) {
       const handle = { options, updates: [], cleared: 0, closed: 0 };
@@ -63,6 +73,7 @@ async function coached({ coach = true, notes = "pending" } = {}) {
     },
   };
   app.tips = {
+    DEFAULT_TIER: app.tips.DEFAULT_TIER,
     coachNotes(...args) {
       log.notes.push(args);
       if (notes !== "pending") {

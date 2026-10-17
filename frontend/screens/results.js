@@ -207,15 +207,6 @@
   const SEE_FULL_RESULTS = "See full results";
   const CHECK_LANGUAGE_LABEL = "Check grammar & vocabulary";
   const AFTER_A_TAKE = Object.freeze({ type: "take" });
-  const FALLBACK_SCREEN = "practice";
-  // How a quoted phrase in the coach's line is marked, by its moment's kind (app.sheet.quoteParts).
-  const QUOTE_KINDS = Object.freeze({ restart: "restart", filler: "filler" });
-  const PLAIN_QUOTE = "pause";
-
-  // The tier the request names while rank.js is not loaded: the server's own default
-  // (backend/advice/select.py DEFAULT_TIER). rank.js joins index.html with the rank badge (T37);
-  // until then every speaker is coached at the beginner level.
-  const DEFAULT_TIER = "Novice";
   // app.rank rates the newest 10 takes (rank.js RATED_TAKES); the list is newest first.
   const RATED_TAKES = 10;
   // The rank card (docs/PLAN.md T37) is built for this screen: it says what this take did.
@@ -1107,7 +1098,11 @@
       line: sheetLine(view.takeaway, view.moments),
       why: move.why,
       status: { kind: "loading", text: SHEET_READING },
-      primary: { label: move.label, icon: "arrow-right", onSelect: () => goTo(move.href) },
+      primary: {
+        label: move.label,
+        icon: "arrow-right",
+        onSelect: () => app.nextMove.go(move.href),
+      },
       secondary: { label: SEE_FULL_RESULTS },
     };
     const language = app.language;
@@ -1134,17 +1129,7 @@
 
   // The coach's line as the sheet's parts: its quoted words in the mark of the moment it names.
   function sheetLine(headline, moments) {
-    const moment = listOf(moments).find((entry) => entry && entry.id === headline.momentId);
-    const kind = (moment && QUOTE_KINDS[moment.kind]) || PLAIN_QUOTE;
-    return typeof app.sheet.quoteParts === "function"
-      ? app.sheet.quoteParts(headline.text, kind)
-      : headline.text;
-  }
-
-  // Opens a hash route as app.nextMove names it ("#/level/fillers-2", "#/practice").
-  function goTo(href) {
-    const [name, id] = String(href || "").replace(/^#\/?/, "").split("/");
-    app.router.go(name || FALLBACK_SCREEN, id ? { id: decodeURIComponent(id) } : undefined);
+    return app.sheet.lineParts(headline, moments);
   }
 
   // The cleared Path records (app.store.listClearedLevels), or [] from a store without them.
@@ -1295,8 +1280,9 @@
   }
 
   // The speaker's rank tier for the notes request, from app.rank over their newest takes (samples
-  // left out, each scored as rank.js scores one), or DEFAULT_TIER while rank.js is not loaded or
-  // a take cannot be scored.
+  // left out, each scored as rank.js scores one), or app.tips.DEFAULT_TIER, the server's own
+  // default, while rank.js is not loaded or a take cannot be scored. Only loadCoachNotes asks,
+  // once app.tips is known to be loaded.
   function tierFor(sessions) {
     const rank = app.rank;
     const loaded =
@@ -1305,7 +1291,7 @@
       typeof rank.rating === "function" &&
       typeof rank.tier === "function";
     if (!loaded) {
-      return DEFAULT_TIER;
+      return app.tips.DEFAULT_TIER;
     }
     try {
       const history = sessions
@@ -1322,7 +1308,7 @@
         });
       return rank.tier(rank.rating(history), history);
     } catch {
-      return DEFAULT_TIER;
+      return app.tips.DEFAULT_TIER;
     }
   }
 

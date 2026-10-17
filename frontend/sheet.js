@@ -17,7 +17,11 @@
    inside it, Esc, the scrim and the handle close it, and focus returns to what opened it. With
    no document.body (a test fake) every call does nothing. A route change (hashchange) closes it.
    `line` is a string or parts [{text}, {text, quote: "restart" | "filler" | "pause"}];
-   app.sheet.quoteParts(text, kind) builds parts from a line naming one quoted phrase. */
+   app.sheet.quoteParts(text, kind) builds parts from a line naming one quoted phrase, and
+   app.sheet.lineParts(headline, moments) from a coach headline {text, momentId}, its quote in the
+   mark of the moment it names. app.sheet.fillLine(node, parts, quoteClass?) draws parts into a
+   node (quotes as span.<quoteClass>--<kind>, "sheet__quote" by default). Results, the Coach card
+   and the Level screen draw the coach's line with these three. */
 (function () {
   "use strict";
 
@@ -29,8 +33,12 @@
   const TITLE_ID = "sheet-title";
   const OWN_MARK = "data-sheet";
   const LIVE_REGION_ID = "live";
-  const QUOTE_KINDS = ["restart", "filler", "pause"];
+  // A quoted phrase is marked as its transcript mark for a restart or a filler; anything else
+  // (a pause, an unknown kind) is shown plain, as "pause".
+  const MARKED_QUOTES = ["restart", "filler"];
+  const PLAIN_QUOTE = "pause";
   const QUOTED = /[“"]([^”"]+)[”"]/;
+  const DEFAULT_QUOTE_CLASS = "sheet__quote";
 
   let current = null;
 
@@ -45,25 +53,42 @@
     return node;
   }
 
-  // Fills `node` from a plain string or a list of parts [{text}, {text, quote: kind}]. A quote part
-  // becomes span.sheet__quote--<kind> inside curly quotes (built node by node, never as markup).
-  function setLine(node, line) {
+  // The mark a quote of a moment of `kind` gets: its own for a restart or a filler, else plain.
+  function quoteKind(kind) {
+    return MARKED_QUOTES.includes(kind) ? kind : PLAIN_QUOTE;
+  }
+
+  // Fills `node` from a list of parts [{text}, {text, quote: kind}]: a quote part becomes
+  // span.<quoteClass> <quoteClass>--<kind> inside curly quotes. Built node by node, never as
+  // markup; whatever the node held before is replaced.
+  function fillLine(node, parts, quoteClass) {
+    const base = quoteClass || DEFAULT_QUOTE_CLASS;
     while (node.children && node.children.length > 0) {
       node.removeChild(node.children[0]);
     }
     node.textContent = "";
-    if (!Array.isArray(line)) {
-      node.textContent = line === undefined || line === null ? "" : String(line);
-      return;
-    }
-    line.forEach((part) => {
+    listOf(parts).forEach((part) => {
       if (part && part.quote) {
-        const kind = QUOTE_KINDS.includes(part.quote) ? part.quote : "pause";
-        node.appendChild(el("span", "sheet__quote sheet__quote--" + kind, "“" + part.text + "”"));
+        const name = base + " " + base + "--" + quoteKind(part.quote);
+        node.appendChild(el("span", name, "“" + part.text + "”"));
       } else if (part) {
         node.appendChild(document.createTextNode(part.text));
       }
     });
+  }
+
+  // Fills `node` from a plain string or a list of parts (fillLine).
+  function setLine(node, line) {
+    if (Array.isArray(line)) {
+      fillLine(node, line);
+      return;
+    }
+    fillLine(node, []);
+    node.textContent = line === undefined || line === null ? "" : String(line);
+  }
+
+  function listOf(value) {
+    return Array.isArray(value) ? value : [];
   }
 
   function plainText(line) {
@@ -80,7 +105,7 @@
     if (!match) {
       return [{ text: line }];
     }
-    const quote = kind === "restart" || kind === "filler" ? kind : "pause";
+    const quote = quoteKind(kind);
     const parts = [];
     if (match.index > 0) {
       parts.push({ text: line.slice(0, match.index) });
@@ -91,6 +116,16 @@
       parts.push({ text: after });
     }
     return parts;
+  }
+
+  // A coach headline {text, momentId} as parts: its first quoted words in the mark of the moment
+  // it names among `moments` (plain when it names none, or one not listed).
+  function lineParts(headline, moments) {
+    const given = headline && typeof headline === "object" ? headline : {};
+    const moment = given.momentId
+      ? listOf(moments).find((entry) => entry && entry.id === given.momentId)
+      : null;
+    return quoteParts(given.text, moment ? moment.kind : null);
   }
 
   function addIcon(parent, name, size) {
@@ -509,5 +544,5 @@
     }
   }
 
-  app.sheet = { open, guideOnce, firstVisit, quoteParts, GUIDES };
+  app.sheet = { open, guideOnce, firstVisit, quoteParts, lineParts, fillLine, GUIDES };
 })();

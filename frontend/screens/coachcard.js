@@ -31,7 +31,6 @@
   const SPACE = " ";
   const ELLIPSIS = "…";
   const SEPARATOR = " · ";
-  const QUOTED = /[“"]([^”"]+)[”"]/;
 
   // A rule tip names at most this many moments, as its own text lists at most three clocks.
   const MAX_RULE_MOMENTS = 3;
@@ -61,10 +60,9 @@
     restart: "tok tok--restart",
     filler: "tok tok--filler",
   });
-  // How the headline's quoted words look: as their transcript mark for a restart or a filler,
-  // plain for anything else.
-  const QUOTE_KINDS = Object.freeze({ restart: "restart", filler: "filler" });
-  const PLAIN_QUOTE = "pause";
+  // The class of the headline's quoted words (app.sheet.fillLine adds --restart, --filler or
+  // --pause: their transcript mark for a restart or a filler, plain for anything else).
+  const QUOTE_CLASS = "coach-card__quote";
 
   // --- what the card says ---
 
@@ -177,7 +175,7 @@
       head = ui.el("div", { class: "coach-card__head" }, [handle.heading, status]);
       card.appendChild(head);
       if (content.headline) {
-        card.appendChild(headlineNode(content.headline, byId));
+        card.appendChild(headlineNode(content.headline, input.moments));
       }
       const bar = barNode(tips, openIndex, input.seconds);
       if (bar) {
@@ -413,31 +411,17 @@
     ]);
   }
 
-  // The headline, its first quoted words in their moment's transcript mark.
-  function headlineNode(headline, byId) {
-    const ui = app.ui;
-    const moment = headline.momentId ? byId.get(headline.momentId) : null;
-    const kind = (moment && QUOTE_KINDS[moment.kind]) || PLAIN_QUOTE;
-    const text = String(headline.text);
-    const match = QUOTED.exec(text);
-    const parts = [];
-    if (match) {
-      parts.push(text.slice(0, match.index));
-      parts.push(
-        ui.el("span", {
-          class: "coach-card__quote coach-card__quote--" + kind,
-          text: "“" + match[1] + "”",
-        }),
-      );
-      parts.push(text.slice(match.index + match[0].length));
+  // The headline, its first quoted words in their moment's transcript mark (app.sheet.lineParts
+  // and fillLine, as the sheet draws the same line). Without sheet.js it is plain text.
+  function headlineNode(headline, moments) {
+    const node = app.ui.el("p", { class: "coach-card__headline" });
+    const sheet = app.sheet;
+    if (sheet && typeof sheet.lineParts === "function" && typeof sheet.fillLine === "function") {
+      sheet.fillLine(node, sheet.lineParts(headline, moments), QUOTE_CLASS);
     } else {
-      parts.push(text);
+      node.textContent = String(headline.text);
     }
-    return ui.el(
-      "p",
-      { class: "coach-card__headline" },
-      parts.filter((part) => part !== ""),
-    );
+    return node;
   }
 
   // The take bar: a thin track of the whole take, each tip's moments marked where they fall

@@ -165,6 +165,7 @@ test("tips.js still assigns only app.tips, now with the coach notes functions", 
   vm.runInNewContext(TIPS_SOURCE, { app }, { filename: "tips.js" });
   assert.deepEqual(Object.keys(app), ["tips"]);
   assert.deepEqual(Object.keys(app.tips).sort(), [
+    "DEFAULT_TIER",
     "adviceRequest",
     "coachNotes",
     "parseCoachNotes",

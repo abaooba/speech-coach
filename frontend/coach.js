@@ -34,7 +34,6 @@
   // The words said around a moment: up to this many each side.
   const CONTEXT_WORDS = 3;
   const MILLISECOND = 0.001;
-  const SECONDS_PER_MINUTE = 60;
   // Fillers this close together read as one cluster, as on the speech map.
   const CLUSTER_SECONDS = 5;
   // A quoted phrase in the takeaway line is cut here, with an ellipsis.
@@ -116,7 +115,7 @@
       id: moment.id,
       kind: moment.kind,
       at,
-      clock: clockText(at),
+      clock: app.ui.formatClock(at),
       seconds: moment.seconds === undefined ? null : moment.seconds,
       text: cut(moment.text, MAX_TEXT_CHARACTERS),
       before: cutFromEnd(moment.before, MAX_CONTEXT_CHARACTERS),
@@ -322,12 +321,6 @@
   }
 
   // --- small helpers ---
-
-  // m:ss of a speech-map second (the same text app.ui.formatClock gives).
-  function clockText(seconds) {
-    const whole = Math.max(0, Math.floor(seconds));
-    return Math.floor(whole / SECONDS_PER_MINUTE) + ":" + String(whole % SECONDS_PER_MINUTE).padStart(2, "0");
-  }
 
   function bare(text) {
     return app.screens.results.bareText(text);

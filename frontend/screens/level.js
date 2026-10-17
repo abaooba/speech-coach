@@ -1223,14 +1223,9 @@
 
   // --- The coach (guided coach: the Review's line and the sheet after the result) ---------------
 
-  // Rank never shows on the Path, so the notes are asked for at the beginner tier, the server's
-  // own default (backend/advice/select.py DEFAULT_TIER).
-  const COACH_TIER = "Novice";
   const COACH_LABEL = "Coach";
   const SEE_FULL_RESULTS = "See full results";
   const AFTER_LEVEL = "level";
-  const QUOTE_KINDS = Object.freeze({ restart: "restart", filler: "filler" });
-  const PLAIN_QUOTE = "pause";
   const RETRY_KIND = "retry";
 
   // Reads what the coach can say about a take (coachesTake): its moments and the rule takeaway at
@@ -1256,8 +1251,15 @@
     if (!app.tips || typeof app.tips.coachNotes !== "function") {
       return;
     }
+    // Rank never shows on the Path, so the notes are asked for at the tier a speaker with no
+    // rank is coached at, the server's own default.
     const request = Promise.resolve(
-      app.tips.coachNotes(take.session, take.report, materialOf(target, takeIndex).targetWpm, COACH_TIER),
+      app.tips.coachNotes(
+        take.session,
+        take.report,
+        materialOf(target, takeIndex).targetWpm,
+        app.tips.DEFAULT_TIER,
+      ),
     );
     request
       .then((notes) => {
@@ -1292,29 +1294,22 @@
     return entry.notes ? entry.notes.headline : entry.takeaway;
   }
 
-  // A line's parts: its quoted words in the mark of the moment it names (app.sheet.quoteParts).
+  // A line's parts: its quoted words in the mark of the moment it names (app.sheet.lineParts).
   function coachParts(entry, headline) {
-    const moment = entry.moments.find((each) => each && each.id === headline.momentId);
-    const kind = (moment && QUOTE_KINDS[moment.kind]) || PLAIN_QUOTE;
-    return app.sheet && typeof app.sheet.quoteParts === "function"
-      ? app.sheet.quoteParts(headline.text, kind)
+    return app.sheet && typeof app.sheet.lineParts === "function"
+      ? app.sheet.lineParts(headline, entry.moments)
       : [{ text: headline.text }];
   }
 
   // Fills the coach line: plain text, and each quoted phrase in a span marked like the
-  // transcript's (the sheet's classes). Built node by node, never as markup.
+  // transcript's (app.sheet.fillLine, the sheet's classes). Without sheet.js it is plain text.
   function fillCoachLine(node, entry, headline) {
-    while (node.children && node.children.length > 0) {
-      node.removeChild(node.children[0]);
+    if (app.sheet && typeof app.sheet.fillLine === "function") {
+      app.sheet.fillLine(node, coachParts(entry, headline));
+    } else {
+      app.ui.clear(node);
+      node.textContent = headline.text;
     }
-    node.textContent = "";
-    coachParts(entry, headline).forEach((part) => {
-      node.appendChild(
-        part.quote
-          ? el("span", { class: "sheet__quote sheet__quote--" + part.quote }, "“" + part.text + "”")
-          : document.createTextNode(part.text),
-      );
-    });
   }
 
   // The Review's coach block, in the tip card's place: "Coach", the line, and the level's tip
@@ -1439,8 +1434,7 @@
       }
       return;
     }
-    const [name, id] = String(move.href || "").replace(/^#\/?/, "").split("/");
-    app.router.go(name || PRACTICE_ROUTE, id ? { id: decodeURIComponent(id) } : undefined);
+    app.nextMove.go(move.href);
   }
 
   // A new run of the same play from what the store holds now, drawn at its Goal.

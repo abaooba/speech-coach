@@ -3,7 +3,9 @@
    {id, text} rule tips in priority order; pure. coachNotes(session, report, targetWpm, tier) is
    the one request to POST /api/advice (docs/PLAN.md T41): cited notes written for the take;
    Claude's are kept in app.store flags so a take is asked about once. adviceRequest and
-   parseCoachNotes are pure. */
+   parseCoachNotes are pure. DEFAULT_TIER ("Novice") is the tier a speaker with no rank is
+   coached at; Results (without rank.js) and the Level screen (rank never shows on the Path) send
+   it. */
 (function () {
   "use strict";
 
@@ -525,5 +527,5 @@
     return written;
   }
 
-  app.tips = { select, adviceRequest, parseCoachNotes, coachNotes };
+  app.tips = { select, adviceRequest, parseCoachNotes, coachNotes, DEFAULT_TIER };
 })();

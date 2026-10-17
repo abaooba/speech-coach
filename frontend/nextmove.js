@@ -22,7 +22,9 @@
      5. the benchmark is due and 3+ takes exist       -> "Start benchmark"
      6. otherwise                                     -> the weakest unit's current level
      7. nothing fits                                  -> "Record another take"
-   Pure: reads app.path only. */
+   nextMove is pure: it reads app.path only. app.nextMove.go(href) opens the route a move names
+   ("#/level/fillers-2", "#/practice") through app.router.go; Results and the Level screen call
+   it from the sheet's button. */
 (function () {
   "use strict";
 
@@ -31,6 +33,7 @@
   const BENCHMARK_AFTER_TAKES = 3;
   const LEVEL_ROUTE = "#/level/";
   const PRACTICE_ROUTE = "#/practice";
+  const PRACTICE_SCREEN = "practice";
   const BENCHMARK_ID = "benchmark";
   const CHECKBACK_SUFFIX = "_checkback";
   const RESTING = "resting";
@@ -300,6 +303,14 @@
     return Array.isArray(value) ? value : [];
   }
 
+  // Opens a move's hash route: "#/level/<id>" as app.router.go("level", {id}), anything without
+  // a screen name as Practice.
+  function go(href) {
+    const [name, id] = String(href || "").replace(/^#\/?/, "").split("/");
+    app.router.go(name || PRACTICE_SCREEN, id ? { id: decodeURIComponent(id) } : undefined);
+  }
+
   app.nextMove = nextMove;
+  app.nextMove.go = go;
   app.nextMove.BENCHMARK_AFTER_TAKES = BENCHMARK_AFTER_TAKES;
 })();
