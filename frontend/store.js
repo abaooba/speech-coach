@@ -119,19 +119,6 @@
     return requestToPromise(makeRequest(store), "IndexedDB request failed on " + storeName);
   }
 
-  // Runs body(stores) in one transaction over `storeNames`, stores[name] each object store. The
-  // body may await only requests on those stores: awaiting anything else lets the browser
-  // commit the transaction under it.
-  async function inTransaction(storeNames, mode, body) {
-    const db = await openDatabase();
-    const transaction = db.transaction(storeNames, mode);
-    const stores = {};
-    storeNames.forEach((name) => {
-      stores[name] = transaction.objectStore(name);
-    });
-    return body(stores);
-  }
-
   function request(storeRequest) {
     return requestToPromise(storeRequest, "IndexedDB request failed");
   }
@@ -179,9 +166,6 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2);
   }
 
-  // Newest first. A guest's list is this device's sessions that belong to no account, with the
-  // takes of an account whose session ended here (visibleTo); a signed-in speaker's merges the
-
   // Every session on this device, newest first.
   async function list() {
     const sessions = await run(SESSIONS_STORE, READ, (store) => store.getAll());
@@ -196,8 +180,7 @@
     return a.createdAt < b.createdAt ? 1 : -1;
   }
 
-  // This device's copy first, which a signed-in list keeps fresh. A take only the server has
-
+  // One session by id, or undefined.
   async function get(id) {
     return run(SESSIONS_STORE, READ, (store) => store.get(id));
   }
@@ -249,8 +232,6 @@
       };
     });
   }
-
-  // The signed-in account's record of a level, at its first clearing, queued for the server.
 
   // Every cleared level as {levelId, clearedAt}, in the order they were cleared.
   async function listClearedLevels() {

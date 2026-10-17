@@ -949,8 +949,8 @@
   }
 
   // The take is drawn as soon as app.store.get() has it, with no comparison. Its last take, which
-  // only the "vs last take" lines need, comes from app.store.list(), and a signed-in list can wait
-  // a second for the server (20 on a device's first list); once that take is found, the screen is
+  // only the "vs last take" lines need, comes from app.store.list(), and the list can take
+  // a moment; once that take is found, the screen is
   // drawn again with the comparison. The same list rates the takes up to this one for the rank
   // card, which joins that second draw (a first take, with no comparison, is drawn again for its
   // card alone), and gives the speaker's tier for the coach notes, which are asked for last and,
