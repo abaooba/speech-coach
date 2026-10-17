@@ -56,6 +56,7 @@ are no accounts and the server keeps nothing: every take stays on the phone.
 | `frontend/loop.js` | The Level screen's pure helpers: steps, feedback, moments, tap matching |
 | `frontend/coach.js` | The take's moments for the coach and the rule-based takeaway line |
 | `frontend/nextmove.js` | The one next thing to do: retry, next level, check-back, benchmark |
+| `frontend/language.js` | The grammar and vocabulary check the speaker asks for on a take |
 | `frontend/tips.js` | Rule-based tips and the coach-notes request |
 | `frontend/sw.js` | Service worker: caches the app shell, never audio, never `/api` |
 | `frontend/screens/practice.js` | Record, upload, level mode, the sample |

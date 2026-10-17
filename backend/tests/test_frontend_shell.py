@@ -45,6 +45,7 @@ SCRIPT_LOAD_ORDER = [
     "loop.js",
     "coach.js",
     "nextmove.js",
+    "language.js",
     "tips.js",
     "pauses.js",
     "screens/practice.js",

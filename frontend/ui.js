@@ -1,7 +1,8 @@
 /* ui.js: app.ui, the DOM helpers every screen builds from. el() builds elements node by node
    (never from markup strings), icon() draws the shared SVG icons, renderState() builds the empty /
-   error / loading blocks, announce() writes the live region, the format helpers turn seconds and
-   dates into text, and the theme helpers keep the Auto / Dark / Light choice in localStorage. */
+   error / loading blocks, announce() writes the live region, speak() says a word with the phone's
+   built-in voice, the format helpers turn seconds and dates into text, and the theme helpers keep
+   the Auto / Dark / Light choice in localStorage. */
 (function () {
   "use strict";
 
@@ -146,7 +147,26 @@
       ["circle", { cx: "12", cy: "12", r: "10" }],
       ["polygon", { points: "16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" }],
     ],
+    // Three text lines and a check: the grammar and vocabulary check.
+    "text-check": [
+      ["path", { d: "M4 6h12M4 11h9M4 16h5" }],
+      ["path", { d: "m13 17 3 3 5-6" }],
+    ],
+    "chevron-down": [["path", { d: "m6 9 6 6 6-6" }]],
+    speaker: [
+      ["polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }],
+      ["path", { d: "M15.54 8.46a5 5 0 0 1 0 7.07" }],
+    ],
+    "rotate-ccw": [
+      ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
+      ["path", { d: "M3 3v5h5" }],
+    ],
   });
+
+  // The phone's built-in voice says a word or a sentence the way it is usually said: US English,
+  // a little slower than its default, so a learner can hear each sound.
+  const SPEECH_LANG = "en-US";
+  const SPEECH_RATE = 0.85;
 
   // The theme is the one setting kept in localStorage, because it must apply before the first
   // paint. THEMES is also the toggle's cycle order. "auto" leaves the device setting in charge.
@@ -340,6 +360,41 @@
     }
   }
 
+  // True when this browser has a built-in voice to speak with (speechSynthesis and its
+  // utterance). Where it has none, nothing offers to say a word aloud.
+  function canSpeak() {
+    const synth = globalThis.speechSynthesis;
+    return (
+      Boolean(synth) &&
+      typeof synth.speak === "function" &&
+      typeof synth.cancel === "function" &&
+      typeof globalThis.SpeechSynthesisUtterance === "function"
+    );
+  }
+
+  // Says `text` with the built-in voice, cutting off anything it was still saying. `onDone`, when
+  // given, runs once the voice ends or fails. False when there is no voice or it refused.
+  function speak(text, onDone) {
+    if (!canSpeak()) {
+      return false;
+    }
+    try {
+      const synth = globalThis.speechSynthesis;
+      synth.cancel();
+      const utterance = new globalThis.SpeechSynthesisUtterance(String(text));
+      utterance.lang = SPEECH_LANG;
+      utterance.rate = SPEECH_RATE;
+      if (typeof onDone === "function") {
+        utterance.onend = onDone;
+        utterance.onerror = onDone;
+      }
+      synth.speak(utterance);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function formatClock(seconds) {
     const whole = Math.max(0, Math.floor(Number(seconds) || 0));
     const minutes = Math.floor(whole / 60);
@@ -442,6 +497,8 @@
     clear,
     renderState,
     announce,
+    canSpeak,
+    speak,
     formatClock,
     formatDate,
     formatDay,
