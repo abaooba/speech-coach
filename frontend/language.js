@@ -22,7 +22,10 @@
   const MAX_WORDS = 2;
   const MAX_OPTIONS = 3;
   const MAX_REWRITES = 2;
-  const NUL = /\u0000/g;
+  // What JSON writes as a 6-byte \uXXXX escape: the C0 control characters (U+0000 to U+001F;
+  // NUL is refused by the server) and a lone half of a surrogate pair. None is ever sent.
+  const ESCAPED =
+    /[\u0000-\u001f]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
   const SPACE = " ";
   // Punctuation at either end of a word, the rule results.js bareText uses: "work," is "work".
   const EDGE_PUNCTUATION = /^[^\p{L}\p{N}_]+|[^\p{L}\p{N}_]+$/gu;
@@ -103,11 +106,12 @@
 
   // --- the request and the reply ---
 
-  // The JSON body: the take's id and its words, space-joined, without NUL (the server refuses
-  // it) and cut at MAX_TRANSCRIPT_CHARACTERS whole characters, so no half an emoji is sent.
+  // The JSON body: the take's id and its words, space-joined, without any character JSON would
+  // escape (ESCAPED; NUL among them, which the server refuses) and cut at
+  // MAX_TRANSCRIPT_CHARACTERS whole characters, so no half an emoji is sent.
   function requestBody(session) {
     const words = listOf(session && session.transcript).map(textOf);
-    const text = words.join(SPACE).replace(NUL, "");
+    const text = words.join(SPACE).replace(ESCAPED, "");
     return {
       session_id: String(session && session.id),
       transcript: Array.from(text).slice(0, MAX_TRANSCRIPT_CHARACTERS).join(""),

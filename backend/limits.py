@@ -34,8 +34,10 @@ RECORDING_TOO_LARGE = (
     f"That recording is over {MAX_RECORDING_BODY_BYTES // 1_000_000} MB. "
     "Record a shorter take and resend."
 )
-# /api/advice and every other JSON API route: the largest advice request the app sends,
-# 2,000 shown library ids and a 1,500-character excerpt, is under 45,000 bytes.
+# /api/advice and every other JSON API route. The app's advice request (frontend/tips.js) holds at
+# most 40 moments, a 1,500-character excerpt and the newest 600 shown library ids, and sends no
+# character as a \uXXXX escape; when 40 moments full of 4-byte characters would pass this limit,
+# the oldest shown ids give way (backend/tests/test_advice_widest_request.py).
 MAX_SMALL_BODY_BYTES = 64_000
 SMALL_BODY_TOO_LARGE = f"send at most {MAX_SMALL_BODY_BYTES:,} bytes in one request"
 # /api/language-check: 8,000 characters of transcript, each at most 6 bytes (a character from the

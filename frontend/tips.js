@@ -41,11 +41,15 @@
   const MAX_EXCERPT_CHARACTERS = 1500;
   // The store keeps at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
   const MAX_SHOWN_IDS = 2000;
-  // A request sends only the newest of them, so 40 full moments (about 42,000 bytes at the
-  // widest, 3 bytes a character), the excerpt and the summary leave room for these under the
-  // server's 64,000-byte body limit. The library holds 632 entries with ids of 11 characters
-  // or fewer, so 600 ids cost under 10,000 bytes.
+  // A request sends at most the newest 600 of them: the library holds 632 entries with ids of 11
+  // characters or fewer, so 600 ids cost under 10,000 bytes. 40 moments at their caps cost up to
+  // about 50,000 bytes when every character is an emoji (4 bytes in UTF-8, the widest a
+  // character can be once nothing is sent as a \uXXXX escape: see ESCAPED), and the 1,500-unit
+  // excerpt up to 4,500. That widest body would pass the server's body limit (MAX_BODY_BYTES),
+  // so fitShownIds leaves out the oldest ids until the body fits.
   const MAX_REQUEST_SHOWN_IDS = 600;
+  // /api/advice refuses a body over this many bytes (backend/limits.py MAX_SMALL_BODY_BYTES).
+  const MAX_BODY_BYTES = 64000;
   // The moments a request may carry and the caps on their text fields (coach.py MAX_MOMENTS,
   // MAX_MOMENT_TEXT_CHARACTERS, MAX_MOMENT_CONTEXT_CHARACTERS, MAX_EXPECTED_CHARACTERS).
   const MAX_MOMENTS = 40;
@@ -59,7 +63,10 @@
   // A moment's id is its kind and a number of up to three digits; its clock is m:ss.
   const MOMENT_ID = /^(?:restart|filler|pause|long-pause|misread|skip|stumble|unclear)-\d{1,3}$/;
   const MOMENT_CLOCK = /^\d{1,3}:[0-5]\d$/;
-  const NUL = /\u0000/g;
+  // What JSON writes as a 6-byte \uXXXX escape: the C0 control characters (U+0000 to U+001F;
+  // NUL is refused by the server) and a lone half of a surrogate pair. None is ever sent.
+  const ESCAPED =
+    /[\u0000-\u001f]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
   // A speaker with no rank yet is coached as a Novice (backend/advice/select.py DEFAULT_TIER).
   const DEFAULT_TIER = "Novice";
   // The server writes 2 or 3 notes (coach.py MAX_TIPS); more would be a reply to distrust.
@@ -255,6 +262,7 @@
     if (Array.isArray(moments)) {
       body.moments = momentsOf(moments);
     }
+    fitShownIds(body);
     return body;
   }
 
@@ -314,11 +322,45 @@
   }
 
   // `value` as text of at most `limit` characters (whole code points, so no half an emoji),
-  // without NUL, which the server refuses. A context before a moment keeps its end, the words
-  // nearest the moment; any other text keeps its start.
+  // without any character JSON would escape (ESCAPED; NUL among them, which the server refuses).
+  // A context before a moment keeps its end, the words nearest the moment; any other text keeps
+  // its start.
   function cutText(value, limit, keepEnd) {
-    const characters = Array.from(typeof value === "string" ? value.replace(NUL, "") : "");
+    const characters = Array.from(typeof value === "string" ? value.replace(ESCAPED, "") : "");
     return (keepEnd ? characters.slice(-limit) : characters.slice(0, limit)).join("");
+  }
+
+  // Leaves out the oldest shown ids, only as many as it takes, while the body as UTF-8 JSON is
+  // over MAX_BODY_BYTES. The moments and the excerpt, what the notes are about, always stay.
+  function fitShownIds(body) {
+    let over = utf8Bytes(JSON.stringify(body)) - MAX_BODY_BYTES;
+    let dropped = 0;
+    while (over > 0 && dropped < body.shown_ids.length) {
+      // The id in its quotes, and the comma after it.
+      over -= utf8Bytes(JSON.stringify(body.shown_ids[dropped])) + 1;
+      dropped += 1;
+    }
+    if (dropped > 0) {
+      body.shown_ids = body.shown_ids.slice(dropped);
+    }
+  }
+
+  // The UTF-8 length of `text` (a JSON string, so it holds no lone surrogate).
+  function utf8Bytes(text) {
+    let bytes = 0;
+    for (const character of text) {
+      const code = character.codePointAt(0);
+      if (code < 0x80) {
+        bytes += 1;
+      } else if (code < 0x800) {
+        bytes += 2;
+      } else if (code < 0x10000) {
+        bytes += 3;
+      } else {
+        bytes += 4;
+      }
+    }
+    return bytes;
   }
 
   function nonNegative(value) {
@@ -339,13 +381,17 @@
     return Number.isFinite(lo) && Number.isFinite(hi) && lo < hi ? [lo, hi] : null;
   }
 
-  // The transcript's words, space-joined, up to MAX_EXCERPT_CHARACTERS. A cut that would leave
-  // half an emoji drops that half too, so the server never reads a lone surrogate.
+  // The transcript's words, space-joined, without any character JSON would escape (ESCAPED), up
+  // to MAX_EXCERPT_CHARACTERS. A cut that would leave half an emoji drops that half too, so the
+  // server never reads a lone surrogate.
   function excerptOf(transcript) {
     if (!Array.isArray(transcript)) {
       return "";
     }
-    const text = transcript.map((word) => String((word && word.text) || "")).join(" ");
+    const text = transcript
+      .map((word) => String((word && word.text) || ""))
+      .join(" ")
+      .replace(ESCAPED, "");
     const excerpt = text.slice(0, MAX_EXCERPT_CHARACTERS);
     const last = excerpt.charCodeAt(excerpt.length - 1);
     const endsOnHalfAnEmoji = last >= HIGH_SURROGATE_FIRST && last <= HIGH_SURROGATE_LAST;
