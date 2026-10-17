@@ -32,6 +32,7 @@ from pydantic import (
     Field,
     ValidationError,
     field_validator,
+    model_validator,
 )
 
 from backend.advice import AdviceEntry, citation
@@ -94,6 +95,18 @@ MAX_COUNT = 100_000
 MAX_SECONDS = 86_400.0
 # A pace, or an edge of a pace band: the fastest talkers stay well under 1,000 words a minute.
 MAX_WORDS_PER_MINUTE = 10_000.0
+
+# The take's moments (Moment): every place the Results screen found, at most 40 a take, so a
+# long take with many fillers is still covered and the prompt stays short.
+MAX_MOMENTS = 40
+# "restart-1" to "unclear-999": the kind, then a number of 1 to 3 digits.
+MOMENT_ID_PATTERN = r"^(restart|filler|pause|long-pause|misread|skip|stumble|unclear)-\d{1,3}$"
+# A time as the transcript shows it: minutes, then two digits of seconds ("0:32", "12:05").
+CLOCK_PATTERN = r"^\d{1,3}:[0-5]\d$"
+# A moment's own words, the words either side of it, and a misread's expected script word.
+MAX_MOMENT_TEXT_CHARACTERS = 120
+MAX_MOMENT_CONTEXT_CHARACTERS = 60
+MAX_EXPECTED_CHARACTERS = 40
 
 # Who wrote the tips, as the answer's `source` says.
 AI_SOURCE = "ai"
@@ -183,6 +196,52 @@ TakeId = Annotated[
 LibraryId = Annotated[str, Field(max_length=MAX_ID_CHARACTERS), AfterValidator(refuse_nul)]
 TierName = Annotated[str, Field(max_length=MAX_TIER_CHARACTERS), AfterValidator(refuse_nul)]
 Excerpt = Annotated[str, Field(max_length=MAX_EXCERPT_CHARACTERS), AfterValidator(refuse_nul)]
+MomentText = Annotated[
+    str, Field(max_length=MAX_MOMENT_TEXT_CHARACTERS), AfterValidator(refuse_nul)
+]
+MomentContext = Annotated[
+    str, Field(max_length=MAX_MOMENT_CONTEXT_CHARACTERS), AfterValidator(refuse_nul)
+]
+ExpectedWord = Annotated[
+    str, Field(max_length=MAX_EXPECTED_CHARACTERS), AfterValidator(refuse_nul)
+]
+MomentKind = Literal[
+    "restart", "filler", "pause", "long-pause", "misread", "skip", "stumble", "unclear"
+]
+
+
+class Moment(BaseModel):
+    """One place in the take the Results screen found, which a tip may point at.
+
+    `id` is the kind and a number, as in "restart-1" or "long-pause-2", and its kind is the
+    moment's own. `at` is the second the moment starts and `clock` that time as the transcript
+    shows it ("0:32"); `seconds` is how long it lasted, for a pause. `text` is the moment's own
+    words (empty for a pause between words), `before` and `after` the words either side, and
+    `expected` the script's word for a misread. A `hint` moment is a guess (a stumble or an
+    unclear word), never a sure mistake. No text holds NUL. A field it does not name, such as a
+    word's confidence, is dropped.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: Annotated[str, Field(pattern=MOMENT_ID_PATTERN)]
+    kind: MomentKind
+    at: Seconds
+    clock: Annotated[str, Field(pattern=CLOCK_PATTERN)]
+    seconds: Seconds | None = None
+    text: MomentText
+    before: MomentContext
+    after: MomentContext
+    expected: ExpectedWord | None = None
+    # strict: "yes" or 1 is not a boolean, and a guess must be marked as one exactly.
+    hint: Annotated[bool, Field(strict=True)] = False
+
+    @model_validator(mode="after")
+    def id_names_its_own_kind(self) -> "Moment":
+        """ "filler-1" cannot be a restart: the id's kind is the moment's own."""
+        if self.id.rsplit("-", 1)[0] != self.kind:
+            raise ValueError("a moment's id must start with its kind")
+        return self
 
 
 class TakeSummary(BaseModel):
@@ -254,6 +313,18 @@ class AdviceRequest(BaseModel):
     tier: TierName
     # The ids of the library entries the speaker has been shown, oldest first. They are all the server knows of what was shown: nothing is stored.
     shown_ids: list[LibraryId] = Field(default_factory=list, max_length=MAX_SHOWN_IDS)
+    # The take's moments, in the order they happened (Moment). The frontend in a browser's cache
+    # sends none (None); a clean take may send an empty list. Either way the notes are written
+    # from the numbers and the excerpt alone, as before moments were sent.
+    moments: list[Moment] | None = Field(default=None, max_length=MAX_MOMENTS)
+
+    @field_validator("moments")
+    @classmethod
+    def each_moment_id_once(cls, moments: list[Moment] | None) -> list[Moment] | None:
+        """A tip names moments by id, so no two moments may share one."""
+        if moments is not None and len({moment.id for moment in moments}) != len(moments):
+            raise ValueError("two moments share an id")
+        return moments
 
 
 # --- the answer ----------------------------------------------------------------------------------
