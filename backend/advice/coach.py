@@ -252,8 +252,7 @@ class AdviceRequest(BaseModel):
     # The speaker's rank tier, worked out by the frontend (PLAN T36). An unknown name reads as
     # Novice (select.level_for).
     tier: TierName
-    # The ids of the library entries the speaker has been shown, oldest first. For a signed-in
-    # speaker, /api/advice reads them from the database instead (backend/sessions_api.py).
+    # The ids of the library entries the speaker has been shown, oldest first. They are all the server knows of what was shown: nothing is stored.
     shown_ids: list[LibraryId] = Field(default_factory=list, max_length=MAX_SHOWN_IDS)
 
 

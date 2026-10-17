@@ -1,14 +1,12 @@
-"""Check a deploy answers as the demo needs: health, accounts on, coach notes written by Claude.
+"""Check a deploy answers as the demo needs: health, coach notes written by Claude.
 
 Manual and online, like check_advice_links.py: the owner runs it by hand after setting the
 Render environment, and before a demo. The tests run it against fake servers.
 
 Usage: .venv/bin/python scripts/smoke_deploy.py https://speech-coach-xz8c.onrender.com
 
-Three checks, each PASS or FAIL with one line of detail, exit code 1 when any fails:
+Two checks, each PASS or FAIL with one line of detail, exit code 1 when any fails:
   health       GET /api/health answers 200 {"status": "ok"}
-  accounts     GET /api/me answers 401 (accounts on, nobody signed in); 503 means DATABASE_URL
-               is unset or unusable
   coach notes  POST /api/advice answers 200 with source "ai"; "library" means no
                ANTHROPIC_API_KEY, or the hour's budget of AI calls is spent
 """
@@ -42,11 +40,10 @@ ADVICE_BODY = {
 
 
 def run(base_url: str, client: httpx.Client) -> list[Check]:
-    """The three checks against `base_url`, in order; a request that raises fails its check."""
+    """The two checks against `base_url`, in order; a request that raises fails its check."""
     base = base_url.rstrip("/")
     return [
         check_health(base, client),
-        check_accounts(base, client),
         check_coach_notes(base, client),
     ]
 
@@ -77,22 +74,6 @@ def check_health(base: str, client: httpx.Client) -> Check:
             f"GET /api/health answered {reply.status_code} with an unexpected body",
         )
     return ("health", True, f"GET /api/health answered {reply.status_code}")
-
-
-def check_accounts(base: str, client: httpx.Client) -> Check:
-    try:
-        reply = client.get(f"{base}/api/me", timeout=TIMEOUT_SECONDS)
-    except httpx.HTTPError as error:
-        return ("accounts", False, f"GET /api/me failed: {type(error).__name__}")
-    if reply.status_code == 401:
-        return ("accounts", True, "GET /api/me answered 401: accounts are on, nobody signed in")
-    if reply.status_code == 503:
-        return (
-            "accounts",
-            False,
-            "GET /api/me answered 503: accounts are off (DATABASE_URL unset?)",
-        )
-    return ("accounts", False, f"GET /api/me answered {reply.status_code}")
 
 
 def check_coach_notes(base: str, client: httpx.Client) -> Check:

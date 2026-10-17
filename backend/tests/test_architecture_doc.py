@@ -44,8 +44,10 @@ def test_the_diagram_is_well_formed_svg_naming_the_four_parties() -> None:
     root = ElementTree.fromstring(SVG.read_bytes())
     assert root.tag.endswith("svg")
     text = " ".join(t.text or "" for t in root.iter() if t.text)
-    for party in ("Phone", "FastAPI", "AssemblyAI", "Anthropic", "Neon"):
+    for party in ("Phone", "FastAPI", "AssemblyAI", "Anthropic"):
         assert party in text, party
+    assert "Neon" not in text
+    assert "Postgres" not in text
 
 
 def test_the_doc_embeds_the_diagram_and_the_readme_links_the_doc() -> None:

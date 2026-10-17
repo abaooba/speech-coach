@@ -52,7 +52,7 @@ Phone width, light and dark. The history is seeded with two real takes
    during a Path level the browser keeps take 1 in memory for replay until
    the level ends (see Privacy below for exactly what that means).
 4. The browser saves the session in IndexedDB on the device and draws a
-   progress chart. Guests need no account. With an account, your takes sync to Postgres, so a second device sees them.
+   progress chart. No account needed: your takes stay on this device.
 
 The longer version, with a diagram and every module's job, is
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -81,16 +81,9 @@ The other routes:
 | --- | --- |
 | `GET /api/health` | Liveness check that Render polls: `{"status": "ok"}` |
 | `POST /api/advice` | Coach notes for one take: tips Claude Haiku writes from the tip library while `ANTHROPIC_API_KEY` is set and the server's hourly budget of AI calls lasts, the library's own words otherwise |
-| `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/logout` | Open an account, log in or log out; the session lives in an HttpOnly cookie |
-| `GET /api/me`, `DELETE /api/me` | The signed-in account's email, or delete the account with everything it keeps |
-| `GET /api/sessions`, `POST /api/sessions`, `DELETE /api/sessions`, `DELETE /api/sessions/{id}` | A signed-in speaker's takes: list them, keep one, delete them all or one |
-| `POST /api/sessions/import` | Add this device's takes to the account, skipping any it already has |
-| `GET /api/progress`, `POST /api/progress` | The advice a signed-in speaker was shown and the skill-path levels they cleared |
 
-Accounts are optional. Every account route (`/api/auth/*`, `/api/me`,
-`/api/sessions`, `/api/progress`) answers 503 while `DATABASE_URL` is unset,
-and guests keep their takes in the browser; `/api/advice` serves guests
-either way.
+There are no accounts: takes stay in the browser, and `/api/advice` serves
+every request the same way, by the `shown_ids` it sends.
 
 ### Stack
 
@@ -147,8 +140,7 @@ Check a deploy before a demo (this one reaches the network, so pytest never runs
 .venv/bin/python scripts/smoke_deploy.py https://speech-coach-xz8c.onrender.com
 ```
 
-It prints PASS or FAIL for health, accounts (`/api/me` answers 401 when
-`DATABASE_URL` is set) and coach notes (`/api/advice` says Claude wrote them
+It prints PASS or FAIL for health and coach notes (`/api/advice` says Claude wrote them
 when `ANTHROPIC_API_KEY` is set and the hourly budget lasts).
 
 Frontend tests (plain `node:test`, no dependencies; pytest also runs them when

@@ -35,8 +35,8 @@
   <text x="388" y="174" fill="#111318">POST /api/advice (coach notes)</text>
   <text x="388" y="192" fill="#5B6270">advice/select.py, advice/coach.py</text>
   <rect x="376" y="216" width="248" height="52" rx="8" fill="#FFFFFF" stroke="#D9DDE3"/>
-  <text x="388" y="238" fill="#111318">/api/auth, /api/sessions, /api/progress</text>
-  <text x="388" y="256" fill="#5B6270">auth.py, sessions_api.py, db.py</text>
+  <text x="388" y="238" fill="#111318">Serves the app and /api/health</text>
+  <text x="388" y="256" fill="#5B6270">app.py (static files, health check)</text>
   <rect x="376" y="280" width="248" height="52" rx="8" fill="#FFFFFF" stroke="#D9DDE3"/>
   <text x="388" y="302" fill="#111318">Research library, 632 cited entries</text>
   <text x="388" y="320" fill="#5B6270">advice/library.json</text>
@@ -53,10 +53,6 @@
   <text x="712" y="208" font-size="16" font-weight="700" fill="#111318">Anthropic (Claude Haiku)</text>
   <text x="712" y="232" fill="#111318">Rewrites 2 to 3 library tips</text>
   <text x="712" y="252" fill="#5B6270">numbers + 1,500 chars of transcript</text>
-  <rect x="696" y="320" width="240" height="100" rx="12" fill="#F4F5F7" stroke="#D9DDE3"/>
-  <text x="712" y="348" font-size="16" font-weight="700" fill="#111318">Neon Postgres (optional)</text>
-  <text x="712" y="372" fill="#111318">Accounts sync the same takes</text>
-  <text x="712" y="392" fill="#5B6270">reports and transcripts, never audio</text>
 
   <!-- Arrows -->
   <line x1="304" y1="114" x2="376" y2="114" stroke="#5B6270" stroke-width="2" marker-end="url(#arrow)"/>
@@ -65,9 +61,6 @@
   <text x="312" y="148" font-size="12" fill="#5B6270">words + metrics</text>
   <line x1="624" y1="100" x2="696" y2="100" stroke="#5B6270" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="624" y1="180" x2="696" y2="226" stroke="#5B6270" stroke-width="2" marker-end="url(#arrow)"/>
-  <line x1="624" y1="244" x2="696" y2="366" stroke="#5B6270" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="304" y1="178" x2="376" y2="178" stroke="#5B6270" stroke-width="2" marker-end="url(#arrow)"/>
   <text x="312" y="168" font-size="12" fill="#5B6270">numbers</text>
-  <line x1="304" y1="242" x2="376" y2="242" stroke="#5B6270" stroke-width="2" marker-end="url(#arrow)"/>
-  <text x="312" y="232" font-size="12" fill="#5B6270">cookie</text>
 </svg>

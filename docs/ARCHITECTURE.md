@@ -4,8 +4,8 @@ Speech Coach is a phone-first web app with a small Python backend. The phone
 records, finds pauses, scores the take by rules it can explain, keeps every
 take in its own database and draws the progress chart. The backend does the
 two things a phone cannot: turn audio into timed words through a speech-to-text
-provider, and ask Claude to rewrite research-library tips for one take. Accounts
-are optional and only sync what the phone already has.
+provider, and ask Claude to rewrite research-library tips for one take. There
+are no accounts and the server keeps nothing: every take stays on the phone.
 
 ![Architecture](architecture.svg)
 
@@ -40,9 +40,6 @@ are optional and only sync what the phone already has.
 | `backend/script_align.py` | Lines a take up against its script: restarts, skipped and misread words |
 | `backend/providers/` | `base.py` (the `Transcriber` protocol and `Word`), `assemblyai.py`, `deepgram.py` |
 | `backend/advice/` | The research library (`library.json`, `__init__.py`), `select.py` (which entries fit a take), `coach.py` (Claude writes the notes), `budget.py` (300 AI calls an hour) |
-| `backend/auth.py` | Optional accounts: Argon2 passwords, HttpOnly session cookies, rate-limited logins |
-| `backend/sessions_api.py` | A signed-in speaker's takes, shown advice and Path progress |
-| `backend/db.py` | SQLAlchemy Core tables; Neon Postgres in production, SQLite in tests; off without `DATABASE_URL` |
 | `backend/limits.py` | Request body caps (40 MB audio) answered with 413 before the body is read |
 | `backend/nul_free.py` | Refuses NUL bytes in any text a route stores |
 | `frontend/app.js` | The `app` namespace, hash router, boot |
@@ -71,9 +68,8 @@ are optional and only sync what the phone already has.
 | Data | Where | How long |
 | --- | --- | --- |
 | Audio | Phone memory while recording; backend memory for one request; AssemblyAI until the words are back | Seconds. Take 1 of a Path level stays in phone memory until the level ends |
-| Words and metrics | IndexedDB on the phone; Postgres too when signed in | Until the speaker deletes the take or the account |
+| Words and metrics | IndexedDB on the phone only | Until the speaker deletes the take |
 | Transcript excerpt (1,500 characters) and the take's numbers | Sent to Anthropic for coach notes | Anthropic's retention policy |
-| Email and Argon2 password hash | Postgres | Until the account is deleted |
 
 ## Why these choices
 
@@ -83,14 +79,14 @@ are optional and only sync what the phone already has.
   kept 6 um and 3 uh and a restart; Deepgram kept 1 and 2 (`scripts/compare_providers.py`).
 - **No framework, no build.** The app is about two dozen files a judge can read top to
   bottom. The service worker makes it installable and offline for the shell.
-- **Guests first.** Everything works with no account. Accounts add sync and
-  nothing else, so they could be cut without touching a screen.
+- **No accounts.** Nothing needs a sign-in and the server stores nothing, so a
+  take lives on the phone it was recorded on.
 - **The model writes prose, never facts.** Claude rewrites library entries in
   the take's numbers; the app attaches every citation from the entry itself.
 
 ## Tests
 
 `backend/tests/` (pytest, network blocked by `pytest-socket`, providers behind
-`httpx.MockTransport`, SQLite in memory for accounts) and `frontend/tests/`
+`httpx.MockTransport`) and `frontend/tests/`
 (`node:test` with a hand-written fake DOM in `fake-dom.js`; modules run inside
 `vm` contexts). CI runs both on every push to main and every PR.

@@ -18,8 +18,6 @@ def healthy_deploy(request: httpx.Request) -> httpx.Response:
     path = request.url.path
     if path == "/api/health":
         return httpx.Response(200, json={"status": "ok"})
-    if path == "/api/me":
-        return httpx.Response(401, json={"detail": "not signed in"})
     if path == "/api/advice" and request.method == "POST":
         return httpx.Response(200, json={"tips": [{"entry_id": "filler-001"}], "source": "ai"})
     return httpx.Response(404)
@@ -29,8 +27,6 @@ def guest_only_deploy(request: httpx.Request) -> httpx.Response:
     path = request.url.path
     if path == "/api/health":
         return httpx.Response(200, json={"status": "ok"})
-    if path == "/api/me":
-        return httpx.Response(503, json={"detail": "accounts are not configured"})
     if path == "/api/advice":
         return httpx.Response(200, json={"tips": [], "source": "library"})
     return httpx.Response(404)
@@ -38,19 +34,15 @@ def guest_only_deploy(request: httpx.Request) -> httpx.Response:
 
 def test_a_fully_configured_deploy_passes_every_check() -> None:
     checks = smoke.run(BASE, client_for(healthy_deploy))
-    assert [name for name, _, _ in checks] == ["health", "accounts", "coach notes"]
+    assert [name for name, _, _ in checks] == ["health", "coach notes"]
     assert all(ok for _, ok, _ in checks), checks
 
 
-def test_a_guest_only_deploy_fails_accounts_and_names_the_library_fallback() -> None:
+def test_a_deploy_without_a_key_fails_coach_notes_and_names_the_library_fallback() -> None:
     checks = {
         name: (ok, detail) for name, ok, detail in smoke.run(BASE, client_for(guest_only_deploy))
     }
     assert checks["health"][0] is True
-    assert checks["accounts"] == (
-        False,
-        "GET /api/me answered 503: accounts are off (DATABASE_URL unset?)",
-    )
     assert checks["coach notes"] == (
         False,
         (
@@ -81,7 +73,7 @@ def test_main_exit_code_follows_the_checks(capsys) -> None:
     assert smoke.main([BASE], client_for(guest_only_deploy)) == 1
     out = capsys.readouterr().out
     assert "PASS health" in out
-    assert "FAIL accounts" in out
+    assert "FAIL coach notes" in out
 
 
 def test_an_html_body_on_health_fails_the_check_without_raising() -> None:
@@ -108,6 +100,6 @@ def test_an_html_body_on_advice_fails_coach_notes_without_raising() -> None:
             return httpx.Response(200, text="<html>Bad gateway</html>")
         return healthy_deploy(request)
 
-    name, ok, detail = smoke.run(BASE, client_for(splash_on_advice))[2]
+    name, ok, detail = smoke.run(BASE, client_for(splash_on_advice))[1]
     assert (name, ok) == ("coach notes", False)
     assert detail == "POST /api/advice answered 200 with a non-JSON body"

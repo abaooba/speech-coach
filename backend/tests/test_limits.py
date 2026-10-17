@@ -6,9 +6,8 @@ Every route reads its body whole before its own checks run: FastAPI parses a JSO
 when its Content-Length says it is over, and as its bytes arrive when it comes with no length.
 
 /api/analyze takes 40,000,000 bytes: room for 3 minutes of even uncompressed 16-bit stereo audio
-at 48 kHz, with the longest script. /api/sessions, /api/sessions/import and /api/progress take
-3,000,000, the T48 cap (test_sessions_api_limits.py). Every other API route, /api/advice and
-/api/auth/* among them, takes 64,000: the largest advice request the app sends is under 45,000.
+at 48 kHz, with the longest script. Every other API route, /api/advice among them, takes 64,000:
+the largest advice request the app sends is under 45,000.
 The static frontend has no limit, as it never reads a body.
 
 No test opens a socket: /api/analyze gets a fake provider and /api/advice no model.
@@ -29,12 +28,8 @@ from backend.advice import coach, load_library
 from backend.providers.base import Word
 
 MAX_RECORDING_BYTES = 40_000_000
-MAX_ACCOUNT_DATA_BYTES = 3_000_000
 MAX_SMALL_BODY_BYTES = 64_000
 RECORDING_TOO_LARGE = {"detail": "That recording is over 40 MB. Record a shorter take and resend."}
-ACCOUNT_DATA_TOO_LARGE = {
-    "detail": "send at most 3,000,000 bytes in one request: import a long history in parts"
-}
 SMALL_BODY_TOO_LARGE = {"detail": "send at most 64,000 bytes in one request"}
 
 # Three minutes of the largest audio a phone could send: uncompressed 16-bit stereo at 48 kHz.
@@ -64,7 +59,7 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> FakeTranscriber:
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    """The app with accounts off (conftest.py) and no model: advice is the library's own."""
+    """The app with no model: advice is the library's own."""
     overrides = app_module.app.dependency_overrides
     overrides[app_module.advice_client] = lambda: None
     yield TestClient(app_module.app, base_url="https://testserver")
@@ -84,20 +79,13 @@ def stating_length(length: int, headers: dict[str, str] | None = None) -> dict[s
     [
         ("/api/analyze", MAX_RECORDING_BYTES),
         ("/api/analyze/", MAX_RECORDING_BYTES),
-        ("/api/sessions", MAX_ACCOUNT_DATA_BYTES),
-        ("/api/sessions/import", MAX_ACCOUNT_DATA_BYTES),
-        ("/api/sessions/8b1f6c2e-take-one", MAX_ACCOUNT_DATA_BYTES),
-        ("/api/progress", MAX_ACCOUNT_DATA_BYTES),
         ("/api/advice", MAX_SMALL_BODY_BYTES),
-        ("/api/auth/signup", MAX_SMALL_BODY_BYTES),
-        ("/api/auth/login", MAX_SMALL_BODY_BYTES),
-        ("/api/auth/logout", MAX_SMALL_BODY_BYTES),
         ("/api/me", MAX_SMALL_BODY_BYTES),
         ("/api/health", MAX_SMALL_BODY_BYTES),
         ("/api", MAX_SMALL_BODY_BYTES),
         # A route's limit covers the paths under it, not every path that starts with its letters.
         ("/api/analyzer", MAX_SMALL_BODY_BYTES),
-        ("/api/sessions-archive", MAX_SMALL_BODY_BYTES),
+        ("/api/analyze-archive", MAX_SMALL_BODY_BYTES),
     ],
 )
 def test_each_api_path_has_its_routes_limit(path: str, max_bytes: int) -> None:
@@ -114,7 +102,6 @@ def test_a_path_outside_the_api_has_no_limit(path: str) -> None:
 
 def test_each_limit_says_what_its_413_says() -> None:
     assert limits.limit_for("/api/analyze").message == RECORDING_TOO_LARGE["detail"]
-    assert limits.limit_for("/api/sessions").message == ACCOUNT_DATA_TOO_LARGE["detail"]
     assert limits.limit_for("/api/advice").message == SMALL_BODY_TOO_LARGE["detail"]
 
 
@@ -282,17 +269,15 @@ def test_the_largest_advice_request_the_app_sends_fits_and_is_answered(
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        ("POST", "/api/auth/signup"),
-        ("POST", "/api/auth/login"),
-        ("POST", "/api/auth/logout"),
-        ("DELETE", "/api/me"),
         ("POST", "/api/advice"),
+        ("DELETE", "/api/me"),
+        ("POST", "/api/no-such-route"),
     ],
 )
 def test_a_body_stated_over_64_000_bytes_is_refused_before_the_route_runs(
     client: TestClient, method: str, path: str
 ) -> None:
-    # Accounts are off, so each account route would answer 503 if it ran.
+    # A route that does not exist would answer 404 if the request got as far as routing.
     headers = stating_length(MAX_SMALL_BODY_BYTES + 1, JSON_HEADERS)
 
     response = client.request(method, path, content=b"{}", headers=headers)
@@ -301,22 +286,13 @@ def test_a_body_stated_over_64_000_bytes_is_refused_before_the_route_runs(
     assert response.json() == SMALL_BODY_TOO_LARGE
 
 
-def test_a_login_sent_in_chunks_is_refused_once_past_64_000_bytes(client: TestClient) -> None:
-    body = padded_to({"email": "ann@example.com", "password": "x" * 100}, MAX_SMALL_BODY_BYTES + 1)
-
-    response = client.post("/api/auth/login", content=iter([body]), headers=JSON_HEADERS)
-
-    assert response.status_code == 413
-    assert response.json() == SMALL_BODY_TOO_LARGE
-
-
 def test_a_small_body_still_reaches_its_route(client: TestClient) -> None:
-    login = {"email": "ann@example.com", "password": "correct horse battery staple"}
+    response = client.post(
+        "/api/advice", content=padded_to(advice_body(), 1_000), headers=JSON_HEADERS
+    )
 
-    response = client.post("/api/auth/login", content=padded_to(login, 1_000), headers=JSON_HEADERS)
-
-    assert response.status_code == 503
-    assert response.json() == {"detail": "accounts are not configured"}
+    assert response.status_code == 200, response.text
+    assert response.json()["source"] == "library"
 
 
 # --- the static frontend -------------------------------------------------------------------------

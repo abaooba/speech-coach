@@ -27,8 +27,6 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from backend import sessions_api
-
 # /api/analyze: room for 3 minutes of even uncompressed 16-bit stereo audio at 48 kHz (34.6 MB),
 # with the longest script; a phone browser's compressed recording of that is a few MB.
 MAX_RECORDING_BODY_BYTES = 40_000_000
@@ -36,7 +34,7 @@ RECORDING_TOO_LARGE = (
     f"That recording is over {MAX_RECORDING_BODY_BYTES // 1_000_000} MB. "
     "Record a shorter take and resend."
 )
-# /api/advice, /api/auth/* and every other API route: the largest advice request the app sends,
+# /api/advice and every other JSON API route: the largest advice request the app sends,
 # 2,000 shown library ids and a 1,500-character excerpt, is under 45,000 bytes.
 MAX_SMALL_BODY_BYTES = 64_000
 SMALL_BODY_TOO_LARGE = f"send at most {MAX_SMALL_BODY_BYTES:,} bytes in one request"
@@ -51,17 +49,12 @@ class BodyLimit:
 
 
 RECORDING_LIMIT = BodyLimit(MAX_RECORDING_BODY_BYTES, RECORDING_TOO_LARGE)
-# /api/sessions, /api/sessions/import and /api/progress: the T48 cap, the largest import an
-# account may send with room to spare (sessions_api.MAX_REQUEST_BYTES).
-ACCOUNT_DATA_LIMIT = BodyLimit(sessions_api.MAX_REQUEST_BYTES, sessions_api.REQUEST_TOO_LARGE)
 SMALL_BODY_LIMIT = BodyLimit(MAX_SMALL_BODY_BYTES, SMALL_BODY_TOO_LARGE)
 
 # Each route's limit, by the path it covers along with every path under it. The first that covers
 # a request's path is its limit, so the one for /api as a whole comes last.
 BODY_LIMITS: tuple[tuple[str, BodyLimit], ...] = (
     ("/api/analyze", RECORDING_LIMIT),
-    ("/api/sessions", ACCOUNT_DATA_LIMIT),
-    ("/api/progress", ACCOUNT_DATA_LIMIT),
     ("/api", SMALL_BODY_LIMIT),
 )
 
