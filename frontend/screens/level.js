@@ -1367,21 +1367,31 @@
     }
     const entry = take.coach || { moments: [], takeaway: null, notes: null, onNotes: null };
     const headline = coachLineOf(entry) || { text: take.evaluation.sentence, momentId: null };
-    const handle = sheetApi.open({
-      label: COACH_LABEL,
-      line: coachParts(entry, headline),
-      why: move.why,
-      status: sheetStatus(target, passed),
-      primary: {
-        label: move.label,
-        icon: move.kind === RETRY_KIND ? "rotate-ccw" : "arrow-right",
-        onSelect: () => goToMove(target, move),
-      },
-      secondary: { label: SEE_FULL_RESULTS },
-    });
+    let handle;
+    try {
+      handle = sheetApi.open({
+        label: COACH_LABEL,
+        line: coachParts(entry, headline),
+        why: move.why,
+        status: sheetStatus(target, passed),
+        primary: {
+          label: move.label,
+          icon: move.kind === RETRY_KIND ? "rotate-ccw" : "arrow-right",
+          onSelect: () => goToMove(target, move),
+        },
+        secondary: { label: SEE_FULL_RESULTS },
+      });
+    } catch {
+      // The sheet is extra to the Result, which is already on the page.
+      return;
+    }
     entry.onNotes = () => {
       if (entry.notes) {
-        handle.update(coachParts(entry, entry.notes.headline));
+        try {
+          handle.update(coachParts(entry, entry.notes.headline));
+        } catch {
+          // The sheet keeps the line it has.
+        }
       }
     };
     if (entry.notes) {

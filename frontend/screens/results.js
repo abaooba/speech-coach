@@ -938,7 +938,8 @@
       renderSession(session, view, previous);
     }
     const asked = loadCoachNotes(session, view.summary, sessions);
-    const sheet = fresh && !isSample(session) ? await openTakeSheet(session, view, sessions) : null;
+    const sheet =
+      fresh && !isSample(session) ? await openTakeSheetSafely(session, view, sessions) : null;
     const notes = await asked;
     if (ticket !== showCount) {
       return;
@@ -951,7 +952,11 @@
       view.coachCard.clearStatus();
     }
     if (sheet) {
-      upgradeSheet(sheet, view);
+      try {
+        upgradeSheet(sheet, view);
+      } catch {
+        // The card already holds the notes; a sheet that cannot take them keeps its rule line.
+      }
     }
   }
 
@@ -1014,6 +1019,16 @@
       };
     }
     return app.sheet.open(options);
+  }
+
+  // The sheet is extra to the take's results: one that throws while it opens is left out, so the
+  // Coach card still gets its notes and its "Writing notes on this take…" status still goes.
+  async function openTakeSheetSafely(session, view, sessions) {
+    try {
+      return await openTakeSheet(session, view, sessions);
+    } catch {
+      return null;
+    }
   }
 
   // Claude's headline in the sheet's line once the notes are in; without one, the rule line
