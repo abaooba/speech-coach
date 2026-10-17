@@ -136,11 +136,13 @@ function replyWith(ids, source) {
 }
 
 const NOTES = {
+  headline: null,
   tips: [
     {
       entryId: "filler-001",
       text: "Stay silent where the um would go.",
       drill: "Read one paragraph aloud.",
+      momentIds: [],
       citation: {
         label: "Lisa B. Marshall, Um (2017)",
         url: "https://example.org/um",
@@ -151,6 +153,7 @@ const NOTES = {
       entryId: "pause-002",
       text: "Breathe at the period.",
       drill: "",
+      momentIds: [],
       citation: { label: "Smith, Pauses (2019)", url: null, type: "peer_reviewed" },
     },
   ],
@@ -210,7 +213,7 @@ test("the band is left out unless it is [lo, hi] with lo below hi", () => {
   assert.deepEqual(plain(strings.summary.target_wpm), [130, 150], "numeric strings are numbers");
 });
 
-test("the tier falls back to Novice, and shown ids are the last 2,000 strings", () => {
+test("the tier falls back to Novice, and shown ids are the last 600 strings", () => {
   const tips = load();
   for (const tier of [undefined, "", "   ", 7, null]) {
     assert.equal(tips.adviceRequest(SESSION, REPORT, null, tier, []).tier, "Novice");
@@ -223,9 +226,9 @@ test("the tier falls back to Novice, and shown ids are the last 2,000 strings", 
   assert.deepEqual(mixed.shown_ids, ["a", "b"]);
   const ids = Array.from({ length: 2005 }, (_, i) => "id-" + i);
   const capped = tips.adviceRequest(SESSION, REPORT, null, "Novice", ids).shown_ids;
-  assert.equal(capped.length, 2000);
-  assert.equal(capped[0], "id-5");
-  assert.equal(capped[1999], "id-2004");
+  assert.equal(capped.length, 600);
+  assert.equal(capped[0], "id-1405");
+  assert.equal(capped[599], "id-2004");
 });
 
 test("the excerpt is the words joined by spaces, cut at 1,500, never on half an emoji", () => {
@@ -322,6 +325,7 @@ test("a citation keeps only a web url; a missing drill or type reads as empty", 
       text: "t",
       drill: "",
       citation: { label: "L", url: expected, type: "" },
+      momentIds: [],
     });
   });
 });

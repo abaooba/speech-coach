@@ -37,8 +37,27 @@
   const OK = 200;
   // The backend caps the excerpt at 1,500 characters (coach.py MAX_EXCERPT_CHARACTERS).
   const MAX_EXCERPT_CHARACTERS = 1500;
-  // A request may list at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
+  // The store keeps at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
   const MAX_SHOWN_IDS = 2000;
+  // A request sends only the newest of them, so 40 full moments (about 42,000 bytes at the
+  // widest, 3 bytes a character), the excerpt and the summary leave room for these under the
+  // server's 64,000-byte body limit. The library holds 632 entries with ids of 11 characters
+  // or fewer, so 600 ids cost under 10,000 bytes.
+  const MAX_REQUEST_SHOWN_IDS = 600;
+  // The moments a request may carry and the caps on their text fields (coach.py MAX_MOMENTS,
+  // MAX_MOMENT_TEXT_CHARACTERS, MAX_MOMENT_CONTEXT_CHARACTERS, MAX_EXPECTED_CHARACTERS).
+  const MAX_MOMENTS = 40;
+  const MAX_MOMENT_TEXT = 120;
+  const MAX_MOMENT_CONTEXT = 60;
+  const MAX_MOMENT_EXPECTED = 40;
+  const MAX_MOMENT_SECONDS = 86400;
+  const MOMENT_KINDS = [
+    "restart", "filler", "pause", "long-pause", "misread", "skip", "stumble", "unclear",
+  ];
+  // A moment's id is its kind and a number of up to three digits; its clock is m:ss.
+  const MOMENT_ID = /^(?:restart|filler|pause|long-pause|misread|skip|stumble|unclear)-\d{1,3}$/;
+  const MOMENT_CLOCK = /^\d{1,3}:[0-5]\d$/;
+  const NUL = /\u0000/g;
   // A speaker with no rank yet is coached as a Novice (backend/advice/select.py DEFAULT_TIER).
   const DEFAULT_TIER = "Novice";
   // The server writes 2 or 3 notes (coach.py MAX_TIPS); more would be a reply to distrust.
@@ -209,7 +228,7 @@
   // said, the speaker's tier and the entries already shown. Every number is finite and 0 or more
   // and every count whole, as the server requires; the band goes only when it is a real [lo, hi].
   // Pure: a fresh object, and no input is changed.
-  function adviceRequest(session, report, targetWpm, tier, shownIds) {
+  function adviceRequest(session, report, targetWpm, tier, shownIds, moments) {
     const given = report && typeof report === "object" ? report : {};
     const summary = {
       duration_seconds: nonNegative(given.speakingSeconds),
@@ -224,12 +243,80 @@
       summary.target_wpm = band;
     }
     summary.transcript_excerpt = excerptOf(session && session.transcript);
-    return {
+    const body = {
       session_id: String(session && session.id),
       summary,
       tier: isNonBlankString(tier) ? tier : DEFAULT_TIER,
-      shown_ids: stringsOf(shownIds).slice(-MAX_SHOWN_IDS),
+      shown_ids: stringsOf(shownIds).slice(-MAX_REQUEST_SHOWN_IDS),
     };
+    // A list of moments (an empty one for a clean take) is sent; no list, no key.
+    if (Array.isArray(moments)) {
+      body.moments = momentsOf(moments);
+    }
+    return body;
+  }
+
+  // The moments the server accepts, in order: at most MAX_MOMENTS, each id once, a moment that
+  // would be refused (an id that does not match its kind, a bad clock or time) left out, and
+  // every text field cut to its cap.
+  function momentsOf(list) {
+    const seen = new Set();
+    const kept = [];
+    for (const given of list) {
+      const moment = wireMoment(given);
+      if (moment !== null && !seen.has(moment.id)) {
+        seen.add(moment.id);
+        kept.push(moment);
+      }
+      if (kept.length === MAX_MOMENTS) {
+        break;
+      }
+    }
+    return kept;
+  }
+
+  function wireMoment(given) {
+    if (given === null || typeof given !== "object") {
+      return null;
+    }
+    const valid =
+      MOMENT_KINDS.includes(given.kind) &&
+      typeof given.id === "string" &&
+      MOMENT_ID.test(given.id) &&
+      given.id.replace(/-\d+$/, "") === given.kind &&
+      typeof given.clock === "string" &&
+      MOMENT_CLOCK.test(given.clock) &&
+      isSecondCount(given.at);
+    if (!valid) {
+      return null;
+    }
+    return {
+      id: given.id,
+      kind: given.kind,
+      at: given.at,
+      clock: given.clock,
+      seconds: isSecondCount(given.seconds) ? given.seconds : null,
+      text: cutText(given.text, MAX_MOMENT_TEXT, false),
+      before: cutText(given.before, MAX_MOMENT_CONTEXT, true),
+      after: cutText(given.after, MAX_MOMENT_CONTEXT, false),
+      expected: typeof given.expected === "string"
+        ? cutText(given.expected, MAX_MOMENT_EXPECTED, false)
+        : null,
+      hint: given.hint === true,
+    };
+  }
+
+  function isSecondCount(value) {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 &&
+      value <= MAX_MOMENT_SECONDS;
+  }
+
+  // `value` as text of at most `limit` characters (whole code points, so no half an emoji),
+  // without NUL, which the server refuses. A context before a moment keeps its end, the words
+  // nearest the moment; any other text keeps its start.
+  function cutText(value, limit, keepEnd) {
+    const characters = Array.from(typeof value === "string" ? value.replace(NUL, "") : "");
+    return (keepEnd ? characters.slice(-limit) : characters.slice(0, limit)).join("");
   }
 
   function nonNegative(value) {
@@ -287,7 +374,17 @@
     if (tips.some((tip) => tip === null)) {
       return null;
     }
-    return { tips, source: reply.source };
+    return { headline: parseHeadline(reply.headline), tips, source: reply.source };
+  }
+
+  // The reply's headline as {text, momentId} (momentId null when it names no moment), or null
+  // when there is none or it has no text.
+  function parseHeadline(headline) {
+    if (headline === null || typeof headline !== "object" || !isNonBlankString(headline.text)) {
+      return null;
+    }
+    const momentId = isNonBlankString(headline.moment_id) ? headline.moment_id : null;
+    return { text: headline.text.trim(), momentId };
   }
 
   function parseNote(tip) {
@@ -303,6 +400,7 @@
       text: tip.text.trim(),
       drill: typeof tip.drill === "string" ? tip.drill.trim() : "",
       citation,
+      momentIds: stringsOf(tip.moment_ids),
     };
   }
 
@@ -358,7 +456,7 @@
         return kept;
       }
       const shown = stringsOf(await app.store.getFlag(SHOWN_FLAG));
-      const body = adviceRequest(session, report, targetWpm, tier, shown);
+      const body = adviceRequest(session, report, targetWpm, tier, shown, momentsFor(session, report));
       const reply = await app.api.postJson(ADVICE_URL, body);
       const notes = reply && reply.status === OK ? parseCoachNotes(reply.body) : null;
       if (notes !== null) {
@@ -367,6 +465,19 @@
       return notes;
     } catch {
       return null;
+    }
+  }
+
+  // The take's moments from app.coach, or undefined when it is not loaded or fails: the request
+  // is then sent without them, as a take with none to name.
+  function momentsFor(session, report) {
+    try {
+      const coach = app.coach;
+      return coach && typeof coach.coachMoments === "function"
+        ? coach.coachMoments(report, session && session.transcript)
+        : undefined;
+    } catch {
+      return undefined;
     }
   }
 
