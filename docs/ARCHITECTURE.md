@@ -4,8 +4,9 @@ Speech Coach is a phone-first web app with a small Python backend. The phone
 records, finds pauses, scores the take by rules it can explain, keeps every
 take in its own database and draws the progress chart. The backend does the
 two things a phone cannot: turn audio into timed words through a speech-to-text
-provider, and ask Claude to rewrite research-library tips for one take. There
-are no accounts and the server keeps nothing: every take stays on the phone.
+provider, and ask Claude to write coach notes (and, on request, a grammar check)
+for one take. There are no accounts and the server keeps nothing: every take is
+saved on the phone.
 
 ![Architecture](architecture.svg)
 
@@ -23,11 +24,20 @@ are no accounts and the server keeps nothing: every take stays on the phone.
 5. The browser saves words and metrics in IndexedDB (`store.js`) and
    `delivery.js` re-scores every stored take by today's rules, so old takes
    never go stale when a rule changes.
-6. Results asks `POST /api/advice` for coach notes: `advice/select.py` picks
-   library entries for the take's weakest skills, `advice/coach.py` has Claude
-   Haiku rewrite two or three of them in the take's numbers, and the app, not
-   the model, attaches each citation. Without a key, the library's own words
-   stand in.
+6. Results asks `POST /api/advice` for coach notes. The request carries the take's
+   numbers, part of the transcript and its moments (`coach.js`: each restart,
+   filler, pause, misread or unclear-word hint with its words, the words around
+   it and its time). `advice/select.py` picks library entries for the weakest
+   skills, `advice/coach.py` has Claude Haiku write a headline and two or three
+   tips that quote those moments, and the app, not the model, attaches each
+   citation. Without a key, or if the reply fails its checks, the library's own
+   words stand in.
+   The transcriber's word confidence marks unclear words with a dotted box and a
+   "Words to check" chip. These are hints: they never enter a metric, tip or
+   rank, and tapping a chip uses the phone's own voice (`speechSynthesis`).
+   The Coach card's "Check grammar & vocabulary" button is the only thing that
+   calls `POST /api/language-check` (`language.js`, `backend/language/check.py`),
+   and only when the speaker taps it.
 7. `rank.js` turns the last ten takes into a rating and a tier; `path.js`
    turns the weakest skill into the next Loop Path level.
 
@@ -35,11 +45,12 @@ are no accounts and the server keeps nothing: every take stays on the phone.
 
 | Path | Owns |
 | --- | --- |
-| `backend/app.py` | FastAPI app: `/api/analyze`, `/api/advice`, `/api/health`, static files, cache headers, body limits |
+| `backend/app.py` | FastAPI app: `/api/analyze`, `/api/advice`, `/api/language-check`, `/api/health`, static files, cache headers, body limits |
 | `backend/metrics.py` | Pure metrics from timed words: pace, fillers, pauses, repeated phrases |
 | `backend/script_align.py` | Lines a take up against its script: restarts, skipped and misread words |
 | `backend/providers/` | `base.py` (the `Transcriber` protocol and `Word`), `assemblyai.py`, `deepgram.py` |
 | `backend/advice/` | The research library (`library.json`, `__init__.py`), `select.py` (which entries fit a take), `coach.py` (Claude writes the notes), `budget.py` (300 AI calls an hour) |
+| `backend/language/` | `check.py`: the opt-in grammar and vocabulary check (Claude Haiku, 8,000 characters at most, quotes validated against the transcript) |
 | `backend/limits.py` | Request body caps (40 MB audio) answered with 413 before the body is read |
 | `backend/nul_free.py` | Refuses NUL bytes in any text a route stores |
 | `frontend/app.js` | The `app` namespace, hash router, boot |
@@ -74,7 +85,8 @@ are no accounts and the server keeps nothing: every take stays on the phone.
 | --- | --- | --- |
 | Audio | Phone memory while recording; backend memory for one request; AssemblyAI until the words are back | Seconds. Take 1 of a Path level stays in phone memory until the level ends |
 | Words and metrics | IndexedDB on the phone only | Until the speaker deletes the take |
-| Transcript excerpt (1,500 characters) and the take's numbers | Sent to Anthropic for coach notes | Anthropic's retention policy |
+| Transcript excerpt (1,500 characters), the take's numbers and its moments | Sent to Anthropic for coach notes | Anthropic's retention policy |
+| Transcript (up to 8,000 characters) | Sent to Anthropic only when the speaker taps the grammar check; nothing is saved on the server | Anthropic's retention policy |
 
 ## Why these choices
 

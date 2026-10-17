@@ -27,12 +27,17 @@ Phone width, light and dark. The history is seeded with two real takes
 - Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
   the take.
 - Results: a speech map pins each restart, freeze and filler to its second. Tap a card to
-  see that moment in the transcript. Four stats, your rank, the marked transcript and two or
-  three cited coach notes follow.
+  see that moment in the transcript. The Coach card comes first: a headline and two or three
+  cited tips that point at moments in your take. Four stats, your rank and the marked
+  transcript follow. "Words to check" chips say a word the transcriber was unsure of with your
+  phone's own voice. On a talked take, "Check grammar & vocabulary" is an optional extra.
+- After a take or a level, a bottom sheet names the one next step. Each tab also opens a short
+  guide the first time you visit it.
 - Progress: one metric charted across your takes, with your latest, your best and your change
   from the average, under your rank and streak.
 - History: every take, newest first, with its pace, fillers per minute and a status word.
-- Onboarding, shown on first launch: what is measured and what happens to your audio.
+- Onboarding, shown on first launch: the no-account promise, what is measured and where your
+  audio and transcript go.
 
 ### Results, full page
 
@@ -51,8 +56,12 @@ Phone width, light and dark. The history is seeded with two real takes
    backend asks AssemblyAI to delete its copy as soon as the words are back;
    during a Path level the browser keeps take 1 in memory for replay until
    the level ends (see Privacy below for exactly what that means).
-4. The browser saves the session in IndexedDB on the device and draws a
-   progress chart. No account needed: your takes stay on this device.
+4. The browser saves the session in IndexedDB on the phone and draws a
+   progress chart. No account needed: takes are saved in this browser only.
+5. For the coach notes, the browser sends the take's numbers, part of the
+   transcript and the moments it found to the server, which has Claude write
+   a headline and tips that quote them. The grammar check is a separate call
+   the speaker makes by tapping a button.
 
 The longer version, with a diagram and every module's job, is
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -243,14 +252,25 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
   released when the level ends: when the result shows, when you leave the
   level or start another, or when you open a screen other than Practice or
   the level. Reloading the page drops it too.
-- Transcripts and metrics are returned to the browser and stored in
-  IndexedDB on the device. For the coach notes on Results, the browser also
-  sends the take's numbers and the first 1,500 characters of its transcript
-  to `POST /api/advice`. While `ANTHROPIC_API_KEY` is set and the server's
-  hourly budget of AI calls lasts, the server passes both to Anthropic so
-  Claude Haiku can write the notes, and what it sends is subject to
-  Anthropic's retention policy. Otherwise nothing goes to Anthropic. The
-  server never logs the excerpt.
+- There is no account and no sign-in. The server keeps no copy of your
+  takes. Transcripts and metrics are returned to the browser and saved in
+  IndexedDB in this browser, on the phone. Clearing the browser's site data
+  deletes them. There is no backup.
+- For the coach notes on Results, the browser also sends the take's numbers
+  and the first 1,500 characters of its transcript to `POST /api/advice`,
+  with the moments the app found: for each one, its words, the words around
+  it and its time (at most 40). While `ANTHROPIC_API_KEY` is set and the
+  server's hourly budget of AI calls lasts, the server passes all of it to
+  Anthropic so Claude Haiku can write the notes, and what it sends is subject
+  to Anthropic's retention policy. Otherwise nothing goes to Anthropic. The
+  server never logs the excerpt or the moments.
+- The grammar and vocabulary check sends the transcript, up to 8,000
+  characters, to `POST /api/language-check` and on to Anthropic only when you
+  tap "Check grammar & vocabulary". Nothing is saved on the server.
+- "Words to check" and the dotted boxes in the transcript come from the
+  transcriber's word confidence. They are hints, never counted in any card,
+  tip or score. Tapping a word plays it with the phone's built-in voice, and
+  nothing is sent.
 
 ## AI disclosure
 

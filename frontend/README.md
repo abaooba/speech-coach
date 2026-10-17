@@ -15,6 +15,7 @@ opens with a short comment, four to eight lines, saying what it owns and what it
 | `app.js` | `app.router` | Creates `window.app` (with an empty `app.screens`) and owns the hash router. `go(name, params)` sets the hash to `#/<name>` or `#/<name>/<id>`; `current()` returns `{name, params}` for the hash, and Practice for an unknown one. At boot it applies the saved theme, mounts every registered screen once, then routes, to Onboarding on a first launch. Each route names the tab after the screen's h1 and highlights that screen's nav item, the Path's on a level (`#/level/<playId>`). |
 | `ui.js` | `app.ui` | The DOM helpers every screen builds from. `el(tag, attrs, children)` builds nodes, never markup; `renderState(root, {kind, title, body, actionLabel, onAction, icon, secondaryLabel, onSecondary})` is the only builder of the empty, error and loading blocks; `clear(root)` empties a node; `announce(text)` writes the live region; `formatClock(seconds)` gives "1:05" and `formatDate(iso)` "Oct 9, 10:21 PM". Also `formatDay`, `icon` and the theme helpers `getTheme`, `applyTheme`, `setTheme`, `nextTheme`. `icon(name, size)` builds a named icon in `currentColor`, or null for an unknown name: among them `flame`, beside the Path's week and the rank card's streak, and for the Loop Path `route` (the shape of the nav's Path item), `lock`, `flag`, `crown`, `clock`, `play`, `stop`, `lightbulb`, `external-link`, `chevron-left`, `calendar`, `close` and `user`. A state block's `icon` may name any icon `icon` draws, as the Level screen's `lock`, `moon`, `calendar` and `check` do. |
 | `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded`; `markLevelCleared(levelId, clearedAt)` and `listClearedLevels()` keep the Loop Path's records (a level such as `fillers-3`, a passed check-back `fillers-3_cb1`, a crown tier `fillers_crown-2`, a checkpoint `fillers_checkpoint`), each at its first clearing, `clearedAt` now unless given. A session holds metrics and transcript, the `topic` it was said on when it had one and, for a Path take, `path` (`{play, kind, take, scored, passed, stage, inRoom}`), from which the Path reads attempts, misses and benchmark sittings; never audio: `save` refuses a session carrying `blob` or `audio`. Everything stays on this device and nothing is sent. The first load after the accounts were removed moves the levels an old account sync kept into `pathProgress` and deletes the `signedInAccount` and `accountSync` flags. |
+| `sheet.js` | `app.sheet` | The bottom sheet that follows a take or a Path level, and the first-visit guides. `open({label, line, primary, ...})` shows one sheet at a time (the page behind it is inert, Tab stays inside, Esc, the scrim and the handle close it, focus returns to what opened it); `guideOnce(name, {...})` shows a guide the first time only, using the store flag `guideSeen:<name>`. The sheet is the one place with a shadow and a second big button, and it calls nothing on a server. |
 | `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType, script)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`; a `script` with words goes along as the form field `script`, and `metrics.script` then lists restarts, skipped and misread script words (the backend drops a script the take does not follow and scores it as free talk). A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
 | `passages.js` | `app.passages` | The fixed practice material, everyday only (no debate), `[{id, kind, title, text, targetWpm: [lo, hi], source?, timeLimitSeconds?, topics?}]`: timed prompts (the Talk tab) first, then passages (the Read tab). `coldReads()` returns a new list of the cold reads (`coldRead: true`), original everyday passages that the Path's Restarts levels 1 to 4 and their check-backs read and no tab lists. `benchmark()` returns new `{read, talk}` objects, the Path's benchmark: the passage "Benchmark read" and the 90-second prompt "Benchmark talk", which no tab lists and no other take practices. `retired()` returns new `{id, kind, targetWpm, timeLimitSeconds?}` objects for the ids old takes still carry after the debate entries left Practice on 2026-10-14, so an old take keeps its band and time limit; nothing shows them. No DOM. |
 | `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
@@ -295,16 +296,37 @@ keyboard.
   3 s" plays its moment of take 1 with sound, one clip at a time, and nothing plays until a
   tap.
 
+## What leaves the phone
+
+- There is no account and no sign-in. Takes are saved in this browser's IndexedDB. Clearing
+  site data deletes them, and there is no backup.
+- The recording goes to `POST /api/analyze` and on to the transcriber, which the backend asks to
+  delete it. The app never saves audio. Take 1 of a Path level stays in memory until the level
+  ends.
+- Coach notes (`tips.js`) send the take's numbers, the first 1,500 characters of the transcript
+  and the take's moments (`coach.js`: words, the words around them and times, at most 40) to
+  `POST /api/advice`, and the server passes them to Anthropic.
+- The grammar and vocabulary check (`language.js`) sends the transcript, up to 8,000 characters,
+  to `POST /api/language-check` only when the speaker taps "Check grammar & vocabulary". A
+  `languageCheck:<id>` flag keeps an answer, so reopening the take makes no second call.
+- Words the transcriber was unsure of (word `confidence`, `delivery.findUnclear`) get a dotted
+  box and a "Words to check" chip. They are hints, never counted in a card, tip, score or rank.
+  A chip plays the word with `speechSynthesis`, the phone's built-in voice, and sends nothing.
+
 ## Screen walkthroughs
 
 **Onboarding (about one minute).** Empty the store and reload.
 
 1. The Onboarding screen shows under its "Speech Coach" heading, with no nav: the line
    "Record a practice speech. Get your pace, pauses and filler words in seconds.", three
-   items, each after an icon (a microphone, a magnifying glass, a chart), the muted line
-   "Audio is deleted right after analysis. During a Path level, take 1 stays in this phone's
-   memory for replay. It is deleted when the level ends. Coach notes send the first 1,500
-   characters of your transcript to Anthropic." and a full-width "Start practicing" button.
+   items, each after an icon (a microphone, a magnifying glass, a chart), and, between the line
+   and the items, a card with a phone-and-lock icon: "No account needed. Your takes are saved on
+   your phone, and only there." Then the muted line
+   "Your recording goes to AssemblyAI to be turned into words. The app then asks AssemblyAI to
+   delete it. During a Path level, take 1 stays in this phone's memory for replay. Coach notes
+   send part of your transcript to Anthropic. They also send the moments the app found. The
+   grammar check sends your transcript only when you tap it." and a full-width "Start
+   practicing" button.
    The tab reads "Speech Coach" and nothing has focus.
 
 2. Tap "Start practicing": Practice shows with the nav. Reload: Practice opens directly, and
