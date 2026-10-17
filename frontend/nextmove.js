@@ -4,8 +4,8 @@
    the save), the local day `today` ("YYYY-MM-DD") and optionally what was just done, `after`:
    {type: "level", levelId, passed} after a Path level's final take, or {type: "take"} (or
    nothing) after a free-talk take. It answers {kind, label, href, why}: `label` the button's
-   words, `href` the hash route it opens (null when the button only goes back to recording) and
-   `why` the line under the headline. The first rule that fits wins:
+   words, `href` the hash route it opens ("#/practice" when the button only goes back to
+   recording) and `why` the line under the headline. The first rule that fits wins:
      1. a level just missed with attempts left today  -> "Try again"
      2. a level just passed                           -> the unit's next level, or its checkpoint
      3. at most one take of your own so far           -> level 1 of the weakest unit
@@ -90,11 +90,17 @@
       return null;
     }
     const unit = unitOf(level.unit);
-    const next = unit.levels.find((entry) => entry.number > level.number && !isCleared(entry, context));
+    // The pass may not be in the cleared records yet, so count it as cleared here.
+    const passedContext = Object.assign({}, context, {
+      cleared: context.cleared.concat([{ levelId: level.id }]),
+    });
+    const next = unit.levels.find(
+      (entry) => entry.number > level.number && !isCleared(entry, passedContext),
+    );
     if (next !== undefined) {
-      return levelMove(KIND.next, unit, next, context, "Next in " + unit.title + ".");
+      return levelMove(KIND.next, unit, next, passedContext, "Next in " + unit.title + ".");
     }
-    return checkpointMove(unit, context, "Next: the " + unit.title + " checkpoint.");
+    return checkpointMove(unit, passedContext, "Next: the " + unit.title + " checkpoint.");
   }
 
   // 3. A speaker with at most one take of their own starts the weakest unit from level 1.
