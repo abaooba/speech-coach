@@ -15,7 +15,9 @@
        the button's label (or {label, onSelect}).
    Only one sheet is open at a time. While it is open the rest of the page is inert, Tab stays
    inside it, Esc, the scrim and the handle close it, and focus returns to what opened it. With
-   no document.body (a test fake) every call does nothing. */
+   no document.body (a test fake) every call does nothing. A route change (hashchange) closes it.
+   `line` is a string or parts [{text}, {text, quote: "restart" | "filler" | "pause"}];
+   app.sheet.quoteParts(text, kind) builds parts from a line naming one quoted phrase. */
 (function () {
   "use strict";
 
@@ -26,6 +28,9 @@
   const LINE_ID = "sheet-line";
   const TITLE_ID = "sheet-title";
   const OWN_MARK = "data-sheet";
+  const LIVE_REGION_ID = "live";
+  const QUOTE_KINDS = ["restart", "filler", "pause"];
+  const QUOTED = /[“"]([^”"]+)[”"]/;
 
   let current = null;
 
@@ -38,6 +43,54 @@
       node.textContent = text;
     }
     return node;
+  }
+
+  // Fills `node` from a plain string or a list of parts [{text}, {text, quote: kind}]. A quote part
+  // becomes span.sheet__quote--<kind> inside curly quotes (built node by node, never as markup).
+  function setLine(node, line) {
+    while (node.children && node.children.length > 0) {
+      node.removeChild(node.children[0]);
+    }
+    node.textContent = "";
+    if (!Array.isArray(line)) {
+      node.textContent = line === undefined || line === null ? "" : String(line);
+      return;
+    }
+    line.forEach((part) => {
+      if (part && part.quote) {
+        const kind = QUOTE_KINDS.includes(part.quote) ? part.quote : "pause";
+        node.appendChild(el("span", "sheet__quote sheet__quote--" + kind, "“" + part.text + "”"));
+      } else if (part) {
+        node.appendChild(document.createTextNode(part.text));
+      }
+    });
+  }
+
+  function plainText(line) {
+    return Array.isArray(line)
+      ? line.map((part) => (part.quote ? "“" + part.text + "”" : part.text)).join("")
+      : String(line === undefined || line === null ? "" : line);
+  }
+
+  // Turns a plain line into parts by wrapping its first quoted segment (“…” or "…") in a quote of
+  // `kind` ("restart", "filler"; any other kind is shown plain). No quoted segment: [{text}].
+  function quoteParts(text, kind) {
+    const line = String(text === undefined || text === null ? "" : text);
+    const match = QUOTED.exec(line);
+    if (!match) {
+      return [{ text: line }];
+    }
+    const quote = kind === "restart" || kind === "filler" ? kind : "pause";
+    const parts = [];
+    if (match.index > 0) {
+      parts.push({ text: line.slice(0, match.index) });
+    }
+    parts.push({ text: match[1], quote });
+    const after = line.slice(match.index + match[0].length);
+    if (after) {
+      parts.push({ text: after });
+    }
+    return parts;
   }
 
   function addIcon(parent, name, size) {
@@ -89,6 +142,10 @@
       if (node.getAttribute && node.getAttribute(OWN_MARK)) {
         return;
       }
+      // The live region stays reachable, or update()'s announcement would be silent.
+      if (node.getAttribute && node.getAttribute("id") === LIVE_REGION_ID) {
+        return;
+      }
       if ("inert" in node) {
         const before = node.inert;
         node.inert = true;
@@ -108,6 +165,21 @@
       });
     });
     return () => undo.forEach((fn) => fn());
+  }
+
+  // Focus goes back to what opened the sheet; if that is gone (a route change replaced it), to
+  // the current screen's heading, else the main region.
+  function returnFocus(opener) {
+    if (opener && opener.isConnected !== false && typeof opener.focus === "function") {
+      opener.focus();
+      return;
+    }
+    const find = typeof document.querySelector === "function" ? document.querySelector.bind(document) : null;
+    const target = find && (find(".screen--active h1") || find("main"));
+    if (target && typeof target.focus === "function") {
+      target.setAttribute("tabindex", "-1");
+      target.focus();
+    }
   }
 
   const NO_OP_HANDLE = Object.freeze({
@@ -158,7 +230,8 @@
       title.setAttribute("id", TITLE_ID);
       sheet.appendChild(title);
     }
-    const line = el("p", isGuide ? "sheet__text" : "sheet__line", options.line || "");
+    const line = el("p", isGuide ? "sheet__text" : "sheet__line");
+    setLine(line, options.line || "");
     line.setAttribute("id", LINE_ID);
     sheet.appendChild(line);
     if (options.why) {
@@ -210,6 +283,9 @@
         current = null;
       }
       document.removeEventListener("keydown", onKey);
+      if (typeof globalThis.removeEventListener === "function") {
+        globalThis.removeEventListener("hashchange", onRoute);
+      }
       restoreBackground();
       if (animates()) {
         sheet.classList.add("sheet--closing");
@@ -218,12 +294,16 @@
       } else {
         removeNodes();
       }
-      if (restoreFocus && opener && typeof opener.focus === "function") {
-        opener.focus();
+      if (restoreFocus) {
+        returnFocus(opener);
       }
       if (typeof options.onClose === "function") {
         options.onClose();
       }
+    }
+
+    function onRoute() {
+      close(false);
     }
 
     function onKey(event) {
@@ -254,6 +334,9 @@
     }
 
     document.addEventListener("keydown", onKey);
+    if (typeof globalThis.addEventListener === "function") {
+      globalThis.addEventListener("hashchange", onRoute);
+    }
     scrim.addEventListener("click", () => close());
     handle.addEventListener("click", () => close());
     actions.forEach(({ node, spec }) => {
@@ -280,7 +363,7 @@
         if (closed) {
           return;
         }
-        line.textContent = text;
+        setLine(line, text);
         clearStatus();
         if (animates()) {
           line.classList.remove("sheet__line--fresh");
@@ -288,7 +371,7 @@
           line.classList.add("sheet__line--fresh");
         }
         if (app.ui && app.ui.announce) {
-          app.ui.announce(text);
+          app.ui.announce(plainText(text));
         }
       },
       clearStatus,
@@ -329,5 +412,5 @@
     return true;
   }
 
-  app.sheet = { open, guideOnce };
+  app.sheet = { open, guideOnce, quoteParts };
 })();

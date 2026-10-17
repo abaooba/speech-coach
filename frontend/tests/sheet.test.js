@@ -67,7 +67,21 @@ function setup(options = {}) {
       },
     },
   };
-  const context = { app, document: doc, setTimeout };
+  const routeListeners = [];
+  const context = {
+    app,
+    document: doc,
+    setTimeout,
+    addEventListener: (type, fn) => type === "hashchange" && routeListeners.push(fn),
+    removeEventListener: (type, fn) => {
+      const at = routeListeners.indexOf(fn);
+      if (at !== -1) {
+        routeListeners.splice(at, 1);
+      }
+    },
+  };
+  doc.route = () => routeListeners.slice().forEach((fn) => fn());
+  doc.routeListeners = routeListeners;
   if (options.motion) {
     context.matchMedia = () => ({ matches: true });
   }
@@ -335,4 +349,69 @@ test("with no document.body every call does nothing", async () => {
 test("ui.js draws the compass icon the guide label uses", () => {
   const { app } = setup();
   assert.ok(app.ui.icon("compass"));
+});
+
+test("a line given as parts renders curly-quoted spans with the moment's mark", () => {
+  const { app, doc } = setup();
+  const handle = app.sheet.open(
+    coach({ line: [{ text: "You restarted " }, { text: "the few", quote: "restart" }, { text: " at 0:32." }] }),
+  );
+  const line = find(doc.body, "sheet__line");
+  const quote = find(line, "sheet__quote");
+  assert.ok(quote.classList.contains("sheet__quote--restart"));
+  assert.equal(quote.textContent, "“the few”");
+  assert.equal(text(line), "You restarted “the few” at 0:32.");
+  handle.update([{ text: "Say " }, { text: "um", quote: "filler" }]);
+  assert.ok(find(find(doc.body, "sheet__line"), "sheet__quote--filler"));
+  assert.equal(text(find(doc.body, "sheet__line")), "Say “um”");
+  assert.equal(doc.live.textContent, "Say “um”");
+});
+
+test("quoteParts wraps the first quoted segment by the moment's kind", () => {
+  const { app } = setup();
+  const q = app.sheet.quoteParts;
+  assert.deepEqual(JSON.parse(JSON.stringify(q("You said “the few— the few” at 0:32.", "restart"))), [
+    { text: "You said " },
+    { text: "the few— the few", quote: "restart" },
+    { text: " at 0:32." },
+  ]);
+  assert.equal(q('Cut "um" short', "filler")[1].quote, "filler");
+  assert.equal(q("After “and” a pause.", "long")[1].quote, "pause");
+  assert.equal(q("After “and” a pause.", undefined)[0].text, "After ");
+  assert.deepEqual(JSON.parse(JSON.stringify(q("No quotes here.", "restart"))), [{ text: "No quotes here." }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(q("“Only”", "filler"))), [{ text: "Only", quote: "filler" }]);
+});
+
+test("the live region stays reachable while the sheet is open", () => {
+  const { app, doc } = setup();
+  doc.live.setAttribute("id", "live");
+  doc.body.appendChild(doc.live);
+  const main = doc.createElement("main");
+  doc.body.appendChild(main);
+  const handle = app.sheet.open(coach());
+  assert.equal(main.inert, true);
+  assert.equal(doc.live.inert, false);
+  handle.close();
+});
+
+test("a route change closes the sheet and calls onClose", () => {
+  const { app, doc } = setup();
+  let closed = 0;
+  app.sheet.open(coach({ onClose: () => (closed += 1) }));
+  doc.route();
+  assert.equal(find(doc.body, "sheet"), null);
+  assert.equal(closed, 1);
+  assert.equal(doc.routeListeners.length, 0);
+});
+
+test("focus falls back to the screen heading when the opener is gone", () => {
+  const { app, doc } = setup();
+  const h1 = doc.createElement("h1");
+  doc.querySelector = (sel) => (sel === ".screen--active h1" ? h1 : null);
+  const origin = opener(doc);
+  origin.isConnected = false;
+  app.sheet.open(coach());
+  doc.press("Escape");
+  assert.equal(doc.activeElement, h1);
+  assert.equal(h1.getAttribute("tabindex"), "-1");
 });

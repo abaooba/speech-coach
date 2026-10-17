@@ -3732,6 +3732,19 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-weight: 600;
 }
 
+.sheet__quote--restart {
+  text-decoration: underline dotted var(--pause);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
+.sheet__quote--filler {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-tok);
+  background: var(--filler-bg);
+  color: var(--filler);
+}
+
 .sheet__why {
   margin: var(--s-2) 0 var(--s-4);
   font-size: var(--fs-micro);
