@@ -242,6 +242,7 @@
   const FILLER_LABEL_SUFFIX = ", filler word";
   const HABIT_LABEL_SUFFIX = ", verbal habit";
   const RESTART_LABEL_SUFFIX = ", restart";
+  const STUMBLE_LABEL_SUFFIX = ", possible stumble";
   // "make, misread, script says makes": the label names the word the script has there.
   const MISREAD_LABEL_SUFFIX = ", misread, script says ";
   // A skipped script word is drawn struck through and read as "skipped: lose".
@@ -266,6 +267,9 @@
   // Added only when the transcript of a take read from a script shows a misread or a skip.
   const LEGEND_MISREAD_TEXT = " Wavy underlined words are misreads.";
   const LEGEND_SKIP_TEXT = " Struck-through words were skipped.";
+  // Added only when the transcript marks a possible stumble (app.delivery.findStumbles).
+  const LEGEND_STUMBLE_TEXT =
+    " Gray dashed words ran long, maybe a small stumble. A hint only: they are not counted.";
   const HOW_HREF = "how.html";
   const HOW_LINK_TEXT = "How we count";
   const PAUSE_TEXT_SUFFIX = " s pause";
@@ -847,7 +851,8 @@
   // goes right after the word app.delivery judged it by (wordBeforePause): the last word that
   // has ended by `at` or is still going then; when there is none it goes before the first
   // word. A word whose index is in `restartWords` (the second copies of the report's
-  // restarts) also gets `restart: true`. `scriptSlips` (optional) holds
+  // restarts) also gets `restart: true`; any other word app.delivery.findStumbles finds gets
+  // `stumble: true`, a hint that counts nowhere. `scriptSlips` (optional) holds
   // the report's `misreads` and `skips` for a take read from a script: a word whose index is a
   // misread's `wordIndex` gets `misread`, the script word it stands for (two, space-joined, when
   // both halves of "short-endure" were misread), and each skip becomes {type: "skip", text} after
@@ -861,6 +866,7 @@
     const slips = scriptSlips && typeof scriptSlips === "object" ? scriptSlips : {};
     const misreadWords = misreadsByWord(slips.misreads);
     const kinds = app.delivery.classify(wordList);
+    const stumbles = new Set(app.delivery.findStumbles(wordList));
 
     // Slot 0 holds the skips and pauses that go before the first word; slot i + 1 those after
     // word i.
@@ -886,6 +892,8 @@
       };
       if (restartIndexes.has(index)) {
         item.restart = true;
+      } else if (stumbles.has(index)) {
+        item.stumble = true;
       }
       if (misreadWords.has(index)) {
         item.misread = misreadWords.get(index).join(" ");
@@ -1256,10 +1264,10 @@
     return app.tips.select(report, { targetWpm: target });
   }
 
-  // What the two highlight styles mean, then the restart, misread and skip styles each when the
-  // transcript plan shows one, plus the most-used habit when there is one. The link follows the
-  // text after a plain space, which disappears when the link wraps to a new line, so a wrapped
-  // link starts flush with the text above it.
+  // What the two highlight styles mean, then the restart, misread, skip and stumble styles each
+  // when the transcript plan shows one, plus the most-used habit when there is one. The link
+  // follows the text after a plain space, which disappears when the link wraps to a new line, so
+  // a wrapped link starts flush with the text above it.
   function buildLegend(topHabit, plan) {
     const link = app.ui.el("a", { class: "transcript__how", href: HOW_HREF, text: HOW_LINK_TEXT });
     let text = LEGEND_TEXT;
@@ -1274,6 +1282,9 @@
     }
     if (plan.some((item) => item.type === SKIP_ITEM)) {
       text += LEGEND_SKIP_TEXT;
+    }
+    if (plan.some((item) => item.stumble)) {
+      text += LEGEND_STUMBLE_TEXT;
     }
     if (topHabit) {
       const times = topHabit.count === 1 ? " time." : " times.";
@@ -1321,8 +1332,9 @@
 
   // The label uses the bare word, so "Um," reads as "um, filler word" (DESIGN.md section 6).
   // Each mark adds its class and its part of the label, in this order: filler or habit, restart,
-  // misread. So the second "so" of "so so" reads "so, verbal habit, restart", and a misread in a
-  // restarted phrase "needs, restart, misread, script says need". A plain word has no label.
+  // misread, possible stumble. So the second "so" of "so so" reads "so, verbal habit, restart",
+  // a misread in a restarted phrase "needs, restart, misread, script says need", and a word that
+  // ran long "check, possible stumble". A plain word has no label.
   function wordToken(item, id) {
     const classes = ["tok"];
     let label = normalizeWord(item.text);
@@ -1338,6 +1350,10 @@
     if (item.misread) {
       classes.push("tok--misread");
       label += MISREAD_LABEL_SUFFIX + item.misread;
+    }
+    if (item.stumble) {
+      classes.push("tok--stumble");
+      label += STUMBLE_LABEL_SUFFIX;
     }
     if (classes.length === 1) {
       return app.ui.el("span", { class: "tok", id, text: item.text });

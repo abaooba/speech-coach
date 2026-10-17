@@ -1825,6 +1825,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-underline-offset: var(--s-1);
 }
 
+/* A word that ran long enough to hide a small stutter: a hint, not a count, so plain text with a
+   gray dashed underline, quieter than a restart's purple dots and different in style as well as
+   color. Never on a restart word; a misread keeps its wavy line (the rule below wins). */
+.tok--stumble {
+  text-decoration: underline dashed var(--muted);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
 /* A word said in place of a different script word: a wavy underline. It sets no color, so the
    line takes the word's own (text, or a habit's filler color), and on a restart word it keeps
    the restart's --pause and turns its dots wavy; this rule must stay after .tok--restart. */
