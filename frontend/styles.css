@@ -3708,6 +3708,34 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin: 0;
 }
 
+/* The promise card under the lead: the phone-lock icon beside "No account needed." and its body. */
+.onboarding__promise {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  margin-top: var(--s-5);
+  margin-bottom: var(--s-5);
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.onboarding__promise > svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.onboarding__promise-title {
+  margin: 0;
+  font-size: var(--fs-h2);
+  font-weight: 700;
+}
+
+.onboarding__promise-body {
+  margin: var(--s-1) 0 0;
+}
+
 .onboarding__list {
   list-style: none;
   padding: 0;

@@ -157,6 +157,12 @@
       ["polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }],
       ["path", { d: "M15.54 8.46a5 5 0 0 1 0 7.07" }],
     ],
+    // A phone outline with a small lock: takes are saved on the phone, behind no account.
+    "phone-lock": [
+      ["rect", { x: "5", y: "2", width: "14", height: "20", rx: "2" }],
+      ["rect", { x: "9", y: "12", width: "6", height: "5", rx: "1" }],
+      ["path", { d: "M10 12v-1.5a2 2 0 0 1 4 0V12" }],
+    ],
     "rotate-ccw": [
       ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }],
       ["path", { d: "M3 3v5h5" }],
