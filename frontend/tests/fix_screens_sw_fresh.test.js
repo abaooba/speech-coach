@@ -18,7 +18,7 @@ const SW_SOURCE = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
 
 const ORIGIN = "https://speech-coach.test";
 const SW_URL = ORIGIN + "/sw.js";
-const CACHE_NAME = "speech-coach-shell-v4";
+const CACHE_NAME = "speech-coach-shell-v5";
 const DEFAULT_MODE = "default";
 
 // The SHELL array as written in sw.js, so the test follows the list rather than copying it.
