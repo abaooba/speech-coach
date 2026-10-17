@@ -1,6 +1,6 @@
 // Tests for the coach notes half of frontend/tips.js (docs/PLAN.md T41): adviceRequest builds
 // the body of POST /api/advice from a take, parseCoachNotes checks the server's reply, and
-// coachNotes asks once per take through app.auth.request and keeps the answer in app.store flags.
+// coachNotes asks once per take through app.api.postJson and keeps the answer in app.store flags.
 "use strict";
 
 const test = require("node:test");
@@ -30,27 +30,27 @@ function fakeStore(failing) {
   return store;
 }
 
-// A fake app.auth whose request() answers `reply` ({status, body}) or rejects, logging each call.
-function fakeAuth(reply) {
+// A fake app.api whose postJson() answers `reply` ({status, body}) or rejects, logging each call.
+function fakeApi(reply) {
   const calls = [];
   return {
     calls,
-    request: (method, url, body) => {
-      calls.push({ method, url, body: JSON.parse(JSON.stringify(body)) });
+    postJson: (url, body) => {
+      calls.push({ method: "POST", url, body: JSON.parse(JSON.stringify(body)) });
       return reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply);
     },
   };
 }
 
-// A fake app.auth whose requests stay open until the test answers them: answer(index, reply)
+// A fake app.api whose requests stay open until the test answers them: answer(index, reply)
 // settles the index-th request with its {status, body}.
-function heldAuth() {
+function heldApi() {
   const calls = [];
   const settle = [];
   return {
     calls,
-    request: (method, url, body) => {
-      calls.push({ method, url, body: JSON.parse(JSON.stringify(body)) });
+    postJson: (url, body) => {
+      calls.push({ method: "POST", url, body: JSON.parse(JSON.stringify(body)) });
       return new Promise((resolve) => settle.push(resolve));
     },
     answer: (index, reply) => settle[index](reply),
@@ -348,15 +348,15 @@ test("both pure functions return fresh objects and leave their inputs alone", ()
 test("coachNotes asks the server once, keeps the reply and records the ids shown", async () => {
   const store = fakeStore(false);
   store.flags.set("coachNotesShown", ["pause-002", "old-1"]);
-  const auth = fakeAuth({ status: 200, body: REPLY });
-  const tips = load({ store, auth });
+  const api = fakeApi({ status: 200, body: REPLY });
+  const tips = load({ store, api });
 
   const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
   assert.deepEqual(plain(notes), NOTES);
-  assert.equal(auth.calls.length, 1);
-  assert.equal(auth.calls[0].method, "POST");
-  assert.equal(auth.calls[0].url, "/api/advice");
-  assert.deepEqual(auth.calls[0].body, { ...BODY, shown_ids: ["pause-002", "old-1"] });
+  assert.equal(api.calls.length, 1);
+  assert.equal(api.calls[0].method, "POST");
+  assert.equal(api.calls[0].url, "/api/advice");
+  assert.deepEqual(api.calls[0].body, { ...BODY, shown_ids: ["pause-002", "old-1"] });
   assert.deepEqual(store.flags.get("coachNotes:take-1"), REPLY, "the reply, word for word");
   assert.deepEqual(
     store.flags.get("coachNotesShown"),
@@ -369,8 +369,8 @@ test("the library's own words are shown, not kept, and the next visit asks again
   const store = fakeStore(false);
   store.flags.set("coachNotesShown", ["old-1"]);
   const library = replyWith(["lib-1", "lib-2"], "library");
-  const auth = fakeAuth({ status: 200, body: library });
-  const tips = load({ store, auth });
+  const api = fakeApi({ status: 200, body: library });
+  const tips = load({ store, api });
 
   const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Novice");
   assert.equal(notes.source, "library");
@@ -379,18 +379,18 @@ test("the library's own words are shown, not kept, and the next visit asks again
   assert.deepEqual(store.flags.get("coachNotesShown"), ["old-1", "lib-1", "lib-2"]);
 
   await tips.coachNotes(SESSION, REPORT, [140, 160], "Novice");
-  assert.equal(auth.calls.length, 2, "a later visit asks again, when Claude may answer");
-  assert.deepEqual(auth.calls[1].body.shown_ids, ["old-1", "lib-1", "lib-2"]);
+  assert.equal(api.calls.length, 2, "a later visit asks again, when Claude may answer");
+  assert.deepEqual(api.calls[1].body.shown_ids, ["old-1", "lib-1", "lib-2"]);
 });
 
 test("only Claude's notes come back from the flag; anything else there is asked again", async () => {
   const store = fakeStore(false);
   store.flags.set("coachNotes:take-1", { ...REPLY, source: "library" });
-  const auth = fakeAuth({ status: 200, body: REPLY });
-  const tips = load({ store, auth });
+  const api = fakeApi({ status: 200, body: REPLY });
+  const tips = load({ store, api });
 
   const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
-  assert.equal(auth.calls.length, 1);
+  assert.equal(api.calls.length, 1);
   assert.deepEqual(plain(notes), NOTES);
   assert.deepEqual(store.flags.get("coachNotes:take-1"), REPLY, "Claude's reply replaces it");
 });
@@ -398,12 +398,12 @@ test("only Claude's notes come back from the flag; anything else there is asked 
 test("coachNotes answers from the kept reply without a request", async () => {
   const store = fakeStore(false);
   store.flags.set("coachNotes:take-1", REPLY);
-  const auth = fakeAuth({ status: 200, body: { tips: [VALID_TIP], source: "library" } });
-  const tips = load({ store, auth });
+  const api = fakeApi({ status: 200, body: { tips: [VALID_TIP], source: "library" } });
+  const tips = load({ store, api });
 
   const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
   assert.deepEqual(plain(notes), NOTES);
-  assert.equal(auth.calls.length, 0);
+  assert.equal(api.calls.length, 0);
 });
 
 test("coachNotes gives null and keeps nothing when the server sends no notes", async () => {
@@ -420,37 +420,37 @@ test("coachNotes gives null and keeps nothing when the server sends no notes", a
   for (const reply of replies) {
     const store = fakeStore(false);
     store.flags.set("coachNotesShown", ["old-1"]);
-    const auth = fakeAuth(reply);
-    const tips = load({ store, auth });
+    const api = fakeApi(reply);
+    const tips = load({ store, api });
     const notes = await tips.coachNotes(SESSION, REPORT, [140, 160], "Novice");
     assert.equal(notes, null, "null for " + String(reply && reply.status));
-    assert.equal(auth.calls.length, 1);
+    assert.equal(api.calls.length, 1);
     assert.deepEqual([...store.flags.keys()], ["coachNotesShown"], "nothing new kept");
     assert.deepEqual(store.flags.get("coachNotesShown"), ["old-1"]);
   }
 });
 
-test("coachNotes gives null without a store, without auth, or without a take id", async () => {
-  const good = { store: fakeStore(false), auth: fakeAuth({ status: 200, body: REPLY }) };
-  assert.equal(await load({ auth: good.auth }).coachNotes(SESSION, REPORT), null);
+test("coachNotes gives null without a store, without app.api, or without a take id", async () => {
+  const good = { store: fakeStore(false), api: fakeApi({ status: 200, body: REPLY }) };
+  assert.equal(await load({ api: good.api }).coachNotes(SESSION, REPORT), null);
   assert.equal(await load({ store: good.store }).coachNotes(SESSION, REPORT), null);
-  assert.equal(await load({ store: {}, auth: good.auth }).coachNotes(SESSION, REPORT), null);
+  assert.equal(await load({ store: {}, api: good.api }).coachNotes(SESSION, REPORT), null);
   assert.equal(await load(good).coachNotes({ transcript: [] }, REPORT), null);
   assert.equal(await load(good).coachNotes(null, REPORT), null);
-  assert.equal(good.auth.calls.length, 0);
+  assert.equal(good.api.calls.length, 0);
 });
 
 test("an unreadable store means no request; one that cannot write still gives notes", async () => {
   const blocked = fakeStore(true);
-  const auth = fakeAuth({ status: 200, body: REPLY });
-  assert.equal(await load({ store: blocked, auth }).coachNotes(SESSION, REPORT), null);
-  assert.equal(auth.calls.length, 0);
+  const api = fakeApi({ status: 200, body: REPLY });
+  assert.equal(await load({ store: blocked, api }).coachNotes(SESSION, REPORT), null);
+  assert.equal(api.calls.length, 0);
 
   const readOnly = fakeStore(false);
   readOnly.setFlag = () => Promise.reject(new Error("quota"));
-  const notes = await load({ store: readOnly, auth }).coachNotes(SESSION, REPORT);
+  const notes = await load({ store: readOnly, api }).coachNotes(SESSION, REPORT);
   assert.deepEqual(plain(notes), NOTES);
-  assert.equal(auth.calls.length, 1);
+  assert.equal(api.calls.length, 1);
 });
 
 test("the shown list is capped at 2,000 ids, dropping the oldest", async () => {
@@ -459,8 +459,8 @@ test("the shown list is capped at 2,000 ids, dropping the oldest", async () => {
     "coachNotesShown",
     Array.from({ length: 2000 }, (_, i) => "id-" + i),
   );
-  const auth = fakeAuth({ status: 200, body: REPLY });
-  await load({ store, auth }).coachNotes(SESSION, REPORT, [140, 160], "Novice");
+  const api = fakeApi({ status: 200, body: REPLY });
+  await load({ store, api }).coachNotes(SESSION, REPORT, [140, 160], "Novice");
   const shown = store.flags.get("coachNotesShown");
   assert.equal(shown.length, 2000);
   assert.equal(shown[0], "id-2");
@@ -473,22 +473,22 @@ test("two takes asked about at once both land in the shown list", async () => {
   for (const together of [false, true]) {
     const store = fakeStore(false);
     store.flags.set("coachNotesShown", ["old-1"]);
-    const auth = heldAuth();
-    const tips = load({ store, auth });
+    const api = heldApi();
+    const tips = load({ store, api });
     const first = tips.coachNotes({ ...SESSION, id: "take-1" }, REPORT);
     const second = tips.coachNotes({ ...SESSION, id: "take-2" }, REPORT);
     await flush();
     assert.deepEqual(
-      auth.calls.map((call) => call.body.shown_ids),
+      api.calls.map((call) => call.body.shown_ids),
       [["old-1"], ["old-1"]],
       "both requests went out before either reply landed",
     );
 
-    auth.answer(0, { status: 200, body: replyWith(["a-1", "a-2"]) });
+    api.answer(0, { status: 200, body: replyWith(["a-1", "a-2"]) });
     if (!together) {
       await first;
     }
-    auth.answer(1, { status: 200, body: replyWith(["b-1", "b-2"]) });
+    api.answer(1, { status: 200, body: replyWith(["b-1", "b-2"]) });
     await Promise.all([first, second]);
     assert.deepEqual(
       store.flags.get("coachNotesShown"),
@@ -500,34 +500,34 @@ test("two takes asked about at once both land in the shown list", async () => {
 
 test("a take asked about again before its reply lands shares the one request", async () => {
   const store = fakeStore(false);
-  const auth = heldAuth();
-  const tips = load({ store, auth });
+  const api = heldApi();
+  const tips = load({ store, api });
   const first = tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
   const again = tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
   assert.equal(again, first, "the second call gets the request still open");
   await flush();
-  assert.equal(auth.calls.length, 1, "one request, so one AI call");
+  assert.equal(api.calls.length, 1, "one request, so one AI call");
 
-  auth.answer(0, { status: 200, body: REPLY });
+  api.answer(0, { status: 200, body: REPLY });
   assert.deepEqual(plain(await first), NOTES);
   const later = tips.coachNotes(SESSION, REPORT, [140, 160], "Varsity");
   assert.notEqual(later, first, "a request that has landed is not shared");
   assert.deepEqual(plain(await later), NOTES, "Claude's notes come back from the store");
-  assert.equal(auth.calls.length, 1);
+  assert.equal(api.calls.length, 1);
 });
 
 test("a request that failed is not shared: the next visit asks again", async () => {
   const store = fakeStore(false);
-  const auth = heldAuth();
-  const tips = load({ store, auth });
+  const api = heldApi();
+  const tips = load({ store, api });
   const first = tips.coachNotes(SESSION, REPORT);
   await flush();
-  auth.answer(0, { status: 500, body: { detail: "down" } });
+  api.answer(0, { status: 500, body: { detail: "down" } });
   assert.equal(await first, null);
 
   const next = tips.coachNotes(SESSION, REPORT);
   await flush();
-  assert.equal(auth.calls.length, 2);
-  auth.answer(1, { status: 200, body: REPLY });
+  assert.equal(api.calls.length, 2);
+  api.answer(1, { status: 200, body: REPLY });
   assert.deepEqual(plain(await next), NOTES);
 });

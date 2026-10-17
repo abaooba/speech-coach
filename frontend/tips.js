@@ -330,9 +330,8 @@
 
   // The coach notes for one take, or null when there are none to show. Claude's notes, kept here
   // from an earlier visit, come back without a request; otherwise the server is asked, through
-  // app.auth.request so a signed-in speaker's cookie goes along and the server keeps their shown
-  // ids itself. The entry ids it showed are recorded, and its reply is kept for the next visit
-  // when Claude wrote it. While that request is open, another call for the take gets the same
+  // app.api.postJson, sending the shown ids with it. The entry ids it showed are recorded, and
+  // its reply is kept for the next visit when Claude wrote it. While that request is open, another call for the take gets the same
   // promise. A reply that is not notes, no reply, or a store that cannot be read gives null and
   // keeps nothing; notes the store cannot keep are still returned. Never rejects.
   function coachNotes(session, report, targetWpm, tier) {
@@ -360,7 +359,7 @@
       }
       const shown = stringsOf(await app.store.getFlag(SHOWN_FLAG));
       const body = adviceRequest(session, report, targetWpm, tier, shown);
-      const reply = await app.auth.request("POST", ADVICE_URL, body);
+      const reply = await app.api.postJson(ADVICE_URL, body);
       const notes = reply && reply.status === OK ? parseCoachNotes(reply.body) : null;
       if (notes !== null) {
         await keepNotes(id, reply.body, notes);
@@ -371,17 +370,17 @@
     }
   }
 
-  // The store to keep the notes in and the account's request to ask with: both load before this
+  // The store to keep the notes in and the request to ask with: both load before this
   // file in index.html. A context without them (a test that stubs app) simply has no notes.
   function canAskForNotes() {
     const store = app.store;
-    const auth = app.auth;
+    const api = app.api;
     return Boolean(
       store &&
         typeof store.getFlag === "function" &&
         typeof store.setFlag === "function" &&
-        auth &&
-        typeof auth.request === "function",
+        api &&
+        typeof api.postJson === "function",
     );
   }
 

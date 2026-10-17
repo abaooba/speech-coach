@@ -2,7 +2,7 @@
 // cited notes from POST /api/advice take their place when they arrive, a failed request keeps
 // the tips, a slow reply never paints over a newer take, the request names the speaker's tier,
 // and the notes' arrival keeps keyboard focus and is announced. ui.js, delivery.js, tips.js and
-// results.js run for real; app.store, app.auth and the document are fakes.
+// results.js run for real; app.store, app.api and the document are fakes.
 "use strict";
 
 const test = require("node:test");
@@ -121,7 +121,7 @@ function flush() {
 }
 
 // Mounts Results against the fakes. store.get serves `sessions` by id, store.list returns them
-// newest first and counts its calls, flags live in a Map, and auth.request hands each call to
+// newest first and counts its calls, flags live in a Map, and api.postJson hands each call to
 // `reply(call)` for its {status, body}. `withRank` loads rank.js too. `calls.draws` counts the
 // times the take is drawn: every draw empties the body and starts again with the meta line.
 // The section holds the screen's h1 above the body, as index.html does; `focused()` reads the
@@ -151,9 +151,9 @@ function mount(sessions, reply, options) {
           return Promise.resolve();
         },
       },
-      auth: {
-        request: (method, url, body) => {
-          const call = { method, url, body: JSON.parse(JSON.stringify(body)) };
+      api: {
+        postJson: (url, body) => {
+          const call = { method: "POST", url, body: JSON.parse(JSON.stringify(body)) };
           calls.requests.push(call);
           return reply(call);
         },
@@ -460,14 +460,14 @@ test("a take the speaker leaves before its list arrives asks for no notes", asyn
   );
 });
 
-test("without tips.js's coachNotes, or without auth, the screen keeps the tips", async () => {
+test("without tips.js's coachNotes, or without app.api, the screen keeps the tips", async () => {
   const bare = mount([CURRENT], () => ({ status: 200, body: REPLY }));
   delete bare.app.tips.coachNotes;
   await bare.results.show({ id: "current" });
   assert.deepEqual(headingsOf(bare.body), ["Transcript", "Tips"]);
 
   const guestless = mount([CURRENT], () => ({ status: 200, body: REPLY }));
-  delete guestless.app.auth;
+  delete guestless.app.api;
   await guestless.results.show({ id: "current" });
   assert.deepEqual(headingsOf(guestless.body), ["Transcript", "Tips"]);
   assert.equal(guestless.calls.requests.length, 0);

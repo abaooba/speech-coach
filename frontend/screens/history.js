@@ -1,8 +1,7 @@
 /* screens/history.js: app.screens.history (DESIGN.md sections 1, 6 and 9), one row per session:
    formatStats(session) ("152 wpm · 3.1 /min") and the pure statusFor(summary) ("On target").
    A tap reopens Results; the trash button asks "Delete? Yes / No" in place, one row at a time.
-   It deletes nothing before Yes and computes no metric itself (app.screens.results.summarize).
-   Once the server has ended this device's account session, a note above the rows says so. */
+   It deletes nothing before Yes and computes no metric itself (app.screens.results.summarize). */
 (function () {
   "use strict";
 
@@ -40,12 +39,6 @@
   const YES_LABEL = "Yes";
   const NO_LABEL = "No";
   const DELETED_ANNOUNCEMENT = "Session deleted";
-
-  // The account's takes still show once the server has ended this device's session (a 401, as
-  // after 30 days), but nothing syncs until the speaker logs in again from the header's Account
-  // link (docs/PLAN.md T49).
-  const SESSION_ENDED_NOTE =
-    "Your session has ended. Log in again from Account to sync your takes.";
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -121,8 +114,6 @@
   // Loads the sessions and paints them, unless a newer show() started while the store was read.
   async function draw(ticket) {
     const sessions = await loadSessions();
-    // Asked after the list, which may itself be what learned that the session ended.
-    const sessionEnded = await accountSessionEnded();
     if (ticket !== showCount) {
       return;
     }
@@ -131,24 +122,6 @@
       renderEmpty();
     } else {
       renderList(sessions);
-    }
-    if (sessionEnded) {
-      const note = app.ui.el("p", { class: "history__note", text: SESSION_ENDED_NOTE });
-      body.insertBefore(note, body.firstChild);
-    }
-  }
-
-  // Whether the server has ended this device's account session (app.auth.syncStatus); false
-  // without app.auth, or when it cannot tell.
-  async function accountSessionEnded() {
-    if (!app.auth || typeof app.auth.syncStatus !== "function") {
-      return false;
-    }
-    try {
-      const status = await app.auth.syncStatus();
-      return Boolean(status && status.endedSession);
-    } catch {
-      return false;
     }
   }
 
