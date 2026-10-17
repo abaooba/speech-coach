@@ -39,6 +39,9 @@
   const YES_LABEL = "Yes";
   const NO_LABEL = "No";
   const DELETED_ANNOUNCEMENT = "Session deleted";
+  // The flags kept about one take, "<prefix><take id>": its coach notes (tips.js) and its
+  // grammar check (language.js). Both hold parts of the transcript, so they go with the take.
+  const TAKE_FLAG_PREFIXES = ["coachNotes:", "languageCheck:"];
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -289,10 +292,11 @@
     return app.ui.el("span", attrs, [CONFIRM_PROMPT, yes, no]);
   }
 
-  // Deletes the session, then redraws the list from the store. When the delete fails, the
-  // redraw still runs and shows the row where it was, which is the truth about what is stored,
-  // and nothing is announced. Focus moves to the row now in that place, or to the empty state's
-  // action, unless a newer show() started meanwhile.
+  // Deletes the session, and with it the flags kept about it, then redraws the list from the
+  // store. When the delete fails, the redraw still runs and shows the row where it was, which is
+  // the truth about what is stored, the flags stay with it and nothing is announced. Focus moves
+  // to the row now in that place, or to the empty state's action, unless a newer show() started
+  // meanwhile.
   async function removeSession(session, index) {
     let removed = false;
     try {
@@ -301,6 +305,9 @@
     } catch {
       // Nothing extra to show: the redraw below reflects whatever the store still holds.
     }
+    if (removed) {
+      await forgetFlagsOf(session.id);
+    }
     const ticket = ++showCount;
     await draw(ticket);
     if (ticket === showCount) {
@@ -308,6 +315,22 @@
     }
     if (removed) {
       app.ui.announce(DELETED_ANNOUNCEMENT);
+    }
+  }
+
+  // Deletes the flags that hold parts of a take's transcript: its coach notes (tips.js
+  // NOTES_FLAG_PREFIX) and its grammar check (language.js FLAG_PREFIX). A flag that cannot be
+  // deleted stays, unread, since no take has its id any more.
+  async function forgetFlagsOf(id) {
+    if (typeof app.store.setFlag !== "function") {
+      return;
+    }
+    for (const prefix of TAKE_FLAG_PREFIXES) {
+      try {
+        await app.store.setFlag(prefix + id, undefined);
+      } catch {
+        // Nothing to show: the take itself is gone.
+      }
     }
   }
 

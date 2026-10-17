@@ -195,8 +195,12 @@
     return record === undefined ? undefined : record.value;
   }
 
+  // Keeps `value` under `key`; setFlag(key, undefined) deletes the flag (History does so for a
+  // deleted take's coachNotes:<id> and languageCheck:<id>), and getFlag then reads undefined.
   async function setFlag(key, value) {
-    await run(FLAGS_STORE, WRITE, (store) => store.put({ key, value }));
+    await run(FLAGS_STORE, WRITE, (store) =>
+      value === undefined ? store.delete(key) : store.put({ key, value }),
+    );
   }
 
 
