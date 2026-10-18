@@ -336,9 +336,9 @@ keyboard.
 
 1. Talk and Read: Practice opens on the Talk tab with "About you 1:00" selected. The chips
    read "About you 1:00", "Impromptu 2:00", "Interview answer 1:30", "Explain something 2:00"
-   and "Tell a story 2:00", and the card shows "Talk about the best part of your day and why it
-   stood out." Tap "New topic" at the card's top right: the next topic shows, and after the
-   eighth the first comes back. Every prompt has eight topics. Tap "Read": the chips become the
+   and "Tell a story 2:00", and the card shows "Talk about something you are looking forward to
+   this week." Tap "New topic" at the card's top right: the next topic shows, and after the
+   last the first comes back. About you has 29 topics and every other prompt has 25. Tap "Read": the chips become the
    six passages (no times), starting with "Explainer: how rainbows form" and "Story: the wrong
    train", and the card shows the passage
    and New topic is gone. Tap "Talk": "About you" is still selected, on the topic you left.

@@ -888,7 +888,7 @@ test("a talk's material is its prompt, on a topic pickTopic picks", () => {
   for (const id of ["fillers-3", "fillers-5", "long-pauses-1_checkback", "fillers_checkpoint"]) {
     const material = plain(PATH.materialFor(id, [], () => 0.99));
     assert.equal(material.id, "impromptu", id);
-    assert.equal(material.topic, topicsOf("impromptu")[7], id);
+    assert.equal(material.topic, topicsOf("impromptu").at(-1), id);
     assert.equal(material.text, material.topic, id);
   }
   assert.equal(PATH.materialFor("fillers_crown", [], () => 0).id, "free-talk");
@@ -933,10 +933,10 @@ test("pickTopic hands out a topic no take has used, drawn with the random source
     assert.equal(PATH.pickTopic([], "impromptu", () => draw), topic);
   });
   const used = topics.slice(0, -1).map((topic, index) =>
-    talkOn(topic, `2026-10-12T10:0${index}:00.000Z`),
+    talkOn(topic, `2026-10-12T10:${String(index).padStart(2, "0")}:00.000Z`),
   );
   for (const draw of [0, 0.5, 0.999]) {
-    assert.equal(PATH.pickTopic(used, "impromptu", () => draw), topics[7], String(draw));
+    assert.equal(PATH.pickTopic(used, "impromptu", () => draw), topics.at(-1), String(draw));
   }
 });
 
