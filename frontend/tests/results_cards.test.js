@@ -254,7 +254,7 @@ test("every figure on Results uses tabular numbers, hints and headline included"
 const WIDE_WINDOW = "@media (min-width: 1024px)";
 const BODY = "#screen-results > .screen__body";
 
-test("from 1024px Results is two columns that break at Words to check or the Transcript", () => {
+test("from 1024px Results is two columns that break at the Transcript heading", () => {
   assert.equal(ruleFor(BODY, WIDE_WINDOW).columns, "2");
   assert.equal(ruleFor(BODY, WIDE_WINDOW)["column-gap"], "var(--s-6)");
   assert.equal(
@@ -268,11 +268,6 @@ test("from 1024px Results is two columns that break at Words to check or the Tra
   const heading = ruleFor(BODY + " > .transcript__heading", WIDE_WINDOW);
   assert.equal(heading["break-before"], "column");
   assert.equal(heading["margin-top"], "0");
-  const words = ruleFor(BODY + " > .words-check", WIDE_WINDOW);
-  assert.equal(words["break-before"], "column", "Words to check heads the right column");
-  assert.equal(words["margin-top"], "0");
-  const after = ruleFor(BODY + " > .words-check + .transcript__heading", WIDE_WINDOW);
-  assert.equal(after["break-before"], "auto", "then the Transcript heading stays under it");
   assert.equal(ruleFor(BODY + " > *", WIDE_WINDOW)["break-inside"], "avoid");
   assert.equal(
     ruleFor(BODY + " > .transcript", WIDE_WINDOW)["break-inside"],

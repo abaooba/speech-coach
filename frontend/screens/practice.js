@@ -1,15 +1,26 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
    mount() builds the Talk / Read switch, chips, card, timer, record button, hint (with Talk's
-   script box) and state block once; render(state, detail) repaints them. Stop uploads the
-   take with its script (a Read passage's text, or the one pasted on Talk) through app.api and
-   saves it with app.store, with the topic it was given. In level mode (startLevelTake, spec
-   docs/superpowers/specs/2026-10-14-loop-path.md section 7) a banner stands in for the switch
-   and the chips, and the saved take goes back to the Level screen instead of Results. It never
-   asks for the microphone before a Record tap, and never stores audio. */
+   script box) and state block once; render(state, detail) repaints them. Stop hands the take,
+   with its script (a Read passage's text, or the one pasted on Talk), to a background job that
+   sends it through app.api and saves it with app.store, with the topic it was given; the job
+   reports on the top banner (app.ui.banner) while the speaker records another take or visits
+   any screen; Results opens when the take is saved if Practice still waits in idle, else from
+   the banner's "See results". In level mode (startLevelTake, spec
+   docs/superpowers/specs/2026-10-14-loop-path.md section 7) a level banner stands in for the
+   switch and the chips, the take uploads in place, and the saved take goes back to the Level
+   screen instead of Results. It never asks for the microphone before a Record tap, and never
+   stores audio. */
 (function () {
   "use strict";
 
   const STATES = ["idle", "recording", "uploading", "error"];
+
+  // How settle() reports on a take, and a background job's status once it is not "working".
+  const SAVED = "saved";
+  const READY = "ready";
+  const WORKING = "working";
+  const FAILED = "failed";
+  const TOO_SHORT = "too_short";
 
   // The mode switch's tabs, in order: Talk lists the prompts and Read the passages.
   const MODES = [
@@ -73,6 +84,9 @@
   const TIMER_TICK_MS = 250;
   const ANNOUNCE_EVERY_SECONDS = 30;
   const MIN_TAKE_SECONDS = 5;
+  // After Stop the button reads Record at once, in the same place. A bouncing thumb or a double
+  // tap would start a new take, so record taps are ignored for this long after a Stop.
+  const STOP_GRACE_MS = 500;
 
   // Fixed copy for the error blocks this screen shows (DESIGN.md section 8). The too-short
   // and upload sentences live in app.api.messages so each exists exactly once.
@@ -99,6 +113,19 @@
   const STARTED_ANNOUNCEMENT = "Recording started";
   const STOPPED_ANNOUNCEMENT = "Recording stopped, ";
   const RESULTS_READY_ANNOUNCEMENT = "Results ready";
+
+  // The top banner's copy for a take analyzed in the background (DESIGN.md section 8). With one
+  // take the lines name it by its length ("Your 0:42 take"), so the speaker who has recorded
+  // another knows which one is meant; with more the counts stand in.
+  const BANNER_TAKE_PREFIX = "Your ";
+  const BANNER_TAKE_SUFFIX = " take";
+  const BANNER_WORKING_MANY_PREFIX = "Analyzing ";
+  const BANNER_WORKING_MANY_SUFFIX = " takes";
+  const BANNER_WORKING_BODY_EACH = "Usually 5 to 15 seconds each.";
+  const BANNER_READY_BODY_SUFFIX = " is ready to read.";
+  const BANNER_READY_MANY_SUFFIX = " takes ready";
+  const BANNER_READY_MANY_BODY = "See results opens the oldest first.";
+  const BANNER_READY_ACTION = "See results";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
   const MIC_ICON_SIZE = "28";
@@ -139,6 +166,16 @@
   // True from the router's show() until its hide(): Practice is the screen on show. A request
   // that comes meanwhile is painted at once, since the router has nothing new to show for it.
   let shown = false;
+
+  // True from openResults() until the router's hide() or show(): the hash points at Results,
+  // but the hashchange that hides Practice has not run yet. A second take saved in that moment
+  // waits in the banner instead of opening over the first.
+  let leavingForResults = false;
+
+  // The clock's reading when the last normal take stopped and the button turned back into
+  // Record in place, for the grace on record taps; null until then. A level take's button
+  // hides at Stop, so it needs none.
+  let stoppedAt = null;
 
   // The clock's seconds, to a tenth, at each "Heard one" tap during the take recording now.
   let liveTaps = [];
@@ -194,9 +231,10 @@
     pausesStarted: false,
   };
 
-  // The finished take, kept through uploading and error so Retry re-sends the same blob. Once the
+  // A level take, kept through uploading and error so Retry re-sends the same blob. Once the
   // backend's analysis is back it is kept here too, and so is the session once it is judged, so
-  // Retry repeats only the step that failed.
+  // Retry repeats only the step that failed. A normal take never lands here: it goes to a
+  // background job at Stop (startJob).
   let pendingTake = null;
 
   // The Upload failed block's detail, kept with its take. The block says the recording is still
@@ -829,8 +867,8 @@
     }
     // Either block's title can take focus from script (tabindex -1) but is never a Tab stop. The
     // error block replaces the button that had focus, so focus moves to its title; the block's
-    // role="alert" already speaks it, and nothing is announced on top of that. upload() decides
-    // for the loading title.
+    // role="alert" already speaks it, and nothing is announced on top of that. uploadInPlace()
+    // decides for the loading title.
     const title = stateTitle();
     if (!title) {
       return;
@@ -914,11 +952,13 @@
     }
   }
 
-  // Coming back to the screen starts a fresh take at 0:00 unless one is already in flight, or a
-  // failed upload still holds its take: then its Upload failed block is drawn again, clock and
-  // all, whether the upload failed before the speaker left or while they were away.
+  // Coming back to the screen starts a fresh take at 0:00 unless a level take is already in
+  // flight, or a failed level upload still holds its take: then its Upload failed block is drawn
+  // again, clock and all, whether the upload failed before the speaker left or while they were
+  // away. A take analyzed in the background is the banner's business, not this screen's.
   function show() {
     shown = true;
+    leavingForResults = false;
     if (state === "recording" || state === "uploading") {
       return;
     }
@@ -934,12 +974,13 @@
   }
 
   // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer and pause
-  // sampler go and drop the take. An upload in flight keeps going, and a failed upload keeps its
-  // take; show() will find either. A level request goes too, unless such a take still answers
-  // it: the Level screen asks again when the speaker goes back to it, and a later visit to
-  // Practice is a normal one.
+  // sampler go and drop the take. A level upload in flight keeps going, and a failed one keeps
+  // its take; show() will find either. A level request goes too, unless such a take still
+  // answers it: the Level screen asks again when the speaker goes back to it, and a later visit
+  // to Practice is a normal one. Background jobs run on regardless.
   function hide() {
     shown = false;
+    leavingForResults = false;
     capture.awaitingMic = false;
     if (pendingTake === null) {
       levelRequest = null;
@@ -952,9 +993,10 @@
   }
 
   // The Level screen's way in (spec section 7): hold the request and go to #/practice, where
-  // show() paints it. A take still held from before (a failed upload) is let go, since the
-  // request asks for a new take; an upload already in flight still answers the request it was
-  // recorded under, while Practice holds the new one. When Practice is already on show (the
+  // show() paints it. A level take still held from before (a failed upload) is let go, since
+  // the request asks for a new take; a level upload already in flight still answers the request
+  // it was recorded under, while Practice holds the new one. A normal take's job is the
+  // banner's and runs on. When Practice is already on show (the
   // request comes from onSaved or onLeave, say), going to #/practice changes no hash and the
   // router calls no show(), so the request is painted here.
   function startLevelTake(request) {
@@ -1070,7 +1112,7 @@
       stopTake();
       return;
     }
-    if (state === "uploading" || capture.awaitingMic) {
+    if (state === "uploading" || capture.awaitingMic || withinStopGrace()) {
       return;
     }
     capture.awaitingMic = true;
@@ -1157,7 +1199,7 @@
     // Like the script, the topic and the level request are fixed at Stop, so Retry saves and
     // hands back the take as it was recorded, with the taps it was given.
     const passage = shownEntry();
-    pendingTake = {
+    const take = {
       blob: new Blob(chunks, { type: contentType }),
       contentType,
       durationSeconds: toTenth(durationSeconds),
@@ -1172,7 +1214,18 @@
       analysis: null,
       session: null,
     };
-    upload();
+    if (take.request === null) {
+      // A normal take leaves the screen here: Practice is back in idle at 0:00 for the next one
+      // while the banner reports on this one. Focus on Stop stays on the button, now Record,
+      // which ignores a bounce for STOP_GRACE_MS.
+      stoppedAt = performance.now();
+      resetClock();
+      render("idle");
+      startJob(take);
+      return;
+    }
+    pendingTake = take;
+    uploadInPlace();
   }
 
   // The text the take was read from, fixed at Stop so Retry re-sends the same: a Read
@@ -1192,7 +1245,7 @@
   }
 
   // The Too short block, after a Stop under 5 seconds or when the backend heard under 5 seconds
-  // of speech. Either way nothing is left to re-send, so its one action goes back to idle.
+  // of a level take. Either way nothing is left to re-send, so its one action goes back to idle.
   function showTooShort() {
     render("error", {
       title: TOO_SHORT_TITLE,
@@ -1234,14 +1287,47 @@
     stream.getTracks().forEach((track) => track.stop());
   }
 
-  // Sends the pending take, saves the session and hands off: a plain take to Results, a level
-  // take back to the Level screen (handBack). "Retry upload" calls this again for the same take.
-  // The analysis, a level take's judging and the save can each fail into the Upload failed
-  // block, and each step that succeeded stays with the take: Retry sends the same blob again
-  // only when no analysis came back, and never judges a take twice. The hand-off runs once the
-  // take is saved, so it is never repeated. The block's sentence is fixed copy, apart from the
-  // store's own while another tab blocks its upgrade (saveFailureSentence).
-  async function upload() {
+  // The three steps every take goes through, each kept on the take once it succeeds so a retry
+  // repeats only the step that failed: the backend's analysis, the session (a level take's
+  // judge runs in sessionFor) and the save. Resolves {outcome: "saved", id}, {outcome:
+  // "too_short"} when the backend answered 400 (the same blob would fail again and cost a
+  // provider call on every retry), or {outcome: "failed", sentence} with the fixed sentence
+  // for the Upload failed detail. Retry sends the same blob again only when no analysis came
+  // back, and never judges a take twice.
+  async function settle(take) {
+    if (take.analysis === null) {
+      try {
+        take.analysis = await analysisOf(take);
+      } catch (error) {
+        if (error && error.kind === "too_short") {
+          return { outcome: TOO_SHORT };
+        }
+        return { outcome: FAILED, sentence: analysisFailureSentence(error) };
+      }
+    }
+    if (take.session === null) {
+      try {
+        take.session = sessionFor(take, take.analysis.transcript, take.analysis.metrics);
+      } catch {
+        // The judge threw. Whatever it threw, the sentence reads as for an unknown failure on
+        // our side, and the speaker's recording is still here for Retry.
+        return { outcome: FAILED, sentence: app.api.messages.provider };
+      }
+    }
+    try {
+      return { outcome: SAVED, id: await app.store.save(take.session) };
+    } catch (error) {
+      return { outcome: FAILED, sentence: saveFailureSentence(error) };
+    }
+  }
+
+  // Settles the pending level take on this screen and hands it back to the Level screen
+  // (handBack). "Retry upload" calls this again for the same take. A failure lands in the
+  // Upload failed block, a backend 400 in Too short, with the take dropped as after "Record a
+  // new take" and its clock back to 0:00 (the take ran at least 5 seconds, and idle showing
+  // that after Record again would contradict the block's "under 5 seconds"). The hand-off runs
+  // once the take is saved, so it is never repeated.
+  async function uploadInPlace() {
     const take = pendingTake;
     if (take === null) {
       return;
@@ -1255,56 +1341,228 @@
     if (focusInRecordZone) {
       focusIfPossible(stateTitle());
     }
-    if (take.analysis === null) {
-      try {
-        take.analysis = await analysisOf(take);
-      } catch (error) {
-        if (error && error.kind === "too_short") {
-          // The backend answered 400: the same blob would fail again and cost a provider call
-          // on every tap, so the take goes, as after "Record a new take", and Retry is never
-          // offered. Its clock goes back to 0:00 too: the take ran at least 5 seconds, and idle
-          // showing that after Record again would contradict the block's "under 5 seconds".
-          letTakeGo();
-          resetClock();
-          showTooShort();
-          return;
-        }
-        showUploadFailed(analysisFailureSentence(error));
-        return;
-      }
+    const result = await settle(take);
+    if (result.outcome === TOO_SHORT) {
+      letTakeGo();
+      resetClock();
+      showTooShort();
+      return;
     }
-    if (take.session === null) {
-      try {
-        take.session = sessionFor(take, take.analysis.transcript, take.analysis.metrics);
-      } catch {
-        // The judge threw. Whatever it threw, the block reads as for an unknown failure on our
-        // side, and the speaker's recording is still here for Retry.
-        showUploadFailed(app.api.messages.provider);
-        return;
-      }
-    }
-    let id = null;
-    try {
-      id = await app.store.save(take.session);
-    } catch (error) {
-      showUploadFailed(saveFailureSentence(error));
+    if (result.outcome === FAILED) {
+      showUploadFailed(result.sentence);
       return;
     }
     const session = take.session;
     letTakeGo();
     resetClock();
-    if (take.request !== null) {
-      handBack(take, id, session);
+    handBack(take, result.id, session);
+  }
+
+  // --- takes analyzed in the background ---
+
+  // A normal take leaves the screen at Stop. It is settled here while Practice is free for
+  // another take and the nav for any screen, and the top banner (app.ui.banner) reports on it
+  // over every screen. A level take stays in place instead (uploadInPlace), since the Level
+  // screen waits on it. Each job is {take, status, id, sentence}: status "working" until the
+  // save, "ready" once saved while Practice was busy or away, "failed" with the Upload failed
+  // sentence, or "too_short" when the backend turned the take down. A job leaves the list when
+  // Results opens for it, "Record a new take" drops it, or "Record again" dismisses Too short.
+  const jobs = [];
+
+  function startJob(take) {
+    const job = { take, status: WORKING, id: null, sentence: null };
+    jobs.push(job);
+    paintBanner();
+    runJob(job);
+  }
+
+  // Settles the job's take. A take saved while Practice waits in idle, in normal mode, opens
+  // Results at once, as the speaker who waited for it expects; one saved while a take records,
+  // the microphone prompt is open, the sample loads, an error block shows, a level is on,
+  // another screen is open, or Results is already opening for an earlier take waits in the
+  // banner for "See results", so nothing is pulled from under the speaker. Once saved the
+  // audio has no further use and is let go; the job keeps only its id.
+  async function runJob(job) {
+    const result = await settle(job.take);
+    if (!jobs.includes(job)) {
+      // Dropped while it ran ("Record a new take"): nothing is shown for it.
       return;
     }
-    app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
-    render("idle");
-    // A take just recorded gets the coach's sheet on Results; one opened again never does.
+    if (result.outcome === SAVED) {
+      job.id = result.id;
+      job.take.blob = null;
+      if (practiceWaitsIdle()) {
+        openResults(job);
+        return;
+      }
+      job.status = READY;
+      app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
+    } else if (result.outcome === TOO_SHORT) {
+      job.status = TOO_SHORT;
+    } else {
+      job.status = FAILED;
+      job.sentence = result.sentence;
+    }
+    paintBanner();
+  }
+
+  // True while Practice is on show in idle, in normal mode, with nothing underway: no
+  // microphone prompt open, no sample loading, and no Results route already on its way.
+  function practiceWaitsIdle() {
+    return (
+      shown &&
+      !leavingForResults &&
+      state === "idle" &&
+      levelRequest === null &&
+      !capture.awaitingMic &&
+      !loadingSample
+    );
+  }
+
+  // "Retry upload" on the banner: the same take, from the step that failed. Each banner action
+  // first checks its job is still listed, so a button already detached by a repaint does
+  // nothing.
+  function retryJob(job) {
+    if (!jobs.includes(job)) {
+      return;
+    }
+    job.status = WORKING;
+    job.sentence = null;
+    paintBanner();
+    runJob(job);
+  }
+
+  // "Record a new take" after a failed job, or "Record again" after a too-short one: the take
+  // goes, and so does the banner's word on it, and Practice opens for the next take. On
+  // Practice already, the route changes nothing (or, from the empty home hash, shows it again
+  // in idle), so focus that the banner held moves to the record button, as after an error
+  // block's action; elsewhere the route's own focus rule places it.
+  function dropJob(job) {
+    if (!jobs.includes(job)) {
+      return;
+    }
+    const fromBanner = app.ui.banner.holdsFocus();
+    forgetJob(job);
+    app.router.go(PRACTICE_ROUTE);
+    if (shown && fromBanner) {
+      focusIfPossible(nodes.recordButton);
+    }
+  }
+
+  // Opens Results for a saved take: from runJob while Practice waits in idle, with "Results
+  // ready" said as it goes (a take that waited in the banner was announced when it turned
+  // ready), or from the banner's "See results". A take just recorded gets the coach's sheet on
+  // Results; one opened again never does.
+  function openResults(job) {
+    if (!jobs.includes(job)) {
+      return;
+    }
+    forgetJob(job);
+    if (shown) {
+      leavingForResults = true;
+      if (state === "idle") {
+        app.ui.announce(RESULTS_READY_ANNOUNCEMENT);
+      }
+    }
     const results = app.screens.results;
     if (results && typeof results.markFresh === "function") {
-      results.markFresh(id);
+      results.markFresh(job.id);
     }
-    app.router.go("results", { id });
+    app.router.go("results", { id: job.id });
+  }
+
+  function forgetJob(job) {
+    const index = jobs.indexOf(job);
+    if (index !== -1) {
+      jobs.splice(index, 1);
+    }
+    paintBanner();
+  }
+
+  // The banner says one thing about the jobs, in this order: the oldest failed job (its Upload
+  // failed sentence, "Retry upload" and "Record a new take"), the oldest too-short one ("Record
+  // again"), the ready ones ("See results" opens the oldest), the working ones; with no job it
+  // is down. A failure comes first because it is the one that needs the speaker. A new title
+  // is said through the live region (app.ui.announce), since the strip itself is no live
+  // region: it enters the page already filled, and is hidden while a take records, so a
+  // screen reader could not be trusted to read it.
+  function paintBanner() {
+    const banner = app.ui.banner;
+    if (!banner) {
+      return;
+    }
+    const before = banner.current();
+    const failed = jobs.find((job) => job.status === FAILED);
+    const tooShort = jobs.find((job) => job.status === TOO_SHORT);
+    const ready = jobs.filter((job) => job.status === READY);
+    const working = jobs.filter((job) => job.status === WORKING);
+    if (failed) {
+      banner.show({
+        kind: "failed",
+        title: UPLOAD_FAILED_TITLE,
+        body: failed.sentence,
+        actions: [
+          { label: UPLOAD_FAILED_ACTION, onClick: () => retryJob(failed) },
+          { label: NEW_TAKE_ACTION, onClick: () => dropJob(failed) },
+        ],
+      });
+    } else if (tooShort) {
+      banner.show({
+        kind: "failed",
+        title: TOO_SHORT_TITLE,
+        body: app.api.messages.too_short,
+        actions: [{ label: TOO_SHORT_ACTION, onClick: () => dropJob(tooShort) }],
+      });
+    } else if (ready.length > 0) {
+      banner.show({
+        kind: "ready",
+        title: readyTitle(ready.length),
+        body: readyBody(ready[0].take, ready.length),
+        actions: [{ label: BANNER_READY_ACTION, onClick: () => openResults(ready[0]) }],
+      });
+    } else if (working.length > 0) {
+      banner.show({
+        kind: "working",
+        title: workingTitle(working.length),
+        body: workingBody(working[0].take, working.length),
+      });
+    } else {
+      banner.hide();
+    }
+    const after = banner.current();
+    if (after !== null && after.title !== RESULTS_READY_ANNOUNCEMENT && !sameTitle(before, after)) {
+      app.ui.announce(after.title);
+    }
+  }
+
+  // "Results ready" is said by runJob and openResults, where its timing is known; every other
+  // banner title is said here when it changes.
+  function sameTitle(before, after) {
+    return before !== null && before.title === after.title;
+  }
+
+  // "Your 0:42 take", from the length the clock showed at Stop.
+  function takeName(take) {
+    return BANNER_TAKE_PREFIX + app.ui.formatClock(take.durationSeconds) + BANNER_TAKE_SUFFIX;
+  }
+
+  function workingTitle(count) {
+    if (count === 1) {
+      return LOADING_TITLE;
+    }
+    return BANNER_WORKING_MANY_PREFIX + count + BANNER_WORKING_MANY_SUFFIX;
+  }
+
+  function workingBody(take, count) {
+    return count === 1 ? takeName(take) + ". " + LOADING_BODY : BANNER_WORKING_BODY_EACH;
+  }
+
+  function readyTitle(count) {
+    return count === 1 ? RESULTS_READY_ANNOUNCEMENT : count + BANNER_READY_MANY_SUFFIX;
+  }
+
+  function readyBody(take, count) {
+    return count === 1 ? takeName(take) + BANNER_READY_BODY_SUFFIX : BANNER_READY_MANY_BODY;
   }
 
   // The backend's analysis of the take: its transcript, and its metrics with the pause samples
@@ -1337,14 +1595,14 @@
     return message === STORE_BLOCKED_SENTENCE ? STORE_BLOCKED_SENTENCE : app.api.messages.provider;
   }
 
-  // The Upload failed block, with Retry and "Record a new take". It is kept with its take, so
-  // show() can draw it again after the speaker leaves Practice and comes back.
+  // The Upload failed block for a level take, with Retry and "Record a new take". It is kept
+  // with its take, so show() can draw it again after the speaker leaves Practice and comes back.
   function showUploadFailed(sentence) {
     failedUpload = {
       title: UPLOAD_FAILED_TITLE,
       body: sentence,
       actionLabel: UPLOAD_FAILED_ACTION,
-      onAction: upload,
+      onAction: uploadInPlace,
       secondaryLabel: NEW_TAKE_ACTION,
       onSecondary: dropTake,
     };
@@ -1446,6 +1704,11 @@
 
   function elapsedSeconds() {
     return (performance.now() - capture.startedAt) / 1000;
+  }
+
+  // True within STOP_GRACE_MS of the last Stop, when a tap on the button is a bounce.
+  function withinStopGrace() {
+    return stoppedAt !== null && performance.now() - stoppedAt < STOP_GRACE_MS;
   }
 
   // Seconds to a tenth, as a take's duration and its live taps are kept.

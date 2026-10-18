@@ -1,8 +1,8 @@
 /* ui.js: app.ui, the DOM helpers every screen builds from. el() builds elements node by node
    (never from markup strings), icon() draws the shared SVG icons, renderState() builds the empty /
-   error / loading blocks, announce() writes the live region, speak() says a word with the phone's
-   built-in voice, the format helpers turn seconds and dates into text, and the theme helpers keep
-   the Auto / Dark / Light choice in localStorage. */
+   error / loading blocks, announce() writes the live region, banner paints the strip at the top
+   of the page for a take analyzed in the background, the format helpers turn seconds and dates
+   into text, and the theme helpers keep the Auto / Dark / Light choice in localStorage. */
 (function () {
   "use strict";
 
@@ -153,10 +153,6 @@
       ["path", { d: "m13 17 3 3 5-6" }],
     ],
     "chevron-down": [["path", { d: "m6 9 6 6 6-6" }]],
-    speaker: [
-      ["polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }],
-      ["path", { d: "M15.54 8.46a5 5 0 0 1 0 7.07" }],
-    ],
     // A phone outline with a small lock: takes are saved on the phone, behind no account.
     "phone-lock": [
       ["rect", { x: "5", y: "2", width: "14", height: "20", rx: "2" }],
@@ -168,11 +164,6 @@
       ["path", { d: "M3 3v5h5" }],
     ],
   });
-
-  // The phone's built-in voice says a word or a sentence the way it is usually said: US English,
-  // a little slower than its default, so a learner can hear each sound.
-  const SPEECH_LANG = "en-US";
-  const SPEECH_RATE = 0.85;
 
   // The theme is the one setting kept in localStorage, because it must apply before the first
   // paint. THEMES is also the toggle's cycle order. "auto" leaves the device setting in charge.
@@ -366,61 +357,6 @@
     }
   }
 
-  // True when this browser has a built-in voice to speak with (speechSynthesis and its
-  // utterance). Where it has none, nothing offers to say a word aloud.
-  function canSpeak() {
-    const synth = globalThis.speechSynthesis;
-    return (
-      Boolean(synth) &&
-      typeof synth.speak === "function" &&
-      typeof synth.cancel === "function" &&
-      typeof globalThis.SpeechSynthesisUtterance === "function"
-    );
-  }
-
-  // Says `text` with the built-in voice, cutting off anything it was still saying. `onDone`, when
-  // given, runs once the voice ends or fails. False when there is no voice or it refused.
-  function speak(text, onDone) {
-    if (!canSpeak()) {
-      return false;
-    }
-    try {
-      const synth = globalThis.speechSynthesis;
-      synth.cancel();
-      const utterance = new globalThis.SpeechSynthesisUtterance(String(text));
-      utterance.lang = SPEECH_LANG;
-      utterance.rate = SPEECH_RATE;
-      const voice = deviceVoice(synth);
-      if (voice !== null) {
-        utterance.voice = voice;
-      }
-      if (typeof onDone === "function") {
-        utterance.onend = onDone;
-        utterance.onerror = onDone;
-      }
-      synth.speak(utterance);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // An English voice that runs on the device (localService), US English first, or null: a
-  // desktop browser may also offer network voices, which send the text to a speech service, and
-  // the app never picks one. With none on the device the browser's default speaks.
-  function deviceVoice(synth) {
-    const listed = typeof synth.getVoices === "function" ? synth.getVoices() : [];
-    const local = (Array.isArray(listed) ? listed : []).filter(
-      (voice) => voice && voice.localService === true && typeof voice.lang === "string",
-    );
-    const english = local.filter((voice) => /^en\b/i.test(voice.lang));
-    return (
-      english.find((voice) => voice.lang.replace("_", "-").toLowerCase() === "en-us") ||
-      english[0] ||
-      null
-    );
-  }
-
   function formatClock(seconds) {
     const whole = Math.max(0, Math.floor(Number(seconds) || 0));
     const minutes = Math.floor(whole / 60);
@@ -518,13 +454,169 @@
     return index === -1 ? AUTO_THEME : THEMES[(index + 1) % THEMES.length];
   }
 
+  // --- the banner (DESIGN.md section 6, "Banner") ---
+
+  // One strip at the top of every screen, over the page, for a take analyzed in the background
+  // (Practice puts it up at Stop and takes it down when Results opens). Practice decides what it
+  // says, and says it through announce(); this only paints it. A kind picks its color and icon:
+  // "working" the accent with the spinner, "ready" green with the check, "failed" red with the
+  // alert triangle. Its actions are secondary buttons: the one primary button stays the
+  // screen's own. The strip's height goes to the page as --banner-h (0px while it is down), so
+  // Practice's one-screen column and the page's scroll padding can make room for it.
+  const BANNER_KINDS = Object.freeze(["working", "ready", "failed"]);
+  const BANNER_CLASS = "banner";
+  const BANNER_ICON_SIZE = 20;
+  const BANNER_ICON_BY_KIND = Object.freeze({ ready: "check", failed: "alert" });
+  const BANNER_HEIGHT_PROPERTY = "--banner-h";
+
+  // The node index.html holds (mountBanner), and what it shows: {kind, title, body, actions},
+  // or null while hidden. Both outlive any screen, so a banner put up on Practice is still
+  // there on History.
+  let bannerNode = null;
+  let bannerShown = null;
+
+  // Takes the node to paint in, or null when the page has none (the test fakes), and paints
+  // whatever was asked for before it was mounted. The strip's height changes with the window's
+  // width (its actions wrap), so a resize measures it again.
+  function mountBanner(node) {
+    bannerNode = node || null;
+    paintBanner();
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("resize", publishBannerHeight);
+    }
+  }
+
+  // Puts the banner up, or changes what it says. `actions` is a list of {label, onClick};
+  // without one the banner has only its words.
+  function showBanner(options) {
+    const { kind, title, body, actions } = options || {};
+    if (!BANNER_KINDS.includes(kind)) {
+      throw new Error("banner: unknown kind " + JSON.stringify(kind));
+    }
+    bannerShown = {
+      kind,
+      title: String(title || ""),
+      body: String(body || ""),
+      actions: Array.isArray(actions) ? actions.slice() : [],
+    };
+    paintBanner();
+  }
+
+  function hideBanner() {
+    bannerShown = null;
+    paintBanner();
+  }
+
+  // What the banner shows now, or null while it is hidden.
+  function currentBanner() {
+    return bannerShown;
+  }
+
+  // Repaints the node from bannerShown. A repaint drops the button that had keyboard focus, so
+  // focus that sat in the banner moves to the banner itself (tabindex -1, never a Tab stop)
+  // while it stays up; when it goes down the router or the screen places focus next.
+  function paintBanner() {
+    if (bannerNode === null) {
+      return;
+    }
+    const hadFocus = bannerHoldsFocus();
+    clear(bannerNode);
+    removeAttribute(bannerNode, "tabindex");
+    if (bannerShown === null) {
+      bannerNode.hidden = true;
+      bannerNode.className = BANNER_CLASS;
+      delete bannerNode.dataset.kind;
+      publishBannerHeight();
+      return;
+    }
+    const { kind, title, body, actions } = bannerShown;
+    bannerNode.hidden = false;
+    bannerNode.className = BANNER_CLASS + " " + BANNER_CLASS + "--" + kind;
+    bannerNode.dataset.kind = kind;
+    bannerNode.appendChild(el("div", { class: "banner__icon" }, bannerIcon(kind)));
+    bannerNode.appendChild(
+      el("div", { class: "banner__text" }, [
+        el("p", { class: "banner__title", text: title }),
+        el("p", { class: "banner__body", text: body }),
+      ]),
+    );
+    if (actions.length > 0) {
+      bannerNode.appendChild(
+        el(
+          "div",
+          { class: "banner__actions" },
+          actions.map((action) => bannerButton(action)),
+        ),
+      );
+    }
+    if (hadFocus) {
+      bannerNode.setAttribute("tabindex", "-1");
+      if (typeof bannerNode.focus === "function") {
+        bannerNode.focus({ preventScroll: true });
+      }
+    }
+    publishBannerHeight();
+  }
+
+  // Writes the strip's height to --banner-h on the root element: its box height while it is
+  // up, 0px while it is down. The test fakes have no style or offsetHeight.
+  function publishBannerHeight() {
+    const style = document.documentElement && document.documentElement.style;
+    if (!style || typeof style.setProperty !== "function") {
+      return;
+    }
+    const height =
+      bannerNode !== null && bannerShown !== null && typeof bannerNode.offsetHeight === "number"
+        ? bannerNode.offsetHeight
+        : 0;
+    style.setProperty(BANNER_HEIGHT_PROPERTY, height + "px");
+  }
+
+  // The test fakes have no removeAttribute.
+  function removeAttribute(node, name) {
+    if (typeof node.removeAttribute === "function") {
+      node.removeAttribute(name);
+    }
+  }
+
+  function bannerIcon(kind) {
+    return kind === "working" ? spinner() : icon(BANNER_ICON_BY_KIND[kind], BANNER_ICON_SIZE);
+  }
+
+  // A banner button; the label stays a child text node, as the screens' tests read it.
+  function bannerButton(action) {
+    const attrs = { class: "banner__action btn btn--secondary", type: "button" };
+    if (typeof action.onClick === "function") {
+      attrs.onClick = action.onClick;
+    }
+    return el("button", attrs, String(action.label || ""));
+  }
+
+  // True when keyboard focus sits in the banner, so a screen can place it after a banner action
+  // takes the strip down. Some test fakes have no activeElement, and some no contains().
+  function bannerHoldsFocus() {
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    if (!active || bannerNode === null || typeof bannerNode.contains !== "function") {
+      return false;
+    }
+    return active === bannerNode || bannerNode.contains(active);
+  }
+
+  const banner = Object.freeze({
+    mount: mountBanner,
+    show: showBanner,
+    hide: hideBanner,
+    current: currentBanner,
+    holdsFocus: bannerHoldsFocus,
+    KINDS: BANNER_KINDS,
+  });
+
   app.ui = {
     el,
     clear,
     renderState,
     announce,
-    canSpeak,
-    speak,
+    banner,
     formatClock,
     formatDate,
     formatDay,

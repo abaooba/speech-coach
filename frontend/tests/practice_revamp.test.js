@@ -1,5 +1,8 @@
 // Tests for the revamped Practice screen (frontend/screens/practice.js, DESIGN.md sections 6-8):
-// the record zone per state, the error block's focus and second action, and the hint copy. The
+// the record zone per state, the error block's focus and second action, and the hint copy. A
+// normal take is analyzed in the background after Stop, so its progress and its failures are
+// read from the top banner (app.ui.banner, mounted here into a node from the same fake
+// document); the in-place blocks remain for Too short, Microphone blocked and the sample. The
 // screen and the real ui.js run in a vm context against the shared fake DOM, extended here (and
 // only here) with focus(), contains(), a descendant querySelector and the document's
 // activeElement; the browser APIs a take touches (getUserMedia, MediaRecorder, Blob,
@@ -304,6 +307,54 @@ function stateBlock(t) {
   return t.stateEl.children[0];
 }
 
+// The same setup with the top banner mounted into a node built by the fake document, where a
+// normal take's analysis reports. Practice is only mounted, not shown: a take saved before
+// show() waits in the ready banner for "See results", so a test that expects Results to open on
+// its own calls t.practice.show({}) first.
+function withBanner(options) {
+  const t = setup(options);
+  const node = t.app.ui.el("div", { class: "banner" });
+  node.hidden = true;
+  t.app.ui.banner.mount(node);
+  t.banner = node;
+  return t;
+}
+
+function textOf(node) {
+  if (!Array.isArray(node.children) || node.children.length === 0) {
+    return node.textContent;
+  }
+  return node.children.map(textOf).join("");
+}
+
+function part(node, name) {
+  return node.children.find((child) => child.classList.contains(name));
+}
+
+// {kind, title, body, actions: [label]} as painted, or null while the banner is down.
+function bannerView(t) {
+  const node = t.banner;
+  if (node.hidden) {
+    return null;
+  }
+  const text = part(node, "banner__text");
+  const actions = part(node, "banner__actions");
+  return {
+    kind: node.dataset.kind,
+    title: part(text, "banner__title").textContent,
+    body: part(text, "banner__body").textContent,
+    actions: actions ? actions.children.map(textOf) : [],
+  };
+}
+
+function bannerButton(t, label) {
+  const actions = part(t.banner, "banner__actions");
+  return actions.children.find((button) => textOf(button) === label);
+}
+
+const WORKING_BODY_8S = "Your 0:08 take. Usually 5 to 15 seconds.";
+const WORKING_BODY_30S = "Your 0:30 take. Usually 5 to 15 seconds.";
+
 function labelOf(button) {
   return button.children[0].textContent;
 }
@@ -330,81 +381,98 @@ test("render('error') makes the block's title focusable and moves focus to it", 
   assert.equal(stateBlock(t).getAttribute("role"), "alert", "the alert role still speaks it");
 });
 
-test("a failed upload offers Record a new take, which drops the held take", async () => {
-  const t = setup();
+// A normal take is analyzed in the background, so a failed upload lands on the top banner, not
+// in the record zone: Practice stays idle for the next take. "Record a new take" drops the held
+// take, takes the banner down and asks the router for Practice; nothing of the take comes back.
+test("a failed upload puts Upload failed on the banner; Record a new take drops the take", async () => {
+  const t = withBanner();
   await recordTake(t, 8000);
   t.rejectUpload(apiError("network"));
   await flush();
 
-  const block = stateBlock(t);
-  assert.equal(block.children.length, 5, "icon, title, body, retry and the secondary action");
-  const [, title, body, retry, secondary] = block.children;
-  assert.equal(title.textContent, "Upload failed");
-  assert.equal(body.textContent, MESSAGES.network);
-  assert.equal(labelOf(retry), "Retry upload");
-  assert.equal(labelOf(secondary), NEW_TAKE);
-  assert.ok(secondary.classList.contains("btn--ghost"));
-  assert.ok(secondary.classList.contains("state__secondary"));
+  assert.equal(t.root.dataset.state, "idle", "the failure never blocks the record zone");
+  assert.deepEqual(t.stateEl.children, []);
+  assert.deepEqual(bannerView(t), {
+    kind: "failed",
+    title: "Upload failed",
+    body: MESSAGES.network,
+    actions: ["Retry upload", NEW_TAKE],
+  });
+  const secondary = bannerButton(t, NEW_TAKE);
+  assert.ok(secondary.classList.contains("btn--secondary"), "never the screen's primary button");
 
+  const retry = bannerButton(t, "Retry upload");
   secondary.click();
+  assert.equal(bannerView(t), null);
+  assert.deepEqual(t.calls.go, [{ name: "practice", params: undefined }]);
   assert.equal(t.root.dataset.state, "idle");
   assert.deepEqual(t.stateEl.children, []);
+  assert.equal(t.banner.children.length, 0, "no Retry upload is left for the dropped take");
   retry.click();
+  await flush();
   assert.equal(t.calls.analyze.length, 1, "the dropped take can no longer be re-sent");
-  assert.equal(t.root.dataset.state, "idle");
+  t.practice.show({});
+  assert.equal(bannerView(t), null, "nothing of the dropped take comes back on show()");
+  assert.equal(t.calls.analyze.length, 1, "the dropped take can no longer be re-sent");
 });
 
-test("provider and unknown upload failures offer the same second action", async () => {
+test("provider and unknown upload failures offer the same second action on the banner", async () => {
   for (const kind of ["provider", "unknown"]) {
-    const t = setup();
+    const t = withBanner();
     await recordTake(t, 8000);
     t.rejectUpload(apiError(kind));
     await flush();
-    const [, , body, , secondary] = stateBlock(t).children;
-    assert.equal(body.textContent, MESSAGES.provider, kind);
-    assert.equal(labelOf(secondary), NEW_TAKE, kind);
+    const view = bannerView(t);
+    assert.equal(view.body, MESSAGES.provider, kind);
+    assert.deepEqual(view.actions, ["Retry upload", NEW_TAKE], kind);
   }
 });
 
-test("Retry upload still re-sends the same take after a failure", async () => {
-  const t = setup();
+test("Retry upload on the banner re-sends the same take after a failure", async () => {
+  const t = withBanner();
   await recordTake(t, 8000);
   t.rejectUpload(apiError("network"));
   await flush();
-  stateBlock(t).children[3].click();
-  assert.equal(t.root.dataset.state, "uploading");
+  bannerButton(t, "Retry upload").click();
+  assert.equal(bannerView(t).kind, "working");
+  assert.equal(t.root.dataset.state, "idle", "Practice stays free while the take is re-sent");
   assert.equal(t.calls.analyze.length, 2);
   assert.equal(t.calls.analyze[1].blob, t.calls.analyze[0].blob);
 });
 
 // The backend answers 400 when it hears under 5 seconds of speech. Re-sending the same blob can
-// never pass and costs a provider call each time, so the take goes and the block is the one a
-// Stop under 5 seconds shows.
-test("a backend too short drops the take and shows Too short with Record again only", async () => {
-  const t = setup();
+// never pass and costs a provider call each time, so the take goes and the banner says Too short
+// in the words of the block a Stop under 5 seconds shows, with Record again as its one action.
+test("a backend too short drops the take; the banner says Too short with Record again only", async () => {
+  const t = withBanner();
   await recordTake(t, 8000);
+  const moves = t.focused.length;
   t.rejectUpload(apiError("too_short"));
   await flush();
-  const block = stateBlock(t);
-  assert.equal(block.children.length, 4, "icon, title, body and one action: no Retry upload");
-  const [, title, body, action] = block.children;
-  assert.equal(title.textContent, "Too short");
-  assert.equal(body.textContent, MESSAGES.too_short);
-  assert.equal(labelOf(action), "Record again");
-  assert.equal(t.focused[t.focused.length - 1], title);
+  assert.deepEqual(bannerView(t), {
+    kind: "failed",
+    title: "Too short",
+    body: MESSAGES.too_short,
+    actions: ["Record again"],
+  });
+  assert.equal(t.focused.length, moves, "the banner pulls no focus from the screen");
+  assert.deepEqual(t.stateEl.children, [], "nothing lands in the record zone");
 
   const short = setup();
   await recordTake(short, 2000);
+  const [, title, body, action] = stateBlock(short).children;
   assert.deepEqual(
-    stateBlock(short).children.map((child) => [child.className, child.textContent]),
-    block.children.map((child) => [child.className, child.textContent]),
-    "the same block as a Stop under 5 seconds",
+    [title.textContent, body.textContent, labelOf(action)],
+    ["Too short", MESSAGES.too_short, "Record again"],
+    "the same words as a Stop under 5 seconds",
   );
 
-  action.click();
+  bannerButton(t, "Record again").click();
+  assert.equal(bannerView(t), null);
+  assert.deepEqual(t.calls.go, [{ name: "practice", params: undefined }]);
   assert.equal(t.root.dataset.state, "idle");
   assert.deepEqual(t.stateEl.children, []);
-  assert.equal(t.timer.textContent, "0:00", "the dropped take's time goes with it");
+  assert.equal(t.timer.textContent, "0:00", "the dropped take's time went with it at Stop");
   assert.equal(t.calls.analyze.length, 1, "the take is never sent again");
 });
 
@@ -427,13 +495,24 @@ test("mic denied, too short and the sample error keep a single action", async ()
   assert.equal(stateBlock(sample).children.length, 4, "sample error");
 });
 
-test("every error path moves focus to its title and none of them is announced", async () => {
-  const t = setup();
+// No error path is announced: the in-place block speaks through its alert role and focuses its
+// title; the banner's Upload failed is read by its own color and words and pulls no focus.
+// An error block is an alert, so nothing is said on top of it. The banner is no live region: its
+// titles go through the live region as they change, and it moves no focus.
+test("an error block is not announced; the banner's titles are, and it moves no focus", async () => {
+  const t = withBanner();
   await recordTake(t, 8000);
+  const moves = t.focused.length;
   t.rejectUpload(apiError("network"));
   await flush();
-  assert.equal(t.focused[t.focused.length - 1], byClass(stateBlock(t), "state__title"));
-  assert.deepEqual(t.calls.announce, ["Recording started", "Recording stopped, 8 seconds"]);
+  assert.equal(bannerView(t).title, "Upload failed");
+  assert.equal(t.focused.length, moves);
+  assert.deepEqual(t.calls.announce, [
+    "Recording started",
+    "Recording stopped, 8 seconds",
+    "Analyzing your speech",
+    "Upload failed",
+  ]);
 
   const denied = setup();
   denied.recordButton.click();
@@ -477,15 +556,23 @@ test("Record again after a too-short take hands focus from the title back to Rec
   assert.equal(lastFocused(t), t.recordButton);
 });
 
-test("Record a new take after a failed upload hands focus back to Record", async () => {
-  const t = setup();
+// "Record a new take" lives on the banner now. Its click takes the banner down and asks the
+// router for Practice; on Practice already that changes nothing, so the screen hands the focus
+// the button held to Record, as an error block's action does. No focus call lands on the hidden
+// banner.
+test("Record a new take on the banner hands focus back to Record", async () => {
+  const t = withBanner();
+  // On show: the route to Practice then changes nothing, so the screen places focus itself.
+  t.practice.show({});
   await recordTake(t, 8000);
   t.rejectUpload(apiError("network"));
   await flush();
-  const newTake = byClass(stateBlock(t), "state__secondary");
+  const newTake = bannerButton(t, NEW_TAKE);
   newTake.focus();
   newTake.click();
   assert.equal(t.root.dataset.state, "idle");
+  assert.equal(t.banner.hidden, true);
+  assert.deepEqual(t.calls.go, [{ name: "practice", params: undefined }]);
   assert.equal(lastFocused(t), t.recordButton);
 });
 
@@ -516,33 +603,46 @@ test("leaving an error block leaves focus alone when the block did not hold it",
   assert.equal(t.focused.length, moves);
 });
 
-test("Stop from the keyboard hands focus to the loading title, so it is read out", async () => {
-  const t = setup();
+// Stop on a normal take keeps focus where it was: the Stop button, now Record, so a keyboard
+// user can start the next take at once. The banner says the take is analyzed, and Results opens
+// on its own once the take is saved while Practice waits in idle.
+test("Stop from the keyboard keeps focus on Record; the banner says the take is analyzed", async () => {
+  const t = withBanner();
+  t.practice.show({});
   t.recordButton.focus();
   await recordTake(t, 8000);
-  assert.equal(t.root.dataset.state, "uploading");
-  const title = byClass(stateBlock(t), "state__title");
-  assert.equal(title.textContent, "Analyzing your speech");
-  assert.equal(title.getAttribute("tabindex"), "-1", "script can focus it; Tab never stops");
-  assert.equal(lastFocused(t), title);
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(lastFocused(t), t.recordButton);
+  assert.deepEqual(bannerView(t), {
+    kind: "working",
+    title: "Analyzing your speech",
+    body: WORKING_BODY_8S,
+    actions: [],
+  });
 
   const moves = t.focused.length;
   t.resolveUpload({ transcript: [], metrics: {} });
   await flush();
   assert.equal(t.calls.go[0].name, "results");
+  assert.equal(bannerView(t), null, "the banner goes down as Results opens");
   assert.equal(t.focused.length, moves, "a saved take moves no focus before Results opens");
 });
 
-test("Retry upload hands focus from the error block to the loading title", async () => {
-  const t = setup();
+// The repaint to the working banner drops the Retry button that held focus, so focus moves to
+// the banner itself (tabindex -1, never a Tab stop) and stays by "Analyzing your speech",
+// never falling to <body>.
+test("Retry upload hands focus from its button to the banner as it turns to working", async () => {
+  const t = withBanner();
   await recordTake(t, 8000);
   t.rejectUpload(apiError("network"));
   await flush();
-  const retry = byClass(stateBlock(t), "state__action");
+  const retry = bannerButton(t, "Retry upload");
   retry.focus();
   retry.click();
-  assert.equal(t.root.dataset.state, "uploading");
-  assert.equal(lastFocused(t), byClass(stateBlock(t), "state__title"));
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(bannerView(t).kind, "working");
+  assert.equal(t.banner.getAttribute("tabindex"), "-1", "script can focus it; Tab never stops");
+  assert.equal(lastFocused(t), t.banner);
 });
 
 test("the stop announcement says 1 second for a one-second take", async () => {
@@ -558,8 +658,8 @@ test("the stop announcement says 1 second for a one-second take", async () => {
   }
 });
 
-test("an upload leaves focus alone when it sat outside the record zone", async () => {
-  const t = setup();
+test("a take that ends on its own leaves focus alone when it sat outside the record zone", async () => {
+  const t = withBanner();
   t.recordButton.click();
   t.grantMic();
   await flush();
@@ -568,22 +668,30 @@ test("an upload leaves focus alone when it sat outside the record zone", async (
   t.clock.advance(8000);
   FakeMediaRecorder.last.finish();
   await flush();
-  assert.equal(t.root.dataset.state, "uploading", "the track ended on its own");
+  assert.equal(t.root.dataset.state, "idle", "the track ended on its own; the take left for the banner");
+  assert.equal(bannerView(t).kind, "working");
   assert.equal(lastFocused(t), text);
 });
 
-test("the loading and error blocks still show where elements have no querySelector", async () => {
-  // With no title to find, neither block's title takes tabindex or focus; nothing throws.
-  const t = setup({ elementClass: UnsearchableElement });
+test("the banner and the Too short block still show where elements have no querySelector", async () => {
+  // With no title to find, the block's title takes neither tabindex nor focus; nothing throws.
+  const t = withBanner({ elementClass: UnsearchableElement });
   t.recordButton.focus();
   await recordTake(t, 8000);
-  assert.equal(t.root.dataset.state, "uploading");
-  assert.equal(stateBlock(t).getAttribute("role"), "status");
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(bannerView(t).kind, "working");
   t.rejectUpload(apiError("network"));
   await flush();
-  assert.equal(t.root.dataset.state, "error");
-  assert.equal(stateBlock(t).getAttribute("role"), "alert");
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(bannerView(t).kind, "failed");
   assert.equal(lastFocused(t), t.recordButton, "focus stays where it was");
+
+  const short = withBanner({ elementClass: UnsearchableElement });
+  short.recordButton.focus();
+  await recordTake(short, 2000);
+  assert.equal(short.root.dataset.state, "error");
+  assert.equal(stateBlock(short).getAttribute("role"), "alert");
+  assert.equal(lastFocused(short), short.recordButton, "no title to focus");
 });
 
 test("the hint text sits in its own span, followed by the sample button", () => {
@@ -924,23 +1032,27 @@ test("the bar fills with elapsed over the limit and turns over at the limit", as
 });
 
 // Idle shows "0:00" and an empty bar (DESIGN.md section 7): a take that is let go takes its time
-// with it. Uploading holds the final value.
+// with it. Stop lets a normal take go to the banner at once, which names its length, so the
+// clock and the bar are back at the start before the analysis is even answered.
 const EMPTY_FILL = "transform: scaleX(0)";
 
-test("uploading holds the bar; Record a new take empties it and resets the clock", async () => {
-  const t = setup({ passages: MODES });
+test("Stop empties the bar and resets the clock at once; the banner names the take's length", async () => {
+  const t = withBanner({ passages: MODES });
   const parts = modeParts(t);
   await recordTake(t, 30000);
-  assert.equal(t.root.dataset.state, "uploading");
-  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.5)");
-  assert.equal(t.timer.textContent, "0:30");
-  t.rejectUpload(apiError("network"));
-  await flush();
-  stateBlock(t).children[4].click();
   assert.equal(t.root.dataset.state, "idle");
   assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
-  assert.equal(t.timer.textContent, "0:00", "the dropped take's time goes with it");
+  assert.equal(t.timer.textContent, "0:00", "the take's time went with it to the banner");
+  assert.equal(bannerView(t).body, WORKING_BODY_30S);
+  t.rejectUpload(apiError("network"));
+  await flush();
+  bannerButton(t, NEW_TAKE).click();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+  assert.equal(t.timer.textContent, "0:00", "the dropped take brings no time back");
 
+  // Record is ignored for a moment after a Stop (a bouncing thumb), so the clock moves on.
+  t.clock.advance(500);
   t.recordButton.click();
   t.grantMic();
   await flush();
@@ -949,13 +1061,14 @@ test("uploading holds the bar; Record a new take empties it and resets the clock
 });
 
 test("an over-limit take leaves no rust bar in idle; other chips never rescale it", async () => {
-  const t = setup({ passages: MODES });
+  const t = withBanner({ passages: MODES });
   const parts = modeParts(t);
   await recordTake(t, 70000);
-  assert.ok(parts.limitBar.classList.contains("practice__limit-bar--over"), "uploading holds it");
+  assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"), "Stop lets it go");
+  assert.equal(bannerView(t).body, "Your 1:10 take. Usually 5 to 15 seconds.");
   t.rejectUpload(apiError("network"));
   await flush();
-  stateBlock(t).children[4].click();
+  bannerButton(t, NEW_TAKE).click();
   assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"));
   assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
   chipFor(parts, "imp").click();
@@ -964,10 +1077,15 @@ test("an over-limit take leaves no rust bar in idle; other chips never rescale i
   assert.ok(!parts.limitBar.classList.contains("practice__limit-bar--over"));
 });
 
-test("a saved take resets the clock and empties the bar before Results opens", async () => {
-  const t = setup({ passages: MODES });
+test("a take resets the clock and empties the bar at Stop, before Results opens", async () => {
+  const t = withBanner({ passages: MODES });
+  t.practice.show({});
   const parts = modeParts(t);
   await recordTake(t, 42000);
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(t.timer.textContent, "0:00");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+  assert.deepEqual(t.calls.go, [], "Results waits for the save");
   t.resolveUpload({ transcript: [], metrics: {} });
   await flush();
   assert.equal(t.calls.go[0].name, "results");
@@ -1006,15 +1124,23 @@ test("after a too-short take idle keeps its time on the clock, the bar empty", a
   assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
 });
 
-test("show() while a take uploads keeps its clock and its bar", async () => {
-  const t = setup({ passages: MODES });
+// A take analyzed in the background is the banner's business: leaving and coming back finds
+// Practice idle at 0:00 with an empty bar, the job still running, and Results opens on its own
+// once the take is saved while Practice waits in idle.
+test("show() while a take is analyzed opens idle at 0:00; the banner keeps the take", async () => {
+  const t = withBanner({ passages: MODES });
   const parts = modeParts(t);
   await recordTake(t, 30000);
   t.practice.hide();
+  assert.equal(bannerView(t).kind, "working", "hide() leaves the job running");
   t.practice.show({});
-  assert.equal(t.root.dataset.state, "uploading");
-  assert.equal(t.timer.textContent, "0:30");
-  assert.equal(parts.limitFill.getAttribute("style"), "transform: scaleX(0.5)");
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(t.timer.textContent, "0:00");
+  assert.equal(parts.limitFill.getAttribute("style"), EMPTY_FILL);
+  assert.equal(bannerView(t).body, WORKING_BODY_30S);
+  t.resolveUpload({ transcript: [], metrics: {} });
+  await flush();
+  assert.equal(t.calls.go[0].name, "results", "saved after show(), the take opens Results at once");
 });
 
 test("a take saves the entry's title and id, whichever topic was showing", async () => {

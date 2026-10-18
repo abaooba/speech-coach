@@ -39,11 +39,9 @@
   const SAY_LABEL = "Say it better";
   const SAID_PREFIX = "You said: ";
   const BETTER_PREFIX = "Better: ";
-  const HEAR_LABEL = "Hear it";
   const PRAISE_FALLBACK = "Clear and correct. Nothing to fix in this take.";
   const NOTE = "Checked by Anthropic. Hints only: nothing here changes your score.";
   const ARROW_SIZE = 16;
-  const SPEAKER_SIZE = 18;
   const PRAISE_ICON_SIZE = 16;
 
   // --- which takes get the button ---
@@ -366,27 +364,14 @@
     ]);
   }
 
-  // The sentence as said on one muted line, then the rewrite to read aloud, with Hear it when the
-  // phone has a voice.
+  // The sentence as said on one muted line, then the rewrite to read aloud. No button says it
+  // for the speaker: the "Hear it" that used to sit here stayed silent on the owner's iPhone,
+  // so it only disappointed.
   function sayRow(rewrite) {
     const ui = app.ui;
-    const row = [ui.el("p", { class: "lang-say__better", text: rewrite.better })];
-    if (typeof ui.canSpeak === "function" && ui.canSpeak()) {
-      row.push(
-        ui.el(
-          "button",
-          {
-            class: "btn btn--secondary lang-say__hear",
-            type: "button",
-            onClick: () => ui.speak(rewrite.better),
-          },
-          [ui.icon("speaker", SPEAKER_SIZE), HEAR_LABEL],
-        ),
-      );
-    }
     return ui.el("div", { class: "lang-say" }, [
       ui.el("p", { class: "lang-say__orig", text: rewrite.said }),
-      ui.el("div", { class: "lang-say__row" }, row),
+      ui.el("p", { class: "lang-say__better", text: rewrite.better }),
     ]);
   }
 

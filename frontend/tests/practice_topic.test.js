@@ -80,17 +80,38 @@ test("a Read take saves no topic field", async () => {
   assert.ok(!("topic" in session));
 });
 
-test("Retry upload saves the topic the take was recorded on", async () => {
+// Mounts the top banner (app.ui.banner) into a node from the harness's document, so a test can
+// press the button a failed upload offers there, and returns the node.
+function mountBanner(t) {
+  const node = t.app.ui.el("div", { class: "banner" });
+  node.hidden = true;
+  t.app.ui.banner.mount(node);
+  return node;
+}
+
+function bannerButton(node, label) {
+  const actions = node.children.find((child) => child.classList.contains("banner__actions"));
+  return actions.children.find((button) => button.children[0].textContent === label);
+}
+
+// A normal take is analyzed in the background: an upload that fails puts "Upload failed" in the
+// top banner, not on Practice, and its "Retry upload" button sends the same take again. The topic
+// saved is still the one on screen when the take was recorded, not the one Talk moved to while
+// the upload was failing.
+test("Retry upload from the banner saves the topic the take was recorded on", async () => {
   const t = setup();
+  const banner = mountBanner(t);
   parts(t).newTopic.click();
   await t.recordTake(12000);
   t.rejectUpload("network");
   await flush();
+  assert.equal(banner.dataset.kind, "failed");
+  assert.equal(t.stateEl.children.length, 0, "the failure is in the banner, not on Practice");
   parts(t).newTopic.click();
-  const block = t.stateEl.children[0];
-  block.children.find((child) => child.classList.contains("state__action")).click();
+  bannerButton(banner, "Retry upload").click();
   t.resolveUpload(ANALYSIS);
   await flush();
+  assert.equal(t.calls.save.length, 1, "one take, one save");
   assert.equal(t.calls.save[0].topic, "Second topic.");
 });
 

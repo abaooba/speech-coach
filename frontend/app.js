@@ -24,6 +24,7 @@
   const ONBOARDING_SCREEN = "onboarding";
   const ONBOARDING_HASH = "#/onboarding";
   const ONBOARDED_FLAG = "onboarded";
+  const BANNER_ID = "banner";
   // A screen without its own nav item lights up the item it belongs to: a level is on the Path.
   const NAV_PARENT = Object.freeze({ level: "path" });
 
@@ -192,6 +193,11 @@
     const ui = app.ui;
     if (ui && typeof ui.applyTheme === "function" && typeof ui.getTheme === "function") {
       ui.applyTheme(ui.getTheme());
+    }
+    // The banner at the top of the page (index.html's #banner) is painted by app.ui.banner;
+    // Practice puts it up for a take analyzed in the background. The test fakes may lack it.
+    if (ui && ui.banner && typeof document.getElementById === "function") {
+      ui.banner.mount(document.getElementById(BANNER_ID));
     }
     Object.keys(app.screens).forEach((name) => {
       const screen = app.screens[name];

@@ -1,10 +1,10 @@
 // Tests for the "may have been unclear" hint on Results (docs/superpowers/specs/
 // 2026-10-17-guided-coach-design.md Phase 5 item 2): a word the transcriber rated a coin flip or
-// worse gets .tok--unclear (a dotted box) and ", may have been unclear" in its label, the legend
-// says what the box means, and a "Words to check" row of chips above the transcript says each
-// unclear word, and each misread script word, with the phone's built-in voice. The row is gone
-// where the browser has no voice. Nothing here is counted. ui.js, delivery.js and results.js run
-// for real in a vm against the shared fake DOM; speechSynthesis is a fake.
+// worse gets .tok--unclear (a dotted box) and ", may have been unclear" in its label, and the
+// legend says what the box means. Nothing here is counted. The "Words to check" chips that once
+// said each word with the phone's voice are gone (owner's call of 2026-10-18: the voice stayed
+// silent on iPhone). ui.js, delivery.js and results.js run for real in a vm against the shared
+// fake DOM.
 "use strict";
 
 const test = require("node:test");
@@ -22,28 +22,6 @@ const DELIVERY_SOURCE = read("delivery.js");
 const RESULTS_SOURCE = read(path.join("screens", "results.js"));
 
 const LEGEND_UNCLEAR = " Dotted boxes: may have been unclear — a hint, not counted.";
-
-// A fake speechSynthesis: logs cancel() and speak(), keeps the last utterance so a test can end
-// it, and an utterance constructor that keeps text, lang and rate.
-function fakeSpeech() {
-  const log = [];
-  const spoken = [];
-  class Utterance {
-    constructor(text) {
-      this.text = text;
-      this.lang = "";
-      this.rate = 1;
-    }
-  }
-  const synth = {
-    cancel: () => log.push(["cancel"]),
-    speak: (utterance) => {
-      spoken.push(utterance);
-      log.push(["speak", utterance.text, utterance.lang, utterance.rate]);
-    },
-  };
-  return { log, spoken, synth, Utterance };
-}
 
 function words(texts, confidences) {
   return texts.map((text, index) => {
@@ -73,8 +51,7 @@ function session(overrides, metrics) {
   };
 }
 
-function mount(sessions, options) {
-  const settings = options || {};
+function mount(sessions) {
   const document = fakeDocument();
   const context = {
     app: {
@@ -86,12 +63,6 @@ function mount(sessions, options) {
     },
     document,
   };
-  if (settings.speech) {
-    context.speechSynthesis = settings.speech.synth;
-    if (!settings.noUtterance) {
-      context.SpeechSynthesisUtterance = settings.speech.Utterance;
-    }
-  }
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
   vm.runInNewContext(DELIVERY_SOURCE, context, { filename: "delivery.js" });
   vm.runInNewContext(RESULTS_SOURCE, context, { filename: "results.js" });
@@ -101,10 +72,6 @@ function mount(sessions, options) {
   root.appendChild(body);
   context.app.screens.results.mount(root);
   return { results: context.app.screens.results, body, app: context.app };
-}
-
-function fullText(node) {
-  return (node.textContent || "") + (node.children || []).map(fullText).join("");
 }
 
 function tokens(body) {
@@ -167,126 +134,3 @@ test("words without confidence change nothing: same plan, same score", () => {
 });
 
 // --- the words to check ---
-
-test("wordsToCheck lists the unclear words, bare, in transcript order", () => {
-  const { results } = mount({});
-  const summary = results.summarize(session());
-  assert.deepEqual(Array.from(results.wordsToCheck(session().transcript, summary.report)), [
-    "market",
-    "weather",
-  ]);
-});
-
-test("misread script words join, as the script has them, deduped and at most five", () => {
-  const { results } = mount({});
-  const said = words(
-    ["We", "walk", "to", "the", "markit", "and", "the", "station", "then", "home", "again"],
-    { 7: 0.2, 9: 0.3, 10: 0.1 },
-  );
-  const report = {
-    misreads: [
-      { at: 2.0, word: "market,", said: "markit", wordIndex: 4 },
-      { at: 0.5, word: "walked", said: "walk", wordIndex: 1 },
-      { at: 3.5, word: "Station", said: "station", wordIndex: 7 },
-      { at: 4.0, word: "then", said: "then", wordIndex: 8 },
-    ],
-  };
-  assert.deepEqual(Array.from(results.wordsToCheck(said, report)), [
-    "walked",
-    "market",
-    "Station",
-    "then",
-    "home",
-  ], "a word both misread and unclear shows once, as the script has it; 'again' is the sixth");
-});
-
-test("the Words to check row sits right above the Transcript heading", async () => {
-  const { results, body } = mount({ s1: session() }, { speech: fakeSpeech() });
-  await results.show({ id: "s1" });
-  const names = body.children.map(outline);
-  const index = names.indexOf("section.words-check");
-  assert.ok(index > 0, "the row is drawn");
-  assert.equal(names[index + 1], "h2.results__heading transcript__heading");
-  const section = body.children[index];
-  const title = byClass(section, "words-check__title");
-  assert.equal(title.tagName, "h3");
-  assert.equal(title.textContent, "Words to check");
-  const row = byClass(section, "words-check__row");
-  const chips = row.children;
-  assert.deepEqual(
-    chips.map((chip) => [chip.tagName, chip.className, chip.getAttribute("type")]),
-    [
-      ["button", "word-chip", "button"],
-      ["button", "word-chip", "button"],
-    ],
-  );
-  assert.deepEqual(chips.map((chip) => chip.getAttribute("aria-label")), [
-    "Hear market",
-    "Hear weather",
-  ]);
-  assert.equal(chips[0].children[0].getAttribute("data-icon"), "speaker", "the speaker first");
-  assert.equal(fullText(chips[0]), "market");
-});
-
-test("a chip says its word: cancel first, then en-US at 0.85, marked while it plays", async () => {
-  const speech = fakeSpeech();
-  const { results, body } = mount({ s1: session() }, { speech });
-  await results.show({ id: "s1" });
-  const chip = byClass(byClass(byClass(body, "words-check"), "words-check__row"), "word-chip");
-  chip.click();
-  assert.deepEqual(speech.log, [["cancel"], ["speak", "market", "en-US", 0.85]]);
-  assert.ok(chip.classList.contains("word-chip--playing"));
-  speech.spoken[0].onend();
-  assert.ok(!chip.classList.contains("word-chip--playing"), "the mark goes when the voice ends");
-});
-
-test("a second chip takes the playing mark from the first", async () => {
-  const speech = fakeSpeech();
-  const { results, body } = mount({ s1: session() }, { speech });
-  await results.show({ id: "s1" });
-  const [first, second] = byClass(byClass(body, "words-check"), "words-check__row").children;
-  first.click();
-  second.click();
-  assert.ok(!first.classList.contains("word-chip--playing"));
-  assert.ok(second.classList.contains("word-chip--playing"));
-});
-
-test("no voice, no row: without speechSynthesis or without its utterance", async () => {
-  for (const options of [{}, { speech: fakeSpeech(), noUtterance: true }]) {
-    const { results, body } = mount({ s1: session() }, options);
-    await results.show({ id: "s1" });
-    assert.equal(byClass(body, "words-check"), undefined);
-    assert.ok(tokens(body).some((span) => span.classList.contains("tok--unclear")), "box stays");
-  }
-});
-
-test("no unclear or misread word, no row", async () => {
-  const { results, body } = mount(
-    { s1: session({ transcript: words(SENTENCE) }) },
-    { speech: fakeSpeech() },
-  );
-  await results.show({ id: "s1" });
-  assert.equal(byClass(body, "words-check"), undefined);
-});
-
-// --- the voice ---
-
-test("app.ui.canSpeak needs both speechSynthesis and SpeechSynthesisUtterance", () => {
-  const speech = fakeSpeech();
-  const both = mount({}, { speech }).app.ui;
-  assert.equal(both.canSpeak(), true);
-  assert.equal(mount({}).app.ui.canSpeak(), false);
-  assert.equal(mount({}, { speech, noUtterance: true }).app.ui.canSpeak(), false);
-  assert.equal(mount({}).app.ui.speak("word"), false, "no voice: nothing is said");
-});
-
-test("app.ui.speak says the text and survives a voice that throws", () => {
-  const speech = fakeSpeech();
-  const { ui } = mount({}, { speech }).app;
-  assert.equal(ui.speak("weather"), true);
-  assert.deepEqual(speech.log, [["cancel"], ["speak", "weather", "en-US", 0.85]]);
-  speech.synth.speak = () => {
-    throw new Error("not allowed");
-  };
-  assert.equal(ui.speak("weather"), false);
-});
