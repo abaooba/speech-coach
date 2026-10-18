@@ -1,7 +1,7 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
    show({id}) reads the take and the speaker's take before it from app.store, never writing, and
    draws the meta line, the Coach card (app.screens.coachCard), speech map, stat strip, rank card
-   (app.rankCard), words to check, transcript and actions node by node, never from markup; the
+   (app.rankCard), transcript and actions node by node, never from markup; the
    cited coach notes (app.tips.coachNotes) upgrade the card when they arrive. summarize and
    the other pure helpers touch no DOM or app.ui. */
 (function () {
@@ -238,18 +238,6 @@
   // (app.delivery.findUnclear).
   const LEGEND_UNCLEAR_TEXT = " Dotted boxes: may have been unclear — a hint, not counted.";
 
-  // "Words to check" (spec Phase 5 item 2): the unclear words and the misread script words, at
-  // most this many, each a chip that says the word with the phone's built-in voice.
-  const WORDS_CHECK_TITLE = "Words to check";
-  const MAX_WORDS_TO_CHECK = 5;
-  const HEAR_PREFIX = "Hear ";
-  const PLAYING_CLASS = "word-chip--playing";
-  // Under the chips when a tap brought no voice (app.ui.speak reported "silent" or "failed"):
-  // what the speaker can do about it. The phone cannot say why it stayed silent.
-  const VOICE_SILENT_NOTE =
-    "Your phone's voice did not start. Check the silent switch and the volume, then tap " +
-    "again. If it stays silent, open Speech Coach in Safari rather than the home-screen app.";
-  const SPEAKER_ICON_SIZE = 16;
   const HOW_HREF = "how.html";
   const HOW_LINK_TEXT = "How we count";
   const PAUSE_TEXT_SUFFIX = " s pause";
@@ -819,49 +807,6 @@
     return typeof app.delivery.findUnclear === "function" ? app.delivery.findUnclear(wordList) : [];
   }
 
-  // The words a "Words to check" chip says, in transcript order: every misread script word, as
-  // the script has it, and every word the transcriber was unsure of, bare of its punctuation,
-  // each once (compared without case; a misread comes first where both fall on one word), at
-  // most MAX_WORDS_TO_CHECK. `report` is the app.delivery report. Pure.
-  function wordsToCheck(words, report) {
-    const wordList = Array.isArray(words) ? words : [];
-    const misreads = listOf(report && report.misreads).map((misread) => ({
-      place: placeOf(wordList, misread),
-      order: 0,
-      text: bareText(misread && misread.word),
-    }));
-    const unclear = unclearIndexes(wordList).map((index) => ({
-      place: index,
-      order: 1,
-      text: bareText(textOf(wordList[index])),
-    }));
-    const seen = new Set();
-    return [...misreads, ...unclear]
-      .filter((entry) => entry.text !== "")
-      .sort((a, b) => a.place - b.place || a.order - b.order)
-      .filter((entry) => {
-        const key = entry.text.toLowerCase();
-        if (seen.has(key)) {
-          return false;
-        }
-        seen.add(key);
-        return true;
-      })
-      .slice(0, MAX_WORDS_TO_CHECK)
-      .map((entry) => entry.text);
-  }
-
-  // Where a misread sits among the words: the word that said it, else the first word at or
-  // after its time.
-  function placeOf(wordList, misread) {
-    const index = misread ? misread.wordIndex : -1;
-    if (Number.isInteger(index) && index >= 0) {
-      return index;
-    }
-    const after = wordAt(wordList, numberOr0(misread && misread.at));
-    return after === -1 ? wordList.length : after;
-  }
-
   // The plan items for the script words skipped in one place, in script order: one per word, or
   // for more than MAX_SKIPS_SHOWN_ONE_BY_ONE a single run, {type: "skip", text, count}, whose
   // text is its first and last SKIP_RUN_EDGE_WORDS words either side of SKIP_RUN_GAP.
@@ -1335,10 +1280,6 @@
       body.appendChild(app.rankCard.build(rankCard, { screen: RANK_SCREEN }));
     }
     if (hasTranscript) {
-      const toCheck = wordsToCheck(session.transcript, summary.report);
-      if (toCheck.length > 0 && canSpeak()) {
-        body.appendChild(buildWordsCheck(toCheck));
-      }
       body.appendChild(
         app.ui.el("h2", { class: "results__heading transcript__heading", text: TRANSCRIPT_TITLE }),
       );
@@ -1576,63 +1517,6 @@
       "aria-label": label,
       text: item.text,
     });
-  }
-
-  // True when the phone has a voice to say a word with (app.ui.canSpeak).
-  function canSpeak() {
-    return typeof app.ui.canSpeak === "function" && app.ui.canSpeak();
-  }
-
-  // "Words to check": a small title and one chip per word, the speaker icon before the word.
-  // A tap says the word, cutting off any word still being said; the chip carries
-  // PLAYING_CLASS until the voice ends, and only one chip carries it at a time. A voice that
-  // never starts, or refuses, puts the note under the row (and in the live region) until a tap
-  // brings the voice back; a word cut off by the next tap is no failure.
-  function buildWordsCheck(texts) {
-    let playing = null;
-    const note = app.ui.el("p", { class: "words-check__note", text: VOICE_SILENT_NOTE });
-    note.hidden = true;
-    const stopPlaying = (chip) => {
-      if (playing === chip) {
-        chip.classList.remove(PLAYING_CLASS);
-        playing = null;
-      }
-    };
-    const showNote = () => {
-      if (note.hidden) {
-        note.hidden = false;
-        app.ui.announce(VOICE_SILENT_NOTE);
-      }
-    };
-    const chips = texts.map((text) => {
-      const attrs = { class: "word-chip", type: "button", "aria-label": HEAR_PREFIX + text };
-      const chip = app.ui.el("button", attrs, [app.ui.icon("speaker", SPEAKER_ICON_SIZE), text]);
-      chip.addEventListener("click", () => {
-        if (playing) {
-          playing.classList.remove(PLAYING_CLASS);
-        }
-        playing = chip;
-        chip.classList.add(PLAYING_CLASS);
-        const started = app.ui.speak(text, (outcome) => {
-          stopPlaying(chip);
-          if (outcome === app.ui.SPEECH_OUTCOMES.ended) {
-            note.hidden = true;
-          } else {
-            showNote();
-          }
-        });
-        if (!started) {
-          stopPlaying(chip);
-          showNote();
-        }
-      });
-      return chip;
-    });
-    return app.ui.el("section", { class: "words-check" }, [
-      app.ui.el("h3", { class: "words-check__title", text: WORDS_CHECK_TITLE }),
-      app.ui.el("div", { class: "words-check__row" }, chips),
-      note,
-    ]);
   }
 
   // A script word the speaker skipped, struck through where it belonged. Not a .tok: it was
@@ -2113,7 +1997,6 @@
     restartSpan,
     bareText,
     isSample,
-    wordsToCheck,
     momentTargets,
     startLanguageCheck,
     markFresh,

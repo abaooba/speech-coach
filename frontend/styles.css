@@ -1950,69 +1950,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
-/* Words to check: the unclear and misread words above the Transcript heading, each a chip that
-   says the word with the phone's voice. A chip looks like Practice's .chip: 44px, a surface
-   fill, a 1px border, the speaker icon before the word. While its word is said the border and
-   icon turn --accent. */
-.words-check {
-  margin-top: var(--s-6);
-}
-
-.words-check__title {
-  margin: 0 0 var(--s-2);
-  font-size: var(--fs-small);
-  font-weight: 600;
-}
-
-.words-check__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-}
-
-/* Under the chips when the phone's voice did not come: small, muted, and absent until then. */
-.words-check__note {
-  margin: var(--s-2) 0 0;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  color: var(--muted);
-}
-
-.words-check__note[hidden] {
-  display: none;
-}
-
-.word-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: 44px;
-  padding: 0 var(--s-4);
-  border: 1px solid var(--border);
-  border-radius: var(--r-chip);
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  font-size: var(--fs-small);
-  font-weight: 500;
-  line-height: 1.4;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.word-chip svg {
-  flex: none;
-  color: var(--muted);
-}
-
-.word-chip--playing {
-  border-color: var(--accent);
-}
-
-.word-chip--playing svg {
-  color: var(--accent);
-}
-
 /* One small muted line under the Transcript heading that explains the two highlight styles. */
 .transcript__legend {
   margin: var(--s-2) 0 0;
@@ -2617,9 +2554,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* A wide window (1024px and up) lays Results out in two columns: the column doubles for
    Results alone, the meta line spans the width, the body flows into two columns that break
-   only at Words to check or else the Transcript heading (the Coach card, the speech map, the
-   stat strip, its note and the rank card on the left; words to check and the transcript on the
-   right), and the action bar spans the width again under both. The two columns balance to the taller one.
+   only at the Transcript heading (the Coach card, the speech map, the stat strip, its note and
+   the rank card on the left; the transcript on the right), and the action bar spans the width
+   again under both. The two columns balance to the taller one.
    No card, strip or note splits between the columns. The whole block waits for :has, which
    widens main: a browser without it keeps the single column instead of two columns in one. */
 @supports selector(:has(a)) {
@@ -2645,17 +2582,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
     #screen-results > .screen__body > .transcript__heading {
       break-before: column;
       margin-top: 0;
-    }
-
-    /* Words to check, when the take has any, heads the right column instead. */
-    #screen-results > .screen__body > .words-check {
-      break-before: column;
-      margin-top: 0;
-    }
-
-    #screen-results > .screen__body > .words-check + .transcript__heading {
-      break-before: auto;
-      margin-top: var(--s-6);
     }
 
     /* The transcript is the right column's tall part: it may run on past a page of the

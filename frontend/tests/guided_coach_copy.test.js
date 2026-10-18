@@ -116,8 +116,6 @@ test("how.html says the coach sees moments, hints are never counted and the chec
     "It sends your transcript to Anthropic only when you tap it.",
     "Dotted boxes mark words the transcriber was unsure of.",
     "They are hints. They never count in a card, a tip, a score or your rank.",
-    "Tap a word under Words to check to hear it.",
-    "Your device’s built-in voice says it. The app sends nothing.",
     "There is no account and no sign-in.",
     "Takes are saved in this browser on your phone.",
     "Clearing site data deletes them. There is no backup.",
@@ -160,7 +158,6 @@ test("frontend/README.md describes the sheet, the moments and the hints", () => 
   const readme = flat(read("README.md"));
   [
     "app.sheet",
-    "Words to check",
     "hint",
     "never counted",
     "only when the speaker taps",

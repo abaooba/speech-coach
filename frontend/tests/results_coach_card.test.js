@@ -681,7 +681,6 @@ test("the card is an accent edge with no box, and every control is a 44px target
   assert.match(ruleFor(".coach-card__headline"), /font-size: var\(--fs-h2\)/);
   assert.match(ruleFor(".moment-chip"), /min-height: 44px/);
   assert.match(ruleFor(".coach-tip__row"), /min-height: 56px/);
-  assert.match(ruleFor(".word-chip"), /min-height: 44px/);
   assert.match(ruleFor(".tok--unclear"), /outline: 1px dotted var\(--muted\)/);
   assert.match(ruleFor(".coach-tip__drill"), /background: var\(--accent-soft\)/);
   assert.match(ruleFor(".badge-peer"), /background: var\(--ok-bg\)/);

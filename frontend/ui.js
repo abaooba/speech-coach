@@ -1,9 +1,8 @@
 /* ui.js: app.ui, the DOM helpers every screen builds from. el() builds elements node by node
    (never from markup strings), icon() draws the shared SVG icons, renderState() builds the empty /
    error / loading blocks, announce() writes the live region, banner paints the strip at the top
-   of the page for a take analyzed in the background, speak() says a word with the phone's
-   built-in voice, the format helpers turn seconds and dates into text, and the theme helpers keep
-   the Auto / Dark / Light choice in localStorage. */
+   of the page for a take analyzed in the background, the format helpers turn seconds and dates
+   into text, and the theme helpers keep the Auto / Dark / Light choice in localStorage. */
 (function () {
   "use strict";
 
@@ -154,10 +153,6 @@
       ["path", { d: "m13 17 3 3 5-6" }],
     ],
     "chevron-down": [["path", { d: "m6 9 6 6 6-6" }]],
-    speaker: [
-      ["polygon", { points: "11 5 6 9 2 9 2 15 6 15 11 19 11 5" }],
-      ["path", { d: "M15.54 8.46a5 5 0 0 1 0 7.07" }],
-    ],
     // A phone outline with a small lock: takes are saved on the phone, behind no account.
     "phone-lock": [
       ["rect", { x: "5", y: "2", width: "14", height: "20", rx: "2" }],
@@ -169,19 +164,6 @@
       ["path", { d: "M3 3v5h5" }],
     ],
   });
-
-  // The phone's built-in voice says a word or a sentence the way it is usually said: US English,
-  // a little slower than its default, so a learner can hear each sound.
-  const SPEECH_LANG = "en-US";
-  const SPEECH_RATE = 0.85;
-  // How long the voice may take to start before the tap counts as silent: a phone that claims a
-  // voice but says nothing (an iPhone on silent, a home-screen app whose audio is stuck) never
-  // fires onstart, and the speaker would otherwise wait on nothing.
-  const SPEECH_START_TIMEOUT_MS = 3000;
-  // What speak() tells its caller once the voice is done: it said the text, it failed to, or it
-  // never started. A cut-off (the next word's tap, or the app's own cancel) counts as ended.
-  const SPEECH_OUTCOMES = Object.freeze({ ended: "ended", failed: "failed", silent: "silent" });
-  const CUT_OFF_ERRORS = Object.freeze(["canceled", "interrupted"]);
 
   // The theme is the one setting kept in localStorage, because it must apply before the first
   // paint. THEMES is also the toggle's cycle order. "auto" leaves the device setting in charge.
@@ -373,118 +355,6 @@
     if (live) {
       live.textContent = text;
     }
-  }
-
-  // True when this browser has a built-in voice to speak with (speechSynthesis and its
-  // utterance). Where it has none, nothing offers to say a word aloud.
-  function canSpeak() {
-    const synth = globalThis.speechSynthesis;
-    return (
-      Boolean(synth) &&
-      typeof synth.speak === "function" &&
-      typeof synth.cancel === "function" &&
-      typeof globalThis.SpeechSynthesisUtterance === "function"
-    );
-  }
-
-  // The utterance being said, kept here so the browser cannot collect it mid-speech (Chrome
-  // drops the events of an utterance nothing references).
-  let currentUtterance = null;
-
-  // Says `text` with the built-in voice, cutting off anything it was still saying. `onDone`, when
-  // given, runs once with one of SPEECH_OUTCOMES: "ended" when the voice finished (or was cut
-  // off), "failed" when it refused, "silent" when it never started within
-  // SPEECH_START_TIMEOUT_MS, in which case the request is cancelled too. False when there is no
-  // voice or it threw. WebKit leaves an utterance queued right after cancel() without its events
-  // and sometimes without its voice, so cancel() is called only while something is being said,
-  // and a synthesizer left paused (iOS does that after an interruption) is resumed first.
-  function speak(text, onDone) {
-    if (!canSpeak()) {
-      return false;
-    }
-    try {
-      const synth = globalThis.speechSynthesis;
-      if (synth.speaking || synth.pending) {
-        synth.cancel();
-      }
-      if (synth.paused && typeof synth.resume === "function") {
-        synth.resume();
-      }
-      const utterance = new globalThis.SpeechSynthesisUtterance(String(text));
-      utterance.lang = SPEECH_LANG;
-      utterance.rate = SPEECH_RATE;
-      const voice = deviceVoice(synth);
-      if (voice !== null) {
-        utterance.voice = voice;
-      }
-      watchUtterance(synth, utterance, onDone);
-      currentUtterance = utterance;
-      synth.speak(utterance);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // Wires the utterance's events to one `onDone(outcome)` call, and starts the watchdog that
-  // treats a voice silent for SPEECH_START_TIMEOUT_MS as never coming. Without timers (an old
-  // browser, the test sandbox) there is no watchdog. The test fakes may give onerror no event.
-  function watchUtterance(synth, utterance, onDone) {
-    let settled = false;
-    let watchdog = null;
-    const settle = (outcome) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      if (watchdog !== null && typeof clearTimeout === "function") {
-        clearTimeout(watchdog);
-      }
-      if (currentUtterance === utterance) {
-        currentUtterance = null;
-      }
-      if (typeof onDone === "function") {
-        onDone(outcome);
-      }
-    };
-    utterance.onstart = () => {
-      if (watchdog !== null && typeof clearTimeout === "function") {
-        clearTimeout(watchdog);
-        watchdog = null;
-      }
-    };
-    utterance.onend = () => settle(SPEECH_OUTCOMES.ended);
-    utterance.onerror = (event) => {
-      const error = event && typeof event.error === "string" ? event.error : "";
-      settle(CUT_OFF_ERRORS.includes(error) ? SPEECH_OUTCOMES.ended : SPEECH_OUTCOMES.failed);
-    };
-    if (typeof setTimeout === "function") {
-      watchdog = setTimeout(() => {
-        watchdog = null;
-        settle(SPEECH_OUTCOMES.silent);
-        try {
-          synth.cancel();
-        } catch {
-          // The voice that never started cannot be cancelled either; nothing more to do.
-        }
-      }, SPEECH_START_TIMEOUT_MS);
-    }
-  }
-
-  // An English voice that runs on the device (localService), US English first, or null: a
-  // desktop browser may also offer network voices, which send the text to a speech service, and
-  // the app never picks one. With none on the device the browser's default speaks.
-  function deviceVoice(synth) {
-    const listed = typeof synth.getVoices === "function" ? synth.getVoices() : [];
-    const local = (Array.isArray(listed) ? listed : []).filter(
-      (voice) => voice && voice.localService === true && typeof voice.lang === "string",
-    );
-    const english = local.filter((voice) => /^en\b/i.test(voice.lang));
-    return (
-      english.find((voice) => voice.lang.replace("_", "-").toLowerCase() === "en-us") ||
-      english[0] ||
-      null
-    );
   }
 
   function formatClock(seconds) {
@@ -747,9 +617,6 @@
     renderState,
     announce,
     banner,
-    canSpeak,
-    speak,
-    SPEECH_OUTCOMES,
     formatClock,
     formatDate,
     formatDay,
