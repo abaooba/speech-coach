@@ -4,7 +4,8 @@
 // holds one of the run's requests: the request on screen, or the one a recorded take still
 // answers (an upload in flight, or one that failed and waits for Retry). A request Practice let
 // go (handed back, left, or dropped on leaving the screen with no take held) is not held, and in
-// normal mode nothing is. Practice runs for real through tests/practice-harness.js.
+// normal mode nothing is, not even while a normal take is analyzed in the background. Practice
+// runs for real through tests/practice-harness.js.
 "use strict";
 
 const test = require("node:test");
@@ -77,13 +78,16 @@ test("a newer request takes the place of one whose failed take it lets go", asyn
   assert.equal(t.practice.holdsLevelRequest(second), true);
 });
 
-test("in normal mode no request is held, and nothing that is not one ever is", async () => {
+// A normal take is analyzed in the background: after Stop, Practice is idle while the top
+// banner reports on the job. That job answers no level request either.
+test("in normal mode no request is held, not even while a take is analyzed", async () => {
   const t = setup();
   for (const value of [null, undefined, {}, "fillers-3"]) {
     assert.equal(t.practice.holdsLevelRequest(value), false, String(value));
   }
   await t.recordTake(12000);
-  assert.equal(t.practice.state, "uploading");
+  assert.equal(t.practice.state, "idle", "Practice is free while the job runs");
+  assert.equal(t.app.ui.banner.current().kind, "working", "the banner reports on the take");
   assert.equal(t.practice.holdsLevelRequest(null), false, "a normal take answers no request");
   assert.equal(t.practice.holdsLevelRequest(undefined), false);
 });

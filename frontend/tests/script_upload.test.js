@@ -1,6 +1,7 @@
 // Tests for sending the script with each take (T34). api.js adds an optional "script" field to
 // the upload; Practice sends a Read passage's text, or on Talk the script pasted into the
-// collapsible box in the hint row. Every browser API is a fake in a vm context.
+// collapsible box in the hint row, fixed at Stop so the banner's Retry upload re-sends it
+// unchanged. Every browser API is a fake in a vm context.
 "use strict";
 
 const test = require("node:test");
@@ -195,6 +196,7 @@ function setup() {
   const scriptBox = byClass(hint, "practice__script");
   const scriptInput = scriptBox && scriptBox.children.find((child) => child.tagName === "textarea");
   return {
+    app,
     practice: app.screens.practice,
     root,
     body,
@@ -255,16 +257,33 @@ test("a Talk take with the script box left empty is sent with no script", async 
   assert.equal(t.calls.analyze[0].script, "");
 });
 
-test("Retry upload sends the same script, even after the box was edited", async () => {
+// A normal take is analyzed in the background, so a failed upload reports on the top banner
+// (app.ui.banner, real ui.js) and not in the record zone. This mounts the banner to a node of
+// the fake document and finds one of its buttons by label.
+function mountBanner(t) {
+  const node = new FakeElement("div");
+  node.className = "banner";
+  node.hidden = true;
+  t.app.ui.banner.mount(node);
+  t.banner = node;
+}
+
+function bannerButton(t, label) {
+  const actions = byClass(t.banner, "banner__actions");
+  return actions.children.find((button) => button.children[0].textContent === label);
+}
+
+test("the banner's Retry upload sends the same script, even after the box was edited", async () => {
   const t = setup();
+  mountBanner(t);
   t.scriptInput.value = "The script as it was at Stop.";
   await t.recordTake();
   t.rejectUpload("network");
   await flush();
   t.scriptInput.value = "Edited after the take.";
 
-  const block = byClass(t.body, "practice__state").children[0];
-  block.children.find((child) => child.className.includes("state__action")).click();
+  assert.equal(t.banner.dataset.kind, "failed", "the failure sits on the banner, not Practice");
+  bannerButton(t, "Retry upload").click();
   await flush();
 
   assert.equal(t.calls.analyze.length, 2);

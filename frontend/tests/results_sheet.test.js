@@ -444,7 +444,10 @@ test("no grammar link on a Read take or a take under 20 words", async () => {
 // --- Practice marks the take ---
 
 test("Practice marks a saved take fresh right before it opens Results", async () => {
+  // A normal take is analyzed in the background. Its reply opens Results at once only while
+  // Practice is on show, so the test shows Practice first, as the router does after boot.
   const t = harness.setup();
+  t.practice.show({});
   const marked = [];
   t.app.screens.results = { markFresh: (id) => marked.push(id) };
   const go = t.app.router.go;

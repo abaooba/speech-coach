@@ -1,6 +1,7 @@
 /* ui.js: app.ui, the DOM helpers every screen builds from. el() builds elements node by node
    (never from markup strings), icon() draws the shared SVG icons, renderState() builds the empty /
-   error / loading blocks, announce() writes the live region, speak() says a word with the phone's
+   error / loading blocks, announce() writes the live region, banner paints the strip at the top
+   of the page for a take analyzed in the background, speak() says a word with the phone's
    built-in voice, the format helpers turn seconds and dates into text, and the theme helpers keep
    the Auto / Dark / Light choice in localStorage. */
 (function () {
@@ -518,11 +519,169 @@
     return index === -1 ? AUTO_THEME : THEMES[(index + 1) % THEMES.length];
   }
 
+  // --- the banner (DESIGN.md section 6, "Banner") ---
+
+  // One strip at the top of every screen, over the page, for a take analyzed in the background
+  // (Practice puts it up at Stop and takes it down when Results opens). Practice decides what it
+  // says, and says it through announce(); this only paints it. A kind picks its color and icon:
+  // "working" the accent with the spinner, "ready" green with the check, "failed" red with the
+  // alert triangle. Its actions are secondary buttons: the one primary button stays the
+  // screen's own. The strip's height goes to the page as --banner-h (0px while it is down), so
+  // Practice's one-screen column and the page's scroll padding can make room for it.
+  const BANNER_KINDS = Object.freeze(["working", "ready", "failed"]);
+  const BANNER_CLASS = "banner";
+  const BANNER_ICON_SIZE = 20;
+  const BANNER_ICON_BY_KIND = Object.freeze({ ready: "check", failed: "alert" });
+  const BANNER_HEIGHT_PROPERTY = "--banner-h";
+
+  // The node index.html holds (mountBanner), and what it shows: {kind, title, body, actions},
+  // or null while hidden. Both outlive any screen, so a banner put up on Practice is still
+  // there on History.
+  let bannerNode = null;
+  let bannerShown = null;
+
+  // Takes the node to paint in, or null when the page has none (the test fakes), and paints
+  // whatever was asked for before it was mounted. The strip's height changes with the window's
+  // width (its actions wrap), so a resize measures it again.
+  function mountBanner(node) {
+    bannerNode = node || null;
+    paintBanner();
+    if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      window.addEventListener("resize", publishBannerHeight);
+    }
+  }
+
+  // Puts the banner up, or changes what it says. `actions` is a list of {label, onClick};
+  // without one the banner has only its words.
+  function showBanner(options) {
+    const { kind, title, body, actions } = options || {};
+    if (!BANNER_KINDS.includes(kind)) {
+      throw new Error("banner: unknown kind " + JSON.stringify(kind));
+    }
+    bannerShown = {
+      kind,
+      title: String(title || ""),
+      body: String(body || ""),
+      actions: Array.isArray(actions) ? actions.slice() : [],
+    };
+    paintBanner();
+  }
+
+  function hideBanner() {
+    bannerShown = null;
+    paintBanner();
+  }
+
+  // What the banner shows now, or null while it is hidden.
+  function currentBanner() {
+    return bannerShown;
+  }
+
+  // Repaints the node from bannerShown. A repaint drops the button that had keyboard focus, so
+  // focus that sat in the banner moves to the banner itself (tabindex -1, never a Tab stop)
+  // while it stays up; when it goes down the router or the screen places focus next.
+  function paintBanner() {
+    if (bannerNode === null) {
+      return;
+    }
+    const hadFocus = bannerHoldsFocus();
+    clear(bannerNode);
+    removeAttribute(bannerNode, "tabindex");
+    if (bannerShown === null) {
+      bannerNode.hidden = true;
+      bannerNode.className = BANNER_CLASS;
+      delete bannerNode.dataset.kind;
+      publishBannerHeight();
+      return;
+    }
+    const { kind, title, body, actions } = bannerShown;
+    bannerNode.hidden = false;
+    bannerNode.className = BANNER_CLASS + " " + BANNER_CLASS + "--" + kind;
+    bannerNode.dataset.kind = kind;
+    bannerNode.appendChild(el("div", { class: "banner__icon" }, bannerIcon(kind)));
+    bannerNode.appendChild(
+      el("div", { class: "banner__text" }, [
+        el("p", { class: "banner__title", text: title }),
+        el("p", { class: "banner__body", text: body }),
+      ]),
+    );
+    if (actions.length > 0) {
+      bannerNode.appendChild(
+        el(
+          "div",
+          { class: "banner__actions" },
+          actions.map((action) => bannerButton(action)),
+        ),
+      );
+    }
+    if (hadFocus) {
+      bannerNode.setAttribute("tabindex", "-1");
+      if (typeof bannerNode.focus === "function") {
+        bannerNode.focus({ preventScroll: true });
+      }
+    }
+    publishBannerHeight();
+  }
+
+  // Writes the strip's height to --banner-h on the root element: its box height while it is
+  // up, 0px while it is down. The test fakes have no style or offsetHeight.
+  function publishBannerHeight() {
+    const style = document.documentElement && document.documentElement.style;
+    if (!style || typeof style.setProperty !== "function") {
+      return;
+    }
+    const height =
+      bannerNode !== null && bannerShown !== null && typeof bannerNode.offsetHeight === "number"
+        ? bannerNode.offsetHeight
+        : 0;
+    style.setProperty(BANNER_HEIGHT_PROPERTY, height + "px");
+  }
+
+  // The test fakes have no removeAttribute.
+  function removeAttribute(node, name) {
+    if (typeof node.removeAttribute === "function") {
+      node.removeAttribute(name);
+    }
+  }
+
+  function bannerIcon(kind) {
+    return kind === "working" ? spinner() : icon(BANNER_ICON_BY_KIND[kind], BANNER_ICON_SIZE);
+  }
+
+  // A banner button; the label stays a child text node, as the screens' tests read it.
+  function bannerButton(action) {
+    const attrs = { class: "banner__action btn btn--secondary", type: "button" };
+    if (typeof action.onClick === "function") {
+      attrs.onClick = action.onClick;
+    }
+    return el("button", attrs, String(action.label || ""));
+  }
+
+  // True when keyboard focus sits in the banner, so a screen can place it after a banner action
+  // takes the strip down. Some test fakes have no activeElement, and some no contains().
+  function bannerHoldsFocus() {
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    if (!active || bannerNode === null || typeof bannerNode.contains !== "function") {
+      return false;
+    }
+    return active === bannerNode || bannerNode.contains(active);
+  }
+
+  const banner = Object.freeze({
+    mount: mountBanner,
+    show: showBanner,
+    hide: hideBanner,
+    current: currentBanner,
+    holdsFocus: bannerHoldsFocus,
+    KINDS: BANNER_KINDS,
+  });
+
   app.ui = {
     el,
     clear,
     renderState,
     announce,
+    banner,
     canSpeak,
     speak,
     formatClock,

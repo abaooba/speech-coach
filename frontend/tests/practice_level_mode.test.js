@@ -532,14 +532,18 @@ test("Practice keeps no take after onSaved: nothing is held for a retry", async 
 
 // --- Normal mode ------------------------------------------------------------------------------
 
+// A normal take is analyzed in the background and opens Results at once only while Practice is
+// on show in idle, so the test shows the screen first, as the router does before a tap.
 test("normal mode still saves without a path and goes to Results", async () => {
   const t = setup();
+  t.practice.show({});
   await t.recordTake(12000);
   t.resolveUpload(ANALYSIS);
   await flush();
   assert.ok(!("path" in t.calls.save[0]), "a plain take has no path");
   assert.equal(t.calls.announce[t.calls.announce.length - 1], "Results ready");
   assert.deepEqual(plain(t.calls.go), [{ name: "results", params: { id: SAVED_ID } }]);
+  assert.equal(t.app.ui.banner.current(), null, "the top banner is down once Results opens");
 });
 
 test("normal mode never hands the blob anywhere but the upload", async () => {
@@ -826,19 +830,26 @@ test("leaving after a failed upload keeps the take and its request for Retry", a
   assert.equal(log.onSaved.length, 1);
 });
 
-test("startLevelTake lets go of a take still held from before: the request asks for a new one", async () => {
+// A normal take that failed to upload is a background job, not something Practice holds: its
+// Upload failed waits in the top banner, so the request opens a fresh level take at 0:00 with no
+// block, and the failed job stays in the top banner for its own Retry upload.
+test("startLevelTake opens a fresh take: a failed normal take stays in the top banner, not on Practice", async () => {
   const t = setup();
+  t.practice.show({});
   await t.recordTake(12000);
   t.rejectUpload("network");
   await flush();
-  assert.equal(stateBlock(t).title, "Upload failed");
+  assert.equal(stateBlock(t), null, "a normal take's failure never blocks Practice");
+  assert.equal(t.app.ui.banner.current().title, "Upload failed");
 
   const { request } = levelRequest();
   t.startLevel(request);
   assert.equal(t.practice.state, "idle");
   assert.equal(stateBlock(t), null);
-  assert.ok(parts(t).banner);
+  assert.ok(parts(t).banner, "the level's own banner shows in the body");
   assert.equal(parts(t).timer.textContent, "0:00");
+  assert.equal(t.app.ui.banner.current().title, "Upload failed", "the job keeps its Retry");
+  assert.equal(t.calls.analyze.length, 1, "the request asks for a new take; nothing is re-sent");
 });
 
 test("an upload in flight answers the request it was recorded under", async () => {

@@ -488,6 +488,105 @@ h2 {
   }
 }
 
+/* Banner (app.ui.banner, DESIGN.md section 6): the strip at the top of the page for a take
+   analyzed in the background. It sticks to the top of the window over every screen, so the
+   speaker sees it from the bottom of a long Results page, and sits under the bottom sheet. The
+   strip spans the window; its side padding grows past the gutter on a wide window, so the icon,
+   words and actions sit in the centered content column main uses. Each kind colors the strip's
+   background and its left edge, and the icon in the edge's color: the accent while the take is
+   analyzed, green when its results are ready, red when it failed. The words stay in the text
+   color, so every pair is at least 4.5:1 in both schemes (section 4). The actions wrap under
+   the words on a narrow phone rather than squeeze them. */
+.banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) max(var(--s-4), calc((100% - var(--col-max)) / 2 + var(--s-4)));
+  padding-top: calc(var(--s-3) + env(safe-area-inset-top));
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 4px 0 0 var(--accent);
+  color: var(--text);
+}
+
+.banner[hidden] {
+  display: none;
+}
+
+.banner__icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+}
+
+.banner__icon .spinner {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.banner__text {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.banner__title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.banner__body {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.banner__actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.banner__action {
+  min-height: 44px;
+  padding: 0 var(--s-3);
+}
+
+.banner--ready {
+  background: var(--ok-bg);
+  box-shadow: inset 4px 0 0 var(--ok);
+}
+
+.banner--ready .banner__icon {
+  color: var(--ok);
+}
+
+.banner--failed {
+  background: var(--record-bg);
+  box-shadow: inset 4px 0 0 var(--record);
+}
+
+.banner--failed .banner__icon {
+  color: var(--record);
+}
+
+.banner--failed .banner__title {
+  color: var(--record-text);
+}
+
 /* 6. Bottom nav: the bar spans the window, its four items sit in the centered content column. */
 .nav {
   position: fixed;
@@ -576,25 +675,45 @@ h2 {
   }
 }
 
-/* While Practice records or uploads, the nav steps aside. Only the active Practice counts: an
-   upload that goes on after the speaker leaves for another screen keeps that screen's nav. */
+/* While Practice records, or uploads a level take in place, the nav steps aside. Only the
+   active Practice counts: a level upload that goes on after the speaker leaves for another
+   screen keeps that screen's nav. The banner steps aside with it, so neither a nav item nor
+   "See results" can pull the speaker off a take that records; it is back at Stop. */
 body:has(#screen-onboarding.screen--active) .nav,
 body:has(#screen-practice.screen--active[data-state="recording"]) .nav,
 body:has(#screen-practice.screen--active[data-state="uploading"]) .nav {
   display: none;
 }
 
+body:has(#screen-practice.screen--active[data-state="recording"]) .banner,
+body:has(#screen-practice.screen--active[data-state="uploading"]) .banner {
+  display: none;
+}
+
+/* app.ui.banner writes the strip's height to --banner-h on the root; while the strip is hidden
+   with the nav it takes no room, so the page reads 0 here. The scroll padding keeps a control
+   that keyboard focus scrolls to clear of the strip, as the controls' own scroll margins keep
+   it clear of the nav (DESIGN.md section 9); it is 0 while the strip is down. */
+body:has(#screen-practice.screen--active[data-state="recording"]),
+body:has(#screen-practice.screen--active[data-state="uploading"]) {
+  --banner-h: 0px;
+}
+
+html {
+  scroll-padding-top: var(--banner-h, 0px);
+}
+
 /* 7. Practice screen: chips, passage card, timer, record button */
 
-/* Practice fits one screen: the active section is a column at least as tall as the viewport
+/* Practice fits one screen (less the top banner while it is up, --banner-h): the active section is a column at least as tall as the viewport
    minus main's padding, so the record zone sits in the thumb zone above the nav. Scoped to
    .screen--active, because an id selector alone would beat .screen[hidden] on other routes.
    The 100vh line is the fallback for browsers without dynamic viewport units. */
 #screen-practice.screen--active {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
-  min-height: calc(100dvh - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
+  min-height: calc(100vh - var(--banner-h, 0px) - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
+  min-height: calc(100dvh - var(--banner-h, 0px) - var(--s-4) - var(--nav-h) - var(--s-5) - env(safe-area-inset-bottom));
 }
 
 /* While a take records or uploads the nav is hidden, so the column reaches into its room: main

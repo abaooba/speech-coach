@@ -1,6 +1,7 @@
 // Tests for the capture half of frontend/screens/practice.js: the Record tap asks for the
-// microphone, MediaRecorder collects chunks, the timer ticks, Stop builds the blob and uploads
-// it, and hide() releases everything. Every browser API the screen touches (getUserMedia,
+// microphone, MediaRecorder collects chunks, the timer ticks, Stop builds the blob and hands it
+// to a background job that the top banner (app.ui.banner) reports on while Practice is free
+// again, and hide() releases everything. Every browser API the screen touches (getUserMedia,
 // MediaRecorder, Blob, performance.now, setInterval) is a fake injected into the vm context,
 // so the tests drive the clock and the recorder's events by hand.
 "use strict";
@@ -288,6 +289,7 @@ function setup(options = {}) {
 
   const timerWrap = byClass(body, "practice__timer");
   return {
+    app,
     practice,
     root,
     body,
@@ -340,6 +342,51 @@ function stateBlockParts(t) {
     actionLabel: action ? action.children[0].textContent : null,
     action,
   };
+}
+
+// Mounts the top banner (the real app.ui.banner from ui.js) to a node built by the same fake
+// document and puts Practice on show, as after the router's boot route, so a take saved while
+// the screen waits in idle opens Results at once. The node is kept as t.banner for the readers
+// below.
+function withBanner(t) {
+  const node = t.app.ui.el("div", { class: "banner" });
+  node.hidden = true;
+  t.app.ui.banner.mount(node);
+  t.banner = node;
+  t.practice.show({});
+  return t;
+}
+
+function textOf(node) {
+  if (!Array.isArray(node.children) || node.children.length === 0) {
+    return node.textContent;
+  }
+  return node.children.map(textOf).join("");
+}
+
+function bannerPart(node, name) {
+  return node.children.find((child) => child.classList.contains(name));
+}
+
+// {kind, title, body, actions: [label]} as the banner is painted, or null while it is down.
+function bannerView(t) {
+  const node = t.banner;
+  if (node.hidden) {
+    return null;
+  }
+  const text = bannerPart(node, "banner__text");
+  const actions = bannerPart(node, "banner__actions");
+  return {
+    kind: node.dataset.kind,
+    title: bannerPart(text, "banner__title").textContent,
+    body: bannerPart(text, "banner__body").textContent,
+    actions: actions ? actions.children.map(textOf) : [],
+  };
+}
+
+function bannerButton(t, label) {
+  const actions = bannerPart(t.banner, "banner__actions");
+  return actions.children.find((button) => textOf(button) === label);
 }
 
 test("the microphone is requested on the first Record tap, never at load", async () => {
@@ -438,8 +485,10 @@ test("Stop before 5 s shows Too short, uploads nothing and keeps the timer value
   assert.equal(t.timer.textContent, "0:03", "idle keeps the last value until the next take");
 });
 
-test("Stop after 5 s uploads the blob, saves the session and routes to results", async () => {
-  const t = setup();
+// A normal take leaves the screen at Stop: Practice is idle at 0:00 at once while the banner
+// says the take is being analyzed, and the saved session opens Results since Practice waits.
+test("Stop after 5 s hands the take to a job, saves it and routes to results", async () => {
+  const t = withBanner(setup());
   const recorder = await startTake(t);
   t.chips[1].click();
   assert.equal(t.practice.selectedPassage().id, "a", "chips are inert while recording");
@@ -453,10 +502,20 @@ test("Stop after 5 s uploads the blob, saves the session and routes to results",
 
   assert.ok(t.streams[0].allTracksStopped());
   assert.equal(t.clock.activeIntervals(), 0);
-  assert.deepEqual(t.calls.announce, ["Recording started", "Recording stopped, 12 seconds"]);
-  assert.equal(t.root.dataset.state, "uploading");
-  assert.equal(t.timer.textContent, "0:12", "uploading holds the final value");
-  assert.equal(t.stateEl.children[0].className, "state state--loading");
+  assert.deepEqual(t.calls.announce, [
+    "Recording started",
+    "Recording stopped, 12 seconds",
+    "Analyzing your speech",
+  ]);
+  assert.equal(t.root.dataset.state, "idle", "Practice is free while the take is analyzed");
+  assert.equal(t.timer.textContent, "0:00", "the clock is back at 0:00 at once");
+  assert.deepEqual(t.stateEl.children, [], "no Analyzing block in the record zone");
+  assert.deepEqual(bannerView(t), {
+    kind: "working",
+    title: "Analyzing your speech",
+    body: "Your 0:12 take. Usually 5 to 15 seconds.",
+    actions: [],
+  });
 
   assert.equal(t.calls.analyze.length, 1);
   const { blob, contentType } = t.calls.analyze[0];
@@ -478,6 +537,7 @@ test("Stop after 5 s uploads the blob, saves the session and routes to results",
   assert.equal(t.root.dataset.state, "idle");
   assert.deepEqual(t.stateEl.children, []);
   assert.deepEqual(plain(t.calls.go), [{ name: "results", params: { id: SAVED_ID } }]);
+  assert.equal(bannerView(t), null, "the banner comes down once Results opens");
 });
 
 test("the blob takes the recorder's reported type, falling back to the chosen one", async () => {
@@ -514,8 +574,9 @@ test("a second Stop tap before the recorder's stop event is ignored", async () =
   assert.equal(t.calls.getUserMedia.length, 1);
 });
 
+// The take goes to a background job just as after a Stop tap: Practice is idle, the banner works.
 test("a recorder that stops on its own (track ended) is handled like a Stop tap", async () => {
-  const t = setup();
+  const t = withBanner(setup());
   const recorder = await startTake(t);
   t.clock.advance(8000);
   recorder.finish(chunk(80));
@@ -523,8 +584,10 @@ test("a recorder that stops on its own (track ended) is handled like a Stop tap"
   assert.equal(recorder.stopCalls, 0);
   assert.ok(t.streams[0].allTracksStopped());
   assert.equal(t.clock.activeIntervals(), 0);
-  assert.equal(t.root.dataset.state, "uploading");
+  assert.equal(t.root.dataset.state, "idle");
   assert.equal(t.calls.analyze.length, 1);
+  assert.equal(bannerView(t).kind, "working");
+  assert.equal(bannerView(t).body, "Your 0:08 take. Usually 5 to 15 seconds.");
 });
 
 test("a denied mic shows Microphone blocked; the next Record tap asks again", async () => {
@@ -552,8 +615,10 @@ test("a denied mic shows Microphone blocked; the next Record tap asks again", as
   assert.equal(t.root.dataset.state, "recording");
 });
 
-test("a failed upload shows the api message; Retry upload re-sends the same blob", async () => {
-  const t = setup();
+// A failed upload is the banner's word, not an error block on Practice: the api sentence shows
+// under Upload failed with Retry upload and Record a new take, and Retry re-sends the same blob.
+test("a failed upload shows the api message on the banner; Retry re-sends the blob", async () => {
+  const t = withBanner(setup());
   const recorder = await startTake(t);
   t.clock.advance(8000);
   t.recordButton.click();
@@ -562,31 +627,36 @@ test("a failed upload shows the api message; Retry upload re-sends the same blob
 
   t.rejectUpload(apiError("network"));
   await flush();
-  assert.equal(t.root.dataset.state, "error");
-  let block = stateBlockParts(t);
-  assert.equal(block.title, "Upload failed");
-  assert.equal(block.body, MESSAGES.network);
-  assert.equal(block.actionLabel, "Retry upload");
-  assert.equal(t.timer.textContent, "0:08", "error keeps the final value");
+  assert.equal(t.root.dataset.state, "idle", "no error block on Practice");
+  assert.deepEqual(t.stateEl.children, []);
+  assert.deepEqual(bannerView(t), {
+    kind: "failed",
+    title: "Upload failed",
+    body: MESSAGES.network,
+    actions: ["Retry upload", "Record a new take"],
+  });
+  assert.equal(t.timer.textContent, "0:00", "the clock stays at 0:00; the job holds the take");
   assert.equal(t.calls.save.length, 0);
 
-  block.action.click();
-  assert.equal(t.root.dataset.state, "uploading");
+  bannerButton(t, "Retry upload").click();
+  assert.equal(bannerView(t).kind, "working");
+  assert.equal(t.root.dataset.state, "idle");
   assert.equal(t.calls.analyze.length, 2);
   assert.equal(t.calls.analyze[1].blob, t.calls.analyze[0].blob);
   assert.equal(t.calls.analyze[1].contentType, t.calls.analyze[0].contentType);
 
   t.rejectUpload(apiError("provider"));
   await flush();
-  block = stateBlockParts(t);
-  assert.equal(block.body, MESSAGES.provider);
+  assert.equal(bannerView(t).kind, "failed");
+  assert.equal(bannerView(t).body, MESSAGES.provider);
 
-  block.action.click();
+  bannerButton(t, "Retry upload").click();
   t.resolveUpload(ANALYSIS);
   await flush();
   assert.equal(t.calls.save.length, 1);
   assert.equal(t.root.dataset.state, "idle");
   assert.equal(plain(t.calls.go)[0].name, "results");
+  assert.equal(bannerView(t), null, "the banner comes down once Results opens");
 });
 
 test("a Record tap in the error state starts a fresh take and resets the timer", async () => {
@@ -607,18 +677,34 @@ test("a Record tap in the error state starts a fresh take and resets the timer",
   assert.equal(recorder.state, "recording");
 });
 
-test("a Record tap while uploading does nothing", async () => {
-  const t = setup();
+// Practice is idle while a take is analyzed, so Record starts a new take; the first take's job
+// runs on untouched, and its reply waits in the banner rather than interrupting the recording.
+test("a Record tap while a take is analyzed starts a new take; the job runs on", async () => {
+  const t = withBanner(setup());
   const recorder = await startTake(t);
   t.clock.advance(6000);
   t.recordButton.click();
   recorder.finish(chunk(60));
   await flush();
-  assert.equal(t.root.dataset.state, "uploading");
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(bannerView(t).kind, "working");
 
-  t.recordButton.click();
-  assert.equal(t.calls.getUserMedia.length, 1);
-  assert.equal(t.root.dataset.state, "uploading");
+  // Record is ignored for a moment after a Stop (a bouncing thumb), so the clock moves on.
+  t.clock.advance(500);
+  await startTake(t);
+  assert.equal(t.calls.getUserMedia.length, 2);
+  assert.equal(t.MediaRecorder.instances.length, 2);
+  assert.equal(t.root.dataset.state, "recording");
+  assert.equal(t.timer.textContent, "0:00");
+  assert.equal(t.calls.analyze.length, 1, "the first take's upload is left as it is");
+  assert.equal(bannerView(t).kind, "working", "the banner still reports on the first take");
+
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save.length, 1);
+  assert.deepEqual(t.calls.go, [], "Results is not pulled over the recording");
+  assert.equal(t.root.dataset.state, "recording");
+  assert.equal(bannerView(t).kind, "ready");
 });
 
 test("app.pauses gets start(stream), stop() and reconcile(metrics, samples)", async () => {
@@ -682,10 +768,14 @@ test("hide() mid-take releases recorder, tracks, interval and pauses; no upload"
   assert.deepEqual(pauses.calls.map((call) => call[0]), ["start", "stop", "start"]);
 });
 
-test("hide() in idle, uploading and error releases nothing and keeps the state", async () => {
-  const t = setup();
+// hide() in idle changes nothing, and a take being analyzed in the background keeps going off
+// screen: the reply is saved while Practice is hidden, waits in the banner as Results ready
+// rather than opening over another screen, and "See results" opens it from anywhere.
+test("hide() in idle and during a job releases nothing; the job keeps going", async () => {
+  const t = withBanner(setup());
   t.practice.hide();
   assert.equal(t.root.dataset.state, "idle");
+  t.practice.show({});
 
   const recorder = await startTake(t);
   t.clock.advance(6000);
@@ -693,11 +783,25 @@ test("hide() in idle, uploading and error releases nothing and keeps the state",
   recorder.finish(chunk(60));
   await flush();
   t.practice.hide();
-  assert.equal(t.root.dataset.state, "uploading", "the upload keeps going off screen");
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(bannerView(t).kind, "working", "the job keeps going off screen");
+
   t.resolveUpload(ANALYSIS);
   await flush();
-  assert.equal(t.calls.save.length, 1);
-  assert.equal(plain(t.calls.go)[0].name, "results");
+  assert.equal(t.calls.save.length, 1, "the take is saved while Practice is hidden");
+  assert.deepEqual(t.calls.go, [], "Results does not open over another screen");
+  assert.deepEqual(bannerView(t), {
+    kind: "ready",
+    title: "Results ready",
+    body: "Your 0:06 take is ready to read.",
+    actions: ["See results"],
+  });
+
+  t.practice.show({});
+  assert.equal(t.root.dataset.state, "idle", "nothing of the take comes back on show");
+  bannerButton(t, "See results").click();
+  assert.deepEqual(plain(t.calls.go), [{ name: "results", params: { id: SAVED_ID } }]);
+  assert.equal(bannerView(t), null);
 });
 
 test("hide() while the mic prompt is open releases the stream when it arrives", async () => {

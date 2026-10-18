@@ -1,9 +1,11 @@
-// Review fix: what the Upload failed block says, and what Retry repeats, when the analysis came
-// back but a later step failed (frontend/screens/practice.js; DESIGN.md sections 7 and 8). A
-// level request's judge or the save may throw anything; the block still shows a fixed sentence,
-// never the exception's own words. The take keeps its analysis once the backend returned it, and
-// its judged session once judge returned it, so Retry never sends the audio for a second paid
-// analysis, and never judges a take twice.
+// Review fix: what Upload failed says, and what Retry repeats, when the analysis came back but a
+// later step failed (frontend/screens/practice.js; DESIGN.md sections 7 and 8). A level request's
+// judge or the save may throw anything; the failure still reads as a fixed sentence, never the
+// exception's own words. The take keeps its analysis once the backend returned it, and its judged
+// session once judge returned it, so Retry never sends the audio for a second paid analysis, and
+// never judges a take twice. A level take uploads in place, so its failure is the Upload failed
+// block in the record zone; a normal take is analyzed in the background since 2026-10-18, so its
+// failure is the top banner (app.ui.banner) and Practice stays idle.
 "use strict";
 
 const test = require("node:test");
@@ -45,6 +47,53 @@ const PROVIDER_FAILURE = {
   action: "Retry upload",
   secondary: "Record a new take",
 };
+
+// The banner mounted to a node from the harness's document, as the router mounts #banner, with
+// Practice on show so a normal take's reply would open Results at once if nothing failed.
+function withBanner() {
+  const t = setup();
+  const node = t.app.ui.el("div", { class: "banner" });
+  node.hidden = true;
+  t.app.ui.banner.mount(node);
+  t.banner = node;
+  t.practice.show({});
+  return t;
+}
+
+function textOf(node) {
+  if (!Array.isArray(node.children) || node.children.length === 0) {
+    return node.textContent;
+  }
+  return node.children.map(textOf).join("");
+}
+
+function part(node, name) {
+  return node.children.find((child) => child.classList.contains(name));
+}
+
+// The banner's title, its sentence and its actions' labels in the block's shape, so the same
+// PROVIDER_FAILURE expectation reads for a normal take; null while the banner is down.
+function bannerFailure(t) {
+  const node = t.banner;
+  if (node.hidden) {
+    return null;
+  }
+  const text = part(node, "banner__text");
+  const actions = part(node, "banner__actions");
+  const labels = actions ? actions.children.map(textOf) : [];
+  return {
+    kind: node.dataset.kind,
+    title: part(text, "banner__title").textContent,
+    body: part(text, "banner__body").textContent,
+    action: labels[0],
+    secondary: labels[1],
+  };
+}
+
+function bannerButton(t, label) {
+  const actions = part(t.banner, "banner__actions");
+  return actions.children.find((button) => textOf(button) === label);
+}
 
 // A judge that throws while `failing()` is true, and returns the path otherwise.
 function judgeThatThrows(failing, thrown) {
@@ -162,19 +211,25 @@ test("a failed save shows the provider sentence; Retry saves the same judged ses
   assert.equal(log.onSaved[0].session, attempts[1]);
 });
 
-test("in normal mode too, a failed save reads as fixed copy and Retry sends no audio", async () => {
-  const t = setup();
+// A normal take is analyzed in the background, so its failed save is the red top banner, with the
+// same fixed sentence and the same two actions, while Practice stays idle with no block.
+test("in normal mode a failed save is the banner, fixed copy; Retry sends no audio", async () => {
+  const t = withBanner();
   const attempts = failingSave(t, 1, "UnknownError: IndexedDB went away");
   await t.recordTake(12000);
   t.resolveUpload(ANALYSIS);
   await flush();
-  assert.deepEqual(failure(t), PROVIDER_FAILURE);
+  assert.deepEqual(bannerFailure(t), { kind: "failed", ...PROVIDER_FAILURE });
+  assert.equal(t.practice.state, "idle", "Practice is free while the banner holds the failure");
+  assert.equal(stateBlock(t), null, "no Upload failed block in the record zone");
 
-  stateBlock(t).action.click();
+  bannerButton(t, "Retry upload").click();
   await flush();
-  assert.equal(t.calls.analyze.length, 1);
+  assert.equal(t.calls.analyze.length, 1, "the audio went to the backend once");
   assert.equal(attempts.length, 2);
+  assert.equal(attempts[1], attempts[0], "the very session that failed to save");
   assert.deepEqual(plain(t.calls.go), [{ name: "results", params: { id: SAVED_ID } }]);
+  assert.equal(t.banner.hidden, true, "the banner comes down once Results opens");
 });
 
 test("a failed analysis still shows its own sentence; Retry sends the audio again", async () => {
