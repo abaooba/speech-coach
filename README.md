@@ -27,12 +27,17 @@ Phone width, light and dark. The history is seeded with two real takes
 - Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
   the take.
 - Results: a speech map pins each restart, freeze and filler to its second. Tap a card to
-  see that moment in the transcript. Four stats, your rank, the marked transcript and two or
-  three cited coach notes follow.
+  see that moment in the transcript. The Coach card comes first: a headline and two or three
+  cited tips that point at moments in your take. Four stats, your rank and the marked
+  transcript follow. "Words to check" chips say a word the transcriber was unsure of with your
+  phone's own voice. On a talked take, "Check grammar & vocabulary" is an optional extra.
+- After a take or a level, a bottom sheet names the one next step. Each tab also opens a short
+  guide the first time you visit it.
 - Progress: one metric charted across your takes, with your latest, your best and your change
   from the average, under your rank and streak.
 - History: every take, newest first, with its pace, fillers per minute and a status word.
-- Onboarding, shown on first launch: what is measured and what happens to your audio.
+- Onboarding, shown on first launch: the no-account promise, what is measured and where your
+  audio and transcript go.
 
 ### Results, full page
 
@@ -51,8 +56,12 @@ Phone width, light and dark. The history is seeded with two real takes
    backend asks AssemblyAI to delete its copy as soon as the words are back;
    during a Path level the browser keeps take 1 in memory for replay until
    the level ends (see Privacy below for exactly what that means).
-4. The browser saves the session in IndexedDB on the device and draws a
-   progress chart. Guests need no account. With an account, your takes sync to Postgres, so a second device sees them.
+4. The browser saves the session in IndexedDB on the phone and draws a
+   progress chart. No account needed: takes are saved in this browser only.
+5. For the coach notes, the browser sends the take's numbers, part of the
+   transcript and the moments it found to the server, which has Claude write
+   a headline and tips that quote them. The grammar check is a separate call
+   the speaker makes by tapping a button.
 
 The longer version, with a diagram and every module's job, is
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -81,16 +90,10 @@ The other routes:
 | --- | --- |
 | `GET /api/health` | Liveness check that Render polls: `{"status": "ok"}` |
 | `POST /api/advice` | Coach notes for one take: tips Claude Haiku writes from the tip library while `ANTHROPIC_API_KEY` is set and the server's hourly budget of AI calls lasts, the library's own words otherwise |
-| `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/logout` | Open an account, log in or log out; the session lives in an HttpOnly cookie |
-| `GET /api/me`, `DELETE /api/me` | The signed-in account's email, or delete the account with everything it keeps |
-| `GET /api/sessions`, `POST /api/sessions`, `DELETE /api/sessions`, `DELETE /api/sessions/{id}` | A signed-in speaker's takes: list them, keep one, delete them all or one |
-| `POST /api/sessions/import` | Add this device's takes to the account, skipping any it already has |
-| `GET /api/progress`, `POST /api/progress` | The advice a signed-in speaker was shown and the skill-path levels they cleared |
+| `POST /api/language-check` | Opt-in grammar and vocabulary check of one take's transcript (8,000 characters at most, else 400): up to 3 grammar fixes, 2 stronger words and 2 sentence rewrites from Claude Haiku, or `{"status": "unavailable"}` when no key is set, the hourly AI budget is spent or the check fails. Nothing is saved |
 
-Accounts are optional. Every account route (`/api/auth/*`, `/api/me`,
-`/api/sessions`, `/api/progress`) answers 503 while `DATABASE_URL` is unset,
-and guests keep their takes in the browser; `/api/advice` serves guests
-either way.
+There are no accounts: takes stay in the browser, and `/api/advice` serves
+every request the same way, by the `shown_ids` it sends.
 
 ### Stack
 
@@ -147,9 +150,10 @@ Check a deploy before a demo (this one reaches the network, so pytest never runs
 .venv/bin/python scripts/smoke_deploy.py https://speech-coach-xz8c.onrender.com
 ```
 
-It prints PASS or FAIL for health, accounts (`/api/me` answers 401 when
-`DATABASE_URL` is set) and coach notes (`/api/advice` says Claude wrote them
-when `ANTHROPIC_API_KEY` is set and the hourly budget lasts).
+It prints PASS or FAIL for health, coach notes (`/api/advice` says Claude wrote them
+when `ANTHROPIC_API_KEY` is set and the hourly budget lasts), coach moments (`/api/advice`
+with a take's moments answers with a `headline` key) and the language check
+(`/api/language-check` answers `ok`, or `unavailable` without a key or budget).
 
 Frontend tests (plain `node:test`, no dependencies; pytest also runs them when
 `node` is installed):
@@ -173,13 +177,10 @@ nothing else to host. `render.yaml` at the repo root describes the service.
    `render.yaml` marks `sync: false`. Two are required: `ASSEMBLYAI_API_KEY`
    and `DEEPGRAM_API_KEY` (paste both; `STT_PROVIDER` is preset to
    `assemblyai`, switch it to `deepgram` under the service's **Environment**
-   tab if you want the other provider). Three are optional and turn features
-   on: `ANTHROPIC_API_KEY` makes Claude write the coach notes on Results
-   (unset, the research library's own words stand in); `DATABASE_URL` (a
-   Neon Postgres connection string) and `SESSION_SECRET` (32 random bytes,
-   `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`) turn
-   accounts on (unset, the app is guest-only and every account route answers
-   503). Setting or changing `SESSION_SECRET` signs every account out.
+   tab if you want the other provider). One is optional and turns a
+   feature on: `ANTHROPIC_API_KEY` makes Claude write the coach notes on
+   Results (unset, the research library's own words stand in). There is no
+   database and nothing else to set.
 4. Apply. The first build takes a few minutes. Render polls the health check
    path `/api/health` and marks the deploy live once it answers 200.
 5. Open the service URL (`https://speech-coach-xz8c.onrender.com`).
@@ -253,14 +254,25 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
   released when the level ends: when the result shows, when you leave the
   level or start another, or when you open a screen other than Practice or
   the level. Reloading the page drops it too.
-- Transcripts and metrics are returned to the browser and stored in
-  IndexedDB on the device. For the coach notes on Results, the browser also
-  sends the take's numbers and the first 1,500 characters of its transcript
-  to `POST /api/advice`. While `ANTHROPIC_API_KEY` is set and the server's
-  hourly budget of AI calls lasts, the server passes both to Anthropic so
-  Claude Haiku can write the notes, and what it sends is subject to
-  Anthropic's retention policy. Otherwise nothing goes to Anthropic. The
-  server never logs the excerpt.
+- There is no account and no sign-in. The server keeps no copy of your
+  takes. Transcripts and metrics are returned to the browser and saved in
+  IndexedDB in this browser, on the phone. Clearing the browser's site data
+  deletes them. There is no backup.
+- For the coach notes on Results, the browser also sends the take's numbers
+  and the first 1,500 characters of its transcript to `POST /api/advice`,
+  with the moments the app found: for each one, its words, the words around
+  it and its time (at most 40). While `ANTHROPIC_API_KEY` is set and the
+  server's hourly budget of AI calls lasts, the server passes all of it to
+  Anthropic so Claude Haiku can write the notes, and what it sends is subject
+  to Anthropic's retention policy. Otherwise nothing goes to Anthropic. The
+  server never logs the excerpt or the moments.
+- The grammar and vocabulary check sends the transcript, up to 8,000
+  characters, to `POST /api/language-check` and on to Anthropic only when you
+  tap "Check grammar & vocabulary". Nothing is saved on the server.
+- "Words to check" and the dotted boxes in the transcript come from the
+  transcriber's word confidence. They are hints, never counted in any card,
+  tip or score. Tapping a word plays it with the device's built-in voice, and
+  the app sends nothing.
 
 ## AI disclosure
 

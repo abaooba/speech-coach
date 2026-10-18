@@ -4,8 +4,9 @@ Speech Coach is a phone-first web app with a small Python backend. The phone
 records, finds pauses, scores the take by rules it can explain, keeps every
 take in its own database and draws the progress chart. The backend does the
 two things a phone cannot: turn audio into timed words through a speech-to-text
-provider, and ask Claude to rewrite research-library tips for one take. Accounts
-are optional and only sync what the phone already has.
+provider, and ask Claude to write coach notes (and, on request, a grammar check)
+for one take. There are no accounts and the server keeps nothing: every take is
+saved on the phone.
 
 ![Architecture](architecture.svg)
 
@@ -23,11 +24,20 @@ are optional and only sync what the phone already has.
 5. The browser saves words and metrics in IndexedDB (`store.js`) and
    `delivery.js` re-scores every stored take by today's rules, so old takes
    never go stale when a rule changes.
-6. Results asks `POST /api/advice` for coach notes: `advice/select.py` picks
-   library entries for the take's weakest skills, `advice/coach.py` has Claude
-   Haiku rewrite two or three of them in the take's numbers, and the app, not
-   the model, attaches each citation. Without a key, the library's own words
-   stand in.
+6. Results asks `POST /api/advice` for coach notes. The request carries the take's
+   numbers, part of the transcript and its moments (`coach.js`: each restart,
+   filler, pause, misread or unclear-word hint with its words, the words around
+   it and its time). `advice/select.py` picks library entries for the weakest
+   skills, `advice/coach.py` has Claude Haiku write a headline and two or three
+   tips that quote those moments, and the app, not the model, attaches each
+   citation. Without a key, or if the reply fails its checks, the library's own
+   words stand in.
+   The transcriber's word confidence marks unclear words with a dotted box and a
+   "Words to check" chip. These are hints: they never enter a metric, tip or
+   rank, and tapping a chip uses the phone's own voice (`speechSynthesis`).
+   The Coach card's "Check grammar & vocabulary" button is the only thing that
+   calls `POST /api/language-check` (`language.js`, `backend/language/check.py`),
+   and only when the speaker taps it.
 7. `rank.js` turns the last ten takes into a rating and a tier; `path.js`
    turns the weakest skill into the next Loop Path level.
 
@@ -35,21 +45,19 @@ are optional and only sync what the phone already has.
 
 | Path | Owns |
 | --- | --- |
-| `backend/app.py` | FastAPI app: `/api/analyze`, `/api/advice`, `/api/health`, static files, cache headers, body limits |
+| `backend/app.py` | FastAPI app: `/api/analyze`, `/api/advice`, `/api/language-check`, `/api/health`, static files, cache headers, body limits |
 | `backend/metrics.py` | Pure metrics from timed words: pace, fillers, pauses, repeated phrases |
 | `backend/script_align.py` | Lines a take up against its script: restarts, skipped and misread words |
 | `backend/providers/` | `base.py` (the `Transcriber` protocol and `Word`), `assemblyai.py`, `deepgram.py` |
 | `backend/advice/` | The research library (`library.json`, `__init__.py`), `select.py` (which entries fit a take), `coach.py` (Claude writes the notes), `budget.py` (300 AI calls an hour) |
-| `backend/auth.py` | Optional accounts: Argon2 passwords, HttpOnly session cookies, rate-limited logins |
-| `backend/sessions_api.py` | A signed-in speaker's takes, shown advice and Path progress |
-| `backend/db.py` | SQLAlchemy Core tables; Neon Postgres in production, SQLite in tests; off without `DATABASE_URL` |
+| `backend/language/` | `check.py`: the opt-in grammar and vocabulary check (Claude Haiku, 8,000 characters at most, quotes validated against the transcript) |
 | `backend/limits.py` | Request body caps (40 MB audio) answered with 413 before the body is read |
 | `backend/nul_free.py` | Refuses NUL bytes in any text a route stores |
 | `frontend/app.js` | The `app` namespace, hash router, boot |
 | `frontend/ui.js` | DOM helpers, state blocks, icons, theme |
+| `frontend/sheet.js` | The bottom sheet after a take or level, and the first-visit guides |
 | `frontend/api.js` | `app.api.analyze` with a 180 s deadline and typed errors |
-| `frontend/store.js` | IndexedDB sessions, flags and Path progress; write-through to the server when signed in |
-| `frontend/auth.js` | Sign up, log in, log out, delete account |
+| `frontend/store.js` | IndexedDB sessions, flags and Path progress, on the device only |
 | `frontend/passages.js` | Talk prompts, Read passages, cold reads, the benchmark |
 | `frontend/delivery.js` | Filler rules, pause classes, clean stretch, restarts: the delivery report |
 | `frontend/pauses.js` | Browser-side pause detection with Web Audio (human-owned) |
@@ -57,15 +65,18 @@ are optional and only sync what the phone already has.
 | `frontend/rankcard.js` | The rank card on Progress and Results |
 | `frontend/path.js` | The Loop Path: units, levels, rules, check-backs, crowns, the benchmark |
 | `frontend/loop.js` | The Level screen's pure helpers: steps, feedback, moments, tap matching |
+| `frontend/coach.js` | The take's moments for the coach and the rule-based takeaway line |
+| `frontend/nextmove.js` | The one next thing to do: retry, next level, check-back, benchmark |
+| `frontend/language.js` | The grammar and vocabulary check the speaker asks for on a take |
 | `frontend/tips.js` | Rule-based tips and the coach-notes request |
 | `frontend/sw.js` | Service worker: caches the app shell, never audio, never `/api` |
 | `frontend/screens/practice.js` | Record, upload, level mode, the sample |
-| `frontend/screens/results.js` | Headline, rank card, metric cards, timeline, transcript, coach notes |
+| `frontend/screens/results.js` | Coach card, speech map, metric cards, rank card, words to check, transcript |
+| `frontend/screens/coachcard.js` | The Coach card at the top of Results: headline, moment-linked tips, the grammar check |
 | `frontend/screens/history.js` | Every take, newest first, with delete |
 | `frontend/screens/progress.js` | One metric charted across takes; the rank card and streak |
 | `frontend/screens/path.js` | The winding Path with its units and nodes |
 | `frontend/screens/level.js` | One Loop Path level: goal, take 1, review, take 2, result |
-| `frontend/screens/account.js` | Sign up, log in, import guest history, delete |
 | `frontend/screens/onboarding.js` | First launch: what is measured, what happens to audio |
 
 ## Where data lives
@@ -73,9 +84,9 @@ are optional and only sync what the phone already has.
 | Data | Where | How long |
 | --- | --- | --- |
 | Audio | Phone memory while recording; backend memory for one request; AssemblyAI until the words are back | Seconds. Take 1 of a Path level stays in phone memory until the level ends |
-| Words and metrics | IndexedDB on the phone; Postgres too when signed in | Until the speaker deletes the take or the account |
-| Transcript excerpt (1,500 characters) and the take's numbers | Sent to Anthropic for coach notes | Anthropic's retention policy |
-| Email and Argon2 password hash | Postgres | Until the account is deleted |
+| Words and metrics | IndexedDB on the phone only | Until the speaker deletes the take |
+| Transcript excerpt (1,500 characters), the take's numbers and its moments | Sent to Anthropic for coach notes | Anthropic's retention policy |
+| Transcript (up to 8,000 characters) | Sent to Anthropic only when the speaker taps the grammar check; nothing is saved on the server | Anthropic's retention policy |
 
 ## Why these choices
 
@@ -85,14 +96,14 @@ are optional and only sync what the phone already has.
   kept 6 um and 3 uh and a restart; Deepgram kept 1 and 2 (`scripts/compare_providers.py`).
 - **No framework, no build.** The app is about two dozen files a judge can read top to
   bottom. The service worker makes it installable and offline for the shell.
-- **Guests first.** Everything works with no account. Accounts add sync and
-  nothing else, so they could be cut without touching a screen.
+- **No accounts.** Nothing needs a sign-in and the server stores nothing, so a
+  take lives on the phone it was recorded on.
 - **The model writes prose, never facts.** Claude rewrites library entries in
   the take's numbers; the app attaches every citation from the entry itself.
 
 ## Tests
 
 `backend/tests/` (pytest, network blocked by `pytest-socket`, providers behind
-`httpx.MockTransport`, SQLite in memory for accounts) and `frontend/tests/`
+`httpx.MockTransport`) and `frontend/tests/`
 (`node:test` with a hand-written fake DOM in `fake-dom.js`; modules run inside
 `vm` contexts). CI runs both on every push to main and every PR.

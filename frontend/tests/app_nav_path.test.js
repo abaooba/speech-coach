@@ -14,7 +14,7 @@ const vm = require("node:vm");
 const APP_SOURCE = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 const INDEX_HTML = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
-const SCREENS = ["practice", "results", "history", "progress", "path", "level", "account"];
+const SCREENS = ["practice", "results", "history", "progress", "path", "level"];
 const NAV_HREFS = [...INDEX_HTML.match(/<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/)[1].matchAll(
   /<a class="nav__item" href="([^"]+)">/g,
 )].map((match) => match[1]);
@@ -112,9 +112,7 @@ test("leaving a level for Practice or Progress moves the mark off the Path", asy
   assert.deepEqual(marked(page.links), { active: ["#/progress"], current: ["#/progress"] });
 });
 
-test("Results and Account still mark no nav item", async () => {
+test("Results still marks no nav item", async () => {
   const page = await bootAt("#/results/abc");
-  assert.deepEqual(marked(page.links), { active: [], current: [] });
-  page.goTo("#/account");
   assert.deepEqual(marked(page.links), { active: [], current: [] });
 });

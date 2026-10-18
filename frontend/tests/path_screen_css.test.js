@@ -79,7 +79,7 @@ test("the Path section is the last section of the stylesheet", () => {
   assert.equal(CSS.split(SECTION_MARK).length, 2, "one Path section");
   const sections = [...CSS.matchAll(/^\/\* (\d+[a-z]?)\. /gm)].map((match) => match[1]);
   assert.equal(sections[sections.length - 1], "13");
-  assert.ok(CSS.indexOf(SECTION_MARK) > CSS.indexOf("/* 12. Account screen"));
+  assert.ok(CSS.indexOf(SECTION_MARK) > CSS.indexOf("/* 11. Reduced motion"));
 });
 
 test("every color in the section is a token", () => {

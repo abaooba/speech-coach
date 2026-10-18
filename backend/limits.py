@@ -27,8 +27,6 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from backend import sessions_api
-
 # /api/analyze: room for 3 minutes of even uncompressed 16-bit stereo audio at 48 kHz (34.6 MB),
 # with the longest script; a phone browser's compressed recording of that is a few MB.
 MAX_RECORDING_BODY_BYTES = 40_000_000
@@ -36,10 +34,17 @@ RECORDING_TOO_LARGE = (
     f"That recording is over {MAX_RECORDING_BODY_BYTES // 1_000_000} MB. "
     "Record a shorter take and resend."
 )
-# /api/advice, /api/auth/* and every other API route: the largest advice request the app sends,
-# 2,000 shown library ids and a 1,500-character excerpt, is under 45,000 bytes.
+# /api/advice and every other JSON API route. The app's advice request (frontend/tips.js) holds at
+# most 40 moments, a 1,500-character excerpt and the newest 600 shown library ids, and sends no
+# character as a \uXXXX escape; when 40 moments full of 4-byte characters would pass this limit,
+# the oldest shown ids give way (backend/tests/test_advice_widest_request.py).
 MAX_SMALL_BODY_BYTES = 64_000
 SMALL_BODY_TOO_LARGE = f"send at most {MAX_SMALL_BODY_BYTES:,} bytes in one request"
+# /api/language-check: 8,000 characters of transcript, each at most 6 bytes (a character from the
+# basic multilingual plane written as a JSON escape; as UTF-8 it is 3 at most), plus the take's
+# id and the JSON around them, which are under 1,000. A transcript of more characters is a 400
+# from the route, so this limit only has to let every allowed one through.
+MAX_LANGUAGE_CHECK_BODY_BYTES = 8_000 * 6 + 8_000
 
 
 @dataclass(frozen=True)
@@ -51,17 +56,17 @@ class BodyLimit:
 
 
 RECORDING_LIMIT = BodyLimit(MAX_RECORDING_BODY_BYTES, RECORDING_TOO_LARGE)
-# /api/sessions, /api/sessions/import and /api/progress: the T48 cap, the largest import an
-# account may send with room to spare (sessions_api.MAX_REQUEST_BYTES).
-ACCOUNT_DATA_LIMIT = BodyLimit(sessions_api.MAX_REQUEST_BYTES, sessions_api.REQUEST_TOO_LARGE)
 SMALL_BODY_LIMIT = BodyLimit(MAX_SMALL_BODY_BYTES, SMALL_BODY_TOO_LARGE)
+LANGUAGE_CHECK_LIMIT = BodyLimit(
+    MAX_LANGUAGE_CHECK_BODY_BYTES,
+    f"send at most {MAX_LANGUAGE_CHECK_BODY_BYTES:,} bytes in one request",
+)
 
 # Each route's limit, by the path it covers along with every path under it. The first that covers
 # a request's path is its limit, so the one for /api as a whole comes last.
 BODY_LIMITS: tuple[tuple[str, BodyLimit], ...] = (
     ("/api/analyze", RECORDING_LIMIT),
-    ("/api/sessions", ACCOUNT_DATA_LIMIT),
-    ("/api/progress", ACCOUNT_DATA_LIMIT),
+    ("/api/language-check", LANGUAGE_CHECK_LIMIT),
     ("/api", SMALL_BODY_LIMIT),
 )
 

@@ -2,10 +2,6 @@
 
 import logging
 import os
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from dataclasses import asdict
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -18,13 +14,12 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import Engine
-from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import RequestResponseEndpoint
 
-from backend import auth, db, metrics, sessions_api
+from backend import metrics
 from backend.advice import coach, load_library
 from backend.advice.budget import ADVICE_CALL_BUDGET, AICallBudget
+from backend.language import check
 from backend.limits import RequestBodyLimit
 from backend.providers import ProviderError, get_provider
 from backend.providers.base import Word
@@ -63,32 +58,7 @@ ASSET_CACHE_CONTROL = "public, max-age=3600"
 API_CACHE_CONTROL = "no-store"
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """On startup, create the account tables when DATABASE_URL is set (backend/db.py).
-
-    Without it, or with one no engine can be built from (db.configured_engine logs it), accounts
-    are off and nothing is created. A database that cannot be reached is logged and passed over,
-    because guests never need it: their takes stay in the browser. Account routes then fail
-    until it can be reached, and on a first deploy until the next start. When the server stops,
-    the database connections it holds are closed.
-    """
-    engine = db.configured_engine()
-    if engine is not None:
-        try:
-            await run_in_threadpool(db.create_tables, engine)
-        except SQLAlchemyError as error:
-            # Named by its class alone: the error's text can name the database host and user.
-            logger.error(
-                "Could not create the account tables (%s); guests are unaffected",
-                type(error).__name__,
-            )
-    yield
-    if engine is not None:
-        await run_in_threadpool(engine.dispose)
-
-
-app = FastAPI(title="Speech Coach", lifespan=lifespan)
+app = FastAPI(title="Speech Coach")
 
 # Every request body is held to its route's limit, 413 past it (backend/limits.py). Added before
 # the cache headers below, so it runs inside them and its 413 is never stored, as no API answer is.
@@ -180,7 +150,15 @@ async def analyze(
         take_metrics = await run_in_threadpool(analyze_reading, words, script)
     else:
         take_metrics = metrics.analyze(words)
-    return {"transcript": [asdict(word) for word in words], "metrics": take_metrics}
+    return {"transcript": [_transcript_entry(word) for word in words], "metrics": take_metrics}
+
+
+def _transcript_entry(word: Word) -> dict:
+    """A word as the browser gets it: text and times, plus confidence when the provider gave one."""
+    entry = {"text": word.text, "start": word.start, "end": word.end}
+    if word.confidence is not None:
+        entry["confidence"] = word.confidence
+    return entry
 
 
 def speech_end_seconds(words: list[Word]) -> float:
@@ -202,9 +180,7 @@ def discard_provider_copy(provider: object) -> None:
         try:
             delete()
         except Exception as error:  # noqa: BLE001 - best effort, see the docstring
-            logger.warning(
-                "Could not discard the provider's copy (%s)", type(error).__name__
-            )
+            logger.warning("Could not discard the provider's copy (%s)", type(error).__name__)
 
 
 def advice_client() -> AsyncAnthropic | None:
@@ -229,65 +205,42 @@ def advice_call_budget() -> AICallBudget:
 async def advice(
     advice_request: coach.AdviceRequest,
     client: Annotated[AsyncAnthropic | None, Depends(advice_client)],
-    speaker: Annotated[auth.SignedInAccount | None, Depends(auth.signed_in_account_or_guest)],
-    engine: Annotated[Engine | None, Depends(db.accounts_engine_or_none)],
-    now: Annotated[datetime, Depends(auth.current_time)],
     budget: Annotated[AICallBudget, Depends(advice_call_budget)],
 ) -> coach.Advice:
     """Coach notes for one take: 2-3 tips, each with its library entry's drill and citation.
 
-    The body is the take's numbers with a transcript excerpt, the speaker's tier and the ids of
-    the advice already shown (coach.AdviceRequest). Claude Haiku writes the tips from library
-    advice when a key is set, the hour's budget of calls for the whole server is not spent
-    (backend/advice/budget.py) and its reply keeps the rules; otherwise they are the library's
-    own words. `source` says which ("ai" or "library"), and the shape is the same either way.
+    The body is the take's numbers with a transcript excerpt, the take's moments when the
+    frontend sends them, the speaker's tier and the ids of the advice already shown
+    (coach.AdviceRequest). Claude Haiku writes the tips from library advice, each pointing at
+    the moments it quotes, and a headline quoting one moment, when a key is set, the hour's
+    budget of calls for the whole server is not spent (backend/advice/budget.py) and its reply
+    keeps the rules; otherwise they are the library's own words with no headline. `source` says
+    which ("ai" or "library"), and the shape, {headline, tips, source}, is the same either way.
 
-    A guest's shown ids are the ones the request sends. A signed-in speaker's come from the
-    database instead, the least recently shown first, and the tips in the answer are recorded
-    there as shown now, so none of their devices offers them again while new ones are left
-    (backend/sessions_api.py). Guests are served whether accounts are on or off.
-
-    Advice itself never needs the database, so a fault there costs the speaker their account's
-    history and nothing more: any fault, not only the database's own errors. A speaker whose
-    shown ids cannot be read is served as a guest, by the ids the request sends, and nothing is
-    recorded; tips that cannot be recorded are given all the same. Each fault is logged by its
-    kind alone.
+    Everyone is served the same way: the advice already shown is the `shown_ids` the request
+    sends, and nothing is recorded on the server. No cookie or header changes the answer.
     """
-    library = load_library()
-    # An account is only ever found while accounts are on, so with one there is an engine.
-    if speaker is None or engine is None:
-        return await coach.advise(advice_request, library, client, budget)
-    # Any fault is caught, not only the database's own errors (SQLAlchemyError): one the driver
-    # raises unwrapped, or a statement that cannot be built, must not cost the speaker their tips.
-    # Each is named by its class alone: the error's text can name the database host and user.
-    try:
-        shown_ids = await run_in_threadpool(sessions_api.shown_entry_ids, engine, speaker.user_id)
-    except Exception as error:  # noqa: BLE001
-        logger.warning(
-            "Could not read the advice shown (%s); served as a guest", type(error).__name__
-        )
-        return await coach.advise(advice_request, library, client, budget)
-    from_the_account = advice_request.model_copy(update={"shown_ids": shown_ids})
-    answer = await coach.advise(from_the_account, library, client, budget)
-    tip_ids = [tip.entry_id for tip in answer.tips]
-    try:
-        await run_in_threadpool(sessions_api.record_shown, engine, speaker.user_id, tip_ids, now)
-    except Exception as error:  # noqa: BLE001
-        logger.warning(
-            "Could not record the tips given (%s); they were given all the same",
-            type(error).__name__,
-        )
-    return answer
+    return await coach.advise(advice_request, load_library(), client, budget)
 
 
-# Accounts (backend/auth.py): POST /api/auth/signup, /login and /logout, and GET and DELETE
-# /api/me. Every one answers 503 while DATABASE_URL is unset, though a body sent as JSON that does
-# not parse gets FastAPI's 422 first.
-app.include_router(auth.router)
+@app.post("/api/language-check")
+async def language_check(
+    check_request: check.LanguageCheckRequest,
+    client: Annotated[AsyncAnthropic | None, Depends(advice_client)],
+    budget: Annotated[AICallBudget, Depends(advice_call_budget)],
+) -> check.LanguageCheck | check.Unavailable:
+    """Grammar fixes, stronger words and sentence rewrites for one take's transcript.
 
-# A signed-in speaker's takes and progress (backend/sessions_api.py): /api/sessions,
-# /api/sessions/import and /api/progress, under the same rules as the account routes above.
-app.include_router(sessions_api.router)
+    The speaker asks for it with a button; nothing is saved. A transcript over 8,000 characters
+    is refused with 400. Claude Haiku writes the suggestions while a key is set and the hour's
+    budget of AI calls, shared with /api/advice, is not spent; every `said` it quotes is checked
+    against the transcript (backend/language/check.py). The answer is {status: "ok", fixes, words,
+    rewrites, praise}, or {status: "unavailable"} when the check could not be made.
+    """
+    if len(check_request.transcript) > check.MAX_TRANSCRIPT_CHARACTERS:
+        raise HTTPException(status_code=400, detail=check.TRANSCRIPT_TOO_LONG)
+    return await check.check_language(check_request, client, budget)
+
 
 # Mounted last so /api routes take priority.
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

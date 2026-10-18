@@ -507,12 +507,14 @@ function cardShape(row) {
   ];
 }
 
-test("the map sits between the headline and the stat strip, as one section", async () => {
+test("the map sits between the meta line and the stat strip, as one section", async () => {
+  // coachcard.js is not loaded here: with it, the Coach card sits between the meta line and
+  // the map (results_coach_card.test.js).
   const body = await showSession(CLIP_SESSION);
   const names = body.children.map(outline);
-  const headline = names.indexOf("section.headline");
-  assert.equal(names[headline + 1], "section.speech-map");
-  assert.equal(names[headline + 2], "div.stat-strip");
+  const meta = names.indexOf("p.results__meta num");
+  assert.equal(names[meta + 1], "section.speech-map");
+  assert.equal(names[meta + 2], "div.stat-strip");
   const map = byClass(body, "speech-map");
   assert.deepEqual(map.children.map(outline), [
     "h2.results__heading speech-map__heading",

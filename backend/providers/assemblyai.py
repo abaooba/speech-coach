@@ -165,4 +165,4 @@ def to_word(raw: dict) -> Word:
 
     Raises KeyError, TypeError or ValueError for a word of another shape (checked_word).
     """
-    return checked_word(raw["text"], raw["start"] / 1000, raw["end"] / 1000)
+    return checked_word(raw["text"], raw["start"] / 1000, raw["end"] / 1000, raw.get("confidence"))

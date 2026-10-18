@@ -8,7 +8,8 @@ used only when every tip draws on one of those candidates, no entry is drawn on 
 text runs 1 to 60 words. Without an API key, after 8 s, on an API error, a refusal or a broken
 reply, the first candidates are shown word for word instead. Either way each tip carries its
 entry's drill and citation from the library, never from the model, and the answer is
-{tips: [...], source: "ai" | "library"}.
+{headline: null, tips: [...], source: "ai" | "library"}: these requests send no moments, so there
+is no headline and every tip's moment_ids is empty (test_advice_moments_api.py covers moments).
 
 The Anthropic client is a fake. Most tests hand it to the route through the advice_client
 dependency; the ones about the key put it behind the SDK's constructor. No test opens a socket
@@ -114,6 +115,7 @@ def cited(entry_id: str, text: str) -> dict[str, Any]:
         "text": text,
         "drill": entry.drill,
         "citation": {"label": citation(entry), "url": entry.source.url, "type": entry.source.type},
+        "moment_ids": [],
     }
 
 
@@ -121,6 +123,7 @@ def library_advice(shown_ids: list[str] | None = None) -> dict[str, Any]:
     """The answer without the model: the first three candidates, their advice word for word."""
     first_three = offered_ids(shown_ids)[:3]
     return {
+        "headline": None,
         "tips": [cited(entry_id, LIBRARY[entry_id].advice) for entry_id in first_three],
         "source": "library",
     }
@@ -272,6 +275,7 @@ def test_the_model_tips_are_shown_with_their_entry_drill_and_citation(client: Te
     body = ask(client)
 
     assert body == {
+        "headline": None,
         "tips": [
             cited(first, "You restarted once. Pause before the clause instead of saying it twice."),
             cited(second, "You ran at the top of your band. Let the key lines land."),
@@ -842,7 +846,7 @@ def test_with_no_candidates_there_are_no_tips() -> None:
 
     advice = advise([], fake)
 
-    assert advice.model_dump() == {"tips": [], "source": "library"}
+    assert advice.model_dump() == {"headline": None, "tips": [], "source": "library"}
     assert fake.messages.requests == []
 
 

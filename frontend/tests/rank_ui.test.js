@@ -23,6 +23,7 @@ const SOURCES = {
   rank: read("rank.js"),
   rankCard: read("rankcard.js"),
   results: read(path.join("screens", "results.js")),
+  coachCard: read(path.join("screens", "coachcard.js")),
   progress: read(path.join("screens", "progress.js")),
 };
 const CSS = read("styles.css");
@@ -559,10 +560,11 @@ test("narrow screens shrink the rating, then stack the ladder, then drop the mar
 // first. `calls.draws` counts Results draws: every draw empties the body and starts again with
 // the meta line. `tips` stands in for tips.js when a test needs the coach notes.
 function mountScreen(name, sessions, options) {
-  const { rank = true, card = true, tips = null } = options || {};
+  const { rank = true, card = true, tips = null, coachCard = false } = options || {};
   const app = { screens: {}, store: {}, router: { go() {} } };
   const context = { app, document: fakeDocument() };
-  const files = ["ui", "delivery", rank ? "rank" : null, card ? "rankCard" : null, "results"];
+  const files = ["ui", "delivery", rank ? "rank" : null, card ? "rankCard" : null, "results"]
+    .concat(coachCard ? ["coachCard"] : []);
   files
     .concat(name === "progress" ? ["progress"] : [])
     .filter(Boolean)
@@ -676,9 +678,8 @@ test("a sample never counts toward Progress's card", async () => {
 
 test("Results puts the card under the stat strip and above the transcript", async () => {
   const { body } = await showResults(ELITE_TAKES, "day-3");
-  assert.deepEqual(partsOf(body).slice(0, 7), [
+  assert.deepEqual(partsOf(body).slice(0, 6), [
     "results__meta",
-    "headline",
     "speech-map",
     "stat-strip",
     "stat-strip__note",
@@ -731,16 +732,16 @@ test("the card stays in place when the coach notes redraw Results", async () => 
     source: "ai",
   };
   const tips = { select: () => [], coachNotes: () => Promise.resolve(notes) };
-  const { body, calls } = await showResults(ELITE_TAKES, "day-3", { tips });
+  const { body, calls } = await showResults(ELITE_TAKES, "day-3", { tips, coachCard: true });
   assert.equal(calls.draws, 3, "the take, the comparison and card, then the notes");
   assert.deepEqual(partsOf(body).slice(1, 6), [
-    "headline",
+    "coach-card",
     "speech-map",
     "stat-strip",
     "stat-strip__note",
     "rank-card",
   ]);
-  assert.ok(find(body, "coach-notes"), "the notes arrived");
+  assert.ok(find(body, "coach-card__by"), "the notes arrived in the Coach card");
 });
 
 test("without rank.js or rankcard.js both screens draw exactly as before the card", async () => {

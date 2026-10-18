@@ -3,7 +3,9 @@
    {id, text} rule tips in priority order; pure. coachNotes(session, report, targetWpm, tier) is
    the one request to POST /api/advice (docs/PLAN.md T41): cited notes written for the take;
    Claude's are kept in app.store flags so a take is asked about once. adviceRequest and
-   parseCoachNotes are pure. */
+   parseCoachNotes are pure. DEFAULT_TIER ("Novice") is the tier a speaker with no rank is
+   coached at; Results (without rank.js) and the Level screen (rank never shows on the Path) send
+   it. */
 (function () {
   "use strict";
 
@@ -37,8 +39,34 @@
   const OK = 200;
   // The backend caps the excerpt at 1,500 characters (coach.py MAX_EXCERPT_CHARACTERS).
   const MAX_EXCERPT_CHARACTERS = 1500;
-  // A request may list at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
+  // The store keeps at most 2,000 shown ids (coach.py MAX_SHOWN_IDS); the newest are kept.
   const MAX_SHOWN_IDS = 2000;
+  // A request sends at most the newest 600 of them: the library holds 632 entries with ids of 11
+  // characters or fewer, so 600 ids cost under 10,000 bytes. 40 moments at their caps cost up to
+  // about 50,000 bytes when every character is an emoji (4 bytes in UTF-8, the widest a
+  // character can be once nothing is sent as a \uXXXX escape: see ESCAPED), and the 1,500-unit
+  // excerpt up to 4,500. That widest body would pass the server's body limit (MAX_BODY_BYTES),
+  // so fitShownIds leaves out the oldest ids until the body fits.
+  const MAX_REQUEST_SHOWN_IDS = 600;
+  // /api/advice refuses a body over this many bytes (backend/limits.py MAX_SMALL_BODY_BYTES).
+  const MAX_BODY_BYTES = 64000;
+  // The moments a request may carry and the caps on their text fields (coach.py MAX_MOMENTS,
+  // MAX_MOMENT_TEXT_CHARACTERS, MAX_MOMENT_CONTEXT_CHARACTERS, MAX_EXPECTED_CHARACTERS).
+  const MAX_MOMENTS = 40;
+  const MAX_MOMENT_TEXT = 120;
+  const MAX_MOMENT_CONTEXT = 60;
+  const MAX_MOMENT_EXPECTED = 40;
+  const MAX_MOMENT_SECONDS = 86400;
+  const MOMENT_KINDS = [
+    "restart", "filler", "pause", "long-pause", "misread", "skip", "stumble", "unclear",
+  ];
+  // A moment's id is its kind and a number of up to three digits; its clock is m:ss.
+  const MOMENT_ID = /^(?:restart|filler|pause|long-pause|misread|skip|stumble|unclear)-\d{1,3}$/;
+  const MOMENT_CLOCK = /^\d{1,3}:[0-5]\d$/;
+  // What JSON writes as a 6-byte \uXXXX escape: the C0 control characters (U+0000 to U+001F;
+  // NUL is refused by the server) and a lone half of a surrogate pair. None is ever sent.
+  const ESCAPED =
+    /[\u0000-\u001f]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
   // A speaker with no rank yet is coached as a Novice (backend/advice/select.py DEFAULT_TIER).
   const DEFAULT_TIER = "Novice";
   // The server writes 2 or 3 notes (coach.py MAX_TIPS); more would be a reply to distrust.
@@ -209,7 +237,7 @@
   // said, the speaker's tier and the entries already shown. Every number is finite and 0 or more
   // and every count whole, as the server requires; the band goes only when it is a real [lo, hi].
   // Pure: a fresh object, and no input is changed.
-  function adviceRequest(session, report, targetWpm, tier, shownIds) {
+  function adviceRequest(session, report, targetWpm, tier, shownIds, moments) {
     const given = report && typeof report === "object" ? report : {};
     const summary = {
       duration_seconds: nonNegative(given.speakingSeconds),
@@ -224,12 +252,115 @@
       summary.target_wpm = band;
     }
     summary.transcript_excerpt = excerptOf(session && session.transcript);
-    return {
+    const body = {
       session_id: String(session && session.id),
       summary,
       tier: isNonBlankString(tier) ? tier : DEFAULT_TIER,
-      shown_ids: stringsOf(shownIds).slice(-MAX_SHOWN_IDS),
+      shown_ids: stringsOf(shownIds).slice(-MAX_REQUEST_SHOWN_IDS),
     };
+    // A list of moments (an empty one for a clean take) is sent; no list, no key.
+    if (Array.isArray(moments)) {
+      body.moments = momentsOf(moments);
+    }
+    fitShownIds(body);
+    return body;
+  }
+
+  // The moments the server accepts, in order: at most MAX_MOMENTS, each id once, a moment that
+  // would be refused (an id that does not match its kind, a bad clock or time) left out, and
+  // every text field cut to its cap.
+  function momentsOf(list) {
+    const seen = new Set();
+    const kept = [];
+    for (const given of list) {
+      const moment = wireMoment(given);
+      if (moment !== null && !seen.has(moment.id)) {
+        seen.add(moment.id);
+        kept.push(moment);
+      }
+      if (kept.length === MAX_MOMENTS) {
+        break;
+      }
+    }
+    return kept;
+  }
+
+  function wireMoment(given) {
+    if (given === null || typeof given !== "object") {
+      return null;
+    }
+    const valid =
+      MOMENT_KINDS.includes(given.kind) &&
+      typeof given.id === "string" &&
+      MOMENT_ID.test(given.id) &&
+      given.id.replace(/-\d+$/, "") === given.kind &&
+      typeof given.clock === "string" &&
+      MOMENT_CLOCK.test(given.clock) &&
+      isSecondCount(given.at);
+    if (!valid) {
+      return null;
+    }
+    return {
+      id: given.id,
+      kind: given.kind,
+      at: given.at,
+      clock: given.clock,
+      seconds: isSecondCount(given.seconds) ? given.seconds : null,
+      text: cutText(given.text, MAX_MOMENT_TEXT, false),
+      before: cutText(given.before, MAX_MOMENT_CONTEXT, true),
+      after: cutText(given.after, MAX_MOMENT_CONTEXT, false),
+      expected: typeof given.expected === "string"
+        ? cutText(given.expected, MAX_MOMENT_EXPECTED, false)
+        : null,
+      hint: given.hint === true,
+    };
+  }
+
+  function isSecondCount(value) {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 &&
+      value <= MAX_MOMENT_SECONDS;
+  }
+
+  // `value` as text of at most `limit` characters (whole code points, so no half an emoji),
+  // without any character JSON would escape (ESCAPED; NUL among them, which the server refuses).
+  // A context before a moment keeps its end, the words nearest the moment; any other text keeps
+  // its start.
+  function cutText(value, limit, keepEnd) {
+    const characters = Array.from(typeof value === "string" ? value.replace(ESCAPED, "") : "");
+    return (keepEnd ? characters.slice(-limit) : characters.slice(0, limit)).join("");
+  }
+
+  // Leaves out the oldest shown ids, only as many as it takes, while the body as UTF-8 JSON is
+  // over MAX_BODY_BYTES. The moments and the excerpt, what the notes are about, always stay.
+  function fitShownIds(body) {
+    let over = utf8Bytes(JSON.stringify(body)) - MAX_BODY_BYTES;
+    let dropped = 0;
+    while (over > 0 && dropped < body.shown_ids.length) {
+      // The id in its quotes, and the comma after it.
+      over -= utf8Bytes(JSON.stringify(body.shown_ids[dropped])) + 1;
+      dropped += 1;
+    }
+    if (dropped > 0) {
+      body.shown_ids = body.shown_ids.slice(dropped);
+    }
+  }
+
+  // The UTF-8 length of `text` (a JSON string, so it holds no lone surrogate).
+  function utf8Bytes(text) {
+    let bytes = 0;
+    for (const character of text) {
+      const code = character.codePointAt(0);
+      if (code < 0x80) {
+        bytes += 1;
+      } else if (code < 0x800) {
+        bytes += 2;
+      } else if (code < 0x10000) {
+        bytes += 3;
+      } else {
+        bytes += 4;
+      }
+    }
+    return bytes;
   }
 
   function nonNegative(value) {
@@ -250,13 +381,17 @@
     return Number.isFinite(lo) && Number.isFinite(hi) && lo < hi ? [lo, hi] : null;
   }
 
-  // The transcript's words, space-joined, up to MAX_EXCERPT_CHARACTERS. A cut that would leave
-  // half an emoji drops that half too, so the server never reads a lone surrogate.
+  // The transcript's words, space-joined, without any character JSON would escape (ESCAPED), up
+  // to MAX_EXCERPT_CHARACTERS. A cut that would leave half an emoji drops that half too, so the
+  // server never reads a lone surrogate.
   function excerptOf(transcript) {
     if (!Array.isArray(transcript)) {
       return "";
     }
-    const text = transcript.map((word) => String((word && word.text) || "")).join(" ");
+    const text = transcript
+      .map((word) => String((word && word.text) || ""))
+      .join(" ")
+      .replace(ESCAPED, "");
     const excerpt = text.slice(0, MAX_EXCERPT_CHARACTERS);
     const last = excerpt.charCodeAt(excerpt.length - 1);
     const endsOnHalfAnEmoji = last >= HIGH_SURROGATE_FIRST && last <= HIGH_SURROGATE_LAST;
@@ -287,7 +422,17 @@
     if (tips.some((tip) => tip === null)) {
       return null;
     }
-    return { tips, source: reply.source };
+    return { headline: parseHeadline(reply.headline), tips, source: reply.source };
+  }
+
+  // The reply's headline as {text, momentId} (momentId null when it names no moment), or null
+  // when there is none or it has no text.
+  function parseHeadline(headline) {
+    if (headline === null || typeof headline !== "object" || !isNonBlankString(headline.text)) {
+      return null;
+    }
+    const momentId = isNonBlankString(headline.moment_id) ? headline.moment_id : null;
+    return { text: headline.text.trim(), momentId };
   }
 
   function parseNote(tip) {
@@ -303,6 +448,7 @@
       text: tip.text.trim(),
       drill: typeof tip.drill === "string" ? tip.drill.trim() : "",
       citation,
+      momentIds: stringsOf(tip.moment_ids),
     };
   }
 
@@ -330,9 +476,8 @@
 
   // The coach notes for one take, or null when there are none to show. Claude's notes, kept here
   // from an earlier visit, come back without a request; otherwise the server is asked, through
-  // app.auth.request so a signed-in speaker's cookie goes along and the server keeps their shown
-  // ids itself. The entry ids it showed are recorded, and its reply is kept for the next visit
-  // when Claude wrote it. While that request is open, another call for the take gets the same
+  // app.api.postJson, sending the shown ids with it. The entry ids it showed are recorded, and
+  // its reply is kept for the next visit when Claude wrote it. While that request is open, another call for the take gets the same
   // promise. A reply that is not notes, no reply, or a store that cannot be read gives null and
   // keeps nothing; notes the store cannot keep are still returned. Never rejects.
   function coachNotes(session, report, targetWpm, tier) {
@@ -359,8 +504,8 @@
         return kept;
       }
       const shown = stringsOf(await app.store.getFlag(SHOWN_FLAG));
-      const body = adviceRequest(session, report, targetWpm, tier, shown);
-      const reply = await app.auth.request("POST", ADVICE_URL, body);
+      const body = adviceRequest(session, report, targetWpm, tier, shown, momentsFor(session, report));
+      const reply = await app.api.postJson(ADVICE_URL, body);
       const notes = reply && reply.status === OK ? parseCoachNotes(reply.body) : null;
       if (notes !== null) {
         await keepNotes(id, reply.body, notes);
@@ -371,17 +516,30 @@
     }
   }
 
-  // The store to keep the notes in and the account's request to ask with: both load before this
+  // The take's moments from app.coach, or undefined when it is not loaded or fails: the request
+  // is then sent without them, as a take with none to name.
+  function momentsFor(session, report) {
+    try {
+      const coach = app.coach;
+      return coach && typeof coach.coachMoments === "function"
+        ? coach.coachMoments(report, session && session.transcript)
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  // The store to keep the notes in and the request to ask with: both load before this
   // file in index.html. A context without them (a test that stubs app) simply has no notes.
   function canAskForNotes() {
     const store = app.store;
-    const auth = app.auth;
+    const api = app.api;
     return Boolean(
       store &&
         typeof store.getFlag === "function" &&
         typeof store.setFlag === "function" &&
-        auth &&
-        typeof auth.request === "function",
+        api &&
+        typeof api.postJson === "function",
     );
   }
 
@@ -415,5 +573,5 @@
     return written;
   }
 
-  app.tips = { select, adviceRequest, parseCoachNotes, coachNotes };
+  app.tips = { select, adviceRequest, parseCoachNotes, coachNotes, DEFAULT_TIER };
 })();

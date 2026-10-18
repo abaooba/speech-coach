@@ -458,7 +458,8 @@ def test_a_passage_format_sent_with_the_request_never_reaches_the_model(
     words_added = ("Congress", "PF constructive", "Rebuttal", "Lincoln-Douglas", "Public Forum")
     assert [words for words in words_added if words in sent] == []
     kept = coach.AdviceRequest.model_validate(body)
-    assert set(kept.model_dump()) == {"session_id", "summary", "tier", "shown_ids"}
+    assert set(kept.model_dump()) == {"session_id", "summary", "tier", "shown_ids", "moments"}
+    assert kept.moments is None
     assert "format" not in kept.summary.model_dump()
 
 

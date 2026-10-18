@@ -1,8 +1,7 @@
 /* screens/history.js: app.screens.history (DESIGN.md sections 1, 6 and 9), one row per session:
    formatStats(session) ("152 wpm · 3.1 /min") and the pure statusFor(summary) ("On target").
    A tap reopens Results; the trash button asks "Delete? Yes / No" in place, one row at a time.
-   It deletes nothing before Yes and computes no metric itself (app.screens.results.summarize).
-   Once the server has ended this device's account session, a note above the rows says so. */
+   It deletes nothing before Yes and computes no metric itself (app.screens.results.summarize). */
 (function () {
   "use strict";
 
@@ -40,12 +39,9 @@
   const YES_LABEL = "Yes";
   const NO_LABEL = "No";
   const DELETED_ANNOUNCEMENT = "Session deleted";
-
-  // The account's takes still show once the server has ended this device's session (a 401, as
-  // after 30 days), but nothing syncs until the speaker logs in again from the header's Account
-  // link (docs/PLAN.md T49).
-  const SESSION_ENDED_NOTE =
-    "Your session has ended. Log in again from Account to sync your takes.";
+  // The flags kept about one take, "<prefix><take id>": its coach notes (tips.js) and its
+  // grammar check (language.js). Both hold parts of the transcript, so they go with the take.
+  const TAKE_FLAG_PREFIXES = ["coachNotes:", "languageCheck:"];
 
   // The screen's .screen__body; show() rebuilds everything inside it.
   let body = null;
@@ -114,15 +110,23 @@
     return Array.isArray(target) && target.length === 2 && target.every(Number.isFinite);
   }
 
+
+  // The first-visit guide for this screen (app.sheet.firstVisit, once ever, never over another
+  // sheet): nothing happens while sheet.js is not loaded.
+  function showGuide() {
+    if (app.sheet && typeof app.sheet.firstVisit === "function") {
+      app.sheet.firstVisit("history");
+    }
+  }
+
   function show() {
+    showGuide();
     return draw(++showCount);
   }
 
   // Loads the sessions and paints them, unless a newer show() started while the store was read.
   async function draw(ticket) {
     const sessions = await loadSessions();
-    // Asked after the list, which may itself be what learned that the session ended.
-    const sessionEnded = await accountSessionEnded();
     if (ticket !== showCount) {
       return;
     }
@@ -131,24 +135,6 @@
       renderEmpty();
     } else {
       renderList(sessions);
-    }
-    if (sessionEnded) {
-      const note = app.ui.el("p", { class: "history__note", text: SESSION_ENDED_NOTE });
-      body.insertBefore(note, body.firstChild);
-    }
-  }
-
-  // Whether the server has ended this device's account session (app.auth.syncStatus); false
-  // without app.auth, or when it cannot tell.
-  async function accountSessionEnded() {
-    if (!app.auth || typeof app.auth.syncStatus !== "function") {
-      return false;
-    }
-    try {
-      const status = await app.auth.syncStatus();
-      return Boolean(status && status.endedSession);
-    } catch {
-      return false;
     }
   }
 
@@ -306,10 +292,11 @@
     return app.ui.el("span", attrs, [CONFIRM_PROMPT, yes, no]);
   }
 
-  // Deletes the session, then redraws the list from the store. When the delete fails, the
-  // redraw still runs and shows the row where it was, which is the truth about what is stored,
-  // and nothing is announced. Focus moves to the row now in that place, or to the empty state's
-  // action, unless a newer show() started meanwhile.
+  // Deletes the session, and with it the flags kept about it, then redraws the list from the
+  // store. When the delete fails, the redraw still runs and shows the row where it was, which is
+  // the truth about what is stored, the flags stay with it and nothing is announced. Focus moves
+  // to the row now in that place, or to the empty state's action, unless a newer show() started
+  // meanwhile.
   async function removeSession(session, index) {
     let removed = false;
     try {
@@ -318,6 +305,9 @@
     } catch {
       // Nothing extra to show: the redraw below reflects whatever the store still holds.
     }
+    if (removed) {
+      await forgetFlagsOf(session.id);
+    }
     const ticket = ++showCount;
     await draw(ticket);
     if (ticket === showCount) {
@@ -325,6 +315,22 @@
     }
     if (removed) {
       app.ui.announce(DELETED_ANNOUNCEMENT);
+    }
+  }
+
+  // Deletes the flags that hold parts of a take's transcript: its coach notes (tips.js
+  // NOTES_FLAG_PREFIX) and its grammar check (language.js FLAG_PREFIX). A flag that cannot be
+  // deleted stays, unread, since no take has its id any more.
+  async function forgetFlagsOf(id) {
+    if (typeof app.store.setFlag !== "function") {
+      return;
+    }
+    for (const prefix of TAKE_FLAG_PREFIXES) {
+      try {
+        await app.store.setFlag(prefix + id, undefined);
+      } catch {
+        // Nothing to show: the take itself is gone.
+      }
     }
   }
 

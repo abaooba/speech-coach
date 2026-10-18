@@ -234,6 +234,25 @@
     }
     run = startRun(known.id, history, cleared);
     render();
+    showLevelGuide(run);
+  }
+
+  // The first loop level ever opened explains take 1, review, take 2 (app.sheet.firstVisit, once
+  // ever). Its button starts take 1, unless a prep countdown comes first; then it only closes.
+  function showLevelGuide(target) {
+    if (!app.sheet || typeof app.sheet.firstVisit !== "function" || target.play.kind !== LOOP) {
+      return;
+    }
+    const startsTake = target.play.prepSeconds > 0 ? null : () => {
+      if (run === target && target.view === GOAL_VIEW) {
+        startTake(target, 0);
+      }
+    };
+    app.sheet.firstVisit("level", {
+      primary: startsTake === null
+        ? { label: "Got it" }
+        : { label: "Start take 1", onSelect: startsTake },
+    });
   }
 
   // Leaving stops the countdown and anything playing. The run lives on only while the route
@@ -585,6 +604,7 @@
       ? given.liveTaps.filter((tap) => typeof tap === "number" && Number.isFinite(tap))
       : [];
     target.sessions.unshift(take.session);
+    startCoach(target, takeIndex);
     if (run === target && takeIndex === 0 && target.play.kind === LOOP) {
       keepAudio(target, given);
     }
@@ -835,6 +855,9 @@
       scrollToTop();
       focusIfPossible(step.heading, true);
       app.ui.announce(announcementFor(steps, current, step.heading));
+    }
+    if (run.view === RESULT_VIEW) {
+      openResultSheet(run);
     }
   }
 
@@ -1198,6 +1221,241 @@
     return toggle;
   }
 
+  // --- The coach (guided coach: the Review's line and the sheet after the result) ---------------
+
+  const COACH_LABEL = "Coach";
+  const SEE_FULL_RESULTS = "See full results";
+  const AFTER_LEVEL = "level";
+  const RETRY_KIND = "retry";
+
+  // Reads what the coach can say about a take (coachesTake): its moments and the rule takeaway at
+  // once, and the notes request, which upgrades the lines when it answers. Without app.coach
+  // there is nothing to say and nothing is asked for.
+  function startCoach(target, takeIndex) {
+    const take = target.takes[takeIndex];
+    const coach = app.coach;
+    if (!coach || typeof coach.coachMoments !== "function" || !coachesTake(target, takeIndex)) {
+      return;
+    }
+    const entry = { moments: [], takeaway: null, notes: null, onNotes: null };
+    try {
+      entry.moments = coach.coachMoments(take.report, take.transcript);
+      entry.takeaway =
+        typeof coach.coachTakeaway === "function"
+          ? coach.coachTakeaway(entry.moments, take.report)
+          : null;
+    } catch {
+      return;
+    }
+    take.coach = entry;
+    if (!app.tips || typeof app.tips.coachNotes !== "function") {
+      return;
+    }
+    // Rank never shows on the Path, so the notes are asked for at the tier a speaker with no
+    // rank is coached at, the server's own default.
+    const request = Promise.resolve(
+      app.tips.coachNotes(
+        take.session,
+        take.report,
+        materialOf(target, takeIndex).targetWpm,
+        app.tips.DEFAULT_TIER,
+      ),
+    );
+    request
+      .then((notes) => {
+        entry.notes = notes && notes.headline ? notes : null;
+      })
+      .catch(() => {
+        entry.notes = null;
+      })
+      .then(() => {
+        if (typeof entry.onNotes === "function") {
+          entry.onNotes();
+        }
+      });
+  }
+
+  // The takes the coach reads: a loop's take 1 (for the Review) and every scored take of any
+  // play, whose result the sheet follows; the benchmark scores none, so its last take, the talk
+  // its Done ends on.
+  function coachesTake(target, takeIndex) {
+    const play = target.play;
+    if (play.kind === BENCHMARK) {
+      return takeIndex === play.takes.length - 1;
+    }
+    if (play.kind === LOOP && takeIndex === 0) {
+      return true;
+    }
+    return target.takes[takeIndex].evaluation.scored === true;
+  }
+
+  // The headline shown for an entry: Claude's once it is in, else the rule takeaway.
+  function coachLineOf(entry) {
+    return entry.notes ? entry.notes.headline : entry.takeaway;
+  }
+
+  // A line's parts: its quoted words in the mark of the moment it names (app.sheet.lineParts).
+  function coachParts(entry, headline) {
+    return app.sheet && typeof app.sheet.lineParts === "function"
+      ? app.sheet.lineParts(headline, entry.moments)
+      : [{ text: headline.text }];
+  }
+
+  // Fills the coach line: plain text, and each quoted phrase in a span marked like the
+  // transcript's (app.sheet.fillLine, the sheet's classes). Without sheet.js it is plain text.
+  function fillCoachLine(node, entry, headline) {
+    if (app.sheet && typeof app.sheet.fillLine === "function") {
+      app.sheet.fillLine(node, coachParts(entry, headline));
+    } else {
+      app.ui.clear(node);
+      node.textContent = headline.text;
+    }
+  }
+
+  // The Review's coach block, in the tip card's place: "Coach", the line, and the level's tip
+  // under it. The AI headline swaps into the same node when it arrives, if this is still the
+  // step on screen.
+  function coachBlock(target, entry, tip) {
+    const line = el("p", { class: "level-coach__line" });
+    fillCoachLine(line, entry, coachLineOf(entry));
+    entry.onNotes = () => {
+      if (entry.notes && line.isConnected !== false && run === target) {
+        fillCoachLine(line, entry, entry.notes.headline);
+      }
+    };
+    const parts = [
+      el("p", { class: "level-coach__label" }, [iconOf("mic", 20), COACH_LABEL]),
+      line,
+    ];
+    if (tip) {
+      parts.push(el("p", { class: "level-coach__tip", text: "Level tip: " + tip.text }), sourceLine(tip));
+    }
+    return el("div", { class: "tip-card level-tip level-coach" }, parts);
+  }
+
+  // The sheet after every Path play's result (a level, check-back, crown, checkpoint or the
+  // benchmark): the coach's line for the final take, or the result's own verdict sentence, the
+  // pass or "Not yet" pill, and the one move app.nextMove picks. "See full results" only closes
+  // it, since the result stays on the page under the sheet; there is no grammar link in a level.
+  // Once per result.
+  function openResultSheet(target) {
+    const sheetApi = app.sheet;
+    if (
+      !sheetApi ||
+      typeof sheetApi.open !== "function" ||
+      typeof app.nextMove !== "function" ||
+      target.sheetFor === target.last
+    ) {
+      return;
+    }
+    const take = target.takes[target.last];
+    if (!take || !take.evaluation) {
+      return;
+    }
+    target.sheetFor = target.last;
+    const passed = take.evaluation.passed === true;
+    let move;
+    try {
+      move = app.nextMove({
+        history: historyNow(target),
+        cleared: savedCleared(target),
+        today: today(),
+        after: { type: AFTER_LEVEL, levelId: target.play.id, passed },
+      });
+    } catch {
+      return;
+    }
+    const entry = take.coach || { moments: [], takeaway: null, notes: null, onNotes: null };
+    const headline = coachLineOf(entry) || { text: take.evaluation.sentence, momentId: null };
+    let handle;
+    try {
+      handle = sheetApi.open({
+        label: COACH_LABEL,
+        line: coachParts(entry, headline),
+        why: move.why,
+        status: sheetStatus(target, passed),
+        primary: {
+          label: move.label,
+          icon: move.kind === RETRY_KIND ? "rotate-ccw" : "arrow-right",
+          onSelect: () => goToMove(target, move),
+        },
+        secondary: { label: SEE_FULL_RESULTS },
+      });
+    } catch {
+      // The sheet is extra to the Result, which is already on the page.
+      return;
+    }
+    entry.onNotes = () => {
+      if (entry.notes) {
+        try {
+          handle.update(coachParts(entry, entry.notes.headline));
+        } catch {
+          // The sheet keeps the line it has.
+        }
+      }
+    };
+    if (entry.notes) {
+      entry.onNotes();
+    }
+  }
+
+  // The pill for the result, by play kind: "Level 3 cleared", "Check-back 1 passed", "Crown
+  // earned", "Checkpoint cleared" or "Benchmark done" (ok), or "Not yet" ("Not yet · 2 tries
+  // left" for a level, the one play with attempts a day).
+  function sheetStatus(target, passed) {
+    const play = target.play;
+    if (play.kind === BENCHMARK) {
+      return { kind: "ok", text: BENCHMARK_DONE };
+    }
+    if (passed) {
+      return { kind: "ok", text: passPillOf(target) };
+    }
+    if (play.kind !== LOOP) {
+      return { kind: "pill", text: NOT_YET };
+    }
+    const left = app.path.attemptsLeft(play.level, historyNow(target), today());
+    const tries = left === 1 ? "1 try left" : left + " tries left";
+    return { kind: "pill", text: left > 0 ? NOT_YET + " · " + tries : NOT_YET };
+  }
+
+  function passPillOf(target) {
+    const play = target.play;
+    if (play.kind === CHECKBACK) {
+      return "Check-back " + target.takes[target.last].evaluation.stage + " passed";
+    }
+    if (play.kind === CROWN) {
+      return CROWN_EARNED;
+    }
+    if (play.kind === CHECKPOINT) {
+      return CHECKPOINT_CLEARED;
+    }
+    return "Level " + play.number + " cleared";
+  }
+
+  // A retry of a level goes straight to the next take of this run; a crown's or a checkpoint's
+  // starts a new run at its Goal, as opening it again would (its tier or material may change);
+  // anything else opens its route.
+  function goToMove(target, move) {
+    if (move.kind === RETRY_KIND && run === target) {
+      if (target.play.kind === LOOP) {
+        startTake(target, target.last + 1);
+      } else {
+        restartRun(target);
+      }
+      return;
+    }
+    app.nextMove.go(move.href);
+  }
+
+  // A new run of the same play from what the store holds now, drawn at its Goal.
+  function restartRun(target) {
+    const history = historyNow(target);
+    const cleared = savedCleared(target);
+    endRun();
+    run = startRun(target.playId, history, cleared);
+    render();
+  }
+
   // --- Feedback (the Review step, after take 1) ------------------------------------------------
 
   // The target, take 1's card (its number against the target, the change line, the live catch
@@ -1224,7 +1482,10 @@
       );
     }
     const parts = [targetCard(play, false), el("div", { class: "level-card level-take" }, card)];
-    if (play.tip) {
+    const coach = target.takes[0].coach;
+    if (coach && coach.takeaway) {
+      parts.push(coachBlock(target, coach, play.tip));
+    } else if (play.tip) {
       parts.push(tipCard(play.tip));
     }
     const count = target.moments.length;

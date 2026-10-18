@@ -164,9 +164,15 @@ def library_tips() -> dict[str, Any]:
         entry = LIBRARY[entry_id]
         cited = {"label": citation(entry), "url": entry.source.url, "type": entry.source.type}
         tips.append(
-            {"entry_id": entry_id, "text": entry.advice, "drill": entry.drill, "citation": cited}
+            {
+                "entry_id": entry_id,
+                "text": entry.advice,
+                "drill": entry.drill,
+                "citation": cited,
+                "moment_ids": [],
+            }
         )
-    return {"tips": tips, "source": "library"}
+    return {"headline": None, "tips": tips, "source": "library"}
 
 
 class FakeMessages:

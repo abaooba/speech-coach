@@ -59,12 +59,15 @@ function readmePrivacy() {
   return flat(readme.slice(start, end === -1 ? undefined : end));
 }
 
-test("the first-launch privacy line says how much of the transcript goes to Anthropic", () => {
+test("the first-launch privacy line says part of the transcript goes to Anthropic", () => {
+  // The screen says "part of your transcript" (guided-coach owner decision 2026-10-17); the exact
+  // size, measured from adviceRequest, is in how.html's Coach notes and the root README.
   const { privacy } = onboardingCopy();
-  const sentence =
-    "Coach notes send the first " + excerptLimit() + " characters of your transcript to Anthropic.";
+  const sentence = "Coach notes send part of your transcript to Anthropic.";
   assert.ok(privacy.includes(sentence), JSON.stringify(privacy));
   assert.doesNotMatch(privacy, /stay on this device/);
+  const how = flat(read("how.html"));
+  assert.ok(how.includes("the first " + excerptLimit() + " characters of your transcript"));
 });
 
 test("frontend/README.md's Onboarding walkthrough quotes the privacy line the screen shows", () => {
@@ -78,7 +81,7 @@ test("the root README's Privacy section says what coach notes send and to whom",
   [
     "the first " + excerptLimit() + " characters of its transcript to `POST /api/advice`",
     "While `ANTHROPIC_API_KEY` is set",
-    "the server passes both to Anthropic",
+    "the server passes all of it to Anthropic",
     "Otherwise nothing goes to Anthropic.",
   ].forEach((phrase) => assert.ok(privacy.includes(phrase), phrase));
   assert.ok(!privacy.includes("stored only in IndexedDB"), "transcripts leave the device too");

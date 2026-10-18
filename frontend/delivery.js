@@ -1,7 +1,9 @@
 /* delivery.js: app.delivery, the rules the coach applies to the words of a stored take.
    classify(words) labels each word a hesitation sound, a verbal habit or neither (isHesitation
    tests one word); analyze(words, metrics) re-scores any saved take into the report Results, tips
-   and Progress read, so they never mix two definitions. Pure: no DOM, no store, no I/O. */
+   and Progress read, so they never mix two definitions. findStumbles(words) finds the words that
+   ran long enough to hide a small stutter: a transcript hint that no report or score reads.
+   Pure: no DOM, no store, no I/O. */
 (function () {
   "use strict";
 
@@ -69,6 +71,32 @@
   // The backend's stem rule: "I'm" says "I" again, "decision" says "decisions".
   const CONTRACTION = /(?:n['’]t|['’](?:m|s|re|ve|ll|d))$/;
 
+  // A small stutter the transcriber folds into the word it began ("che— check" comes back as
+  // "check") still shows in the times: the word runs long. A word is a possible stumble when it
+  // lasts STUMBLE_STRETCH times what this speaker takes for a word that many letters, and at
+  // least STUMBLE_MIN_EXTRA_SECONDS more. A slow, stressed word can look the same, so it is a
+  // hint in the transcript only, never counted. Tuned on the owner's 2026-10-11 takes, where it
+  // flags none of 266 words (their one stutter, "ner—", is a restart).
+  const STUMBLE_STRETCH = 2.2;
+  const STUMBLE_MIN_EXTRA_SECONDS = 0.25;
+  // A stutter folded into a word starts right after the word before. A word said slowly after a
+  // silence this long is the speaker finding the word ("do some… residual work"), not one.
+  const STUMBLE_MAX_SILENCE_BEFORE_SECONDS = 0.5;
+  // A shorter word has too little sound to tell a stumble from a stress.
+  const STUMBLE_MIN_LETTERS = 4;
+  // The speaker's seconds per letter is the median over their words of at least this many
+  // letters, fillers left out, and is only trusted with STUMBLE_MIN_PACE_WORDS of them.
+  const PACE_MIN_LETTERS = 3;
+  const STUMBLE_MIN_PACE_WORDS = 20;
+  const LETTER = /\p{L}/gu;
+
+  // The transcriber rated a word this sure or less: a coin flip or worse. Tuned after phone
+  // tests (spec 2026-10-17, Phase 0 decisions); at most MAX_UNCLEAR_WORDS words are hinted.
+  const UNCLEAR_CONFIDENCE = 0.5;
+  const MAX_UNCLEAR_WORDS = 5;
+  // A word under three letters ("to", "of") has too little to judge.
+  const UNCLEAR_MIN_LETTERS = 3;
+
   function normalizeWord(text) {
     return String(text || "").toLowerCase().replace(EDGE_PUNCTUATION, "");
   }
@@ -129,6 +157,83 @@
       }
     }
     return kinds;
+  }
+
+  // The indexes of the words that may hide a small stumble, in order (see STUMBLE_STRETCH).
+  // Left out: fillers and habit words (a drawn-out "like" is a filler), cut-offs (already
+  // restarts), words under STUMBLE_MIN_LETTERS, a word that ends a clause, since speakers draw
+  // out the last word before a comma or a full stop, and a word after a silence of
+  // STUMBLE_MAX_SILENCE_BEFORE_SECONDS or more. analyze() never reads it, so no score, rank or
+  // tip does either.
+  function findStumbles(words) {
+    const list = toWords(words);
+    const kinds = classify(list);
+    const letters = list.map((word) => (word.text.match(LETTER) || []).length);
+    const seconds = list.map((word) => word.end - word.start);
+    const plain = (i) =>
+      kinds[i] === null && !HABIT_WORDS.includes(normalizeWord(list[i].text));
+    const paceSamples = [];
+    list.forEach((word, i) => {
+      if (plain(i) && letters[i] >= PACE_MIN_LETTERS && seconds[i] > 0) {
+        paceSamples.push(seconds[i] / letters[i]);
+      }
+    });
+    if (paceSamples.length < STUMBLE_MIN_PACE_WORDS) {
+      return [];
+    }
+    const secondsPerLetter = median(paceSamples);
+    const stumbles = [];
+    list.forEach((word, i) => {
+      const usual = secondsPerLetter * letters[i];
+      const silenceBefore = i > 0 ? word.start - list[i - 1].end : 0;
+      if (
+        plain(i) &&
+        silenceBefore < STUMBLE_MAX_SILENCE_BEFORE_SECONDS &&
+        letters[i] >= STUMBLE_MIN_LETTERS &&
+        !CLAUSE_END.test(word.text) &&
+        !CUTOFF_MARK.test(word.text) &&
+        seconds[i] >= STUMBLE_STRETCH * usual &&
+        seconds[i] - usual >= STUMBLE_MIN_EXTRA_SECONDS
+      ) {
+        stumbles.push(i);
+      }
+    });
+    return stumbles;
+  }
+
+  // The indexes of the words the transcriber was unsure of, the least sure first (a tie keeps
+  // the earlier word first): at most MAX_UNCLEAR_WORDS words rated below UNCLEAR_CONFIDENCE. A
+  // word with no confidence (the provider gave none) is never listed. Left out, as for
+  // findStumbles: fillers, habit words, words under UNCLEAR_MIN_LETTERS letters and cut-offs.
+  // A hint in the transcript only: analyze() never reads it, so no report field, score, rank or
+  // tip changes with or without confidence.
+  function findUnclear(words) {
+    const raw = Array.isArray(words) ? words : [];
+    const list = toWords(raw);
+    const kinds = classify(list);
+    const unsure = [];
+    list.forEach((word, i) => {
+      const confidence = raw[i] ? raw[i].confidence : undefined;
+      const rated = isFiniteNumber(confidence) && confidence >= 0 && confidence <= 1;
+      if (
+        rated &&
+        confidence < UNCLEAR_CONFIDENCE &&
+        kinds[i] === null &&
+        !HABIT_WORDS.includes(normalizeWord(word.text)) &&
+        (word.text.match(LETTER) || []).length >= UNCLEAR_MIN_LETTERS &&
+        !CUTOFF_MARK.test(word.text)
+      ) {
+        unsure.push({ index: i, confidence });
+      }
+    });
+    unsure.sort((a, b) => a.confidence - b.confidence || a.index - b.index);
+    return unsure.slice(0, MAX_UNCLEAR_WORDS).map((entry) => entry.index);
+  }
+
+  function median(values) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   }
 
   // True when the word that decides a phrase's meaning (the nearest non-hesitation word
@@ -695,6 +800,8 @@
   app.delivery = {
     analyze,
     classify,
+    findStumbles,
+    findUnclear,
     isHesitation,
     isCountedPause,
     isLongPause,
@@ -703,5 +810,7 @@
     HABIT,
     HABIT_WORDS,
     LONG_PAUSE_SECONDS,
+    UNCLEAR_CONFIDENCE,
+    MAX_UNCLEAR_WORDS,
   };
 })();

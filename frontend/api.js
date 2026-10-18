@@ -21,6 +21,11 @@
   // error arrives first. A four-minute take after a cold server start still has room.
   const ANALYZE_TIMEOUT_MS = 180000;
 
+  // postJson's small JSON requests (coach notes) wait 20 seconds for the whole reply.
+  const JSON_TIMEOUT_MS = 20000;
+  const JSON_TYPE = "application/json";
+  const NO_REPLY = 0;
+
   // The only copies of these sentences in the codebase (DESIGN.md section 8).
   const messages = Object.freeze({
     network: "Could not reach the server. Your recording is still here.",
@@ -38,7 +43,7 @@
       form.append(SCRIPT_FIELD, script);
     }
 
-    const deadline = startDeadline();
+    const deadline = startDeadline(ANALYZE_TIMEOUT_MS);
     try {
       return await post(form, deadline.signal);
     } finally {
@@ -67,9 +72,39 @@
     }
   }
 
-  // Aborts the request ANALYZE_TIMEOUT_MS after it starts. Without AbortController or the timers
+  // One JSON POST. Resolves {status, body}: body is the reply's JSON, or null when it has none;
+  // status is 0 and body null when no reply came (offline, refused, past the 20 s deadline).
+  async function postJson(url, body) {
+    const init = {
+      method: "POST",
+      headers: { "Content-Type": JSON_TYPE },
+      body: JSON.stringify(body),
+    };
+    const deadline = startDeadline(JSON_TIMEOUT_MS);
+    if (deadline.signal) {
+      init.signal = deadline.signal;
+    }
+    try {
+      const response = await fetch(url, init);
+      return { status: response.status, body: await jsonOrNull(response) };
+    } catch {
+      return { status: NO_REPLY, body: null };
+    } finally {
+      deadline.clear();
+    }
+  }
+
+  async function jsonOrNull(response) {
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
+  // Aborts the request `ms` after it starts. Without AbortController or the timers
   // (an old browser, the test sandbox) the request has no deadline and no signal.
-  function startDeadline() {
+  function startDeadline(ms) {
     const canAbort =
       typeof AbortController === "function" &&
       typeof setTimeout === "function" &&
@@ -78,7 +113,7 @@
       return { signal: undefined, clear: () => {} };
     }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ANALYZE_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), ms);
     return { signal: controller.signal, clear: () => clearTimeout(timer) };
   }
 
@@ -101,5 +136,5 @@
     return error;
   }
 
-  app.api = { analyze, messages };
+  app.api = { analyze, postJson, messages };
 })();

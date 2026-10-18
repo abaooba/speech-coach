@@ -58,18 +58,19 @@ def test_the_api_section_names_the_optional_script_field_and_its_400() -> None:
 
 def test_the_api_section_lists_every_api_route() -> None:
     api = section("### API")
-    # The OpenAPI schema lists every route, those of the included routers too; no route here
+    # The OpenAPI schema lists every route, no route here
     # leaves the schema (include_in_schema).
     routes = [
         f"{method.upper()} {path}"
         for path, operations in backend_app.app.openapi()["paths"].items()
         for method in operations
     ]
-    assert {"POST /api/analyze", "POST /api/auth/login", "GET /api/sessions"} <= set(routes)
+    assert {"POST /api/analyze", "POST /api/advice", "GET /api/health"} <= set(routes)
     missing = [route for route in routes if f"`{PATH_PARAMETER.sub('{id}', route)}`" not in api]
     assert missing == [], f"README.md's API section does not list {missing}"
 
 
-def test_the_api_section_says_the_account_routes_need_database_url() -> None:
+def test_the_api_section_lists_no_account_route_and_says_there_are_none() -> None:
     api = flat(section("### API"))
-    assert "answers 503 while `DATABASE_URL` is unset" in api
+    assert "There are no accounts" in api
+    assert "/api/auth" not in api and "/api/me" not in api and "DATABASE_URL" not in api

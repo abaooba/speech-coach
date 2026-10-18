@@ -15,6 +15,7 @@ const DARK_MEDIA = "@media (prefers-color-scheme: dark)";
 const DARK_BY_DEVICE = ':root:not([data-theme="light"])';
 const DARK_FORCED = ':root[data-theme="dark"]';
 const HEX_COLOR = /^#[0-9A-Fa-f]{3,8}$/;
+const SHEET_TOKENS = ["--scrim", "--shadow-sheet"];
 
 // The color tokens this revamp adds or changes, light then dark (DESIGN.md section 4).
 const NEW_COLOR_TOKENS = {
@@ -119,11 +120,17 @@ test("the two dark blocks carry identical values and set color-scheme dark", () 
 
 test("every light color token has a dark value and the dark blocks override only colors", () => {
   const light = lightTokens();
-  const colorNames = Object.keys(light).filter((name) => HEX_COLOR.test(light[name]));
+  // The sheet's scrim and shadow carry translucent colors (rgba), so they swap too.
+  const colorNames = Object.keys(light).filter(
+    (name) => HEX_COLOR.test(light[name]) || SHEET_TOKENS.includes(name),
+  );
   const forced = ruleFor(TOKEN_RULES, DARK_FORCED);
   const darkNames = Object.keys(forced).filter((name) => name !== "color-scheme");
   assert.deepEqual(darkNames.sort(), colorNames.sort());
-  darkNames.forEach((name) => assert.match(forced[name], HEX_COLOR, name));
+  darkNames
+    .filter((name) => !SHEET_TOKENS.includes(name))
+    .forEach((name) => assert.match(forced[name], HEX_COLOR, name));
+  SHEET_TOKENS.forEach((name) => assert.match(forced[name], /rgba\(/, name));
 });
 
 test("the warning token is rust and the new color tokens exist in all three blocks", () => {

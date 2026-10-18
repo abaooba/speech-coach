@@ -33,7 +33,14 @@ function loadBare() {
 
 // Every string in COPY: the lead, the three list items, the privacy line and the button.
 function copyStrings(copy) {
-  return [copy.lead, ...copy.items, copy.privacy, copy.button];
+  return [
+    copy.lead,
+    copy.promiseTitle,
+    copy.promiseBody,
+    ...copy.items,
+    copy.privacy,
+    copy.button,
+  ];
 }
 
 // A sentence ends at ".", "?" or "!" followed by a space or the end, so "1.5" stays one word.
@@ -122,22 +129,24 @@ test("the copy is the brief's wording", () => {
     [
       "Words per minute against a target range",
       "Pauses over 1.5 seconds and filler words like um",
-      "A chart of every session on this phone",
+      "A chart of every take on this phone",
     ],
   );
   assert.equal(
     COPY.privacy,
-    "Audio is deleted right after analysis. " +
+    "Your recording goes to AssemblyAI to be turned into words. " +
+      "The app then asks AssemblyAI to delete it. " +
       "During a Path level, take 1 stays in this phone's memory for replay. " +
-      "It is deleted when the level ends. " +
-      "Coach notes send the first 1,500 characters of your transcript to Anthropic.",
+      "Coach notes send part of your transcript to Anthropic. " +
+      "They also send the moments the app found. " +
+      "The grammar check sends your transcript only when you tap it.",
   );
   assert.equal(COPY.button, "Start practicing");
 });
 
 test("the privacy line says audio is deleted and the transcript goes to Anthropic", () => {
   const { COPY } = loadBare();
-  assert.match(COPY.privacy, /deleted/);
+  assert.match(COPY.privacy, /to delete it/);
   assert.match(COPY.privacy, /transcript to Anthropic/);
 });
 
@@ -170,7 +179,7 @@ test("no COPY string contains an exclamation mark", () => {
   }
 });
 
-test("mount builds the lead, the list, the privacy line and the button in the body", () => {
+test("mount builds the lead, the promise, the list, the privacy line and the button", () => {
   const { screen, section, body } = mountOnboarding();
   const { COPY } = screen;
   assert.equal(section.children.length, 2, "the h1 and the body stay the section's children");
@@ -178,12 +187,13 @@ test("mount builds the lead, the list, the privacy line and the button in the bo
     body.children.map((child) => child.tagName + "." + child.className),
     [
       "p.onboarding__lead",
+      "div.onboarding__promise",
       "ul.onboarding__list",
       "p.onboarding__privacy",
       "button.btn btn--primary btn--block",
     ],
   );
-  const [lead, list, privacy, button] = body.children;
+  const [lead, , list, privacy, button] = body.children;
   assert.equal(textOf(lead), COPY.lead);
   assert.equal(textOf(privacy), COPY.privacy);
   assert.equal(textOf(button), COPY.button);

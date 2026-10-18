@@ -354,7 +354,7 @@ test("when two loads overlap, the later show wins even if its list is slower", a
   assert.equal(deltasOf(body)[0].textContent, "40 faster");
 });
 
-test("the headline counts a fillers drop against the last take", async () => {
+test("the Fillers card counts a fillers drop against the last take", async () => {
   const previous = spoken("p", OCT_9, 120, 0.5);
   previous.transcript[10].text = "um";
   previous.transcript[40].text = "um";
@@ -364,10 +364,7 @@ test("the headline counts a fillers drop against the last take", async () => {
   current.transcript[60].text = "um";
   const { results, body } = mount([previous, current]);
   await results.show({ id: "c" });
-  assert.equal(
-    byClass(byClass(body, "headline"), "headline__strength").textContent,
-    "Fillers are down from 4 to 1 a minute.",
-  );
+  assert.equal(deltasOf(body)[1].textContent, "3 fewer", "4 fillers a minute down to 1");
 });
 
 // Every declaration styles.css gives this selector outside @-rules, later rules winning.

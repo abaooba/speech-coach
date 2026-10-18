@@ -56,10 +56,10 @@ function isErrorObject(value) {
 
 const BLOB = { size: 1234, type: "audio/webm" };
 
-test("api.js assigns exactly app.api with analyze and messages", () => {
+test("api.js assigns exactly app.api with analyze, postJson and messages", () => {
   const { app, api } = loadApi(() => Promise.reject(new Error("unused")));
   assert.deepEqual(Object.keys(app), ["api"]);
-  assert.deepEqual(Object.keys(api).sort(), ["analyze", "messages"]);
+  assert.deepEqual(Object.keys(api).sort(), ["analyze", "messages", "postJson"]);
   assert.equal(typeof api.analyze, "function");
 });
 

@@ -72,8 +72,8 @@ def test_assemblyai_returns_words_in_seconds_from_recorded_response() -> None:
     words = provider.transcribe(AUDIO, CONTENT_TYPE)
 
     assert all(isinstance(w, Word) for w in words)
-    assert words[0] == Word(text="Hey,", start=1.287, end=1.497)
-    assert words[2] == Word(text="um,", start=2.417, end=2.724)
+    assert words[0] == Word(text="Hey,", start=1.287, end=1.497, confidence=0.98)
+    assert words[2] == Word(text="um,", start=2.417, end=2.724, confidence=0.91)
     assert len(words) == 8
 
 
@@ -136,8 +136,8 @@ def test_deepgram_returns_words_from_recorded_response() -> None:
     words = provider.transcribe(AUDIO, CONTENT_TYPE)
 
     assert all(isinstance(w, Word) for w in words)
-    assert words[0] == Word(text="Hey,", start=1.28, end=1.52)
-    assert words[2] == Word(text="um,", start=2.4, end=2.72)
+    assert words[0] == Word(text="Hey,", start=1.28, end=1.52, confidence=0.98)
+    assert words[2] == Word(text="um,", start=2.4, end=2.72, confidence=0.9)
     assert len(words) == 6
 
 

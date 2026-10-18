@@ -39,6 +39,10 @@
   --r-btn: 10px;
   --r-tok: 4px;
   --r-chip: 999px;
+  --r-sheet: 16px;
+
+  --scrim: rgba(17, 19, 24, .45);
+  --shadow-sheet: 0 -8px 32px rgba(17, 19, 24, .16);
 
   --nav-h: 56px;
   --col-max: 640px;
@@ -79,6 +83,8 @@
     --ok: #4ADE80;
     --ok-bg: #163B26;
     --warn: #FF8A4C;
+    --scrim: rgba(0, 0, 0, .6);
+    --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, .5);
   }
 }
 
@@ -106,6 +112,8 @@
   --ok: #4ADE80;
   --ok-bg: #163B26;
   --warn: #FF8A4C;
+  --scrim: rgba(0, 0, 0, .6);
+  --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, .5);
 }
 /* end tokens */
 
@@ -1346,8 +1354,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 }
 
-/* 8. Results screen: meta line, headline, speech map, stat strip, transcript, tips, actions */
-/* Every figure on the screen, in hints, headline, legend and tips too, uses tabular numbers. */
+/* 8. Results screen: meta line, Coach card, speech map, stat strip, words to check, transcript,
+   actions */
+/* Every figure on the screen, in hints, the coach's lines, legend and tips too, uses tabular
+   numbers. */
 #screen-results {
   font-variant-numeric: tabular-nums;
 }
@@ -1374,52 +1384,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 .results__date,
 .results__time-used {
   white-space: nowrap;
-}
-
-/* The headline: one strength over one focus, plain text on the page, the title of the speech
-   map under it. The strength is the screen's one big sentence; the focus a body line. */
-.headline {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  margin-top: var(--s-5);
-}
-
-.headline__strength,
-.headline__focus {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-2);
-  margin: 0;
-  text-wrap: pretty;
-}
-
-.headline__strength {
-  font-size: var(--fs-h2);
-  line-height: 1.3;
-  font-weight: 700;
-}
-
-.headline__focus {
-  font-size: var(--fs-body);
-  line-height: 1.5;
-}
-
-/* Each 16px icon follows its words in the DOM and is drawn first, centered on the first line:
-   --s-1 down centers it on a 24px body line and on the 23px strength line alike. */
-.headline__strength svg,
-.headline__focus svg {
-  flex: none;
-  order: -1;
-  margin-top: var(--s-1);
-}
-
-.headline__strength svg {
-  color: var(--ok);
-}
-
-.headline__focus svg {
-  color: var(--accent);
 }
 
 /* Speech map: the take's moments as two-line cards stacked in reading order beside a rail that
@@ -1825,6 +1789,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-underline-offset: var(--s-1);
 }
 
+/* A word that ran long enough to hide a small stutter: a hint, not a count, so plain text with a
+   gray dashed underline, quieter than a restart's purple dots and different in style as well as
+   color. Never on a restart word; a misread keeps its wavy line (the rule below wins). */
+.tok--stumble {
+  text-decoration: underline dashed var(--muted);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
 /* A word said in place of a different script word: a wavy underline. It sets no color, so the
    line takes the word's own (text, or a habit's filler color), and on a restart word it keeps
    the restart's --pause and turns its dots wavy; this rule must stay after .tok--restart. */
@@ -1833,6 +1806,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-decoration-style: wavy;
   text-decoration-thickness: 2px;
   text-underline-offset: var(--s-1);
+}
+
+/* A word the transcriber was unsure of (app.delivery.findUnclear): a hint, never counted. A 1px
+   dotted --muted box is a different shape from the three underlines (restart, stumble, misread),
+   so it never differs by colour alone, and it sets no colour, so it combines with any of them. */
+.tok--unclear {
+  outline: 1px dotted var(--muted);
+  outline-offset: 0;
+  border-radius: var(--r-tok);
+  padding: 0 2px;
 }
 
 /* A script word the speaker skipped, never said: muted and struck through, no weight. */
@@ -1846,6 +1829,57 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    the struck-through words after it, but not struck, so the number stays easy to read. */
 .skip-run__count {
   color: var(--muted);
+}
+
+/* Words to check: the unclear and misread words above the Transcript heading, each a chip that
+   says the word with the phone's voice. A chip looks like Practice's .chip: 44px, a surface
+   fill, a 1px border, the speaker icon before the word. While its word is said the border and
+   icon turn --accent. */
+.words-check {
+  margin-top: var(--s-6);
+}
+
+.words-check__title {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.words-check__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.word-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.word-chip svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.word-chip--playing {
+  border-color: var(--accent);
+}
+
+.word-chip--playing svg {
+  color: var(--accent);
 }
 
 /* One small muted line under the Transcript heading that explains the two highlight styles. */
@@ -1884,94 +1918,529 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   border-radius: var(--r-card);
 }
 
-/* Coach notes (docs/PLAN.md T41) take the tips' place: one small muted line under the heading
-   says who wrote them, then one card holds every note. Focus moves to the heading when the
-   notes replace the control it was on (tabindex="-1"), so it asks for the same room under it as
-   every link and button above the stuck action bar, and the browser never scrolls it in under
-   the bar. */
-.coach-notes__heading {
+/* The Coach card (frontend/screens/coachcard.js; the design's build notes section 2): the first
+   block under the meta line. An accent edge, no fill and no box, so it reads as the coach's
+   voice on the page rather than one more card. The headline is the screen's big sentence; the
+   take bar under it marks where each tip's moments fall, in the speech map's shapes. */
+.coach-card {
+  margin-top: var(--s-5);
+  border-left: 4px solid var(--accent);
+  padding-left: var(--s-4);
+}
+
+.coach-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+/* The heading sits at the card's top, not a section gap below the meta line. Focus moves to it
+   when the notes redraw the card under a control the speaker was on (tabindex="-1"), so it asks
+   for the same room under it as every link and button above the stuck action bar. */
+.coach-card__title {
+  margin-top: 0;
   scroll-margin-bottom: calc(var(--nav-h) + var(--s-7) + var(--s-6) + env(safe-area-inset-bottom));
 }
 
-.coach-notes__lead {
-  margin: var(--s-2) 0 0;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  color: var(--muted);
-}
-
-/* The card is a surface card, as the headline is, and a list (role="list"), so it drops the
-   list's bullets and indent; each note brings its own --s-4 padding. Anywhere-wrapping keeps a
-   long title inside the column at 320px. */
-.coach-notes {
-  list-style: none;
-  margin: var(--s-3) 0 0;
-  padding: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  overflow-wrap: anywhere;
-}
-
-.coach-notes__note {
-  padding: var(--s-4);
-}
-
-/* A 1px divider between two notes: it sits on each note after the first, so none runs along
-   the card's own edge. */
-.coach-notes__note + .coach-notes__note {
-  border-top: 1px solid var(--border);
-}
-
-/* The note keeps body size; pretty wrapping spares a one-word last line. */
-.coach-notes__text {
-  margin: 0;
-  text-wrap: pretty;
-}
-
-/* The drill is a step down from the note, so the advice reads first and the exercise second. */
-.coach-notes__drill {
-  margin: var(--s-2) 0 0;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-}
-
-.coach-notes__drill-label {
-  font-weight: 600;
-}
-
-/* The source line is running text: "Source:", the link and the pill share a line when they fit
-   and wrap like words when they do not. It sits --s-4 under the line above, as far as the
-   link's tap target reaches above its words, so a tap on the drill never opens the source. */
-.coach-notes__source {
-  margin: var(--s-4) 0 0;
+.coach-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
   font-size: var(--fs-micro);
-  line-height: 1.3;
   font-weight: 500;
   color: var(--muted);
 }
 
-/* The link stays inline, so a long citation carries on after "Source:" instead of dropping
-   below it. Its padding makes the tap target at least 44px tall (12px of text and --s-4 above
-   and below) without moving a line, since an inline box's padding never does; the focus ring
-   circles that padding, as it does round "How we count". */
-.coach-notes__link {
-  padding: var(--s-4) 0;
+.coach-card__spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+.coach-card__check .coach-card__spinner {
+  width: 16px;
+  height: 16px;
+}
+
+.coach-card__headline {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+
+/* The quoted words keep their transcript mark: a restart's dotted underline, a filler's fill. */
+.coach-card__quote--restart {
+  text-decoration: underline dotted var(--pause);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
+.coach-card__quote--filler {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-tok);
+  background: var(--filler-bg);
+  color: var(--filler);
+}
+
+.coach-card__bar {
+  margin-top: var(--s-4);
+}
+
+.coach-card__track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--grid);
+}
+
+/* A mark sits on the track at its moment's second (left, set by coachcard.js), centred on it; a
+   pause is a block as long as it lasted, from its start. */
+.coach-card__mark {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.coach-card__mark--filler {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--filler);
+}
+
+.coach-card__mark--restart,
+.coach-card__mark--misread {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--pause);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.coach-card__mark--long,
+.coach-card__mark--pause {
+  height: 8px;
+  border-radius: 4px;
+  transform: translateY(-50%);
+}
+
+.coach-card__mark--long {
+  background: var(--pause-long);
+}
+
+.coach-card__mark--pause {
+  background: var(--pause);
+}
+
+/* The open tip's marks: a step bigger and ringed in --text. */
+.coach-card__mark--open {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.coach-card__mark--filler.coach-card__mark--open,
+.coach-card__mark--restart.coach-card__mark--open,
+.coach-card__mark--misread.coach-card__mark--open {
+  width: 14px;
+  height: 14px;
+}
+
+.coach-card__ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--s-1);
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.coach-card__tips {
+  list-style: none;
+  margin: var(--s-5) 0 0;
+  padding: 0;
+}
+
+/* The folded rows start --s-5 below the open tip, each with a hairline above; the last one has
+   one below too. */
+.coach-tip--open + .coach-tip,
+.coach-tip + .coach-tip--open {
+  margin-top: var(--s-5);
+}
+
+.coach-tip:not(.coach-tip--open) {
+  border-top: 1px solid var(--border);
+}
+
+.coach-tip:not(.coach-tip--open):last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.coach-tip__moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+.moment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.moment-chip--still {
+  cursor: default;
+}
+
+.moment-mark {
+  flex: none;
+  display: inline-block;
+}
+
+.moment-mark--restart,
+.moment-mark--misread {
+  width: 10px;
+  height: 10px;
+  margin: 0 2px;
+  border-radius: 2px;
+  background: var(--pause);
+  transform: rotate(45deg);
+}
+
+.moment-mark--filler {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--filler);
+}
+
+.moment-mark--long,
+.moment-mark--pause {
+  width: 16px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--pause-long);
+}
+
+.moment-mark--pause {
+  background: var(--pause);
+}
+
+.coach-tip__text {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.coach-tip__drill {
+  margin-top: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-card);
+  background: var(--accent-soft);
+}
+
+.coach-tip__drill-title {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 600;
   color: var(--accent);
 }
 
-/* The "Peer reviewed" pill after the link: the ok pair, which reads at 4.5:1 in both themes
-   (DESIGN.md 4). It never breaks inside, so when it does not fit it moves down whole. */
-.coach-notes__badge {
-  display: inline-block;
-  padding: 0 var(--s-2);
+.coach-tip__drill-text {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--text);
+}
+
+/* The source: the citation link and, for a peer-reviewed source, its badge, wrapping as one
+   row. The link's padding gives it a 44px target without moving the line. */
+.coach-tip__cite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.coach-tip__cite a {
+  padding: var(--s-4) 0;
+  margin: calc(-1 * var(--s-4)) 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.badge-peer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 2px var(--s-2);
   border-radius: var(--r-chip);
   background: var(--ok-bg);
   color: var(--ok);
   font-size: var(--fs-micro);
   font-weight: 600;
-  line-height: 1.6;
   white-space: nowrap;
+}
+
+/* A folded tip: one row the whole width, its moment's mark, its kind and words, a chevron. */
+.coach-tip__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--s-2) 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.coach-tip__lines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.coach-tip__kind {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--pause);
+}
+
+.coach-tip:has(.moment-mark--long) .coach-tip__kind {
+  color: var(--pause-long);
+}
+
+.coach-tip:has(.coach-tip__row > .moment-mark--filler) .coach-tip__kind {
+  color: var(--filler);
+}
+
+.coach-tip__words {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.coach-tip__chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.coach-card__by {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.coach-card__foot {
+  margin-top: var(--s-5);
+}
+
+.coach-card__note {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+/* At 320px the check's label stays on one line in small type. */
+@media (max-width: 359px) {
+  .coach-card__check {
+    padding: 0 var(--s-4);
+    font-size: var(--fs-small);
+  }
+}
+
+.lang-check__error {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-small);
+  color: var(--warn);
+}
+
+/* The grammar check's result (frontend/language.js build) in the footer's place: Grammar,
+   Stronger words and Say it better, stacked, each only when it has items. */
+.lang-check {
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+}
+
+.lang-check__title {
+  margin: 0 0 var(--s-4);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.lang-block + .lang-block {
+  margin-top: var(--s-4);
+}
+
+.lang-block__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.lang-block__count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  line-height: 18px;
+  text-align: center;
+}
+
+.lang-fix + .lang-fix {
+  margin-top: var(--s-3);
+}
+
+.lang-fix__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-small);
+}
+
+.lang-fix__line svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.lang-fix__said {
+  color: var(--muted);
+  text-decoration: line-through 1px;
+}
+
+.lang-fix__better {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.lang-fix__hl {
+  padding: 0 1px;
+  border-radius: var(--r-tok);
+  background: var(--ok-bg);
+  color: inherit;
+}
+
+.lang-fix__why {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.lang-word {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.lang-word + .lang-word {
+  margin-top: var(--s-2);
+}
+
+.lang-word__said {
+  flex-basis: 100%;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The options are not buttons: a surface fill and no border. */
+.lang-pill {
+  padding: 2px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+
+.lang-say {
+  padding: var(--s-3);
+  border-radius: var(--r-card);
+  background: var(--accent-soft);
+}
+
+.lang-say + .lang-say {
+  margin-top: var(--s-2);
+}
+
+.lang-say__orig {
+  overflow: hidden;
+  margin: 0;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lang-say__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+.lang-say__better {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.lang-say__hear {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--s-3);
+}
+
+.lang-check__praise {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.lang-check__praise svg {
+  flex: none;
+}
+
+.lang-check__note {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-micro);
+  color: var(--muted);
 }
 
 /* The action bar stays stuck above the nav while the page scrolls under it: one row with the
@@ -2011,7 +2480,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    covered two thirds of a 160 x 284 window. There the bar stays in the page at its end, where
    main's bottom padding keeps it clear of the nav (at 200% zoom it wraps onto two rows).
    A focused link or button, the bar's own included, then only has to clear the nav, as on
-   History, and so does the Coach notes heading. */
+   History, and so does the Coach heading. */
 @media (max-height: 480px), (max-width: 319px) {
   #screen-results .results__actions {
     position: static;
@@ -2023,16 +2492,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
     scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
   }
 
-  .coach-notes__heading {
+  .coach-card__title {
     scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
   }
 }
 
 /* A wide window (1024px and up) lays Results out in two columns: the column doubles for
-   Results alone, the meta line and the headline span the width, the body flows into two
-   columns that break only at the Transcript heading (the speech map, the stat strip, its note
-   and the rank card on the left; the transcript and the coach notes or tips on the right), and
-   the action bar spans the width again under both. The two columns balance to the taller one.
+   Results alone, the meta line spans the width, the body flows into two columns that break
+   only at Words to check or else the Transcript heading (the Coach card, the speech map, the
+   stat strip, its note and the rank card on the left; words to check and the transcript on the
+   right), and the action bar spans the width again under both. The two columns balance to the taller one.
    No card, strip or note splits between the columns. The whole block waits for :has, which
    widens main: a browser without it keeps the single column instead of two columns in one. */
 @supports selector(:has(a)) {
@@ -2051,7 +2520,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
     }
 
     #screen-results > .screen__body > .results__meta,
-    #screen-results > .screen__body > .headline,
     #screen-results > .screen__body > .results__actions {
       column-span: all;
     }
@@ -2061,10 +2529,20 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
       margin-top: 0;
     }
 
-    /* The paragraphs are the right column's tall parts: they may run on past a page of the
+    /* Words to check, when the take has any, heads the right column instead. */
+    #screen-results > .screen__body > .words-check {
+      break-before: column;
+      margin-top: 0;
+    }
+
+    #screen-results > .screen__body > .words-check + .transcript__heading {
+      break-before: auto;
+      margin-top: var(--s-6);
+    }
+
+    /* The transcript is the right column's tall part: it may run on past a page of the
        column, as any text does. */
-    #screen-results > .screen__body > .transcript,
-    #screen-results > .screen__body > .coach-notes {
+    #screen-results > .screen__body > .transcript {
       break-inside: auto;
     }
   }
@@ -2497,6 +2975,31 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   flex: none;
   margin-top: var(--s-1);
   color: var(--accent);
+}
+
+/* The Review's coach block (guided coach): the tip card's look with a label, the coach line (two
+   lines kept, so the AI line swaps in without moving the button) and the level's tip. */
+.level-coach__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.level-coach__line {
+  margin: var(--s-2) 0 0;
+  min-height: calc(var(--fs-body) * 1.4 * 2);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.level-coach__tip {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  color: var(--muted);
 }
 
 /* The review: its title with the time it takes, a card per moment, the fix and the privacy
@@ -3205,6 +3708,34 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin: 0;
 }
 
+/* The promise card under the lead: the phone-lock icon beside "No account needed." and its body. */
+.onboarding__promise {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  margin-top: var(--s-5);
+  margin-bottom: var(--s-5);
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+
+.onboarding__promise > svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.onboarding__promise-title {
+  margin: 0;
+  font-size: var(--fs-h2);
+  font-weight: 700;
+}
+
+.onboarding__promise-body {
+  margin: var(--s-1) 0 0;
+}
+
 .onboarding__list {
   list-style: none;
   padding: 0;
@@ -3597,171 +4128,317 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: none;
 }
 
-/* 12. Account screen (#/account) and the Account link in History's header (docs/PLAN.md T49).
-   Red stays for Delete alone (section 4 of DESIGN.md), so a refused log in reads in --warn
-   after the warning icon, as the out-of-target hints do. */
+/* 12. Sheet (frontend/sheet.js, docs/superpowers/specs/2026-10-17-guided-coach-design.md Phase 5
+   item 5): the bottom sheet after a take or a Path level, and the first-visit guides. Appended
+   to body, above the nav; the page behind it is inert. The one shadow in the app. */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--scrim);
+}
 
-/* The link at the right of History's header: small, 500, on a 44px target whose --s-2 overhang
-   above, below and at the right keeps the row as tall as the h1, as the theme toggle's does. */
-.account-link {
+.sheet {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 31;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--col-max);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 0 var(--s-4) calc(var(--s-4) + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow: var(--shadow-sheet);
+}
+
+.sheet__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   min-height: 44px;
-  margin-block: calc(-1 * var(--s-2));
-  margin-right: calc(-1 * var(--s-2));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sheet__handle::before {
+  content: "";
+  width: 36px;
+  height: 4px;
+  border-radius: var(--r-chip);
+  background: var(--border);
+}
+
+.sheet__label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sheet__label > svg:first-child {
+  color: var(--accent);
+}
+
+.sheet__label-end {
+  margin-left: auto;
+}
+
+.sheet__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sheet__spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+.sheet__pill--ok,
+.sheet__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-micro);
+  border-radius: var(--r-chip);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet__pill--ok {
+  padding: var(--s-1) var(--s-2);
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.sheet__pill {
+  padding: var(--s-1) var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.sheet__line {
+  margin: var(--s-3) 0 0;
+  min-height: calc(var(--fs-h2) * 1.35 * 3);
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet__quote {
+  font-weight: 600;
+}
+
+.sheet__quote--restart {
+  text-decoration: underline dotted var(--pause);
+  text-decoration-thickness: 2px;
+  text-underline-offset: var(--s-1);
+}
+
+.sheet__quote--filler {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-tok);
+  background: var(--filler-bg);
+  color: var(--filler);
+}
+
+.sheet__why {
+  margin: var(--s-2) 0 var(--s-4);
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.sheet__title {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-h2);
+  font-weight: 700;
+}
+
+.sheet__text {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-body);
+}
+
+.sheet__text + .sheet__primary {
+  margin-top: var(--s-4);
+}
+
+.sheet__extra {
+  margin: var(--s-5) 0;
+}
+
+/* The level guide's diagram: Take 1, Review, Take 2 in a row. Not interactive. */
+.loop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--s-2);
+  color: var(--muted);
+}
+
+.loop > svg {
+  flex: none;
+  margin-top: var(--s-2);
+}
+
+.loop__node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.loop__pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.loop__node--counts .loop__pill {
+  border-width: 2px;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Every node keeps this line, empty or not, so the pills line up. */
+.loop__note {
+  min-height: calc(var(--fs-micro) * 1.3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--accent);
+}
+
+.sheet__primary {
+  min-height: 56px;
+  font-size: var(--fs-body);
+}
+
+.sheet__links {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 var(--s-1);
+  margin: var(--s-2) calc(-1 * var(--s-2)) 0;
+}
+
+.sheet__links > :only-child {
+  margin: 0 auto;
+}
+
+.sheet__links .btn {
+  min-height: 44px;
   padding: 0 var(--s-2);
   font-size: var(--fs-small);
-  font-weight: 500;
   text-decoration: none;
 }
 
-/* History's line above the rows once the server has ended this device's session: small and
-   muted, as the account screen's notes are, with the list's gap under it. */
-.history__note {
-  margin: 0 0 var(--s-4);
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  font-weight: 500;
-  color: var(--muted);
+/* The grammar link's text-check icon follows its words in the DOM and is drawn first. */
+.sheet__grammar svg {
+  order: -1;
 }
 
-/* The screen is one column of blocks: the first line, the switch, the form or the account's
-   actions, and the line on what the server keeps. */
-#screen-account .screen__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
+@media (max-width: 359px) {
+  .sheet__links .btn {
+    flex: 0 0 100%;
+    justify-content: center;
+  }
 }
 
-.account__lead,
-.account__status {
-  margin: 0;
+@media (min-width: 1024px) {
+  .sheet {
+    bottom: var(--s-5);
+    width: 480px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sheet);
+  }
 }
 
-/* An email has no spaces to break at, so a long one wraps anywhere rather than widen the page
-   at 320px, as .session-row__text and .transcript do. */
-.account__status {
-  overflow-wrap: anywhere;
+@media (prefers-reduced-motion: no-preference) {
+  .sheet {
+    animation: sheet-in 280ms ease-out;
+  }
+
+  .sheet-scrim {
+    animation: sheet-fade-in 280ms ease-out;
+  }
+
+  .sheet--closing {
+    animation: sheet-out 200ms ease-in forwards;
+  }
+
+  .sheet-scrim--closing {
+    animation: sheet-fade-out 200ms ease-in forwards;
+  }
+
+  .sheet__line--fresh {
+    animation: sheet-fade-in 200ms ease-out;
+  }
 }
 
-/* A button whose request is under way keeps focus, so it is never disabled: it reads as
-   unavailable (aria-disabled) and dims as a disabled button does, and ignores taps meanwhile. */
-#screen-account .btn[aria-disabled="true"] {
-  opacity: .5;
+@keyframes sheet-in {
+  from {
+    transform: translateX(-50%) translateY(100%);
+  }
+
+  to {
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
-/* What the server keeps, and a signed-in device's offline note: small and muted. */
-.account__privacy,
-.account__note {
-  margin: 0;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  font-weight: 500;
-  color: var(--muted);
+@keyframes sheet-out {
+  from {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  to {
+    transform: translateX(-50%) translateY(100%);
+  }
 }
 
-.account__form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-4);
+@keyframes sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-.account__label {
-  display: block;
-  margin-bottom: var(--s-1);
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  font-weight: 600;
-}
+@keyframes sheet-fade-out {
+  from {
+    opacity: 1;
+  }
 
-/* A one-line field built like Practice's script box: --surface, a 1px --border, --r-btn corners
-   and the body size, so iPhone Safari does not zoom in when it takes focus. */
-.account__input {
-  display: block;
-  width: 100%;
-  min-height: 48px;
-  padding: 0 var(--s-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-btn);
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  font-size: var(--fs-body);
-  line-height: 1.5;
-}
-
-.account__hint {
-  margin: var(--s-1) 0 0;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  color: var(--muted);
-}
-
-/* A refused sign up or log in, or a log out or delete that failed: the sentence in --warn after
-   the warning icon. Empty, the line takes no room; it stays in place for role="alert". */
-.account__error {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-2);
-  margin: 0;
-  font-size: var(--fs-small);
-  line-height: 1.4;
-  font-weight: 600;
-  color: var(--warn);
-}
-
-.account__error:empty {
-  display: none;
-}
-
-.account__error svg {
-  flex: none;
-}
-
-/* The offer to add this device's takes is a tip card holding its question over its two buttons;
-   the screen's gap spaces it, not the tip card's own top margin. */
-.account__offer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  margin-top: 0;
-}
-
-.account__offer-text {
-  margin: 0;
-}
-
-.account__offer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-3);
-}
-
-/* Log out over Delete account, each as wide as its words. */
-.account__actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-3);
-}
-
-/* Delete account asks first: the question on a line of its own over the red Delete account and
-   a ghost Cancel. */
-.account__confirm {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-}
-
-.account__confirm-text {
-  flex: 1 0 100%;
-  margin: 0;
-}
-
-/* Keyboard focus scrolls a control clear of the nav, ring and all, as on History. */
-#screen-account :is(a, button, input, [tabindex]) {
-  scroll-margin-top: var(--s-2);
-  scroll-margin-bottom: calc(var(--nav-h) + var(--s-2) + env(safe-area-inset-bottom));
+  to {
+    opacity: 0;
+  }
 }
 
 /* 13. Path screen (#/path), the Loop Path's map (spec

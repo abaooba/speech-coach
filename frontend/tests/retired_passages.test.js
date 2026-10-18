@@ -214,9 +214,9 @@ test("Results shows an old take under its own title, with its old band and time 
     "Congress speech · " + app.ui.formatDate(OCT_9) + " · 0:30 of 3:00",
   );
   // 135 wpm is inside the take's own 130 to 160; against the default band it would be slow.
-  const [strength, focus] = findClass(body, "headline").children.map(fullText);
-  assert.equal(strength, "Your pace is inside the 130 to 160 target.");
-  assert.equal(focus, "Next take, hold this delivery on a longer topic.");
+  const pace = findClass(body, "stat-strip").children[0];
+  const hint = pace.children.find((child) => child.classList.contains("stat__hint"));
+  assert.equal(fullText(hint), "Target 130 to 160");
 });
 
 // `count` words read at exactly `wpm` from 1 s, each 80% of its step long.
