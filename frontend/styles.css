@@ -2549,9 +2549,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The action bar stays stuck above the nav while the page scrolls under it: one row with the
-   primary Record again, which fills a phone's row and caps at 320px on wide screens, where its
-   auto left margin takes the spare room and parks it at the column's end. History is the nav's
-   own tab, so the bar carries no second button. The negative bottom margin gives back main's
+   primary Record again, which fills a phone's row and caps at 320px, centered by its auto side
+   margins wherever the row is wider (a 375px phone leaves 23px over, a wide screen far more).
+   History is the nav's own tab, so the bar carries no second button. The negative bottom margin gives back main's
    spare bottom padding, so at the end of the page the bar still meets the nav. */
 .results__actions {
   position: sticky;
@@ -2570,6 +2570,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   flex: 1 1 auto;
   max-width: 320px;
   margin-left: auto;
+  margin-right: auto;
 }
 
 /* Keyboard focus never hides under the stuck bar and the fixed nav. The browser scrolls to a
