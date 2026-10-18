@@ -465,7 +465,7 @@
       title: "Your first take",
       line:
         "Pick a topic, tap the red button and talk for a minute. Results show every pause, " +
-        "um and restart at the second it happened.",
+        "filler and restart at the second it happened.",
       primary: "Got it",
     },
     path: {

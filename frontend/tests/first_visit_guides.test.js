@@ -78,8 +78,8 @@ function text(node) {
 const GUIDE_COPY = {
   practice: [
     "Your first take",
-    "Pick a topic, tap the red button and talk for a minute. Results show every pause, um and " +
-      "restart at the second it happened.",
+    "Pick a topic, tap the red button and talk for a minute. Results show every pause, filler " +
+      "and restart at the second it happened.",
     "Got it",
   ],
   path: [

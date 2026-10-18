@@ -8,7 +8,28 @@
 
   // One topic shows at a time and New topic moves to the next, so each prompt's text repeats
   // its first topic and every entry still has text.
-  const YOUR_DAY_TOPICS = [
+  const ABOUT_YOU_TOPICS = [
+    "Talk about something you are looking forward to this week.",
+    "Describe the best thing that happened to you last week.",
+    "Talk about what you have planned for the weekend, and why.",
+    "Describe a friend or family member and what makes them special.",
+    "Talk about a hobby you enjoy and how you got into it.",
+    "Describe how your week is going, the good parts and the hard ones.",
+    "Talk about a goal you are working toward right now.",
+    "Describe your favorite room at home and what you do there.",
+    "Talk about a book, show or film you enjoyed recently.",
+    "Describe a habit you are trying to build or break.",
+    "Talk about a song you keep listening to, and why.",
+    "Describe the place where you grew up to someone who has never been.",
+    "Talk about someone who taught you something important.",
+    "Talk about a small win you had recently and what it meant.",
+    "Talk about a place you would love to visit one day.",
+    "Describe a typical evening for you, from dinner to bedtime.",
+    "Talk about something that has changed in your life this year.",
+    "Describe the people you spend most of your time with.",
+    "Talk about what you do to relax after a long day.",
+    "Describe something small that made you smile recently.",
+    "Describe a gift you gave or got that meant a lot.",
     "Talk about the best part of your day and why it stood out.",
     "Walk through your morning, from waking up to your first class.",
     "Describe something you learned today and how you would teach it.",
@@ -29,6 +50,23 @@
     "Do phones bring friends closer or push them apart? Why?",
     "Is it better to save money or enjoy it now? Explain your view.",
     "What one change would make your neighborhood a better place to live?",
+    "Is it better to have a few close friends or many friends? Why?",
+    "What makes a good teacher, in your experience, and why?",
+    "Would you rather travel to the past or the future? Why?",
+    "What is one invention you could not live without, and why?",
+    "Is breakfast really the most important meal of the day? Why?",
+    "What makes a movie worth watching a second time, in your view?",
+    "Would you rather have more free time or more money? Why?",
+    "What is the most useful thing you have learned outside of school?",
+    "Is it better to plan a trip carefully or just go? Why?",
+    "What makes someone a good neighbor, in your opinion?",
+    "Would you rather be a morning person or a night person? Why?",
+    "Which is better for learning, books or videos? Explain your view.",
+    "What is one skill everyone should learn before they leave home?",
+    "Is it more fun to watch sports or to play them? Why?",
+    "What would you change about the way people use social media?",
+    "Would you rather live near the ocean or the mountains? Why?",
+    "What is the best advice you have ever been given, and why?",
   ];
 
   // Job interview questions, "Tell me about yourself" first.
@@ -41,6 +79,23 @@
     "Describe a time you worked with someone who saw things differently.",
     "Where do you see yourself in five years, and why?",
     "How do you stay calm and organized when things get busy?",
+    "What are you most proud of so far, and why?",
+    "How do you handle feedback that you do not agree with?",
+    "Tell me about a time you had to learn something quickly.",
+    "What kind of work environment helps you do your best?",
+    "Describe a goal you set for yourself and how you reached it.",
+    "How do you decide what to do first when everything feels urgent?",
+    "Tell me about a time you helped someone who was struggling.",
+    "What is one weakness you are working on, and how?",
+    "Describe a project you are proud of, from start to finish.",
+    "How would your friends or classmates describe you, and why?",
+    "Tell me about a time you had to speak up for an idea.",
+    "What do you do when you do not know the answer?",
+    "Describe a time you led a group, even an informal one.",
+    "Why are you interested in this field, and how did it start?",
+    "Tell me about a time you missed a deadline and what happened.",
+    "What would you want to learn in your first month here?",
+    "How do you keep yourself motivated on a long, slow project?",
   ];
 
   // Something the speaker knows well, explained to someone who does not.
@@ -53,6 +108,23 @@
     "Explain how to plan a trip on a small budget.",
     "Explain how to look after a plant or a pet.",
     "Explain something you are good at to a complete beginner.",
+    "Explain how to make a good first impression at a new job.",
+    "Explain how to ride a bike to someone who has never tried.",
+    "Explain how to set up a new phone for an older relative.",
+    "Explain how to make your favorite drink, hot or cold.",
+    "Explain how to study for a big test without cramming.",
+    "Explain how to pack a suitcase so that everything fits.",
+    "Explain how the seasons change in the place where you live.",
+    "Explain how to get from your home to a shop nearby.",
+    "Explain how to take care of a pair of shoes so they last.",
+    "Explain how your family gets ready for a holiday you celebrate.",
+    "Explain how to make a simple budget for one month.",
+    "Explain how to start a conversation with someone you just met.",
+    "Explain how to keep a room tidy in ten minutes a day.",
+    "Explain the plot of a favorite movie without giving away the ending.",
+    "Explain how to choose good fruit or vegetables at the market.",
+    "Explain how to fix a small problem around the house.",
+    "Explain how to get better sleep, one step at a time.",
   ];
 
   // Something that happened to the speaker, told from the start.
@@ -65,6 +137,23 @@
     "Tell the story of a meal you will never forget.",
     "Talk about a moment when you felt proud of yourself.",
     "Tell the story of a small mistake that turned out well.",
+    "Tell the story of a time you laughed so hard you could not stop.",
+    "Tell the story of your first day at a new school or job.",
+    "Talk about a time you helped a friend through something hard.",
+    "Tell the story of a trip that changed how you see things.",
+    "Tell the story of a time you were really nervous, and what happened.",
+    "Tell the story of a birthday or celebration you remember well.",
+    "Talk about a time you tried something new and loved it.",
+    "Tell the story of a time you lost something important.",
+    "Tell the story of how you met one of your closest friends.",
+    "Tell the story of a time the weather ruined your plans.",
+    "Talk about a time you had to make a hard choice quickly.",
+    "Tell the story of a funny misunderstanding you were part of.",
+    "Tell the story of a game or match you will always remember.",
+    "Talk about a time you surprised yourself by doing something brave.",
+    "Tell the story of a time you taught someone something new.",
+    "Tell the story of a family trip, from the start to the end.",
+    "Tell the story of something you waited a long time for.",
   ];
 
   // The Read tab's everyday texts: an explainer and a short story, original, read as written.
@@ -131,16 +220,16 @@
   ].join(" ");
 
   app.passages = [
-    // The free-talk id is older than the "Your day" title and stays, so saved takes still find
+    // The free-talk id is older than the "About you" title and stays, so saved takes still find
     // their band.
     {
       id: "free-talk",
       kind: "prompt",
-      title: "Your day",
-      text: YOUR_DAY_TOPICS[0],
+      title: "About you",
+      text: ABOUT_YOU_TOPICS[0],
       targetWpm: [140, 160],
       timeLimitSeconds: 60,
-      topics: YOUR_DAY_TOPICS,
+      topics: ABOUT_YOU_TOPICS,
     },
     {
       id: "impromptu",
