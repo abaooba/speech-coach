@@ -444,29 +444,34 @@ test("stronger words show the said phrase and its options as plain pills", () =>
   );
 });
 
-test("Say it better shows the sentence as said and the rewrite, with Hear it when the phone can speak", () => {
+test("Say it better shows the sentence as said and the rewrite, and nothing else", () => {
+  // The "Hear it" button that used to follow the rewrite is gone (owner's report of
+  // 2026-10-18: it stayed silent on iPhone), with or without a voice on the phone.
   const speech = fakeSpeech();
   const { language } = load({ speech });
   const block = language.build(language.parse(OK_REPLY));
   const say = findAll(block, "lang-say")[0];
+  assert.deepEqual(
+    say.children.map((child) => [child.tagName, child.className]),
+    [
+      ["p", "lang-say__orig"],
+      ["p", "lang-say__better"],
+    ],
+  );
   assert.equal(byClass(say, "lang-say__orig").textContent, "after that I take the bus");
-  const row = byClass(say, "lang-say__row");
-  assert.equal(byClass(row, "lang-say__better").textContent, "After that I took the bus.");
-  const hear = byClass(row, "lang-say__hear");
-  assert.equal(hear.tagName, "button");
-  assert.equal(hear.getAttribute("type"), "button");
-  assert.equal(hear.className, "btn btn--secondary lang-say__hear");
-  assert.equal(fullText(hear), "Hear it");
-  assert.equal(hear.children[0].getAttribute("data-icon"), "speaker");
-  hear.click();
-  assert.deepEqual(speech.log, [["cancel"], ["speak", "After that I took the bus.", "en-US", 0.85]]);
+  assert.equal(byClass(say, "lang-say__better").textContent, "After that I took the bus.");
+  assert.equal(fullText(say).includes("Hear it"), false);
+  assert.deepEqual(speech.log, [], "nothing is spoken");
 });
 
-test("without speechSynthesis there is no Hear it button", () => {
+test("without speechSynthesis Say it better draws the same two lines", () => {
   const { language } = load();
   const block = language.build(language.parse(OK_REPLY));
   const say = findAll(block, "lang-say")[0];
-  assert.equal(byClass(byClass(say, "lang-say__row"), "lang-say__hear"), undefined);
+  assert.deepEqual(
+    say.children.map((child) => child.className),
+    ["lang-say__orig", "lang-say__better"],
+  );
 });
 
 test("nothing to fix shows the praise, or the fallback line, and the note", () => {

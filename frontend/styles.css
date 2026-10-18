@@ -2405,22 +2405,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   text-overflow: ellipsis;
 }
 
-.lang-say__row {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin-top: var(--s-2);
-}
-
 .lang-say__better {
-  flex: 1 1 auto;
-  margin: 0;
-}
-
-.lang-say__hear {
-  flex: none;
-  min-height: 44px;
-  padding: 0 var(--s-3);
+  margin: var(--s-2) 0 0;
 }
 
 .lang-check__praise {
