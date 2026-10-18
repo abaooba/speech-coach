@@ -739,18 +739,18 @@ test("Practice opens on the first entry's tab with that entry selected", () => {
   assert.equal(readFirst.practice.selectedPassage().id, "read1");
 });
 
-test("with the real passages Practice opens on Talk with Your day and its first topic", () => {
+test("with the real passages Practice opens on Talk with About you and its first topic", () => {
   const t = setup({ passages: realPassages() });
   const parts = modeParts(t);
   assert.equal(parts.talk.getAttribute("aria-pressed"), "true");
   assert.equal(t.practice.selectedPassage().id, "free-talk");
-  assert.equal(parts.cardTitle.textContent, "Your day");
+  assert.equal(parts.cardTitle.textContent, "About you");
   assert.equal(
     parts.cardText.textContent,
-    "Talk about the best part of your day and why it stood out.",
+    "Talk about something you are looking forward to this week.",
   );
   assert.deepEqual(visibleChipLabels(parts), [
-    "Your day 1:00",
+    "About you 1:00",
     "Impromptu 2:00",
     "Interview answer 1:30",
     "Explain something 2:00",

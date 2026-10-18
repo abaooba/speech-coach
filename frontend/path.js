@@ -39,7 +39,7 @@
 
   // What a play is said or read on (spec section 3). A loop keeps one material for every take;
   // a check-back, checkpoint or crown always starts on new material.
-  const YOUR_DAY = "your-day"; // Practice's "Your day" prompt, on a topic pickTopic picks
+  const YOUR_DAY = "your-day"; // Practice's "About you" prompt, on a topic pickTopic picks
   const IMPROMPTU = "impromptu"; // Practice's Impromptu prompt, on a topic pickTopic picks
   const NEW_TOPIC = "new-topic"; // an Impromptu topic no take has used yet
   const COLD_READ = "cold-read"; // a passage the speaker has never read (pickColdRead)
@@ -1457,7 +1457,7 @@
       return {
         headline: clockText(tier.seconds),
         unitLabel: "without a filler or restart",
-        length: tier.seconds + RUN_HEADROOM_SECONDS + " s on Your day",
+        length: tier.seconds + RUN_HEADROOM_SECONDS + " s on About you",
         short: crown.label,
       };
     }

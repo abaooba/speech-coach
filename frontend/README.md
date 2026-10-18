@@ -108,7 +108,7 @@ the store" set up the Path and Level rows.
 | Practice | Upload failed, network | Tap Record, stop uvicorn (Ctrl-C) while recording, tap Stop. | "Upload failed" / "Could not reach the server. Your recording is still here." Button "Retry upload", then a ghost "Record a new take". |
 | Practice | Upload failed, provider | Set `STT_PROVIDER=bogus` in `.env`, restart uvicorn, record 10 seconds, tap Stop. Restore `STT_PROVIDER` and restart afterwards. | "Upload failed" / "Analysis failed on our side. Your recording is still here." Button "Retry upload", then a ghost "Record a new take". |
 | Practice | Sample unavailable | In DevTools tick Application > Service workers > "Bypass for network", block the URL pattern `sample-session.json` under More tools > Network request blocking, tap "See a sample result". | "Sample unavailable" / "Could not load the sample. Try again." Button "Try again". |
-| Practice | Level banner (not a block) | Empty the store, open the Path, tap Start on Fillers level 1, then "Record take 1" (the Level walkthrough, steps 1 and 2). | In the place of the Talk / Read switch and the chips, a card reading "Path: Fillers, level 1", "Take 1 of 2", "Talk for 60 s. Take 2 counts: 8 or fewer fillers a minute, or halfway there from take 1." and "Leave level". New topic, the script box and "See a sample result" are gone; the card shows "Your day" with a topic, and the clock "/ 1:00". |
+| Practice | Level banner (not a block) | Empty the store, open the Path, tap Start on Fillers level 1, then "Record take 1" (the Level walkthrough, steps 1 and 2). | In the place of the Talk / Read switch and the chips, a card reading "Path: Fillers, level 1", "Take 1 of 2", "Talk for 60 s. Take 2 counts: 8 or fewer fillers a minute, or halfway there from take 1." and "Leave level". New topic, the script box and "See a sample result" are gone; the card shows "About you" with a topic, and the clock "/ 1:00". |
 | Practice | Leave level (not a block) | From the level banner, tap "Leave level" in idle or under an error block; it hides while a take records or uploads. Opening another screen from the nav in idle leaves the level too. | Practice in normal idle: the switch, the chips and "See a sample result" are back, and focus on "Leave level" moves to the selected Talk / Read option. Nothing more is saved, and Start on the Path opens the level again at a fresh Goal. |
 | Practice | Upload failed, level mode | From the level banner, tap Record, stop uvicorn (Ctrl-C) while recording, tap Stop. | Under the banner, "Upload failed" / "Could not reach the server. Your recording is still here." Button "Retry upload", then a ghost "Record a new take", with "Leave level" back in the banner. With uvicorn running again, Retry hands the take back to the level, never to Results; "Record a new take" keeps the banner for a new take at 0:00; "Leave level" drops the take with the level. |
 | Results | Session not found | Open `#/results/nope`. The same block shows for `#/results` with no id and for a deleted session's id. | Magnifying glass, "Session not found" / "It may have been deleted." Button "History", which opens `#/history`. |
@@ -151,7 +151,7 @@ reload.
 1. Save one session:
 
    ```js
-   await app.store.save({passageId:'free-talk', passageTitle:'Your day', durationSeconds:12, metrics:{words_per_minute:150, duration:12, word_count:30, fillers:{um:1}, pauses:[], repeats:[], pace_windows:[]}, transcript:[]})
+   await app.store.save({passageId:'free-talk', passageTitle:'About you', durationSeconds:12, metrics:{words_per_minute:150, duration:12, word_count:30, fillers:{um:1}, pauses:[], repeats:[], pace_windows:[]}, transcript:[]})
    ```
 
    It resolves with a new id string.
@@ -198,7 +198,7 @@ is the pause count:
 
 ```js
 for (const [daysAgo, wpm, um, pauses] of [[5,128,4,1],[4,141,3,2],[3,137,2,2],[2,152,1,0],[1,158,1,1]]) {
-  await app.store.save({createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString(), passageId:'free-talk', passageTitle:'Your day', durationSeconds:60, metrics:{words_per_minute:wpm, duration:60, word_count:wpm, fillers:{um}, pauses:Array.from({length:pauses}, (_, k) => [10 + 10 * k, 2]), repeats:[], pace_windows:[]}, transcript:[]})
+  await app.store.save({createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString(), passageId:'free-talk', passageTitle:'About you', durationSeconds:60, metrics:{words_per_minute:wpm, duration:60, word_count:wpm, fillers:{um}, pauses:Array.from({length:pauses}, (_, k) => [10 + 10 * k, 2]), repeats:[], pace_windows:[]}, transcript:[]})
 }
 ```
 
@@ -230,10 +230,10 @@ level cleared again keeps its first date, then open `#/path` or the level again.
   ```
 
 - Three misses today, take 2, then takes 3 and 4, so the level rests until tomorrow (History
-  lists them as three "Your day" rows):
+  lists them as three "About you" rows):
 
   ```js
-  for (const take of [2, 3, 4]) await app.store.save({passageId:'free-talk', passageTitle:'Your day', durationSeconds:60, metrics:{words_per_minute:150, duration:60, word_count:150, fillers:{um:12}, pauses:[], repeats:[], pace_windows:[]}, transcript:[], path:{play:'fillers-1', kind:'loop', take, scored:true, passed:false, stage:null, inRoom:null}})
+  for (const take of [2, 3, 4]) await app.store.save({passageId:'free-talk', passageTitle:'About you', durationSeconds:60, metrics:{words_per_minute:150, duration:60, word_count:150, fillers:{um:12}, pauses:[], repeats:[], pace_windows:[]}, transcript:[], path:{play:'fillers-1', kind:'loop', take, scored:true, passed:false, stage:null, inRoom:null}})
   ```
 
 **Hold or fail the store.** Reload the page on Practice, then keep the real list:
@@ -334,14 +334,14 @@ keyboard.
 
 **Practice (about one minute).** Start the server as under Manual checks.
 
-1. Talk and Read: Practice opens on the Talk tab with "Your day 1:00" selected. The chips
-   read "Your day 1:00", "Impromptu 2:00", "Interview answer 1:30", "Explain something 2:00"
+1. Talk and Read: Practice opens on the Talk tab with "About you 1:00" selected. The chips
+   read "About you 1:00", "Impromptu 2:00", "Interview answer 1:30", "Explain something 2:00"
    and "Tell a story 2:00", and the card shows "Talk about the best part of your day and why it
    stood out." Tap "New topic" at the card's top right: the next topic shows, and after the
    eighth the first comes back. Every prompt has eight topics. Tap "Read": the chips become the
    six passages (no times), starting with "Explainer: how rainbows form" and "Story: the wrong
    train", and the card shows the passage
-   and New topic is gone. Tap "Talk": "Your day" is still selected, on the topic you left.
+   and New topic is gone. Tap "Talk": "About you" is still selected, on the topic you left.
    Under the clock a timed chip shows "/ 1:00" and an empty bar; a passage shows neither.
 
 2. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
@@ -358,10 +358,10 @@ keyboard.
    ```
 
    returns one session whose `metrics.words_per_minute` is a number, whose `passageTitle` is
-   the chip's title ("Your day"), not the topic, and whose `topic` is the topic the card
+   the chip's title ("About you"), not the topic, and whose `topic` is the topic the card
    showed. A passage's take has no `topic`.
 
-3. Time limit: record "Your day" past 1:00. At the limit the bar stays full and turns rust,
+3. Time limit: record "About you" past 1:00. At the limit the bar stays full and turns rust,
    the clock keeps counting ("1:05 / 1:00") and the take goes on until you tap Stop.
 
 4. Record a new take: trigger "Upload failed, network" and tap "Record a new take" instead of
@@ -369,7 +369,7 @@ keyboard.
    the bar empty, and nothing is uploaded. Coming back from Results also starts at 0:00 with
    an empty bar.
 
-5. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole "Your day"
+5. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole "About you"
    topic, the record button, "Record", the hint and "See a sample result" above the nav with
    no page scroll. At 320 x 568 the card still shows the whole topic, two lines above its fade:
    the hint and the sample button hide, the record button shrinks and the gaps under the card
@@ -402,7 +402,7 @@ explanation of making coffee.
    lo to hi" in green with a check when the pace is inside the passage's range, or "Slow
    down" / "Speed up" in rust with a warning triangle outside it; the numbers come from the
    passage you recorded (Gettysburg and Patrick Henry are 130 to 150, the explainer and the
-   story 150 to 170, Explain something 130 to 160, Your day 140 to 160). An old take saved on
+   story 150 to 170, Explain something 130 to 160, About you 140 to 160). An old take saved on
    a retired debate entry keeps the band it was recorded under. The Fillers stat shows "/min"
    and its hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in rust
    above. The Pauses stat reads "1 pause" or "3 pauses", and its hint counts the freezes,
@@ -480,9 +480,9 @@ explanation of making coffee.
    time:
 
    - "You are above target pace." Read the passage faster than its top target plus 15 wpm
-     (over 175 wpm on Your day).
+     (over 175 wpm on About you).
    - "You are under target pace." Read slower than the bottom target minus 15 wpm (under
-     125 wpm on Your day).
+     125 wpm on About you).
    - "Fillers at 0:02, 0:05 and 0:09. Next take, close your mouth and pause instead." Say
      "um" three or more times in 15 seconds (more than 3 a minute); the tip names when the first
      three came, then "and N more". A take saved without words reads "Replace um with a silent
@@ -734,7 +734,7 @@ Fillers level 1, whose card is open from the start.
    the place of the Talk / Read switch and the chips, a banner reads "Path: Fillers, level 1",
    "Take 1 of 2", "Talk for 60 s. Take 2 counts: 8 or fewer fillers a minute, or halfway there
    from take 1." and "Leave level"; New topic, the script box and "See a sample result" are
-   gone. The card shows "Your day", "Target 140 to 160 wpm" and a topic, and the clock's limit
+   gone. The card shows "About you", "Target 140 to 160 wpm" and a topic, and the clock's limit
    reads "/ 1:00". Tap Record, talk for a minute with "um" at least three times (the nav and
    "Leave level" hide while it records) and tap Stop: "Analyzing your speech" shows as usual,
    but Results never opens. At 320 x 568 the banner tightens, "Leave level" beside its first
@@ -792,7 +792,7 @@ Fillers level 1, whose card is open from the start.
    take 2 cleared level 2 too). Tap level 1: "Cleared Oct 14." and "Check-back 1 is due
    Friday, Oct 16.", the day the Result named. The week line reads "This week: 1 of 4 days",
    and Fillers may now lead the Path: the units follow your latest takes, the one furthest from
-   its target first. History lists both takes as "Your day" rows, and Progress and the rank
+   its target first. History lists both takes as "About you" rows, and Progress and the rank
    card count them like any other take.
 
 8. Leaving a level: start the Fillers level that is now current and record its take 1, then,

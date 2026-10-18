@@ -713,7 +713,7 @@ test("the check-backs', crowns', checkpoints' and benchmark's goals", () => {
   assert.deepEqual(play("pace-2_checkback").goal,
     goal("140 to 160", "wpm", "90 s on a new topic", "140 to 160 wpm"));
   assert.deepEqual(play("fillers_crown").goal,
-    goal("0:30", "without a filler or restart", "45 s on Your day", "Sudden death, optional"));
+    goal("0:30", "without a filler or restart", "45 s on About you", "Sudden death, optional"));
   assert.deepEqual(play("pace_crown").goal,
     goal("170 to 190", "wpm, at most 1 restart", "One read of the passage",
       "180 wpm ladder, optional"));
@@ -784,7 +784,7 @@ test("a crown plays its next tier not yet earned, and its top tier once all are"
   });
   assert.equal(third.takes[0].seconds, 75);
   assert.equal(third.goal.headline, "1:00");
-  assert.equal(third.goal.length, "75 s on Your day");
+  assert.equal(third.goal.length, "75 s on About you");
   const skipped = crown("fillers_crown-2");
   assert.equal(skipped.tier.number, 1, "the first tier not yet earned");
   const all = crown(...[1, 2, 3, 4, 5].map((n) => "fillers_crown-" + n));
@@ -880,7 +880,7 @@ test("a talk's material is its prompt, on a topic pickTopic picks", () => {
   assert.deepEqual(yourDay, {
     kind: "prompt",
     id: "free-talk",
-    title: "Your day",
+    title: "About you",
     text: topicsOf("free-talk")[0],
     targetWpm: [140, 160],
     topic: topicsOf("free-talk")[0],

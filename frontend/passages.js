@@ -8,15 +8,32 @@
 
   // One topic shows at a time and New topic moves to the next, so each prompt's text repeats
   // its first topic and every entry still has text.
-  const YOUR_DAY_TOPICS = [
-    "Talk about the best part of your day and why it stood out.",
-    "Walk through your morning, from waking up to your first class.",
-    "Describe something you learned today and how you would teach it.",
-    "Tell the story of a small problem you solved today.",
-    "Describe a meal you ate today as if you were reviewing it.",
-    "Explain what you plan to do after school and why.",
-    "Talk about a conversation today that made you think.",
-    "Describe a place you spent time today, using three senses.",
+  const ABOUT_YOU_TOPICS = [
+    "Talk about something you are looking forward to this week.",
+    "Walk through a normal morning for you, from waking up to leaving.",
+    "Describe the best thing that happened to you last week.",
+    "Talk about what you have planned for the weekend, and why.",
+    "Describe a friend or family member and what makes them special.",
+    "Talk about a hobby you enjoy and how you got into it.",
+    "Describe how your week is going, the good parts and the hard ones.",
+    "Talk about a goal you are working toward right now.",
+    "Describe your favorite room at home and what you do there.",
+    "Talk about a book, show or film you enjoyed recently.",
+    "Describe a habit you are trying to build or break.",
+    "Talk about a song you keep listening to, and why.",
+    "Describe the place where you grew up to someone who has never been.",
+    "Talk about someone who taught you something important.",
+    "Describe a skill you want to learn this year, and why.",
+    "Talk about a place you would love to visit one day.",
+    "Describe a typical evening for you, from dinner to bedtime.",
+    "Talk about something that has changed in your life this year.",
+    "Describe the people you spend most of your time with.",
+    "Talk about what you do to relax after a long day.",
+    "Describe something small that made you smile recently.",
+    "Describe a gift you gave or got that meant a lot.",
+    "Talk about a recent conversation that made you think.",
+    "Describe a place you spend a lot of time, using three senses.",
+    "Describe a meal you ate recently as if you were reviewing it.",
   ];
 
   // Everyday opinion questions: each asks what the speaker thinks and why, never for a side.
@@ -131,16 +148,16 @@
   ].join(" ");
 
   app.passages = [
-    // The free-talk id is older than the "Your day" title and stays, so saved takes still find
+    // The free-talk id is older than the "About you" title and stays, so saved takes still find
     // their band.
     {
       id: "free-talk",
       kind: "prompt",
-      title: "Your day",
-      text: YOUR_DAY_TOPICS[0],
+      title: "About you",
+      text: ABOUT_YOU_TOPICS[0],
       targetWpm: [140, 160],
       timeLimitSeconds: 60,
-      topics: YOUR_DAY_TOPICS,
+      topics: ABOUT_YOU_TOPICS,
     },
     {
       id: "impromptu",

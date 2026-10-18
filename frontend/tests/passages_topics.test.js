@@ -1,7 +1,7 @@
-// Content tests for the timed topics in frontend/passages.js (DESIGN.md section 2): "Your day",
+// Content tests for the timed topics in frontend/passages.js (DESIGN.md section 2): "About you",
 // Impromptu and the three everyday prompts (an interview answer, an explanation and a story)
-// each hold eight topics shown one at a time, every prompt has a time limit, and the prompts
-// come first so Practice opens on the Talk tab with "Your day" selected. Since the owner's rule
+// hold their topics (About you 25, the rest eight each) shown one at a time, every prompt has a
+// time limit, and the prompts come first so Practice opens on the Talk tab with "About you" selected. Since the owner's rule
 // of 2026-10-14 the Impromptu topics are everyday opinion questions, never a side to argue.
 "use strict";
 
@@ -13,15 +13,32 @@ const vm = require("node:vm");
 
 const PASSAGES_SOURCE = fs.readFileSync(path.join(__dirname, "..", "passages.js"), "utf8");
 
-const YOUR_DAY_TOPICS = [
-  "Talk about the best part of your day and why it stood out.",
-  "Walk through your morning, from waking up to your first class.",
-  "Describe something you learned today and how you would teach it.",
-  "Tell the story of a small problem you solved today.",
-  "Describe a meal you ate today as if you were reviewing it.",
-  "Explain what you plan to do after school and why.",
-  "Talk about a conversation today that made you think.",
-  "Describe a place you spent time today, using three senses.",
+const ABOUT_YOU_TOPICS = [
+  "Talk about something you are looking forward to this week.",
+  "Walk through a normal morning for you, from waking up to leaving.",
+  "Describe the best thing that happened to you last week.",
+  "Talk about what you have planned for the weekend, and why.",
+  "Describe a friend or family member and what makes them special.",
+  "Talk about a hobby you enjoy and how you got into it.",
+  "Describe how your week is going, the good parts and the hard ones.",
+  "Talk about a goal you are working toward right now.",
+  "Describe your favorite room at home and what you do there.",
+  "Talk about a book, show or film you enjoyed recently.",
+  "Describe a habit you are trying to build or break.",
+  "Talk about a song you keep listening to, and why.",
+  "Describe the place where you grew up to someone who has never been.",
+  "Talk about someone who taught you something important.",
+  "Describe a skill you want to learn this year, and why.",
+  "Talk about a place you would love to visit one day.",
+  "Describe a typical evening for you, from dinner to bedtime.",
+  "Talk about something that has changed in your life this year.",
+  "Describe the people you spend most of your time with.",
+  "Talk about what you do to relax after a long day.",
+  "Describe something small that made you smile recently.",
+  "Describe a gift you gave or got that meant a lot.",
+  "Talk about a recent conversation that made you think.",
+  "Describe a place you spend a lot of time, using three senses.",
+  "Describe a meal you ate recently as if you were reviewing it.",
 ];
 
 const IMPROMPTU_TOPICS = [
@@ -105,12 +122,12 @@ function wordCount(text) {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-test("free-talk is titled Your day, lasts one minute and holds its eight topics in order", () => {
+test("free-talk is titled About you, lasts one minute and holds its 25 topics in order", () => {
   const entry = byId(loadPassages(), "free-talk");
   assert.equal(entry.kind, "prompt");
-  assert.equal(entry.title, "Your day");
+  assert.equal(entry.title, "About you");
   assert.equal(entry.timeLimitSeconds, 60);
-  assert.deepEqual(Array.from(entry.topics), YOUR_DAY_TOPICS);
+  assert.deepEqual(Array.from(entry.topics), ABOUT_YOU_TOPICS);
   assert.equal(entry.text, entry.topics[0], "text repeats the first topic");
 });
 
@@ -136,7 +153,7 @@ test("the interview, explain and story prompts each hold their eight topics in o
 
 test("no topic is shared between two prompts", () => {
   const topics = loadPassages().flatMap((entry) => Array.from(entry.topics || []));
-  assert.equal(topics.length, 40, "eight topics for each of the five prompts");
+  assert.equal(topics.length, 57, "25 About you topics and eight for each other prompt");
   assert.equal(new Set(topics).size, topics.length, "a topic in two prompts");
 });
 
@@ -175,7 +192,7 @@ test("every topic is a distinct sentence under 15 words", () => {
   }
 });
 
-test("all eleven ids in order, prompts first, so Practice opens on Talk with Your day", () => {
+test("all eleven ids in order, prompts first, so Practice opens on Talk with About you", () => {
   const passages = loadPassages();
   assert.deepEqual(
     passages.map((entry) => entry.id),
@@ -186,5 +203,5 @@ test("all eleven ids in order, prompts first, so Practice opens on Talk with You
     passages.slice(firstPassage).every((entry) => entry.kind === "passage"),
     "no prompt after the first passage",
   );
-  assert.equal(passages[0].title, "Your day");
+  assert.equal(passages[0].title, "About you");
 });
