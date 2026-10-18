@@ -174,6 +174,14 @@
   // a little slower than its default, so a learner can hear each sound.
   const SPEECH_LANG = "en-US";
   const SPEECH_RATE = 0.85;
+  // How long the voice may take to start before the tap counts as silent: a phone that claims a
+  // voice but says nothing (an iPhone on silent, a home-screen app whose audio is stuck) never
+  // fires onstart, and the speaker would otherwise wait on nothing.
+  const SPEECH_START_TIMEOUT_MS = 3000;
+  // What speak() tells its caller once the voice is done: it said the text, it failed to, or it
+  // never started. A cut-off (the next word's tap, or the app's own cancel) counts as ended.
+  const SPEECH_OUTCOMES = Object.freeze({ ended: "ended", failed: "failed", silent: "silent" });
+  const CUT_OFF_ERRORS = Object.freeze(["canceled", "interrupted"]);
 
   // The theme is the one setting kept in localStorage, because it must apply before the first
   // paint. THEMES is also the toggle's cycle order. "auto" leaves the device setting in charge.
@@ -379,15 +387,29 @@
     );
   }
 
+  // The utterance being said, kept here so the browser cannot collect it mid-speech (Chrome
+  // drops the events of an utterance nothing references).
+  let currentUtterance = null;
+
   // Says `text` with the built-in voice, cutting off anything it was still saying. `onDone`, when
-  // given, runs once the voice ends or fails. False when there is no voice or it refused.
+  // given, runs once with one of SPEECH_OUTCOMES: "ended" when the voice finished (or was cut
+  // off), "failed" when it refused, "silent" when it never started within
+  // SPEECH_START_TIMEOUT_MS, in which case the request is cancelled too. False when there is no
+  // voice or it threw. WebKit leaves an utterance queued right after cancel() without its events
+  // and sometimes without its voice, so cancel() is called only while something is being said,
+  // and a synthesizer left paused (iOS does that after an interruption) is resumed first.
   function speak(text, onDone) {
     if (!canSpeak()) {
       return false;
     }
     try {
       const synth = globalThis.speechSynthesis;
-      synth.cancel();
+      if (synth.speaking || synth.pending) {
+        synth.cancel();
+      }
+      if (synth.paused && typeof synth.resume === "function") {
+        synth.resume();
+      }
       const utterance = new globalThis.SpeechSynthesisUtterance(String(text));
       utterance.lang = SPEECH_LANG;
       utterance.rate = SPEECH_RATE;
@@ -395,14 +417,57 @@
       if (voice !== null) {
         utterance.voice = voice;
       }
-      if (typeof onDone === "function") {
-        utterance.onend = onDone;
-        utterance.onerror = onDone;
-      }
+      watchUtterance(synth, utterance, onDone);
+      currentUtterance = utterance;
       synth.speak(utterance);
       return true;
     } catch {
       return false;
+    }
+  }
+
+  // Wires the utterance's events to one `onDone(outcome)` call, and starts the watchdog that
+  // treats a voice silent for SPEECH_START_TIMEOUT_MS as never coming. Without timers (an old
+  // browser, the test sandbox) there is no watchdog. The test fakes may give onerror no event.
+  function watchUtterance(synth, utterance, onDone) {
+    let settled = false;
+    let watchdog = null;
+    const settle = (outcome) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (watchdog !== null && typeof clearTimeout === "function") {
+        clearTimeout(watchdog);
+      }
+      if (currentUtterance === utterance) {
+        currentUtterance = null;
+      }
+      if (typeof onDone === "function") {
+        onDone(outcome);
+      }
+    };
+    utterance.onstart = () => {
+      if (watchdog !== null && typeof clearTimeout === "function") {
+        clearTimeout(watchdog);
+        watchdog = null;
+      }
+    };
+    utterance.onend = () => settle(SPEECH_OUTCOMES.ended);
+    utterance.onerror = (event) => {
+      const error = event && typeof event.error === "string" ? event.error : "";
+      settle(CUT_OFF_ERRORS.includes(error) ? SPEECH_OUTCOMES.ended : SPEECH_OUTCOMES.failed);
+    };
+    if (typeof setTimeout === "function") {
+      watchdog = setTimeout(() => {
+        watchdog = null;
+        settle(SPEECH_OUTCOMES.silent);
+        try {
+          synth.cancel();
+        } catch {
+          // The voice that never started cannot be cancelled either; nothing more to do.
+        }
+      }, SPEECH_START_TIMEOUT_MS);
     }
   }
 
@@ -684,6 +749,7 @@
     banner,
     canSpeak,
     speak,
+    SPEECH_OUTCOMES,
     formatClock,
     formatDate,
     formatDay,

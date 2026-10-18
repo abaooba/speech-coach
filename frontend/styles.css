@@ -1970,6 +1970,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   gap: var(--s-2);
 }
 
+/* Under the chips when the phone's voice did not come: small, muted, and absent until then. */
+.words-check__note {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.words-check__note[hidden] {
+  display: none;
+}
+
 .word-chip {
   display: inline-flex;
   align-items: center;

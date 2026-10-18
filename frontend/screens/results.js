@@ -244,6 +244,11 @@
   const MAX_WORDS_TO_CHECK = 5;
   const HEAR_PREFIX = "Hear ";
   const PLAYING_CLASS = "word-chip--playing";
+  // Under the chips when a tap brought no voice (app.ui.speak reported "silent" or "failed"):
+  // what the speaker can do about it. The phone cannot say why it stayed silent.
+  const VOICE_SILENT_NOTE =
+    "Your phone's voice did not start. Check the silent switch and the volume, then tap " +
+    "again. If it stays silent, open Speech Coach in Safari rather than the home-screen app.";
   const SPEAKER_ICON_SIZE = 16;
   const HOW_HREF = "how.html";
   const HOW_LINK_TEXT = "How we count";
@@ -1580,13 +1585,23 @@
 
   // "Words to check": a small title and one chip per word, the speaker icon before the word.
   // A tap says the word, cutting off any word still being said; the chip carries
-  // PLAYING_CLASS until the voice ends, and only one chip carries it at a time.
+  // PLAYING_CLASS until the voice ends, and only one chip carries it at a time. A voice that
+  // never starts, or refuses, puts the note under the row (and in the live region) until a tap
+  // brings the voice back; a word cut off by the next tap is no failure.
   function buildWordsCheck(texts) {
     let playing = null;
+    const note = app.ui.el("p", { class: "words-check__note", text: VOICE_SILENT_NOTE });
+    note.hidden = true;
     const stopPlaying = (chip) => {
       if (playing === chip) {
         chip.classList.remove(PLAYING_CLASS);
         playing = null;
+      }
+    };
+    const showNote = () => {
+      if (note.hidden) {
+        note.hidden = false;
+        app.ui.announce(VOICE_SILENT_NOTE);
       }
     };
     const chips = texts.map((text) => {
@@ -1598,8 +1613,17 @@
         }
         playing = chip;
         chip.classList.add(PLAYING_CLASS);
-        if (!app.ui.speak(text, () => stopPlaying(chip))) {
+        const started = app.ui.speak(text, (outcome) => {
           stopPlaying(chip);
+          if (outcome === app.ui.SPEECH_OUTCOMES.ended) {
+            note.hidden = true;
+          } else {
+            showNote();
+          }
+        });
+        if (!started) {
+          stopPlaying(chip);
+          showNote();
         }
       });
       return chip;
@@ -1607,6 +1631,7 @@
     return app.ui.el("section", { class: "words-check" }, [
       app.ui.el("h3", { class: "words-check__title", text: WORDS_CHECK_TITLE }),
       app.ui.el("div", { class: "words-check__row" }, chips),
+      note,
     ]);
   }
 

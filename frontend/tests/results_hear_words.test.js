@@ -228,13 +228,15 @@ test("the Words to check row sits right above the Transcript heading", async () 
   assert.equal(fullText(chips[0]), "market");
 });
 
-test("a chip says its word: cancel first, then en-US at 0.85, marked while it plays", async () => {
+// An idle voice is not cancelled first: WebKit leaves the utterance queued right after cancel()
+// without its events, and sometimes silent (owner's report of 2026-10-18).
+test("a chip says its word, en-US at 0.85, with no cancel while the voice is idle", async () => {
   const speech = fakeSpeech();
   const { results, body } = mount({ s1: session() }, { speech });
   await results.show({ id: "s1" });
   const chip = byClass(byClass(byClass(body, "words-check"), "words-check__row"), "word-chip");
   chip.click();
-  assert.deepEqual(speech.log, [["cancel"], ["speak", "market", "en-US", 0.85]]);
+  assert.deepEqual(speech.log, [["speak", "market", "en-US", 0.85]]);
   assert.ok(chip.classList.contains("word-chip--playing"));
   speech.spoken[0].onend();
   assert.ok(!chip.classList.contains("word-chip--playing"), "the mark goes when the voice ends");
@@ -284,7 +286,7 @@ test("app.ui.speak says the text and survives a voice that throws", () => {
   const speech = fakeSpeech();
   const { ui } = mount({}, { speech }).app;
   assert.equal(ui.speak("weather"), true);
-  assert.deepEqual(speech.log, [["cancel"], ["speak", "weather", "en-US", 0.85]]);
+  assert.deepEqual(speech.log, [["speak", "weather", "en-US", 0.85]]);
   speech.synth.speak = () => {
     throw new Error("not allowed");
   };
