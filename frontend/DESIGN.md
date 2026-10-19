@@ -109,19 +109,19 @@ Declare on `:root`. Dark values apply under `@media (prefers-color-scheme: dark)
 | `--muted` | `#5B6270` | `#9AA3B2` | labels, hints, icon buttons, skipped script words |
 | `--border` | `#D9DDE3` | `#2A2F3A` | 1px lines |
 | `--grid` | `#E4E6EA` | `#2B3038` | chart gridlines, the time-limit track |
-| `--accent` | `#2457F5` | `#6B93FF` | primary buttons, active nav, focus ring, chart wpm, time-limit fill |
+| `--accent` | `#2E5BE6` | `#7C9BFF` | primary buttons, active nav, focus ring, chart wpm, time-limit fill |
 | `--on-accent` | `#FFFFFF` | `#0F1115` | text on accent |
 | `--accent-soft` | `#E3ECFA` | `#1E2C44` | tip card background |
 | `--record` | `#E5484D` | `#FF6369` | record button, recording dot, error icon and block edge |
 | `--on-record` | `#FFFFFF` | `#0F1115` | the icon on the record button |
 | `--record-text` | `#B91C1C` | `#FF6369` | red text: error titles, the Delete confirm |
 | `--record-bg` | `#FEE2E2` | `#3F1414` | error block background |
-| `--filler` | `#B45309` | `#FBBF24` | filler token text, speech-map filler dots, edges and kinds, chart fillers |
+| `--filler` | `#B45309` | `#E6B457` | filler token text, speech-map filler dots, edges and kinds, chart fillers |
 | `--filler-bg` | `#FEF3C7` | `#3B2A05` | filler token background |
 | `--pause` | `#6D28D9` | `#B49CFF` | pause marker text, speech-map pause blocks and restart diamonds, their edges and kinds, chart pauses, restart underline |
 | `--pause-bg` | `#EDE9FE` | `#2A1F4D` | pause marker background |
-| `--pause-long` | `#BE185D` | `#F472B6` | long pause (5 s+): speech-map block, edge and kind, transcript marker text and outline |
-| `--ok` | `#15803D` | `#4ADE80` | in-target hints and status, the clean stretch's rail edge, card edge and kind, chart clean stretch |
+| `--pause-long` | `#BE185D` | `#E58BC0` | long pause (5 s+): speech-map block, edge and kind, transcript marker text and outline |
+| `--ok` | `#15803D` | `#5FCF8C` | in-target hints and status, the clean stretch's rail edge, card edge and kind, chart clean stretch |
 | `--ok-bg` | `#DCFCE7` | `#163B26` | the clean stretch's rail block, the Progress target band |
 | `--scrim` | `rgba(17,19,24,.45)` | `rgba(0,0,0,.6)` | the dimmed page behind the bottom sheet |
 | `--shadow-sheet` | `0 -8px 32px rgba(17,19,24,.16)` | `0 -8px 32px rgba(0,0,0,.5)` | the bottom sheet's shadow, the only shadow in the app |
@@ -129,7 +129,7 @@ Declare on `:root`. Dark values apply under `@media (prefers-color-scheme: dark)
 
 Red appears only on the record button, the recording dot, error blocks and Delete. Warnings are rust orange, never filler amber or record red, and always carry the triangle icon. `<meta name="theme-color">` is `--bg` per scheme.
 
-Contrast, light / dark: `--warn` on `--surface` 6.70 / 7.22 and on `--bg` 7.31 / 8.09; `--on-record` on `--record` 3.91 / 6.52 (non-text); `--record-text` on `--bg` 6.47 / 6.52, on `--record-bg` 5.30 / 5.48; `--ok` on `--ok-bg` 4.57 / 7.14; `--accent` on `--grid` 4.47 / 4.58 (non-text); `--filler`, `--pause` and `--ok` on `--surface` at least 4.60 and `--pause-long` on `--surface` 5.6 / 6.4, so each may name a speech-map card's kind. `--ok-bg` is decorative; the solid `--ok` edge and the words carry the meaning.
+Contrast, light / dark: `--warn` on `--surface` 6.70 / 7.22 and on `--bg` 7.31 / 8.09; `--on-record` on `--record` 3.91 / 6.52 (non-text); `--record-text` on `--bg` 6.47 / 6.52, on `--record-bg` 5.30 / 5.48; `--ok` on `--ok-bg` 4.57 / 6.39; `--accent` on `--grid` 4.48 / 5.05 (non-text); `--filler`, `--pause` and `--ok` on `--surface` at least 4.60 and `--pause-long` on `--surface` 5.5 / 7.1, so each may name a speech-map card's kind. `--ok-bg` is decorative; the solid `--ok` edge and the words carry the meaning.
 
 ## 5. Type scale
 
