@@ -455,22 +455,24 @@
     ]);
   }
 
-  // The unit's "why this works" line, then its source as a link that opens in a new tab, with
-  // rel="noopener" so the page it opens gets no handle on this one.
+  // The unit's "why this works" line, then its source on a line of its own: the citation as a
+  // link that opens in a new tab, with rel="noopener" so the page it opens gets no handle on
+  // this one. The stylesheet draws "Source: " before the link, so the link is the citation alone.
   function buildWhy(why) {
+    const link = app.ui.el(
+      "a",
+      {
+        class: "path-unit__source",
+        href: why.url,
+        target: "_blank",
+        rel: "noopener",
+        text: why.label,
+      },
+      app.ui.el("span", { class: "sr-only", text: NEW_TAB_NOTE }),
+    );
     return app.ui.el("p", { class: "path-unit__why" }, [
       why.text + " ",
-      app.ui.el(
-        "a",
-        {
-          class: "path-unit__source",
-          href: why.url,
-          target: "_blank",
-          rel: "noopener",
-          text: why.label,
-        },
-        app.ui.el("span", { class: "sr-only", text: NEW_TAB_NOTE }),
-      ),
+      app.ui.el("span", { class: "path-unit__source-line" }, link),
     ]);
   }
 

@@ -4617,8 +4617,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-3);
 }
 
-/* The source link runs on in the why line. Its padding makes the tap target at least 44px tall
-   without moving a line, as the coach notes' source link does. */
+/* The source sits on its own muted line under the why sentence, "Source: " drawn before the
+   link so the link is the citation alone. The link's padding makes its tap target at least 44px
+   tall without moving a line, as the coach notes' source link does. */
+.path-unit__source-line {
+  display: block;
+  margin-top: var(--s-1);
+}
+
+.path-unit__source-line::before {
+  content: "Source: ";
+}
+
 .path-unit__source {
   padding: var(--s-4) 0;
   color: var(--accent);
