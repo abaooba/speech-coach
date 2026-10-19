@@ -93,6 +93,9 @@ await send("Page.navigate", { url: BASE + "#/history" });
 await sleep(1500);
 const sessions = JSON.parse(readFileSync(SEED, "utf8"));
 const lastId = await evaluate(seedExpression(sessions));
+// The first-visit guides (sheet.js GUIDES) would cover the first view of each screen: mark them
+// seen, as they are on a phone that has used the app.
+await evaluate('Promise.all(Object.keys(app.sheet.GUIDES).map((name) => app.store.setFlag("guideSeen:" + name, true)))');
 
 for (const view of VIEWS) {
   await send("Emulation.setDeviceMetricsOverride", { width: view.w, height: view.h, deviceScaleFactor: 2, mobile: true });
@@ -105,6 +108,11 @@ for (const view of VIEWS) {
   const hash = view.route === "@results" ? resultsRoute(lastId) : view.route;
   await send("Page.navigate", { url: BASE + "?v=" + Date.now() + "#" + hash });
   await sleep(1500);
+  // Results asks the server for its coach notes: wait until the "Writing notes" status is gone
+  // (up to 30 s), so the capture shows the notes, not the spinner.
+  if (view.route === "@results") {
+    for (let i = 0; i < 60 && (await evaluate('Boolean(document.querySelector(".coach-card__status"))')); i++) await sleep(500);
+  }
   // A full-page capture would paint the fixed nav and the sticky action bar mid-image: hide both
   // for the capture only (the page reloads on the next view).
   if (view.full) await evaluate('document.head.appendChild(Object.assign(document.createElement("style"), { textContent: ".nav, .results__actions { display: none !important; }" }))');
