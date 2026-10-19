@@ -498,12 +498,16 @@
       if (!isSampleFile(file)) {
         throw new Error("sample malformed");
       }
+      // The sample ships the coach notes written for it, so Results opens with them in place
+      // and asks the server for none; a file without them saves the five fields alone.
+      const notes = file.coachNotes === undefined ? {} : { coachNotes: file.coachNotes };
       id = await app.store.save({
         passageId: file.passageId,
         passageTitle: file.passageTitle,
         durationSeconds: file.durationSeconds,
         metrics: file.metrics,
         transcript: file.transcript,
+        ...notes,
       });
     } catch {
       id = null;

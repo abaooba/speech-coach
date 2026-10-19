@@ -28,6 +28,9 @@
     "transcript",
     "topic",
     "path",
+    // The bundled sample's coach notes (sample-session.json), the reply /api/advice gave for it,
+    // so its Results opens with them and asks for none. A recorded take has no such field.
+    "coachNotes",
   ];
 
   // Audio never reaches the database; a session carrying one of these is a programming error.

@@ -887,7 +887,9 @@
     if (previous !== null || view.rankCard !== null) {
       renderSession(session, view, previous);
     }
-    const asked = loadCoachNotes(session, view.summary, sessions);
+    // A take that carries its notes (the bundled sample) has nothing to ask for.
+    const asked =
+      view.notes !== null ? Promise.resolve(null) : loadCoachNotes(session, view.summary, sessions);
     const sheet =
       fresh && !isSample(session) ? await openTakeSheetSafely(session, view, sessions) : null;
     const notes = await asked;
@@ -1125,6 +1127,21 @@
     return earlier || null;
   }
 
+  // The notes a take carries under `coachNotes` (the bundled sample, sample-session.json), read
+  // as tips.js reads a reply, or null: a recorded take has none, and a field that does not
+  // parse is treated as none.
+  function bundledNotes(session) {
+    const tips = app.tips;
+    if (!session || !session.coachNotes || !tips || typeof tips.parseCoachNotes !== "function") {
+      return null;
+    }
+    try {
+      return tips.parseCoachNotes(session.coachNotes);
+    } catch {
+      return null;
+    }
+  }
+
   // The coach notes for the take (tips.js coachNotes), or null: tips.js loads before this file,
   // but a context without it, or without its notes, simply keeps the tips.
   async function loadCoachNotes(session, summary, sessions) {
@@ -1225,6 +1242,7 @@
     );
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const moments = momentsOf(summary.report, session.transcript);
+    const bundled = bundledNotes(session);
     return {
       summary,
       plan,
@@ -1235,9 +1253,11 @@
       tips: selectTips(summary.report, summary.target),
       moments,
       takeaway: takeawayOf(moments, summary.report),
-      // The coach notes, set by show() once they arrive, and whether they may still come.
-      notes: null,
-      notesPending: Boolean(app.tips) && typeof app.tips.coachNotes === "function",
+      // The coach notes: the take's own (the bundled sample ships them), else set by show()
+      // once they arrive, and whether they may still come.
+      notes: bundled,
+      notesPending:
+        bundled === null && Boolean(app.tips) && typeof app.tips.coachNotes === "function",
       // The Coach card's state across draws (its open tip and grammar check), and the card
       // drawn last.
       coachState: {},
