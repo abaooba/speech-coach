@@ -847,9 +847,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   cursor: pointer;
 }
 
+/* A soft tint, not a solid fill: the record button and the primary button keep the strong
+   color, so a glance finds the one action. */
 .chip--selected {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
   border-color: var(--accent);
 }
 
