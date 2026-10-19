@@ -1129,9 +1129,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   flex-basis: 100%;
 }
 
-/* Talk's script box sits in the hint row beside the sample button, so closed it costs the
-   one-screen layout nothing; open, it takes the row's full width, the column grows and the
-   page scrolls. Its summary is a small accent row on a 44px target, like the sample button. */
+/* Talk's script box ends the hint row, on its own line under the sample button, which takes
+   a whole line; closed, it costs the one-screen layout one 44px row the card gives up. Open,
+   it takes the row's full width, the column grows and the page scrolls. Its summary is a small
+   accent row on a 44px target, like the sample button. */
 #screen-practice .practice__script {
   flex: 1 1 0;
   max-width: max-content;
@@ -4160,8 +4161,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--accent);
 }
 
-/* A quiet link-like ghost button under the hint: small text, as New topic, on a 44px target. */
+/* A quiet link-like ghost button under the hint: small text, as New topic, on a 44px target. It
+   takes a whole line of the hint row, so Talk's script summary wraps onto its own line under it
+   (the 2026-10-19 review set the two apart). */
 .practice__sample {
+  flex-basis: 100%;
   min-height: 44px;
   padding: 0 var(--s-2);
   font-size: var(--fs-small);
