@@ -3427,6 +3427,14 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   cursor: pointer;
 }
 
+/* With a mouse, a hovered row takes the surface tint, so the row reads as something a tap
+   opens; touch screens have no hover, so they get no rule. */
+@media (hover: hover) {
+  .session-row__open:hover {
+    background: var(--surface);
+  }
+}
+
 .session-row__text {
   overflow-wrap: anywhere;
 }
