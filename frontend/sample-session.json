@@ -402,5 +402,54 @@
       "start": 30.349,
       "end": 30.495
     }
-  ]
+  ],
+  "coachNotes": {
+    "headline": {
+      "text": "At 0:13 you said \"um\" and \"like\" in a row; try a silent beat there instead.",
+      "moment_id": "filler-1"
+    },
+    "tips": [
+      {
+        "entry_id": "filler-001",
+        "text": "You used five fillers in 29 seconds, above the target of three a minute. At 0:13 you said \"um\" right after \"coarsely.\" Next take, stay silent at that point instead of filling it. Your pace of 146 words a minute is on target, so keep it.",
+        "drill": "",
+        "citation": {
+          "label": "Lisa B. Marshall, Um, How Do I Stop, Ya Know, Using Um and Ah? (2017)",
+          "url": "https://www.toastmasters.org/magazine/magazine-issues/2017/september-2017/umah",
+          "type": "organization"
+        },
+        "moment_ids": [
+          "filler-1",
+          "filler-4"
+        ]
+      },
+      {
+        "entry_id": "filler-140",
+        "text": "Your speech is prepared, so silence fits well here. At 0:21 you said \"uh\" before \"exactly.\" Next take, let a short silent break sit at the end of that phrase rather than filling it with a sound.",
+        "drill": "Record the same two-minute talk twice, once off the cuff and once after preparing it. In the prepared take, replace each 'um' with a silent break at the end of a phrase.",
+        "citation": {
+          "label": "Danielle Duez, Silent and Non-Silent Pauses in Three Speech Styles (1982)",
+          "url": "https://doi.org/10.1177/002383098202500102",
+          "type": "peer_reviewed"
+        },
+        "moment_ids": [
+          "filler-4"
+        ]
+      },
+      {
+        "entry_id": "pause-002",
+        "text": "You ended several sentences cleanly, so keep that habit. At 0:25 \"uh\" came right after \"does this work?\" Next take, pause for a medium beat after that question before you answer it.",
+        "drill": "",
+        "citation": {
+          "label": "Andrew Dlugan, Speech Pauses: 12 Techniques to Speak Volumes with Your Silence (2012)",
+          "url": "http://sixminutes.dlugan.com/pause-speech/",
+          "type": "coach"
+        },
+        "moment_ids": [
+          "filler-5"
+        ]
+      }
+    ],
+    "source": "ai"
+  }
 }

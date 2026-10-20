@@ -66,7 +66,8 @@ test("the promise card sits right under the lead, with the phone-lock icon", () 
       "p.onboarding__lead",
       "div.onboarding__promise",
       "ul.onboarding__list",
-      "p.onboarding__privacy",
+      // The privacy paragraph folds in a details element (2026-10-19 design review).
+      "details.onboarding__privacy-details",
       "button.btn btn--primary btn--block",
     ],
   );

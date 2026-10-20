@@ -887,7 +887,9 @@
     if (previous !== null || view.rankCard !== null) {
       renderSession(session, view, previous);
     }
-    const asked = loadCoachNotes(session, view.summary, sessions);
+    // A take that carries its notes (the bundled sample) has nothing to ask for.
+    const asked =
+      view.notes !== null ? Promise.resolve(null) : loadCoachNotes(session, view.summary, sessions);
     const sheet =
       fresh && !isSample(session) ? await openTakeSheetSafely(session, view, sessions) : null;
     const notes = await asked;
@@ -1125,6 +1127,21 @@
     return earlier || null;
   }
 
+  // The notes a take carries under `coachNotes` (the bundled sample, sample-session.json), read
+  // as tips.js reads a reply, or null: a recorded take has none, and a field that does not
+  // parse is treated as none.
+  function bundledNotes(session) {
+    const tips = app.tips;
+    if (!session || !session.coachNotes || !tips || typeof tips.parseCoachNotes !== "function") {
+      return null;
+    }
+    try {
+      return tips.parseCoachNotes(session.coachNotes);
+    } catch {
+      return null;
+    }
+  }
+
   // The coach notes for the take (tips.js coachNotes), or null: tips.js loads before this file,
   // but a context without it, or without its notes, simply keeps the tips.
   async function loadCoachNotes(session, summary, sessions) {
@@ -1225,6 +1242,8 @@
     );
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const moments = momentsOf(summary.report, session.transcript);
+    const takeaway = takeawayOf(moments, summary.report);
+    const bundled = bundledNotes(session);
     return {
       summary,
       plan,
@@ -1232,12 +1251,14 @@
       map: hasTranscript ? speechMapRows(summary.report, session.transcript) : null,
       // Set once Show all is tapped: the map then shows every card, not its first shownCards.
       mapExpanded: false,
-      tips: selectTips(summary.report, summary.target),
+      tips: selectTips(summary.report, summary.target, headlineKindOf(takeaway, moments)),
       moments,
-      takeaway: takeawayOf(moments, summary.report),
-      // The coach notes, set by show() once they arrive, and whether they may still come.
-      notes: null,
-      notesPending: Boolean(app.tips) && typeof app.tips.coachNotes === "function",
+      takeaway,
+      // The coach notes: the take's own (the bundled sample ships them), else set by show()
+      // once they arrive, and whether they may still come.
+      notes: bundled,
+      notesPending:
+        bundled === null && Boolean(app.tips) && typeof app.tips.coachNotes === "function",
       // The Coach card's state across draws (its open tip and grammar check), and the card
       // drawn last.
       coachState: {},
@@ -1417,11 +1438,20 @@
 
   // tips.js loads before this file in index.html. Without it (a failed load, or a context that
   // stubs app without tips) the screen simply has no Tips section instead of an error.
-  function selectTips(report, target) {
+  // `headlineKind` is the kind of the moment the Coach headline is about ("filler" lets the
+  // fillers tip drop the technique the headline already gives), or null.
+  function selectTips(report, target, headlineKind) {
     if (!app.tips || typeof app.tips.select !== "function") {
       return [];
     }
-    return app.tips.select(report, { targetWpm: target });
+    return app.tips.select(report, { targetWpm: target, headlineKind });
+  }
+
+  // The kind of the moment the rule headline points at, or null when it names none.
+  function headlineKindOf(takeaway, moments) {
+    const id = takeaway && takeaway.momentId;
+    const moment = id ? listOf(moments).find((each) => each && each.id === id) : null;
+    return moment && typeof moment.kind === "string" ? moment.kind : null;
   }
 
   // What the two highlight styles mean, then the restart, misread, skip and stumble styles each

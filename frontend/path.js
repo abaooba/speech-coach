@@ -530,6 +530,49 @@
     return { entry: entryId, text, label: citationLabel(source), url: source.url };
   }
 
+  // A source's credit in two parts, for a line where the work follows the credit in plain
+  // text (the Path unit card's Source line): {short, work}, or null for an unknown entry.
+  // `short` is the surnames and the year ("Lambert, Kormos and Minn (2017)", "Pawlik and
+  // Perrin (2020)"), "et al." from the fourth author on ("Bosker et al. (2013)"), the publisher
+  // for a source with no author; `work` is the title, or the publisher without one. A surname
+  // is a name's last word, so a particle ("de Jong") is kept only in the full label. Pure.
+  const ET_AL_FROM = 4;
+  const ET_AL = " et al.";
+
+  function creditOf(entryId) {
+    const source = LIBRARY[entryId];
+    if (!source) {
+      return null;
+    }
+    return {
+      short: shortCitation(source),
+      work: source.author ? source.title || source.publisher : source.title,
+    };
+  }
+
+  function shortCitation(source) {
+    const year = source.year === null ? NO_DATE : String(source.year);
+    if (!source.author) {
+      return source.publisher + " (" + year + ")";
+    }
+    const surnames = source.author
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .map((name) => name.split(/\s+/).pop());
+    const credited =
+      surnames.length >= ET_AL_FROM ? surnames[0] + ET_AL : joinSurnames(surnames);
+    return credited + " (" + year + ")";
+  }
+
+  // "Minn", "Pawlik and Perrin", "Lambert, Kormos and Minn".
+  function joinSurnames(surnames) {
+    if (surnames.length <= 1) {
+      return surnames.join("");
+    }
+    return surnames.slice(0, -1).join(", ") + " and " + surnames[surnames.length - 1];
+  }
+
   // --- The units and levels (spec section 3) ---------------------------------------------------
 
   // An example line is a list of parts, so a screen can mark the slip in it without markup:
@@ -3026,6 +3069,7 @@
   }
 
   app.path = {
+    creditOf,
     UNITS,
     levelById,
     playById,

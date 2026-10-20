@@ -380,8 +380,8 @@
     nodes.recordLabel = app.ui.el("span", { class: "btn-record__label" });
     body.appendChild(nodes.recordLabel);
     // The words get their own span so short screens can hide them and keep the sample button.
-    // Talk's script box closes the row beside the sample button, so it costs the one-screen
-    // layout no row of its own (DESIGN.md section 3).
+    // Talk's script box closes the row, on its own line under the sample button (DESIGN.md
+    // section 3).
     nodes.hintText = app.ui.el("span", { class: "practice__hint-text", text: HINT_TEXT });
     nodes.hint = app.ui.el("div", { class: "practice__hint" }, [
       nodes.hintText,
@@ -498,12 +498,16 @@
       if (!isSampleFile(file)) {
         throw new Error("sample malformed");
       }
+      // The sample ships the coach notes written for it, so Results opens with them in place
+      // and asks the server for none; a file without them saves the five fields alone.
+      const notes = file.coachNotes === undefined ? {} : { coachNotes: file.coachNotes };
       id = await app.store.save({
         passageId: file.passageId,
         passageTitle: file.passageTitle,
         durationSeconds: file.durationSeconds,
         metrics: file.metrics,
         transcript: file.transcript,
+        ...notes,
       });
     } catch {
       id = null;

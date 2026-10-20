@@ -195,7 +195,7 @@ test("the icon button is a 44px muted target holding a 20px icon", () => {
   assert.equal(svg.height, "20px");
 });
 
-test("the segmented control is one row of equal options with an accent selection", () => {
+test("the segmented control is one row of equal options with a tinted selection", () => {
   const group = ruleFor(ALL_RULES, ".segmented");
   assert.equal(group.display, "grid");
   assert.equal(group.background, "var(--surface)");
@@ -208,9 +208,10 @@ test("the segmented control is one row of equal options with an accent selection
   assert.equal(option["font-size"], "var(--fs-small)");
   assert.equal(option.color, "var(--muted)");
 
+  // A soft tint with accent text (2026-10-19 design review), not the solid accent fill.
   const selected = ruleFor(ALL_RULES, ".segmented__option--selected");
-  assert.equal(selected.background, "var(--accent)");
-  assert.equal(selected.color, "var(--on-accent)");
+  assert.equal(selected.background, "var(--accent-soft)");
+  assert.equal(selected.color, "var(--accent)");
 });
 
 test("a disabled segmented option dims unless it is the selected one", () => {
@@ -234,8 +235,8 @@ test("focus rings on the nav and the segmented control are drawn inside the targ
   // ring would be clipped or bleed into the next option; an inset ring keeps all of it visible.
   assert.equal(ruleFor(ALL_RULES, ".nav__item:focus-visible")["outline-offset"], "-3px");
   assert.equal(ruleFor(ALL_RULES, ".segmented__option:focus-visible")["outline-offset"], "-3px");
-  const selected = ruleFor(ALL_RULES, ".segmented__option--selected:focus-visible");
-  assert.equal(selected["outline-color"], "var(--on-accent)", "the ring shows on the accent fill");
+  // The selected option is a tint now, so the accent ring shows on it and needs no own color.
+  assert.equal(ruleFor(ALL_RULES, ".segmented__option--selected:focus-visible"), undefined);
 });
 
 test("a secondary state action sits one scale step closer to the primary one", () => {

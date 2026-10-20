@@ -26,6 +26,9 @@
   const STATUS_ICONS = { [TONE_OK]: "check", [TONE_WARN]: "alert" };
   // The micro type size, so the icon is as tall as the words beside it.
   const STATUS_ICON_SIZE = 12;
+  // The muted chevron at the end of a row: the one cue that a tap opens the take's Results.
+  const OPEN_ICON = "chevron-right";
+  const OPEN_ICON_SIZE = 20;
 
   // Fixed copy for the empty state (DESIGN.md section 8) and the delete controls (section 6).
   const EMPTY_TITLE = "No sessions yet";
@@ -111,16 +114,7 @@
   }
 
 
-  // The first-visit guide for this screen (app.sheet.firstVisit, once ever, never over another
-  // sheet): nothing happens while sheet.js is not loaded.
-  function showGuide() {
-    if (app.sheet && typeof app.sheet.firstVisit === "function") {
-      app.sheet.firstVisit("history");
-    }
-  }
-
   function show() {
-    showGuide();
     return draw(++showCount);
   }
 
@@ -229,7 +223,9 @@
     return { row, open };
   }
 
-  // Title over date, then the stats and the status word, both from one summary of the take.
+  // Title over date, then the stats and the status word, both from one summary of the take,
+  // and the chevron last. The chevron is decorative (aria-hidden), so the button's name stays
+  // the row's words.
   function buildOpenButton(session, date) {
     const summary = app.screens.results.summarize(session);
     const status = statusFor(summary);
@@ -247,6 +243,11 @@
         ]),
         app.ui.el("span", { class: "session-row__stats num", text: statsText(summary) }),
         status === null ? null : buildStatus(status),
+        app.ui.el(
+          "span",
+          { class: "session-row__chevron", "aria-hidden": "true" },
+          app.ui.icon(OPEN_ICON, OPEN_ICON_SIZE),
+        ),
       ],
     );
   }

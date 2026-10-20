@@ -11,7 +11,7 @@
   --muted: #5B6270;
   --border: #D9DDE3;
   --grid: #E4E6EA;
-  --accent: #2457F5;
+  --accent: #2E5BE6;
   --on-accent: #FFFFFF;
   --accent-soft: #E3ECFA;
   --record: #E5484D;
@@ -68,19 +68,19 @@
     --muted: #9AA3B2;
     --border: #2A2F3A;
     --grid: #2B3038;
-    --accent: #6B93FF;
+    --accent: #7C9BFF;
     --on-accent: #0F1115;
     --accent-soft: #1E2C44;
     --record: #FF6369;
     --on-record: #0F1115;
     --record-text: #FF6369;
     --record-bg: #3F1414;
-    --filler: #FBBF24;
+    --filler: #E6B457;
     --filler-bg: #3B2A05;
     --pause: #B49CFF;
     --pause-bg: #2A1F4D;
-    --pause-long: #F472B6;
-    --ok: #4ADE80;
+    --pause-long: #E58BC0;
+    --ok: #5FCF8C;
     --ok-bg: #163B26;
     --warn: #FF8A4C;
     --scrim: rgba(0, 0, 0, .6);
@@ -97,19 +97,19 @@
   --muted: #9AA3B2;
   --border: #2A2F3A;
   --grid: #2B3038;
-  --accent: #6B93FF;
+  --accent: #7C9BFF;
   --on-accent: #0F1115;
   --accent-soft: #1E2C44;
   --record: #FF6369;
   --on-record: #0F1115;
   --record-text: #FF6369;
   --record-bg: #3F1414;
-  --filler: #FBBF24;
+  --filler: #E6B457;
   --filler-bg: #3B2A05;
   --pause: #B49CFF;
   --pause-bg: #2A1F4D;
-  --pause-long: #F472B6;
-  --ok: #4ADE80;
+  --pause-long: #E58BC0;
+  --ok: #5FCF8C;
   --ok-bg: #163B26;
   --warn: #FF8A4C;
   --scrim: rgba(0, 0, 0, .6);
@@ -289,19 +289,17 @@ h2 {
   cursor: pointer;
 }
 
+/* A soft tint with accent text, as a selected chip: the primary button keeps the one solid
+   accent on a screen. */
 .segmented__option--selected {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
-/* Options sit 4px apart, so the ring is drawn inside each one; on the accent fill it turns
-   on-accent to stay visible. */
+/* Options sit 4px apart, so the ring is drawn inside each one; the accent ring shows on the
+   tint as it does on the surface. */
 .segmented__option:focus-visible {
   outline-offset: -3px;
-}
-
-.segmented__option--selected:focus-visible {
-  outline-color: var(--on-accent);
 }
 
 .segmented__option[disabled] {
@@ -847,9 +845,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   cursor: pointer;
 }
 
+/* A soft tint, not a solid fill: the record button and the primary button keep the strong
+   color, so a glance finds the one action. */
 .chip--selected {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
   border-color: var(--accent);
 }
 
@@ -1127,9 +1127,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   flex-basis: 100%;
 }
 
-/* Talk's script box sits in the hint row beside the sample button, so closed it costs the
-   one-screen layout nothing; open, it takes the row's full width, the column grows and the
-   page scrolls. Its summary is a small accent row on a 44px target, like the sample button. */
+/* Talk's script box ends the hint row, on its own line under the sample button, which takes
+   a whole line; closed, it costs the one-screen layout one 44px row the card gives up. Open,
+   it takes the row's full width, the column grows and the page scrolls. Its summary is a small
+   accent row on a 44px target, like the sample button. */
 #screen-practice .practice__script {
   flex: 1 1 0;
   max-width: max-content;
@@ -3402,14 +3403,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The open button fills the row beside the trash button. It is a grid: on a phone the title
-   and date sit over the stats, all left-aligned. It keeps its automatic minimum width, the
-   stats line, which never wraps, so a narrow row moves the prompt instead of the numbers. The
-   text column never gets narrower than the no-wrap date. */
+   and date sit over the stats, all left-aligned, with the chevron in a column of its own at
+   the right, spanning the rows. It keeps its automatic minimum width, the stats line, which
+   never wraps, so a narrow row moves the prompt instead of the numbers. The text column never
+   gets narrower than the no-wrap date. */
 .session-row__open {
   flex: 1 1 0;
   min-height: 64px;
   display: grid;
-  grid-template-columns: minmax(min-content, 1fr);
+  grid-template-columns: minmax(min-content, 1fr) auto;
+  grid-template-areas: "text chevron" "stats chevron" "status chevron";
   align-content: center;
   align-items: center;
   justify-items: start;
@@ -3424,8 +3427,27 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   cursor: pointer;
 }
 
+/* With a mouse, a hovered row takes the surface tint, so the row reads as something a tap
+   opens; touch screens have no hover, so they get no rule. */
+@media (hover: hover) {
+  .session-row__open:hover {
+    background: var(--surface);
+  }
+}
+
 .session-row__text {
+  grid-area: text;
   overflow-wrap: anywhere;
+}
+
+/* The muted chevron that says a tap opens the take: the last column, right-aligned, centred on
+   the rows; the row's --s-2 column gap keeps it off the trash button. */
+.session-row__chevron {
+  grid-area: chevron;
+  display: flex;
+  align-self: center;
+  justify-self: end;
+  color: var(--muted);
 }
 
 .session-row__title {
@@ -3446,6 +3468,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* Under the date the stats start a second group, one step further down. */
 .session-row__stats {
+  grid-area: stats;
   margin-top: var(--s-1);
   font-size: var(--fs-small);
   line-height: 1.4;
@@ -3456,6 +3479,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 /* The status words in their tone's color. The icon follows the words in the DOM and is drawn
    first, so the text stays the words alone; it shares their color through currentColor. */
 .session-row__status {
+  grid-area: status;
   display: flex;
   align-items: center;
   gap: var(--s-1);
@@ -3518,11 +3542,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* From 480px the stats, then the status under them, move to the right of the title and date,
-   right-aligned. */
+   right-aligned, with the chevron still last. */
 @media (min-width: 480px) {
   .session-row__open {
-    grid-template-columns: minmax(min-content, 1fr) auto;
-    grid-template-areas: "text stats" "text status";
+    grid-template-columns: minmax(min-content, 1fr) auto auto;
+    grid-template-areas: "text stats chevron" "text status chevron";
   }
 
   .session-row__text {
@@ -3798,12 +3822,39 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   flex: none;
 }
 
+/* The privacy paragraph folds under a summary row (closed by default): a small accent line on
+   a 44px target, as Practice's script summary, so the promise card and the three items carry
+   the screen. Open, the paragraph and then the link to the How we measure page follow. */
+.onboarding__privacy-details {
+  margin: 0;
+}
+
+.onboarding__privacy-summary {
+  min-height: 44px;
+  padding-block: var(--s-3);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
 .onboarding__privacy {
   margin: 0;
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
   color: var(--muted);
+}
+
+.onboarding__privacy-link {
+  display: inline-block;
+  margin-top: var(--s-2);
+  padding: var(--s-2) 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--accent);
 }
 
 #screen-onboarding .btn {
@@ -4158,8 +4209,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--accent);
 }
 
-/* A quiet link-like ghost button under the hint: small text, as New topic, on a 44px target. */
+/* A quiet link-like ghost button under the hint: small text, as New topic, on a 44px target. It
+   takes a whole line of the hint row, so Talk's script summary wraps onto its own line under it
+   (the 2026-10-19 review set the two apart). */
 .practice__sample {
+  flex-basis: 100%;
   min-height: 44px;
   padding: 0 var(--s-2);
   font-size: var(--fs-small);
@@ -4611,8 +4665,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-3);
 }
 
-/* The source link runs on in the why line. Its padding makes the tap target at least 44px tall
-   without moving a line, as the coach notes' source link does. */
+/* The source sits on its own muted line under the why sentence, "Source: " drawn before the
+   link so the link is the citation alone. The link's padding makes its tap target at least 44px
+   tall without moving a line, as the coach notes' source link does. */
+.path-unit__source-line {
+  display: block;
+  margin-top: var(--s-1);
+}
+
+.path-unit__source-line::before {
+  content: "Source: ";
+}
+
 .path-unit__source {
   padding: var(--s-4) 0;
   color: var(--accent);

@@ -81,6 +81,8 @@
   const CHANGE_ARROW = "→";
   const CHANGE_ARROW_SPOKEN = "to";
   const NEW_TAB_NOTE = ", opens in a new tab";
+  // Between the source line's linked credit and the work that follows it in plain text.
+  const WORK_SEPARATOR = ", ";
   const LEVELS_LIST_SUFFIX = " levels";
   const RESTING_NOTE = "Back tomorrow";
   const RESTING_CARD = "This level opens again tomorrow.";
@@ -131,16 +133,7 @@
   }
 
 
-  // The first-visit guide for this screen (app.sheet.firstVisit, once ever, never over another
-  // sheet): nothing happens while sheet.js is not loaded.
-  function showGuide() {
-    if (app.sheet && typeof app.sheet.firstVisit === "function") {
-      app.sheet.firstVisit("path");
-    }
-  }
-
   function show() {
-    showGuide();
     return draw(++showCount, false);
   }
 
@@ -455,22 +448,29 @@
     ]);
   }
 
-  // The unit's "why this works" line, then its source as a link that opens in a new tab, with
-  // rel="noopener" so the page it opens gets no handle on this one.
+  // The unit's "why this works" line, then its source on a line of its own: the short credit
+  // ("Lambert, Kormos and Minn (2017)", app.path.creditOf) as a link that opens in a new tab,
+  // with rel="noopener" so the page it opens gets no handle on this one, then the work in
+  // plain muted text. The stylesheet draws "Source: " before the line. Without creditOf the
+  // full label is the link, with no work after it.
   function buildWhy(why) {
+    const credit =
+      typeof app.path.creditOf === "function" ? app.path.creditOf(why.entry) : null;
+    const link = app.ui.el(
+      "a",
+      {
+        class: "path-unit__source",
+        href: why.url,
+        target: "_blank",
+        rel: "noopener",
+        text: credit ? credit.short : why.label,
+      },
+      app.ui.el("span", { class: "sr-only", text: NEW_TAB_NOTE }),
+    );
+    const work = credit && credit.work ? WORK_SEPARATOR + credit.work : "";
     return app.ui.el("p", { class: "path-unit__why" }, [
       why.text + " ",
-      app.ui.el(
-        "a",
-        {
-          class: "path-unit__source",
-          href: why.url,
-          target: "_blank",
-          rel: "noopener",
-          text: why.label,
-        },
-        app.ui.el("span", { class: "sr-only", text: NEW_TAB_NOTE }),
-      ),
+      app.ui.el("span", { class: "path-unit__source-line" }, [link, work]),
     ]);
   }
 

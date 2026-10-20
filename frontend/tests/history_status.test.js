@@ -180,8 +180,10 @@ test("each row shows its status after the stats, the icon after the words", asyn
   });
   await history.show();
   const rows = openButtonsOf(body).map((open) => {
-    const [text, stats, status] = open.children;
-    assert.equal(open.children.length, 3);
+    // Text, stats, status, then the decorative chevron (2026-10-19 design review).
+    const [text, stats, status, chevron] = open.children;
+    assert.equal(open.children.length, 4);
+    assert.equal(chevron.className, "session-row__chevron");
     assert.equal(text.className, "session-row__text");
     assert.equal(stats.className, "session-row__stats num");
     return status;
@@ -213,7 +215,7 @@ test("a row with nothing measured shows its stats and no status", async () => {
   });
   await history.show();
   const [empty, measured] = openButtonsOf(body);
-  assert.equal(empty.children.length, 2);
+  assert.equal(empty.children.length, 3, "text, stats and the chevron; no status");
   assert.equal(byClass(empty, "session-row__stats").textContent, "0 wpm · 0.0 /min");
   assert.equal(byClass(empty, "session-row__status"), undefined);
   assert.equal(byClass(measured, "session-row__status").textContent, "On target");
@@ -346,7 +348,7 @@ test("from 480px the status sits under the stats, at the right", () => {
   const wide = "@media (min-width: 480px)";
   assert.equal(
     declarations(".session-row__open", wide)["grid-template-areas"],
-    '"text stats" "text status"',
+    '"text stats chevron" "text status chevron"',
   );
   const status = declarations(".session-row__status", wide);
   assert.equal(status["grid-area"], "status");

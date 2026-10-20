@@ -182,15 +182,18 @@ test("each unit card holds its h2 title, subtitle and why line, linked to its so
     assert.equal(unit.children[0], card);
     assert.equal(find(card, "path-unit__title").tagName, "h2");
     assert.equal(visible(find(card, "path-unit__subtitle")), data.subtitle);
+    // The source is its own line: the short credit (surnames and year) as the link, then the
+    // work in plain text (2026-10-19 design review).
     const why = find(card, "path-unit__why");
-    assert.equal(visible(why), data.why.text + " " + data.why.label);
+    const credit = app.path.creditOf(data.why.entry);
+    assert.equal(visible(why), data.why.text + " " + credit.short + ", " + credit.work);
     const link = find(why, "path-unit__source");
     assert.equal(link.tagName, "a");
     assert.equal(link.getAttribute("href"), data.why.url);
     assert.equal(link.getAttribute("target"), "_blank");
     assert.equal(link.getAttribute("rel"), "noopener");
-    assert.equal(visible(link), data.why.label);
-    assert.equal(spoken(link), data.why.label + ", opens in a new tab");
+    assert.equal(visible(link), credit.short);
+    assert.equal(spoken(link), credit.short + ", opens in a new tab");
   }
 });
 
