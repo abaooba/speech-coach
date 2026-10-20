@@ -179,21 +179,24 @@ test("no COPY string contains an exclamation mark", () => {
   }
 });
 
-test("mount builds the lead, the promise, the list, the privacy line and the button", () => {
+test("mount builds the lead, the promise, the list, the folded privacy line and the button", () => {
   const { screen, section, body } = mountOnboarding();
   const { COPY } = screen;
   assert.equal(section.children.length, 2, "the h1 and the body stay the section's children");
+  // The privacy paragraph folds in a details element (2026-10-19 design review); its words
+  // are unchanged.
   assert.deepEqual(
     body.children.map((child) => child.tagName + "." + child.className),
     [
       "p.onboarding__lead",
       "div.onboarding__promise",
       "ul.onboarding__list",
-      "p.onboarding__privacy",
+      "details.onboarding__privacy-details",
       "button.btn btn--primary btn--block",
     ],
   );
-  const [lead, , list, privacy, button] = body.children;
+  const [lead, , list, details, button] = body.children;
+  const privacy = byClass(details, "onboarding__privacy");
   assert.equal(textOf(lead), COPY.lead);
   assert.equal(textOf(privacy), COPY.privacy);
   assert.equal(textOf(button), COPY.button);

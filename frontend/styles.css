@@ -3822,12 +3822,40 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   flex: none;
 }
 
+/* The privacy paragraph folds under a summary row (closed by default): a small accent line on
+   a 44px target, as Practice's script summary, so the promise card and the three items carry
+   the screen. Open, the paragraph and then the link to the How we measure page follow. */
+.onboarding__privacy-details {
+  margin: 0;
+}
+
+.onboarding__privacy-summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
 .onboarding__privacy {
   margin: 0;
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
   color: var(--muted);
+}
+
+.onboarding__privacy-link {
+  display: inline-block;
+  margin-top: var(--s-2);
+  padding: var(--s-2) 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--accent);
 }
 
 #screen-onboarding .btn {

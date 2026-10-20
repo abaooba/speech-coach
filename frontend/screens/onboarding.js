@@ -1,6 +1,7 @@
 /* screens/onboarding.js: app.screens.onboarding, the first-launch screen (DESIGN.md sections 1
-   and 8): what is measured, what happens to audio and transcripts, and one button that saves
-   the "onboarded" flag and opens Practice. COPY holds every string, so tests check it without a
+   and 8): what is measured, what happens to audio and transcripts (folded under "How your audio
+   is handled", with a link to how.html), and one button that saves the "onboarded" flag and
+   opens Practice. COPY holds every string, so tests check it without a
    DOM. It never asks for the microphone, and app.js, not this file, decides when it shows. */
 (function () {
   "use strict";
@@ -28,8 +29,13 @@
       "Coach notes send part of your transcript to Anthropic. " +
       "They also send the moments the app found. " +
       "The grammar check sends your transcript only when you tap it.",
+    // The privacy paragraph folds under this summary (closed by default, 2026-10-19 design
+    // review), with a link to the How we measure page's "Your audio" section after it.
+    privacySummary: "How your audio is handled",
+    privacyLink: "More in How we measure",
     button: "Start practicing",
   });
+  const PRIVACY_LINK_HREF = "how.html#your-audio";
 
   // One app.ui icon per list item, in COPY.items order: speaking pace, spotting pauses and
   // fillers, the progress chart.
@@ -48,7 +54,7 @@
     body.appendChild(
       app.ui.el("ul", { class: "onboarding__list", role: "list" }, COPY.items.map(listItem)),
     );
-    body.appendChild(app.ui.el("p", { class: "onboarding__privacy", text: COPY.privacy }));
+    body.appendChild(privacyDetails());
     body.appendChild(
       app.ui.el(
         "button",
@@ -66,6 +72,20 @@
         app.ui.el("p", { class: "onboarding__promise-title", text: COPY.promiseTitle }),
         app.ui.el("p", { class: "onboarding__promise-body", text: COPY.promiseBody }),
       ]),
+    ]);
+  }
+
+  // The privacy paragraph, word for word, folded under its summary with the link after it. The
+  // paragraph's own class and text stay, so a reader who opens it reads the full account.
+  function privacyDetails() {
+    return app.ui.el("details", { class: "onboarding__privacy-details" }, [
+      app.ui.el("summary", { class: "onboarding__privacy-summary", text: COPY.privacySummary }),
+      app.ui.el("p", { class: "onboarding__privacy", text: COPY.privacy }),
+      app.ui.el("a", {
+        class: "onboarding__privacy-link",
+        href: PRIVACY_LINK_HREF,
+        text: COPY.privacyLink,
+      }),
     ]);
   }
 

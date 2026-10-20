@@ -6,7 +6,7 @@ Every screen is built from this file. Angle: **drill-first**. A speaker who want
 
 | Screen | Route | Purpose |
 |---|---|---|
-| Onboarding | `#/onboarding` | First launch only: a promise card ("No account needed. Your takes are saved on your phone, and only there."), what is measured, where the recording and transcript go, one button. The lead paragraph draws the 64px app icon above itself with `::before` (`icons/icon.svg`), so the screen's DOM is unchanged. |
+| Onboarding | `#/onboarding` | First launch only: a promise card ("No account needed. Your takes are saved on your phone, and only there."), what is measured, where the recording and transcript go (the seven-sentence privacy paragraph, word for word, folded in `details.onboarding__privacy-details`, closed by default under the summary "How your audio is handled", with a link to how.html's "Your audio" section after it), one button. The lead paragraph draws the 64px app icon above itself with `::before` (`icons/icon.svg`), so the screen's DOM is unchanged. |
 | Practice | `#/practice` (default) | Talk on a timed topic or read a passage aloud, record, stop. Home. |
 | Results | `#/results/:id` | The Coach card (the coach's line about this take and its tips) over the speech map (the take's moments as two-line cards beside a rail that is linear in time, each card a button that shows its moment in the transcript; eight cards, then "Show all"), a strip of four stats with hints and "vs last take" lines, the rank card with its labelled rating, the highlighted transcript. |
 | History | `#/history` | Sessions newest first with a status word, tap to reopen, delete with confirm. |
