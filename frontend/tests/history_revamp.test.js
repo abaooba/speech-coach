@@ -470,7 +470,8 @@ test("the open button is a grid that keeps the stats under the title on a phone"
 
 test("from 480px the stats sit at the right of the title and date", () => {
   const open = ruleFor(".session-row__open", WIDE);
-  assert.equal(open["grid-template-columns"], "minmax(min-content, 1fr) auto");
+  // Text, the stats column, then the chevron's (2026-10-19 design review).
+  assert.equal(open["grid-template-columns"], "minmax(min-content, 1fr) auto auto");
   assert.equal(ruleFor(".session-row__stats", WIDE)["justify-self"], "end");
 });
 

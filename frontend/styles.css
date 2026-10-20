@@ -3403,14 +3403,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* The open button fills the row beside the trash button. It is a grid: on a phone the title
-   and date sit over the stats, all left-aligned. It keeps its automatic minimum width, the
-   stats line, which never wraps, so a narrow row moves the prompt instead of the numbers. The
-   text column never gets narrower than the no-wrap date. */
+   and date sit over the stats, all left-aligned, with the chevron in a column of its own at
+   the right, spanning the rows. It keeps its automatic minimum width, the stats line, which
+   never wraps, so a narrow row moves the prompt instead of the numbers. The text column never
+   gets narrower than the no-wrap date. */
 .session-row__open {
   flex: 1 1 0;
   min-height: 64px;
   display: grid;
-  grid-template-columns: minmax(min-content, 1fr);
+  grid-template-columns: minmax(min-content, 1fr) auto;
+  grid-template-areas: "text chevron" "stats chevron" "status chevron";
   align-content: center;
   align-items: center;
   justify-items: start;
@@ -3434,7 +3436,18 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 .session-row__text {
+  grid-area: text;
   overflow-wrap: anywhere;
+}
+
+/* The muted chevron that says a tap opens the take: the last column, right-aligned, centred on
+   the rows; the row's --s-2 column gap keeps it off the trash button. */
+.session-row__chevron {
+  grid-area: chevron;
+  display: flex;
+  align-self: center;
+  justify-self: end;
+  color: var(--muted);
 }
 
 .session-row__title {
@@ -3455,6 +3468,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* Under the date the stats start a second group, one step further down. */
 .session-row__stats {
+  grid-area: stats;
   margin-top: var(--s-1);
   font-size: var(--fs-small);
   line-height: 1.4;
@@ -3465,6 +3479,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 /* The status words in their tone's color. The icon follows the words in the DOM and is drawn
    first, so the text stays the words alone; it shares their color through currentColor. */
 .session-row__status {
+  grid-area: status;
   display: flex;
   align-items: center;
   gap: var(--s-1);
@@ -3527,11 +3542,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* From 480px the stats, then the status under them, move to the right of the title and date,
-   right-aligned. */
+   right-aligned, with the chevron still last. */
 @media (min-width: 480px) {
   .session-row__open {
-    grid-template-columns: minmax(min-content, 1fr) auto;
-    grid-template-areas: "text stats" "text status";
+    grid-template-columns: minmax(min-content, 1fr) auto auto;
+    grid-template-areas: "text stats chevron" "text status chevron";
   }
 
   .session-row__text {
