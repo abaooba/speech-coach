@@ -380,20 +380,11 @@
   }
 
 
-  // The first-visit guide for this screen (app.sheet.firstVisit, once ever, never over another
-  // sheet): nothing happens while sheet.js is not loaded.
-  function showGuide() {
-    if (app.sheet && typeof app.sheet.firstVisit === "function") {
-      app.sheet.firstVisit("progress");
-    }
-  }
-
   // Draws the rank card first, then a segmented control, the metric's full name, a summary row
   // and a hand-rolled SVG line chart (a target band for fillers, a ring on the best take, short
   // dates under the points) with a screen-reader table. Tapping an option redraws everything
   // under the control. Under two takes the card, when there is one, sits above the empty state.
   async function show() {
-    showGuide();
     const ticket = ++showCount;
     const takes = ownTakes(await loadSessions());
     if (ticket !== showCount) {

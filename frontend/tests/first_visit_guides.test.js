@@ -1,6 +1,7 @@
 // Tests for the first-visit guides (guided coach, spec Phase 5 item 9): app.sheet.firstVisit
-// (the copy, the loop diagram, onboarding and stacking rules) and the five places that ask for
-// one: Practice, Path, Progress, History and the first level.
+// (the copy, the loop diagram, onboarding and stacking rules) and the two places that ask for
+// one: Practice and the first level. The Path, Progress and History guides were dropped on
+// 2026-10-19 (design review): those screens ask for none and sheet.js knows none.
 "use strict";
 
 const test = require("node:test");
@@ -82,22 +83,6 @@ const GUIDE_COPY = {
       "and restart at the second it happened.",
     "Got it",
   ],
-  path: [
-    "Your path",
-    "Each level is one short drill: two takes with a quick review between them. Clear a level " +
-      "to open the next one.",
-    "Got it",
-  ],
-  progress: [
-    "Your progress",
-    "Every take adds a point to these charts. Practice on a few different days to see your trend.",
-    "Got it",
-  ],
-  history: [
-    "Your takes",
-    "Every take stays on this phone, and only there. Tap one to open its results again.",
-    "Got it",
-  ],
   level: [
     "How a level works",
     "Take 1, then a 30-second look at your moments, then take 2 with one fix in mind. Take 2 " +
@@ -122,11 +107,25 @@ for (const [name, [title, line, button]] of Object.entries(GUIDE_COPY)) {
 
 test("a guide shows once", async () => {
   const { app, doc } = sheetWorld();
-  assert.equal(await app.sheet.firstVisit("path"), true);
+  assert.equal(await app.sheet.firstVisit("practice"), true);
   find(doc.body, "sheet__primary").click();
-  assert.equal(await app.sheet.firstVisit("path"), false);
+  assert.equal(await app.sheet.firstVisit("practice"), false);
   assert.equal(find(doc.body, "sheet"), null);
 });
+
+test("sheet.js knows only the Practice and level guides", () => {
+  const { app } = sheetWorld();
+  assert.deepEqual(Object.keys(app.sheet.GUIDES), ["practice", "level"]);
+});
+
+for (const dropped of ["path", "progress", "history"]) {
+  test("there is no " + dropped + " guide: nothing opens and no flag is set", async () => {
+    const { app, doc, flags } = sheetWorld();
+    assert.equal(await app.sheet.firstVisit(dropped), false);
+    assert.equal(find(doc.body, "sheet"), null);
+    assert.equal(flags["guideSeen:" + dropped], undefined);
+  });
+}
 
 test("the level guide draws Take 1, Review and Take 2 with take 2 marked as counting", async () => {
   const { app, doc } = sheetWorld();
@@ -160,10 +159,10 @@ test("a guide never opens over another sheet and is not used up by trying", asyn
     line: "Your longest pause was 5.4 s.",
     primary: { label: "Start: Restarts level 2" },
   });
-  assert.equal(await app.sheet.firstVisit("history"), false);
+  assert.equal(await app.sheet.firstVisit("level"), false);
   assert.equal(find(doc.body, "sheet__title"), null);
   assert.equal(text(find(doc.body, "sheet__line")), "Your longest pause was 5.4 s.");
-  assert.equal(flags["guideSeen:history"], undefined);
+  assert.equal(flags["guideSeen:level"], undefined);
 });
 
 test("with no document.body a guide does nothing", async () => {
@@ -214,11 +213,11 @@ test("Practice does not ask for it while it holds a level's take", async () => {
   assert.deepEqual(asked, []);
 });
 
-test("Path asks for the path guide", async () => {
+test("Path asks for no guide", async () => {
   const w = pathHarness.mountPath();
   const asked = spyOn(w.app);
   await w.screen.show();
-  assert.deepEqual(asked.map((each) => each.name), ["path"]);
+  assert.deepEqual(asked, []);
 });
 
 function loadScreen(file, extra) {
@@ -241,13 +240,13 @@ function loadScreen(file, extra) {
 }
 
 for (const name of ["progress", "history"]) {
-  test(name[0].toUpperCase() + name.slice(1) + " asks for its guide", async () => {
+  test(name[0].toUpperCase() + name.slice(1) + " asks for no guide", async () => {
     const app = loadScreen(name, (loaded) => {
       loaded.screens.results = { summarize: () => ({ wpm: 0, fillersPerMinute: 0 }) };
     });
     const asked = spyOn(app);
     await app.screens[name].show();
-    assert.deepEqual(asked.map((each) => each.name), [name]);
+    assert.deepEqual(asked, []);
   });
 }
 
@@ -270,10 +269,14 @@ test("a level that is not a loop (a check-back) asks for no level guide", async 
   assert.deepEqual(asked, []);
 });
 
-test("no screen file builds a guide of its own: all five come from app.sheet.firstVisit", () => {
-  ["practice", "path", "progress", "history", "level"].forEach((name) => {
+test("no screen file builds a guide of its own: both come from app.sheet.firstVisit", () => {
+  ["practice", "level"].forEach((name) => {
     const source = read("screens", name + ".js");
     assert.match(source, /firstVisit\(/, name);
     assert.doesNotMatch(source, /guideOnce\(/, name);
+  });
+  ["path", "progress", "history"].forEach((name) => {
+    const source = read("screens", name + ".js");
+    assert.doesNotMatch(source, /firstVisit\(|guideOnce\(/, name + " shows no guide");
   });
 });

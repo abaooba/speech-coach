@@ -458,33 +458,16 @@
 
   // --- First-visit guides ---------------------------------------------------------------------
 
-  // The copy of each guide (fluency language only). The sheet's label is "Guide", and closing it
-  // any way counts as seen.
+  // The copy of each guide (fluency language only): the first take on Practice and the first
+  // level. The sheet's label is "Guide", and closing it any way counts as seen. The Path,
+  // Progress and History guides were dropped on 2026-10-19: those screens explain themselves,
+  // and History's rows carry a chevron that says a tap opens one.
   const GUIDES = Object.freeze({
     practice: {
       title: "Your first take",
       line:
         "Pick a topic, tap the red button and talk for a minute. Results show every pause, " +
         "filler and restart at the second it happened.",
-      primary: "Got it",
-    },
-    path: {
-      title: "Your path",
-      line:
-        "Each level is one short drill: two takes with a quick review between them. " +
-        "Clear a level to open the next one.",
-      primary: "Got it",
-    },
-    progress: {
-      title: "Your progress",
-      line:
-        "Every take adds a point to these charts. Practice on a few different days to see " +
-        "your trend.",
-      primary: "Got it",
-    },
-    history: {
-      title: "Your takes",
-      line: "Every take stays on this phone, and only there. Tap one to open its results again.",
       primary: "Got it",
     },
     level: {
