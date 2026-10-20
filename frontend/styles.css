@@ -289,19 +289,17 @@ h2 {
   cursor: pointer;
 }
 
+/* A soft tint with accent text, as a selected chip: the primary button keeps the one solid
+   accent on a screen. */
 .segmented__option--selected {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
-/* Options sit 4px apart, so the ring is drawn inside each one; on the accent fill it turns
-   on-accent to stay visible. */
+/* Options sit 4px apart, so the ring is drawn inside each one; the accent ring shows on the
+   tint as it does on the surface. */
 .segmented__option:focus-visible {
   outline-offset: -3px;
-}
-
-.segmented__option--selected:focus-visible {
-  outline-color: var(--on-accent);
 }
 
 .segmented__option[disabled] {
