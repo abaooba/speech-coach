@@ -3831,8 +3831,7 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 .onboarding__privacy-summary {
   min-height: 44px;
-  display: flex;
-  align-items: center;
+  padding-block: var(--s-3);
   font-size: var(--fs-small);
   line-height: 1.4;
   font-weight: 500;
