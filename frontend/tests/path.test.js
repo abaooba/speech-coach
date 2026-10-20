@@ -212,6 +212,8 @@ test("path.js assigns exactly app.path", () => {
     "benchmarkState",
     "checkbacks",
     "checkpointState",
+    // creditOf: the Path unit card's short source credit (2026-10-19 design review).
+    "creditOf",
     "crownState",
     "currentLevel",
     "evaluate",

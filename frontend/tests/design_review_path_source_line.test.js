@@ -1,7 +1,8 @@
 // The 2026-10-19 design review: a Path unit card shows its study as a muted "Source:" line
-// under the why sentence, with only the citation (author, work and year) as the link. The link
-// keeps its text, href, new-tab note and class; it now sits in `span.path-unit__source-line`,
-// which the stylesheet puts on its own line with the "Source:" label drawn before it.
+// under the why sentence: the short credit, surnames and year, is the link, and the work
+// follows in plain text. The link keeps its href, new-tab note and class; it sits in
+// `span.path-unit__source-line`, which the stylesheet puts on its own line with the "Source:"
+// label drawn before it.
 "use strict";
 
 const test = require("node:test");
@@ -33,13 +34,33 @@ test("each unit's source link sits alone in a source line after the why sentence
     const line = why.children[why.children.length - 1];
     assert.ok(line.classList.contains("path-unit__source-line"), "the line ends the why");
     assert.equal(line.tagName, "span");
-    assert.equal(line.children.length, 1);
-    const link = line.children[0];
+    const links = line.children.filter((child) => child.tagName === "a");
+    assert.equal(links.length, 1, "one link; the work is plain text after it");
+    const link = links[0];
     assert.equal(link.tagName, "a");
     assert.ok(link.classList.contains("path-unit__source"));
-    assert.match(harness.visible(link), /\(\d{4}|n\.d\.\)$/, "author, work and year");
-    assert.equal(harness.visible(line), harness.visible(link), "the line adds no words");
+    assert.match(harness.visible(link), /^[A-Z][^,]*(,| and| et al\.)?[^(]*\((\d{4}|n\.d\.)\)$/, "surnames and year");
+    const credit = world.app.path.creditOf(unitData(world, unit).why.entry);
+    assert.equal(harness.visible(line), harness.visible(link) + ", " + credit.work);
   }
+});
+
+function unitData(world, unit) {
+  const title = harness.visible(harness.find(unit, "path-unit__title"));
+  return world.app.path.UNITS.find((pathUnit) => pathUnit.title === title);
+}
+
+test("creditOf gives the surnames and the year, et al. from four authors on, and the work", () => {
+  const { app } = harness.mountPath();
+  const credit = (unitId) => app.path.creditOf(app.path.UNITS.find((unit) => unit.id === unitId).why.entry);
+  assert.equal(credit("restarts").short, "Lambert, Kormos and Minn (2017)");
+  assert.equal(credit("fillers").short, "Pawlik and Perrin (2020)");
+  assert.equal(credit("long-pauses").short, "Tran and Saito (n.d.)");
+  assert.equal(credit("pace").short, "Bosker et al. (2013)");
+  assert.equal(credit("restarts").work, "Task Repetition and Second Language Speech Processing");
+  assert.equal(app.path.creditOf("no-such-entry"), null);
+  const why = app.path.UNITS.find((unit) => unit.id === "restarts").why;
+  assert.deepEqual(Object.keys(why), ["entry", "text", "label", "url"], "the why shape is unchanged");
 });
 
 test("the source line is its own muted line with the Source label drawn before the link", () => {
