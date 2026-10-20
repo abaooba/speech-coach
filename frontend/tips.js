@@ -32,6 +32,8 @@
   const MIN_REPEATS = 3;
   // The fillers tip lists this many moments, then "and N more".
   const MAX_TIMES_LISTED = 3;
+  // The Coach headline's moment kind (app.coach) that already carries the fillers technique.
+  const FILLER_KIND = "filler";
   const SECONDS_PER_MINUTE = 60;
 
   // --- coach notes (docs/PLAN.md T41) ---
@@ -145,8 +147,10 @@
     return fired.map((rule) => ({ id: rule.id, text: rule.text(facts) }));
   }
 
-  // "Fillers at 0:02, 0:05 and 0:10." or "... 0:10 and 8 more.", then the technique. A take
-  // saved without words has no moments to name, so it gets the advice alone.
+  // "Fillers at 0:02, 0:05 and 0:10." or "... 0:10 and 8 more.", then the technique, unless the
+  // Coach headline is about a filler and already says it (options.headlineKind "filler"): the
+  // tip then lists the moments alone, so the card gives the advice once. A take saved without
+  // words has no moments to name, so it gets the advice alone.
   function fillersText(facts) {
     const technique = "Next take, close your mouth and pause instead.";
     if (facts.fillerTimes.length === 0) {
@@ -154,7 +158,8 @@
     }
     const listed = facts.fillerTimes.slice(0, MAX_TIMES_LISTED).map(clockText);
     const more = facts.fillerTimes.length - listed.length;
-    return "Fillers at " + joinMoments(listed, more) + ". " + technique;
+    const moments = "Fillers at " + joinMoments(listed, more) + ".";
+    return facts.headlineKind === FILLER_KIND ? moments : moments + " " + technique;
   }
 
   // "0:02", "0:02 and 0:05", "0:02, 0:05 and 0:10", or "0:02, 0:05, 0:10 and 8 more".
@@ -169,9 +174,13 @@
   }
 
   // The numbers the rules compare, read once. Missing or malformed values read as 0 (or no
-  // habit) so a bad record still yields a tip instead of an exception.
+  // habit) so a bad record still yields a tip instead of an exception. Clocks count from the
+  // first word (the report's speechStart), as the Coach card's chips, the speech map and the
+  // transcript count them; a report without one counts from the audio's start.
   function readFacts(report, options) {
     const [lo, hi] = targetRange(options.targetWpm);
+    const start = Number.isFinite(report.speechStart) ? report.speechStart : 0;
+    const fromFirstWord = (seconds) => Math.max(0, numberOr0(seconds) - start);
     const fillers = Array.isArray(report.fillers) ? report.fillers : [];
     const habit = report.topHabit;
     const validHabit =
@@ -181,23 +190,24 @@
       hi,
       wpm: Math.round(numberOr0(report.wordsPerMinute)),
       fillersPerMinute: roundToTenth(numberOr0(report.fillersPerMinute)),
-      fillerTimes: fillers.map((event) => numberOr0(event && event.start)),
+      fillerTimes: fillers.map((event) => fromFirstWord(event && event.start)),
       topHabit: validHabit ? { text: habit.text, count: Number(habit.count) } : null,
       longestBreak: roundToTenth(numberOr0(report.longestMidSentencePause)),
-      longestFreeze: longestFreeze(report.pauses),
+      longestFreeze: longestFreeze(report.pauses, fromFirstWord),
       repeatCount: numberOr0(report.repeatCount),
+      headlineKind: typeof options.headlineKind === "string" ? options.headlineKind : null,
     };
   }
 
   // The longest long pause (5 s+, the report's `long` flag) that falls between sentences, as
   // {at, length}, or null. A long mid-sentence pause is left to break-long, so one freeze never
   // gets two tips.
-  function longestFreeze(pauses) {
+  function longestFreeze(pauses, fromFirstWord) {
     let longest = null;
     (Array.isArray(pauses) ? pauses : []).forEach((pause) => {
       const freeze = pause && pause.long === true && pause.midSentence === false;
       if (freeze && (longest === null || numberOr0(pause.length) > longest.length)) {
-        longest = { at: numberOr0(pause.at), length: numberOr0(pause.length) };
+        longest = { at: fromFirstWord(pause.at), length: numberOr0(pause.length) };
       }
     });
     return longest;

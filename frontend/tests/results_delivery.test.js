@@ -149,7 +149,9 @@ test("the tips on the real clip name the moments", async () => {
     tips.map((text) => text.textContent),
     [
       "You are under target pace. Shorten the pauses between ideas.",
-      "Fillers at 0:01, 0:02, 0:03 and 8 more. Next take, close your mouth and pause instead.",
+      // Clocks count from the first word (1.287 s into the clip), as the chips do (2026-10-19).
+      // The headline here is about the restart, so the fillers tip keeps its technique.
+      "Fillers at 0:00, 0:01, 0:01 and 8 more. Next take, close your mouth and pause instead.",
     ],
   );
 });

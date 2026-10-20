@@ -337,7 +337,8 @@ test("with the real tips.js, the six-word fixture gets the pace and fillers tips
     tipTexts(body),
     [
       "You are under target pace. Shorten the pauses between ideas.",
-      "Fillers at 0:01, 0:02, 0:03 and 1 more. Next take, close your mouth and pause instead.",
+      // Clocks count from the first word (1.287 s into the fixture), as the chips do (2026-10-19).
+      "Fillers at 0:00, 0:01, 0:01 and 1 more. Next take, close your mouth and pause instead.",
     ],
   );
 });

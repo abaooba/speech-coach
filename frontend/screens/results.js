@@ -1242,6 +1242,7 @@
     );
     const hasTranscript = plan.some((item) => item.type === WORD_ITEM);
     const moments = momentsOf(summary.report, session.transcript);
+    const takeaway = takeawayOf(moments, summary.report);
     const bundled = bundledNotes(session);
     return {
       summary,
@@ -1250,9 +1251,9 @@
       map: hasTranscript ? speechMapRows(summary.report, session.transcript) : null,
       // Set once Show all is tapped: the map then shows every card, not its first shownCards.
       mapExpanded: false,
-      tips: selectTips(summary.report, summary.target),
+      tips: selectTips(summary.report, summary.target, headlineKindOf(takeaway, moments)),
       moments,
-      takeaway: takeawayOf(moments, summary.report),
+      takeaway,
       // The coach notes: the take's own (the bundled sample ships them), else set by show()
       // once they arrive, and whether they may still come.
       notes: bundled,
@@ -1437,11 +1438,20 @@
 
   // tips.js loads before this file in index.html. Without it (a failed load, or a context that
   // stubs app without tips) the screen simply has no Tips section instead of an error.
-  function selectTips(report, target) {
+  // `headlineKind` is the kind of the moment the Coach headline is about ("filler" lets the
+  // fillers tip drop the technique the headline already gives), or null.
+  function selectTips(report, target, headlineKind) {
     if (!app.tips || typeof app.tips.select !== "function") {
       return [];
     }
-    return app.tips.select(report, { targetWpm: target });
+    return app.tips.select(report, { targetWpm: target, headlineKind });
+  }
+
+  // The kind of the moment the rule headline points at, or null when it names none.
+  function headlineKindOf(takeaway, moments) {
+    const id = takeaway && takeaway.momentId;
+    const moment = id ? listOf(moments).find((each) => each && each.id === id) : null;
+    return moment && typeof moment.kind === "string" ? moment.kind : null;
   }
 
   // What the two highlight styles mean, then the restart, misread, skip and stumble styles each
