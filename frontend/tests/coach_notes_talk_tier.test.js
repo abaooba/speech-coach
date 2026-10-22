@@ -110,3 +110,12 @@ test("a read take's notes use the same talk-only tier", async () => {
   assert.equal(advice.length, 1);
   assert.equal(advice[0].body.tier, "Novice");
 });
+
+test("with every take read there is no rating yet, so the notes get the default tier", async () => {
+  const { results, requests } = mount(READS);
+  await results.show({ id: "read8" });
+  await flush();
+  const advice = requests.filter((request) => request.url === "/api/advice");
+  assert.equal(advice.length, 1);
+  assert.equal(advice[0].body.tier, "Novice", "app.tips.DEFAULT_TIER, not the 40 a rating starts at");
+});

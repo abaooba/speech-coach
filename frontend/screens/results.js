@@ -1212,6 +1212,10 @@
             longPauseCount: summary.report.longPauseCount,
           };
         });
+      // No talk take yet is no rating yet, which the server coaches as its default tier.
+      if (history.length === 0) {
+        return app.tips.DEFAULT_TIER;
+      }
       return rank.tier(rank.rating(history), history);
     } catch {
       return app.tips.DEFAULT_TIER;
