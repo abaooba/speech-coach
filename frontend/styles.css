@@ -4094,6 +4094,21 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
+/* What the rating counts, once the speaker has a take read aloud: a muted line above the foot,
+   as plain as the gate's sentence. */
+.rank-card__note {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* With no rating yet the card is the hidden heading and a line or two: the first one shown sits
+   flush with the card's padding. */
+.rank-card--unrated > :nth-child(2) {
+  margin-top: 0;
+}
+
 /* The streak after its flame on Progress; this take's sentences on Results. */
 .rank-card__foot {
   display: flex;

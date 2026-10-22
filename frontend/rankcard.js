@@ -1,8 +1,9 @@
 /* rankcard.js: app.rankCard, the rank card "ladder and lens" on Progress and Results
    (docs/PLAN.md T37). model(takes, options) works out everything the card shows from the
    speaker's takes, reading the rank only through app.rank (rank.js, owner-written); it is pure:
-   no clock, no DOM, no store. build(model, {screen}) draws that model node by node with
-   app.ui.el. */
+   no clock, no DOM, no store. Only Talk takes are rated (owner decision 2026-10-22): a take read
+   aloud (app.language.isReadTake) keeps the streak but never moves the rating. build(model,
+   {screen}) draws that model node by node with app.ui.el. */
 (function () {
   "use strict";
 
@@ -106,30 +107,81 @@
     noStreak: (longest) => "No current streak, longest " + longest,
     day: " day",
     days: " days",
+    // Why read takes leave the rating alone: on Progress once the speaker has one, and on
+    // Results under a read take, with the rating as it stood or before there is one.
+    talkOnly: "Your rating counts Talk takes only. Read takes keep your streak.",
+    noRatingYet: "Your rating starts with your first Talk take. Read takes keep your streak.",
+    readTake: "Read takes don't change your rating. Only Talk takes count.",
+    readBeforeRating: "Read takes don't change your rating. It starts with your first Talk take.",
   });
 
   // What the card shows, or null when there is no card: rank.js or results.js is not loaded,
-  // no take is rated, or on Results the take on screen is a sample or not in `takes`.
-  // `takes` are the stored sessions in any order; samples never count, the same rule as Progress.
-  // options.screen is "progress" or "results". Progress passes options.today, the moment its
-  // streak counts to (a Date or an ISO time; the model never reads the clock). Results passes
-  // options.takeId, and its card is computed from the takes up to and including that one, so a
-  // reopened old take shows what it did then.
+  // the speaker has no take of their own, or on Results the take on screen is a sample or not in
+  // `takes`. `takes` are the stored sessions in any order; samples never count, the same rule as
+  // Progress. options.screen is "progress" or "results". Progress passes options.today, the
+  // moment its streak counts to (a Date or an ISO time; the model never reads the clock). Results
+  // passes options.takeId, and its card is computed from the takes up to and including that one,
+  // so a reopened old take shows what it did then. Only talk takes are rated; until there is one
+  // the card has no rating (unrated).
   function model(takes, options) {
     const settings = options || {};
     if (!rankLoaded()) {
       return null;
     }
-    const rated = ratedTakes(takes);
-    const onResults = settings.screen === RESULTS;
-    const counted = onResults ? throughTake(rated, settings.takeId) : rated;
-    if (counted.length === 0) {
+    const own = ownTakes(takes);
+    if (settings.screen === RESULTS) {
+      return resultsCard(throughTake(own, settings.takeId));
+    }
+    return progressCard(own, settings.today);
+  }
+
+  // Progress: the newest 10 talk takes rated, the streak counted over every take. Once the
+  // speaker has a read take the card says what the rating counts.
+  function progressCard(own, today) {
+    if (own.length === 0) {
       return null;
     }
-    const kept = onResults ? RATED_TAKES + 1 : RATED_TAKES;
-    const history = counted.slice(-kept).map(historyEntry);
+    const talk = own.filter((take) => !isReadTake(take));
+    const foot = { icon: FLAME_ICON, text: streakText(app.rank.streak(own, today)) };
+    if (talk.length === 0) {
+      return unrated(COPY.noRatingYet, foot);
+    }
+    const note = talk.length < own.length ? COPY.talkOnly : null;
+    const history = talk.slice(-RATED_TAKES).map(historyEntry);
+    return { ...standingCard(history, standingOf(history)), note, foot };
+  }
+
+  // Results, from the takes through the one on screen (its last). A talk take shows what it did
+  // to the rating: the rating over the newest 10 talk takes through it, against the rating just
+  // before it. A read take did nothing, so its card shows the rating as it stood, with no change
+  // line, notch or projection.
+  function resultsCard(through) {
+    if (through.length === 0) {
+      return null;
+    }
+    const talk = through.filter((take) => !isReadTake(take));
+    if (isReadTake(through[through.length - 1])) {
+      if (talk.length === 0) {
+        return unrated(null, { icon: null, text: COPY.readBeforeRating });
+      }
+      const history = talk.slice(-RATED_TAKES).map(historyEntry);
+      const foot = { icon: null, text: COPY.readTake };
+      return { ...standingCard(history, standingOf(history)), note: null, foot };
+    }
+    const history = talk.slice(-(RATED_TAKES + 1)).map(historyEntry);
     const now = standingOf(history);
-    const card = {
+    const card = { ...standingCard(history, now), note: null };
+    const before = history.length > 1 ? standingOf(history.slice(0, -1)) : null;
+    card.change = changeOf(before, now);
+    card.notch = notchOf(before, now, card.change);
+    card.foot = { icon: null, text: takeSentence(history, now) };
+    return card;
+  }
+
+  // The card for the standing `now` that a history of rated takes leaves the speaker in
+  // (standingOf); the change, the notch, the note and the foot are each screen's own.
+  function standingCard(history, now) {
+    return {
       tier: now.name,
       rating: now.shown,
       floor: now.floor,
@@ -142,15 +194,34 @@
       gate: gateOf(history, now),
       foot: null,
     };
-    if (onResults) {
-      const before = history.length > 1 ? standingOf(history.slice(0, -1)) : null;
-      card.change = changeOf(before, now);
-      card.notch = notchOf(before, now, card.change);
-      card.foot = { icon: null, text: takeSentence(history, now) };
-    } else {
-      card.foot = { icon: FLAME_ICON, text: streakText(app.rank.streak(rated, settings.today)) };
-    }
-    return card;
+  }
+
+  // The card before any talk take: no rating, so no tier, bar, ladder or gate; build() draws only
+  // the note and the foot.
+  function unrated(note, foot) {
+    return {
+      tier: null,
+      rating: null,
+      floor: null,
+      ceiling: null,
+      fill: null,
+      ladder: null,
+      next: null,
+      change: null,
+      notch: null,
+      gate: null,
+      note,
+      foot,
+    };
+  }
+
+  // A take read aloud (app.language.isReadTake): a passage, a cold read, the benchmark read or a
+  // pasted script it followed. Without language.js every take counts as talk, as before the rule.
+  function isReadTake(take) {
+    const language = app.language;
+    return (
+      Boolean(language) && typeof language.isReadTake === "function" && language.isReadTake(take)
+    );
   }
 
   // The card reads rank.js and results.js's summarize and isSample; without them there is none.
@@ -172,7 +243,7 @@
 
   // The speaker's own takes that rank.js can date, oldest first: a sample never counts, and
   // neither does a take whose createdAt is not a date, which rank.js leaves out too.
-  function ratedTakes(takes) {
+  function ownTakes(takes) {
     const isSample = app.screens.results.isSample;
     return (Array.isArray(takes) ? takes : [])
       .filter((take) => Boolean(take) && typeof take === "object" && !isSample(take))
@@ -182,11 +253,11 @@
       .map((entry) => entry.take);
   }
 
-  // The rated takes up to and including the one with `takeId`, or none when that take is not
-  // rated: a sample, or a take the list does not hold.
-  function throughTake(rated, takeId) {
-    const index = rated.findIndex((take) => take.id === takeId);
-    return index === -1 ? [] : rated.slice(0, index + 1);
+  // The speaker's takes up to and including the one with `takeId`, or none when that take is
+  // not theirs: a sample, or a take the list does not hold.
+  function throughTake(own, takeId) {
+    const index = own.findIndex((take) => take.id === takeId);
+    return index === -1 ? [] : own.slice(0, index + 1);
   }
 
   // One take as rank.js reads it, scored as results.js tierFor scores it: summarize re-scores
@@ -423,17 +494,32 @@
   }
 
   // The card for a model, in reading order: the hidden heading, the stats beside the ladder,
-  // the gate for Master and Flawless, then the foot. `screen` ("progress" or "results") names
-  // the screen it sits on and keeps its heading's id unique. Nothing in it takes focus.
+  // the gate for Master and Flawless, the note when there is one, then the foot. A card with no
+  // rating yet has only the heading, the note and the foot. `screen` ("progress" or "results")
+  // names the screen it sits on and keeps its heading's id unique. Nothing in it takes focus.
   function build(card, options) {
     const screen = options && options.screen === RESULTS ? RESULTS : PROGRESS;
     const titleId = TITLE_ID_PREFIX + screen;
+    const heading = app.ui.el("h2", { class: "sr-only", id: titleId, text: HIDDEN.title });
+    if (card.tier === null) {
+      return app.ui.el(
+        "section",
+        { class: "rank-card rank-card--unrated", "aria-labelledby": titleId },
+        [heading, buildNote(card.note), buildFoot(card.foot)],
+      );
+    }
     return app.ui.el("section", { class: "rank-card", "aria-labelledby": titleId }, [
-      app.ui.el("h2", { class: "sr-only", id: titleId, text: HIDDEN.title }),
+      heading,
       app.ui.el("div", { class: "rank-card__body" }, [buildStats(card), buildLadder(card.ladder)]),
       buildGate(card.gate),
+      buildNote(card.note),
       buildFoot(card.foot),
     ]);
+  }
+
+  // What the rating counts, in a muted line above the foot; a model without one draws none.
+  function buildNote(note) {
+    return note ? app.ui.el("p", { class: "rank-card__note", text: note }) : null;
   }
 
   // The stats column, top to bottom: tier, the change on Results, rating, bar,

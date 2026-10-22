@@ -362,6 +362,15 @@
     return typeof title === "string" && title.startsWith(SAMPLE_TITLE_PREFIX);
   }
 
+  // True for a take read aloud (app.language.isReadTake), which never sets the rank's tier.
+  // Without language.js every take counts as talk, as before the rule.
+  function isReadTake(session) {
+    const language = app.language;
+    return (
+      Boolean(language) && typeof language.isReadTake === "function" && language.isReadTake(session)
+    );
+  }
+
   // True when the take was scored from its words: the report labels one kind per word.
   function hasWords(summary) {
     const kinds = summary && summary.report ? summary.report.kinds : null;
@@ -1161,10 +1170,11 @@
     }
   }
 
-  // The speaker's rank tier for the notes request, from app.rank over their newest takes (samples
-  // left out, each scored as rank.js scores one), or app.tips.DEFAULT_TIER, the server's own
-  // default, while rank.js is not loaded or a take cannot be scored. Only loadCoachNotes asks,
-  // once app.tips is known to be loaded.
+  // The speaker's rank tier for the notes request, from app.rank over their newest talk takes
+  // (samples and takes read aloud left out, as the rank card leaves them out; each scored as
+  // rank.js scores one), or app.tips.DEFAULT_TIER, the server's own default, while rank.js is not
+  // loaded or a take cannot be scored. Only loadCoachNotes asks, once app.tips is known to be
+  // loaded.
   function tierFor(sessions) {
     const rank = app.rank;
     const loaded =
@@ -1177,7 +1187,7 @@
     }
     try {
       const history = sessions
-        .filter((take) => Boolean(take) && !isSample(take))
+        .filter((take) => Boolean(take) && !isSample(take) && !isReadTake(take))
         .slice(0, RATED_TAKES)
         .map((take) => {
           const summary = summarize(take);
