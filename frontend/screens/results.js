@@ -37,6 +37,7 @@
 
   // Filler hint (Zoom and tl;dv put 0.6 to 3 fillers a minute in range) and the time line.
   const MAX_FILLERS_PER_MINUTE = 3;
+  const SECONDS_PER_MINUTE = 60;
   const FILLERS_OK = "Target under 3";
   const FILLERS_HIGH = "Aim for under 3";
   const TIME_USED_JOINER = " of ";
@@ -277,6 +278,7 @@
     return {
       wpm,
       fillersPerMinute: report.fillersPerMinute,
+      slipsPerMinute: slipsPerMinuteOf(report),
       pauseCount: report.pauseCount,
       longestPause: report.longestPause,
       longPauseCount: report.longPauseCount,
@@ -290,6 +292,18 @@
       timeUsed: timeUsedFor(session.passageId, report.speakingSeconds),
       report,
     };
+  }
+
+  // Read slips a minute, to a tenth, the number Progress charts for takes read aloud in place of
+  // fillers: restarts and misread words, as path.js counts a read's slips. A skipped word is not
+  // a slip, since a transcript can drop a short word the speaker did say. 0 with no speech.
+  function slipsPerMinuteOf(report) {
+    const minutes = numberOr0(report.speakingSeconds) / SECONDS_PER_MINUTE;
+    if (minutes <= 0) {
+      return 0;
+    }
+    const slips = numberOr0(report.repeatCount) + listOf(report.misreads).length;
+    return roundToTenth(slips / minutes);
   }
 
   function numberOr0(value) {
