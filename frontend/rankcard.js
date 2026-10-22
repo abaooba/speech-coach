@@ -79,6 +79,10 @@
   const CHANGE_LEADS = { [UP]: "Rating ", [DOWN]: "Rating ", [SAME]: "Rating: " };
   const UNBROKEN_TO = "\u00a0to ";
 
+  // What the projection and the gate call a take: a talk take once the speaker has a read one.
+  const TAKE = "take";
+  const TALK_TAKE = "Talk take";
+
   // Fixed copy (the tier spec, section 9).
   const COPY = Object.freeze({
     to: " to ",
@@ -90,19 +94,21 @@
     firstTake: "First rated take",
     now: ", now ",
     scored: (score) => "This take scored " + score + ".",
-    atLeast: (count, tier) =>
-      "At least " + count + " more takes to " + tier + ", even perfect ones.",
-    twoMinute: (score, tier) =>
-      "One 2-minute take scoring " + score + " or more reaches " + tier + ".",
-    threeMinute: (score, tier) =>
-      "One 3-minute take scoring " + score + " or more reaches " + tier + ".",
+    // `take` is "take", or "Talk take" once the speaker has a take read aloud, which neither
+    // reaches a tier nor fills one of the gate's 10 slots.
+    atLeast: (count, tier, take) =>
+      "At least " + count + " more " + take + "s to " + tier + ", even perfect ones.",
+    twoMinute: (score, tier, take) =>
+      "One 2-minute " + take + " scoring " + score + " or more reaches " + tier + ".",
+    threeMinute: (score, tier, take) =>
+      "One 3-minute " + take + " scoring " + score + " or more reaches " + tier + ".",
     gateRule: "2 minutes or more, 97 or more, no long pause.",
     gateNeeds: (top) => " " + top + " needs all 10: ",
-    gateKept: " Each new take must too: ",
-    allPass: "All of your last 10 takes pass.",
-    nonePass: "None of your last 10 takes pass.",
-    onePasses: "1 of your last 10 takes passes.",
-    somePass: (count) => count + " of your last 10 takes pass.",
+    gateKept: (take) => " Each new " + take + " must too: ",
+    allPass: (take) => "All of your last 10 " + take + "s pass.",
+    nonePass: (take) => "None of your last 10 " + take + "s pass.",
+    onePasses: (take) => "1 of your last 10 " + take + "s passes.",
+    somePass: (count, take) => count + " of your last 10 " + take + "s pass.",
     streak: (days, longest) => "Current streak " + days + ", longest " + longest,
     noStreak: (longest) => "No current streak, longest " + longest,
     day: " day",
@@ -147,9 +153,10 @@
     if (talk.length === 0) {
       return unrated(COPY.noRatingYet, foot);
     }
-    const note = talk.length < own.length ? COPY.talkOnly : null;
+    const hasReads = talk.length < own.length;
     const history = talk.slice(-RATED_TAKES).map(historyEntry);
-    return { ...standingCard(history, standingOf(history)), note, foot };
+    const card = standingCard(history, standingOf(history), hasReads ? TALK_TAKE : TAKE);
+    return { ...card, note: hasReads ? COPY.talkOnly : null, foot };
   }
 
   // Results, from the takes through the one on screen (its last). A talk take shows what it did
@@ -161,27 +168,29 @@
       return null;
     }
     const talk = through.filter((take) => !isReadTake(take));
+    const take = talk.length < through.length ? TALK_TAKE : TAKE;
     if (isReadTake(through[through.length - 1])) {
       if (talk.length === 0) {
         return unrated(null, { icon: null, text: COPY.readBeforeRating });
       }
       const history = talk.slice(-RATED_TAKES).map(historyEntry);
       const foot = { icon: null, text: COPY.readTake };
-      return { ...standingCard(history, standingOf(history)), note: null, foot };
+      return { ...standingCard(history, standingOf(history), take), note: null, foot };
     }
     const history = talk.slice(-(RATED_TAKES + 1)).map(historyEntry);
     const now = standingOf(history);
-    const card = { ...standingCard(history, now), note: null };
+    const card = { ...standingCard(history, now, take), note: null };
     const before = history.length > 1 ? standingOf(history.slice(0, -1)) : null;
     card.change = changeOf(before, now);
     card.notch = notchOf(before, now, card.change);
-    card.foot = { icon: null, text: takeSentence(history, now) };
+    card.foot = { icon: null, text: takeSentence(history, now, take) };
     return card;
   }
 
   // The card for the standing `now` that a history of rated takes leaves the speaker in
-  // (standingOf); the change, the notch, the note and the foot are each screen's own.
-  function standingCard(history, now) {
+  // (standingOf); the change, the notch, the note and the foot are each screen's own. `take` is
+  // what the gate calls a take (TAKE or TALK_TAKE).
+  function standingCard(history, now, take) {
     return {
       tier: now.name,
       rating: now.shown,
@@ -192,7 +201,7 @@
       next: nextOf(now),
       change: null,
       notch: null,
-      gate: gateOf(history, now),
+      gate: gateOf(history, now, take),
       foot: null,
     };
   }
@@ -366,7 +375,7 @@
   // The top tier's gate, shown to a Master and to the top tier: one pill per slot of the last
   // 10 takes, oldest first, true when that take passes. With fewer than 10 takes the oldest
   // slots have no take, and they stay empty.
-  function gateOf(history, now) {
+  function gateOf(history, now, take) {
     const tiers = app.rank.TIERS;
     if (now.index < tiers.length - 2) {
       return null;
@@ -374,11 +383,11 @@
     const recent = history.slice(-RATED_TAKES).map(passesGate);
     const empty = Array.from({ length: RATED_TAKES - recent.length }, () => false);
     const passing = recent.filter(Boolean).length;
-    const rule = now.top ? COPY.gateKept : COPY.gateNeeds(tiers[tiers.length - 1].name);
+    const rule = now.top ? COPY.gateKept(take) : COPY.gateNeeds(tiers[tiers.length - 1].name);
     return {
       pills: empty.concat(recent),
       passing,
-      text: passingText(passing) + rule + COPY.gateRule,
+      text: passingText(passing, take) + rule + COPY.gateRule,
     };
   }
 
@@ -391,26 +400,26 @@
   }
 
   // "4 of your last 10 takes pass.", in words for none, one and all.
-  function passingText(passing) {
+  function passingText(passing, take) {
     if (passing === RATED_TAKES) {
-      return COPY.allPass;
+      return COPY.allPass(take);
     }
     if (passing === 0) {
-      return COPY.nonePass;
+      return COPY.nonePass(take);
     }
-    return passing === 1 ? COPY.onePasses : COPY.somePass(passing);
+    return passing === 1 ? COPY.onePasses(take) : COPY.somePass(passing, take);
   }
 
   // Results' foot: "This take scored 72." and, below Master, what reaches the next tier.
-  function takeSentence(history, now) {
+  function takeSentence(history, now, take) {
     const scored = COPY.scored(Math.round(history[history.length - 1].score));
-    const projection = projectionOf(history, now);
+    const projection = projectionOf(history, now, take);
     return projection === null ? scored : scored + " " + projection;
   }
 
   // What it takes to reach the next tier. Master and Flawless get nothing: the top tier needs
   // the gate as well as the rating, so a number alone would mislead.
-  function projectionOf(history, now) {
+  function projectionOf(history, now, take) {
     const tiers = app.rank.TIERS;
     if (now.index >= tiers.length - 2) {
       return null;
@@ -421,14 +430,14 @@
       return null;
     }
     if (count > 1) {
-      return COPY.atLeast(count, next.name);
+      return COPY.atLeast(count, next.name, take);
     }
     const twoMinute = lowestScore(history, next.min, TWO_MINUTES);
     if (twoMinute !== null) {
-      return COPY.twoMinute(twoMinute, next.name);
+      return COPY.twoMinute(twoMinute, next.name, take);
     }
     const threeMinute = lowestScore(history, next.min, THREE_MINUTES);
-    return threeMinute === null ? null : COPY.threeMinute(threeMinute, next.name);
+    return threeMinute === null ? null : COPY.threeMinute(threeMinute, next.name, take);
   }
 
   // The fewest perfect 3-minute takes that lift the rating to `floor`, or null past 10.

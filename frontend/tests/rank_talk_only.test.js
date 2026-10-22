@@ -202,6 +202,34 @@ test("a read take's card summarizes only the talk takes before it", () => {
   assert.deepEqual(summarized, ["fifty"]);
 });
 
+test("once there is a read take, the projection names Talk takes", () => {
+  // The numbers are rankcard_model.test.js's: 41.2 needs three perfect 3-minute takes to reach
+  // 60, and a first 72 rates 52.8, which one 2-minute 78 lifts to 60.
+  const seventyTwo = takeOf("seventy-two", 12, 72);
+  const reads = TEN_TALKS.map((talk, index) => readOf("r" + index, index + 2, 100, { hour: 18 }));
+  assert.equal(
+    resultsOf([...TEN_TALKS, ...reads, seventyTwo], "seventy-two").foot.text,
+    "This take scored 72. At least 3 more Talk takes to Varsity, even perfect ones.",
+  );
+  assert.equal(
+    resultsOf([readOf("read", 1, 100), takeOf("first", 2, 72)], "first").foot.text,
+    "This take scored 72. One 2-minute Talk take scoring 78 or more reaches Varsity.",
+  );
+});
+
+test("once there is a read take, the top tier's gate counts Talk takes", () => {
+  // Nine perfect 3-minute talk takes rate 97.9, a Master; the read in between is no slot.
+  const talks = Array.from({ length: 9 }, (_, index) =>
+    takeOf("p" + index, index + 1, 100, { seconds: 180 }),
+  );
+  const card = progressOf([...talks, readOf("read", 10, 100, { seconds: 180 })]);
+  assert.equal(
+    card.gate.text,
+    "9 of your last 10 Talk takes pass. Flawless needs all 10: " +
+      "2 minutes or more, 97 or more, no long pause.",
+  );
+});
+
 // --- The drawn card ---
 
 function classesOf(section) {
