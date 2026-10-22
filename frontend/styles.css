@@ -3578,6 +3578,31 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-6);
 }
 
+/* Once a take was read aloud, the Talk | Read switch comes first, then this line: the mode's
+   take count and whether it counts toward the rating. The metric switch follows a gap below. */
+.progress__caption {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.progress__caption + .segmented {
+  margin-top: var(--s-5);
+}
+
+/* What a Read slip is, in one muted line tight under "Read · Slips per minute". */
+.progress__definition {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.progress__title:has(+ .progress__definition) {
+  margin-bottom: var(--s-1);
+}
+
 /* Summary row: three surface cells under the title, each a label over its value, every value at
    the section-title size on one line. A third of a phone's column is too narrow for that, so
    Latest and Best share the first row and the change from the average spans the row under them;

@@ -109,8 +109,9 @@
     days: " days",
     // Why read takes leave the rating alone: on Progress once the speaker has one, and on
     // Results under a read take, with the rating as it stood or before there is one.
-    talkOnly: "Your rating counts Talk takes only. Read takes keep your streak.",
-    noRatingYet: "Your rating starts with your first Talk take. Read takes keep your streak.",
+    talkOnly: "Only Talk takes count for your rating. Read takes count for your streak.",
+    noRatingYet:
+      "No rating yet: it starts with your first Talk take. Read takes count for your streak.",
     readTake: "Read takes don't change your rating. Only Talk takes count.",
     readBeforeRating: "Read takes don't change your rating. It starts with your first Talk take.",
   });

@@ -21,8 +21,9 @@ const read = (file) => fs.readFileSync(path.join(FRONTEND_DIR, file), "utf8");
 const DEFAULT_BAND = [140, 160];
 const WPM_PER_POINT = 5;
 
-const PROGRESS_NOTE = "Your rating counts Talk takes only. Read takes keep your streak.";
-const UNRATED_NOTE = "Your rating starts with your first Talk take. Read takes keep your streak.";
+const PROGRESS_NOTE = "Only Talk takes count for your rating. Read takes count for your streak.";
+const UNRATED_NOTE =
+  "No rating yet: it starts with your first Talk take. Read takes count for your streak.";
 const READ_FOOT = "Read takes don't change your rating. Only Talk takes count.";
 const READ_UNRATED_FOOT = "Read takes don't change your rating. It starts with your first Talk take.";
 
