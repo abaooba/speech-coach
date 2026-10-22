@@ -93,7 +93,7 @@ function mount(sessions) {
   return { results, requests };
 }
 
-test("a talk take's notes are pitched at the tier its talk takes earned, reads left out", async () => {
+test("a talk take's notes get the tier its talk takes earned, reads left out", async () => {
   const { results, requests } = mount([...READS, TALK]);
   await results.show({ id: "talk" });
   await flush();
@@ -117,5 +117,5 @@ test("with every take read there is no rating yet, so the notes get the default 
   await flush();
   const advice = requests.filter((request) => request.url === "/api/advice");
   assert.equal(advice.length, 1);
-  assert.equal(advice[0].body.tier, "Novice", "app.tips.DEFAULT_TIER, not the 40 a rating starts at");
+  assert.equal(advice[0].body.tier, "Novice", "DEFAULT_TIER, not the 40 a rating starts at");
 });

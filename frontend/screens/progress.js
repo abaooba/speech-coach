@@ -90,7 +90,10 @@
   // read's fillers stay near 0 whatever the speaker does. A slip is a restart or a misread word
   // (summary.slipsPerMinute). `definition` is the muted line under the title; `minRange` keeps
   // the axis at 0 to 5 until a take goes higher, since slips run lower than fillers. The line is
-  // in the text colour, which no other metric draws with.
+  // in the text colour, which no other metric draws with. `counts` says whether a take's slips
+  // can be counted: a take on a passage that strayed from it (or was saved before takes were
+  // lined up against their script) reports no misreads, which would draw as a clean read, so it
+  // is left out of this chart alone. A metric without `counts` charts every take.
   const SLIPS = {
     key: "slipsPerMinute",
     short: "Slips",
@@ -105,6 +108,7 @@
     changeUnit: "",
     rise: "more",
     fall: "fewer",
+    counts: (summary) => !summary.report || summary.report.followedScript !== false,
   };
   const READ_METRICS = METRICS.map((metric) =>
     metric.key === "fillersPerMinute" ? SLIPS : metric,
@@ -122,14 +126,14 @@
       label: "Talk",
       metrics: METRICS,
       noun: "Talk take",
-      caption: " · your own words · in your rating",
+      caption: " · your own words · rated",
     },
     {
       id: READ,
       label: "Read",
       metrics: READ_METRICS,
       noun: "Read take",
-      caption: " · read aloud · not in your rating",
+      caption: " · read aloud · not rated",
     },
   ];
   const MODES_LABEL = "Takes to show";
@@ -590,14 +594,21 @@
 
   // The split view: the rank card, the Talk | Read switch and its caption, then the chosen
   // mode's chart, or its empty state under two takes. The switch and the caption are built once
-  // per show(); a mode tap only swaps what sits under them, so the tapped option keeps focus.
+  // per show(); a mode tap only swaps what sits under them, so the tapped option keeps focus,
+  // and a tap on the mode shown changes nothing. Each mode's takes are summarized the first time
+  // it is drawn, not on every tap.
   function renderSplit(takes, rankCard) {
     const takesOf = {
       [TALK]: takes.filter((take) => !isReadTake(take)),
       [READ]: takes.filter(isReadTake),
     };
+    const summariesBy = {};
     const options = MODES.map((mode) => buildOption(mode.label, false, () => choose(mode.id)));
-    const control = { class: "segmented progress__modes", role: "group", "aria-label": MODES_LABEL };
+    const control = {
+      class: "segmented progress__modes",
+      role: "group",
+      "aria-label": MODES_LABEL,
+    };
     const caption = app.ui.el("p", { class: "progress__caption" });
     app.ui.clear(body);
     if (rankCard) {
@@ -607,24 +618,33 @@
     body.appendChild(caption);
     draw();
 
+    function shownId() {
+      return selectedMode || (takesOf[TALK].length > 0 ? TALK : READ);
+    }
+
     function choose(modeId) {
+      if (modeId === shownId()) {
+        return;
+      }
       selectedMode = modeId;
       draw();
     }
 
     function draw() {
-      const shownId = selectedMode || (takesOf[TALK].length > 0 ? TALK : READ);
-      const mode = MODES.find((each) => each.id === shownId);
+      const mode = MODES.find((each) => each.id === shownId());
       const sessions = takesOf[mode.id];
       options.forEach((option, index) => markOption(option, MODES[index].id === mode.id));
-      caption.textContent = sessions.length + (sessions.length === 1 ? ONE_TAKE : TAKES) +
-        mode.caption;
+      const count = sessions.length + (sessions.length === 1 ? ONE_TAKE : TAKES);
+      caption.textContent = count + mode.caption;
       removeAfter(caption);
       if (sessions.length < MIN_SESSIONS) {
         appendModeEmpty(mode, sessions.length);
-      } else {
-        appendChart(sessions, mode.metrics, mode);
+        return;
       }
+      if (!summariesBy[mode.id]) {
+        summariesBy[mode.id] = summariesOf(sessions);
+      }
+      appendChart(sessions, mode.metrics, mode, summariesBy[mode.id]);
     }
   }
 
@@ -655,13 +675,12 @@
   // With a `mode` (the split view) every title names it, so a Read number never passes for a
   // Talk one once the switch has scrolled away. The switch is built once; a tap only swaps what
   // sits under it (the title, the summary, the chart, its legend and the table), so the tapped
-  // option keeps focus and never flickers. The sessions are summarized once here, not on every
-  // tap.
-  function appendChart(sessions, metrics, mode) {
-    const summaries = summariesOf(sessions);
+  // option keeps focus and never flickers. The sessions are summarized once, not on every tap:
+  // here, or by the split view, which passes its own `summaries` (oldest first) along.
+  function appendChart(sessions, metrics, mode, summaries = summariesOf(sessions)) {
+    const oldestFirst = [...sessions].reverse();
     const measured = summaries.map(wasMeasured);
-    const targets = summaries.map((summary) => summary.target);
-    const days = [...sessions].reverse().map((session) => app.ui.formatDay(session.createdAt));
+    const days = oldestFirst.map((session) => app.ui.formatDay(session.createdAt));
     const options = metrics.map((metric, index) =>
       buildOption(metric.short, index === selectedIndex(), () => choose(index)),
     );
@@ -677,12 +696,18 @@
       draw();
     }
 
+    // Draws the selected metric over the takes it charts (`charted`, indexes into the summaries):
+    // every take, or for a metric with `counts` only the takes it can count.
     function draw() {
       drawn.forEach((node) => body.removeChild(node));
       const metric = metrics[selectedIndex()];
       const label = mode ? mode.label + TITLE_JOINER + metric.label : metric.label;
-      const values = valuesOf(summaries, metric.key);
-      const forSummary = values.map((value, index) => (measured[index] ? value : null));
+      const charted = summaries
+        .map((summary, index) => index)
+        .filter((index) => !metric.counts || metric.counts(summaries[index]));
+      const values = charted.map((index) => numberOr0(summaries[index][metric.key]));
+      const forSummary = charted.map((index, at) => (measured[index] ? values[at] : null));
+      const targets = charted.map((index) => summaries[index].target);
       const summary = summaryFor(forSummary, metric.key, targets);
       drawn = [
         app.ui.el("h2", { class: "progress__title", text: label }),
@@ -690,9 +715,9 @@
           ? app.ui.el("p", { class: "progress__definition", text: metric.definition })
           : null,
         buildSummary(metric, summary),
-        buildSvg(metric, label, values, days, summary.bestIndex),
+        buildSvg(metric, label, values, charted.map((index) => days[index]), summary.bestIndex),
         metric.targetUnder ? buildLegend(metric.targetUnder) : null,
-        buildTable(label, sessions, values),
+        buildTable(label, charted.map((index) => oldestFirst[index]), values),
       ].filter((node) => node !== null);
       drawn.forEach((node) => body.appendChild(node));
     }
@@ -731,12 +756,9 @@
   // triangle or a dash, like the delta lines on the Results cards.
   function buildSummary(metric, summary) {
     const change = describeChange(metric, summary.change);
-    const best =
-      summary.best === null
-        ? summaryValue(NOT_MEASURED, "progress-summary__value progress-summary__value--none")
-        : summaryValue(formatValue(metric, summary.best), "progress-summary__value num");
+    const best = valueOrNone(metric, summary.best, "progress-summary__value num");
     return app.ui.el("dl", { class: "progress-summary" }, [
-      summaryItem(LATEST_LABEL, summaryValue(formatValue(metric, summary.latest))),
+      summaryItem(LATEST_LABEL, valueOrNone(metric, summary.latest)),
       summaryItem(BEST_LABEL, best),
       summaryItem(
         CHANGE_LABEL,
@@ -753,6 +775,15 @@
       app.ui.el("dt", { class: "progress-summary__label", text: label }),
       value,
     ]);
+  }
+
+  // A value as its cell shows it, or "Not measured" for none: a Best no take can win, or a
+  // Latest with no take charted (Slips when no read could be counted).
+  function valueOrNone(metric, value, className) {
+    if (value === null) {
+      return summaryValue(NOT_MEASURED, "progress-summary__value progress-summary__value--none");
+    }
+    return summaryValue(formatValue(metric, value), className);
   }
 
   function summaryValue(text, className) {
@@ -1079,10 +1110,9 @@
     ]);
   }
 
-  // The same numbers as the chart, for screen readers: one row per session, oldest first, in
-  // the order the points run, under the chart's title (`label`).
-  function buildTable(label, sessions, values) {
-    const oldestFirst = [...sessions].reverse();
+  // The same numbers as the chart, for screen readers: one row per charted session, oldest first
+  // (`oldestFirst`), in the order the points run, under the chart's title (`label`).
+  function buildTable(label, oldestFirst, values) {
     const rows = oldestFirst.map((session, index) =>
       app.ui.el("tr", {}, [
         app.ui.el("th", { scope: "row", text: String(index + 1) }),

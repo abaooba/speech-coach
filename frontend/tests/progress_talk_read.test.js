@@ -1,5 +1,5 @@
 // Tests for the Talk | Read split on Progress (owner decision 2026-10-22; Superdesign draft
-// "Progress — Talk / Read mode switch", picked by the judge). A take read aloud has no filler
+// "Progress — Talk / Read segmented modes", picked by the judge). A take read aloud has no filler
 // words to say and few pauses, so charting it beside free talk drew a saw-tooth and let a read's
 // 0 win Best. Once the speaker has a read take (app.language.isReadTake), a Talk | Read switch
 // sits above the metric switch and each mode charts only its own takes; read takes chart Slips
@@ -72,9 +72,14 @@ const MIXED = [
 function mount(sessions, options) {
   const settings = options || {};
   const routes = [];
+  const summarized = [];
+  const summarize = (stored) => {
+    summarized.push(stored.id);
+    return stored.metrics;
+  };
   const context = {
     app: {
-      screens: { results: { summarize: (stored) => stored.metrics } },
+      screens: { results: { summarize } },
       store: { list: () => Promise.resolve([...sessions].reverse()) },
       router: { go: (name) => routes.push(name) },
     },
@@ -93,7 +98,7 @@ function mount(sessions, options) {
   root.appendChild(body);
   const progress = context.app.screens.progress;
   progress.mount(root);
-  return { progress, body, routes };
+  return { progress, body, routes, summarized };
 }
 
 function fullText(node) {
@@ -150,7 +155,7 @@ function titleOf(body) {
   return byClass(body, "progress__title").textContent;
 }
 
-test("with talk takes only, Progress draws as it always has, rule loaded or not", async () => {
+test("with talk takes only, Progress draws as it always has, the rule loaded", async () => {
   const { progress, body } = mount(MIXED.filter((take) => take.passageId === "free-talk"));
   await progress.show();
   assert.deepEqual(classesOf(body), [
@@ -164,7 +169,7 @@ test("with talk takes only, Progress draws as it always has, rule loaded or not"
   assert.equal(captionOf(body), null);
 });
 
-test("with a read take, a Talk | Read switch and its caption sit above the metric switch", async () => {
+test("with a read take, the Talk | Read switch and its caption come first", async () => {
   const { progress, body } = mount(MIXED);
   await progress.show();
   assert.deepEqual(classesOf(body), [
@@ -182,7 +187,7 @@ test("with a read take, a Talk | Read switch and its caption sit above the metri
   assert.deepEqual(optionsOf(modes), ["Talk", "Read"]);
   assert.deepEqual(pressedOf(modes), ["Talk"]);
   assert.deepEqual(optionsOf(metrics), ["Pace", "Fillers", "Pauses", "Clean"]);
-  assert.equal(captionOf(body), "3 takes · your own words · in your rating");
+  assert.equal(captionOf(body), "3 takes · your own words · rated");
 });
 
 test("Talk charts its own takes only: no read take adds a point or wins Best", async () => {
@@ -209,7 +214,7 @@ test("tapping Read charts the read takes, Slips in Fillers' place, the position 
   const metrics = switchesOf(body)[1];
   assert.deepEqual(optionsOf(metrics), ["Pace", "Slips", "Pauses", "Clean"]);
   assert.deepEqual(pressedOf(metrics), ["Slips"]);
-  assert.equal(captionOf(body), "2 takes · read aloud · not in your rating");
+  assert.equal(captionOf(body), "2 takes · read aloud · not rated");
   assert.equal(titleOf(body), "Read · Slips per minute");
   assert.equal(byClass(body, "progress__definition").textContent, "Restarts and misread words");
   assert.equal(dotsOf(body).length, 2);
@@ -234,7 +239,7 @@ test("every title, chart label and table caption names its mode", async () => {
   assert.equal(table.children[2].children.length, 2, "one row per read take");
 });
 
-test("the slips line takes the text colour and its axis reads 0 to 5 until a take goes higher", async () => {
+test("the slips line is in the text colour, on 0 to 5 until a take goes higher", async () => {
   const { progress, body } = mount(MIXED);
   await progress.show();
   tap(switchesOf(body)[0], "Read");
@@ -250,7 +255,7 @@ test("the slips line takes the text colour and its axis reads 0 to 5 until a tak
   assert.deepEqual(axisOf([6.2, 1]), [0, 8, [0, 2, 4, 6, 8]]);
 });
 
-test("a mode with under two takes shows Need two under the switch, with a Record action", async () => {
+test("a mode with under two takes shows Need two under the switch, and Record", async () => {
   const sessions = [talkOf("t1", 1), readOf("r1", 2), talkOf("t2", 3)];
   const { progress, body, routes } = mount(sessions);
   await progress.show();
@@ -260,10 +265,13 @@ test("a mode with under two takes shows Need two under the switch, with a Record
     "progress__caption",
     "state state--empty",
   ]);
-  assert.equal(captionOf(body), "1 take · read aloud · not in your rating");
+  assert.equal(captionOf(body), "1 take · read aloud · not rated");
   const block = byClass(body, "state");
   assert.equal(byClass(block, "state__title").textContent, "Need two Read takes");
-  assert.equal(byClass(block, "state__body").textContent, "Record one more Read take to see a trend.");
+  assert.equal(
+    byClass(block, "state__body").textContent,
+    "Record one more Read take to see a trend.",
+  );
   byClass(block, "state__action").listeners.click[0]({ preventDefault() {} });
   assert.deepEqual(routes, ["practice"]);
 });
@@ -277,7 +285,7 @@ test("with read takes only Progress opens on Read, and Talk asks for two talk ta
   const block = byClass(body, "state");
   assert.equal(byClass(block, "state__title").textContent, "Need two Talk takes");
   assert.equal(byClass(block, "state__body").textContent, "Record two Talk takes to see a trend.");
-  assert.equal(captionOf(body), "0 takes · your own words · in your rating");
+  assert.equal(captionOf(body), "0 takes · your own words · rated");
 });
 
 test("the chosen mode and metric survive leaving and reopening the screen", async () => {
@@ -304,6 +312,57 @@ test("the rank card stays first, above the Talk | Read switch", async () => {
   assert.equal(body.children[0], card, "a mode tap leaves the card in place");
 });
 
+test("a read that strayed from its passage is left out of Slips, not drawn as clean", async () => {
+  // A take on a passage with no script block reports no misreads: one that strayed from its
+  // passage, or one saved before takes were lined up against their script.
+  const strayed = readOf("r2", 4, {
+    slipsPerMinute: 0,
+    report: { speakingSeconds: 40, followedScript: false },
+  });
+  const sessions = [talkOf("t1", 1), talkOf("t2", 2), readOf("r1", 3, { slipsPerMinute: 2.8 }),
+    strayed, readOf("r3", 5, { slipsPerMinute: 1.4 })];
+  const { progress, body } = mount(sessions);
+  await progress.show();
+  tap(switchesOf(body)[0], "Read");
+  tap(switchesOf(body)[1], "Slips");
+  assert.equal(dotsOf(body).length, 2);
+  assert.deepEqual(summaryOf(body), [
+    "Latest1.4 /min",
+    "Best1.4 /min",
+    "From your average1.4 fewer",
+  ]);
+  assert.equal(byClass(body, "sr-only").children[2].children.length, 2, "one row per counted read");
+  tap(switchesOf(body)[1], "Pace");
+  assert.equal(dotsOf(body).length, 3, "its pace still counts");
+});
+
+test("with no read counted for slips, Latest and Best read Not measured", async () => {
+  const strayed = { slipsPerMinute: 0, report: { speakingSeconds: 40, followedScript: false } };
+  const { progress, body } = mount([readOf("r1", 1, strayed), readOf("r2", 2, strayed)]);
+  await progress.show();
+  tap(switchesOf(body)[1], "Slips");
+  assert.equal(dotsOf(body).length, 0);
+  assert.deepEqual(summaryOf(body), [
+    "LatestNot measured",
+    "BestNot measured",
+    "From your averageNo change",
+  ]);
+});
+
+test("each mode is summarized once, and a tap on the mode shown redraws nothing", async () => {
+  const { progress, body, summarized } = mount(MIXED);
+  await progress.show();
+  assert.deepEqual(summarized, ["t3", "t2", "t1"], "Talk's takes, newest first, as listed");
+  const modes = switchesOf(body)[0];
+  tap(modes, "Read");
+  tap(modes, "Talk");
+  tap(modes, "Read");
+  assert.deepEqual(summarized, ["t3", "t2", "t1", "r2", "r1"]);
+  const chart = chartOf(body);
+  tap(modes, "Read");
+  assert.equal(chartOf(body), chart);
+});
+
 // --- styles.css ---
 
 // The declarations of the rule whose selector list is exactly `selector`, outside any @media.
@@ -320,7 +379,7 @@ function declarations(selector) {
   );
 }
 
-test("the caption is a small muted line just under the switch, a gap above the metric switch", () => {
+test("the caption is a small muted line under the switch, a gap above the next", () => {
   assert.deepEqual(declarations(".progress__caption"), {
     margin: "var(--s-2) 0 0",
     "font-size": "var(--fs-small)",

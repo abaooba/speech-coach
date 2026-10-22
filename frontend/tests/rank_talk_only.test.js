@@ -25,7 +25,8 @@ const PROGRESS_NOTE = "Only Talk takes count for your rating. Read takes count f
 const UNRATED_NOTE =
   "No rating yet: it starts with your first Talk take. Read takes count for your streak.";
 const READ_FOOT = "Read takes don't change your rating. Only Talk takes count.";
-const READ_UNRATED_FOOT = "Read takes don't change your rating. It starts with your first Talk take.";
+const READ_UNRATED_FOOT =
+  "Read takes don't change your rating. It starts with your first Talk take.";
 
 // A stored take on `day` of October 2026 at `hour` local time that scores `score` over
 // `seconds`. `passageId` "free-talk" is a Talk prompt; "explainer-rainbows" a Read passage.
@@ -257,7 +258,7 @@ test("the note reads like the gate's sentence: small, muted, a step above the fo
   });
 });
 
-test("with no rating yet the first line under the hidden heading sits flush with the padding", () => {
+test("with no rating yet the first line shown sits flush with the padding", () => {
   assert.deepEqual(declarations(".rank-card--unrated > :nth-child(2)"), { "margin-top": "0" });
 });
 
