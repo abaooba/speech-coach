@@ -38,7 +38,8 @@ saved on the phone.
    The Coach card's "Check grammar & vocabulary" button is the only thing that
    calls `POST /api/language-check` (`language.js`, `backend/language/check.py`),
    and only when the speaker taps it.
-7. `rank.js` turns the last ten takes into a rating and a tier; `path.js`
+7. `rank.js` turns the last ten Talk takes into a rating and a tier (`language.js`
+   `isReadTake` keeps takes read aloud out of it, and Progress charts them apart); `path.js`
    turns the weakest skill into the next Loop Path level.
 
 ## Modules
@@ -74,7 +75,7 @@ saved on the phone.
 | `frontend/screens/results.js` | Coach card, speech map, metric cards, rank card, words to check, transcript |
 | `frontend/screens/coachcard.js` | The Coach card at the top of Results: headline, moment-linked tips, the grammar check |
 | `frontend/screens/history.js` | Every take, newest first, with delete |
-| `frontend/screens/progress.js` | One metric charted across takes; the rank card and streak |
+| `frontend/screens/progress.js` | One metric charted across takes, Talk and Read apart; the rank card and streak |
 | `frontend/screens/path.js` | The winding Path with its units and nodes |
 | `frontend/screens/level.js` | One Loop Path level: goal, take 1, review, take 2, result |
 | `frontend/screens/onboarding.js` | First launch: what is measured, what happens to audio |

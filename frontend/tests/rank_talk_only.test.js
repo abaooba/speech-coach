@@ -272,3 +272,20 @@ test("a read take on Results draws the rating as it stood and the read sentence"
     "no change line",
   );
 });
+
+// --- how.html ---
+
+test("How we count explains the rank: Talk takes only, reads for the streak, split charts", () => {
+  const html = read("how.html");
+  const start = html.indexOf("<h2>Your rank</h2>");
+  assert.ok(start !== -1, "how.html has a 'Your rank' section");
+  const section = html
+    .slice(start, html.indexOf("</section>", start))
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ");
+  assert.match(section, /last 10 Talk takes/);
+  assert.match(section, /Takes read aloud do not count/);
+  assert.match(section, /still count for your streak/);
+  assert.match(section, /separate charts/);
+  assert.match(section, /restarts and misread words/);
+});

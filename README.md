@@ -34,7 +34,8 @@ Phone width, light and dark. The history is seeded with two real takes
 - After a take or a level, a bottom sheet names the one next step. Each tab also opens a short
   guide the first time you visit it.
 - Progress: one metric charted across your takes, with your latest, your best and your change
-  from the average, under your rank and streak.
+  from the average, under your rank and streak. Talk and Read takes are charted apart, and only
+  Talk takes count for the rank: a passage read aloud has no filler words to say.
 - History: every take, newest first, with its pace, fillers per minute and a status word.
 - Onboarding, shown on first launch: the no-account promise, what is measured and where your
   audio and transcript go.
