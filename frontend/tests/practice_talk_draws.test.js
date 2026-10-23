@@ -121,8 +121,10 @@ test("at mount the first prompt shows a drawn topic, the draw picking it", () =>
 });
 
 test("every prompt with topics draws its own topic at mount, which its first tap passes over", () => {
-  // Impromptu's mount draw is "Uniform topic." at 0.99 and "Rule topic." at 0, so its chip's
-  // first tap, which never repeats the topic it is on, gives the other one.
+  // Without path.js a draw is any topic but the one the prompt is on. Impromptu's mount draw is
+  // "Uniform topic." at 0.99 and "Rule topic." at 0, so its chip's first tap gives the other one.
+  // (With path.js, the Path's rule passes over no topic that never showed, and the first tap can
+  // give it: practice_draws_shown.test.js.)
   const high = setup({ passages: PASSAGES, random: drawOf(0.99) });
   chipFor(high, "imp").click();
   assert.equal(cardText(high), "Rule topic.");
@@ -285,8 +287,10 @@ test("with path.js loaded a topic draw is app.path.pickTopic(takes, prompt, Math
   assert.equal(source, random, "the vm's own Math.random");
   assert.equal(current, "First topic.");
   assert.equal(asked[1][1], "imp");
-  assert.equal(asked[1][3], "Rule topic.", "Impromptu passes over the topic it was on");
-  assert.equal(cardText(t), "Uniform topic.");
+  // Impromptu's topic at mount, Rule topic., never showed, so its first tap passes over none, and
+  // at a draw of 0 it gives that topic, the first of the two no take used and no draw has shown.
+  assert.equal(asked[1][3], null, "no Impromptu topic has shown, so none is passed over");
+  assert.equal(cardText(t), "Rule topic.");
 });
 
 test("the takes app.store.list() gives at show() steer the draw to a topic not used yet", async () => {

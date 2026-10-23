@@ -6,10 +6,12 @@
 // the app opened, the ones each tab opens on included, as used at the moment it was shown. With
 // path.js loaded a draw takes an item neither used by a take nor shown yet, at random, and failing
 // that the one used or shown longest ago, so taps go through a whole prompt or group before any
-// item comes back, and never give the item on screen. What Practice has shown lives in its module
-// state only: it is never saved, never sent and in no session. The harness is
-// practice-harness.js; a `random` stub fixes every draw, and a `now` stub holds the clock still,
-// so every showing in a test falls in the same millisecond.
+// item comes back, and never give the item on screen. Mount draws every prompt a topic, but only
+// the one Talk opens on shows; another prompt's has never been on screen, so the first tap on its
+// chip does not pass over it. What Practice has shown lives in its module state only: it is
+// never saved, never sent and in no session. The harness is practice-harness.js; a `random` stub
+// fixes every draw, and a `now` stub holds the clock still, so every showing in a test falls in
+// the same millisecond.
 "use strict";
 
 const test = require("node:test");
@@ -38,6 +40,10 @@ function storyOf(number) {
   return "story-" + number;
 }
 
+function questionOf(number) {
+  return "Question " + number + ".";
+}
+
 // Talk first, as in passages.js: one prompt of six topics. Then the Read tab's one group, six
 // stories, so Read opens on one of them.
 const PROMPT = {
@@ -59,6 +65,18 @@ const STORIES = NUMBERS.map((number) => ({
 }));
 const PASSAGES = [PROMPT, ...STORIES];
 const GROUPS = [{ id: "story", label: "Story" }];
+
+// A second prompt of six topics, after the first, as Impromptu follows About you in passages.js.
+// Talk opens on the first prompt, so the topic mount draws for this one never shows.
+const SECOND = {
+  id: "imp",
+  kind: "prompt",
+  title: "Impromptu",
+  text: questionOf("one"),
+  topics: NUMBERS.map(questionOf),
+  targetWpm: [140, 160],
+  timeLimitSeconds: 120,
+};
 
 // The clock every test holds still, a day after the takes below.
 const NOW = Date.parse("2026-10-23T12:00:00.000Z");
@@ -99,6 +117,20 @@ function talksOn(numbers) {
   }));
 }
 
+// Saved takes: a talk on each of the second prompt's questions numbered.
+function answersTo(numbers) {
+  return numbers.map((number) => ({
+    id: "answer-" + number,
+    createdAt: usedAt(number),
+    passageId: SECOND.id,
+    passageTitle: SECOND.title,
+    durationSeconds: 60,
+    metrics: { pauses: [] },
+    transcript: [],
+    topic: questionOf(number),
+  }));
+}
+
 // Practice with path.js, the draw at 0 and the clock held still, once show() has listed `takes`.
 // At a draw of 0 Talk opens on topic one and Read on story one: both are drawn at mount, before
 // any take is read, and count as shown from then on.
@@ -116,12 +148,34 @@ async function practiceWith(takes) {
   return t;
 }
 
+// Practice on both prompts and the stories, with path.js, the draw at 0.5 and the clock held
+// still, once show() has listed `takes`. Mount draws before any take is read, so each of its
+// draws is over six items no take has used, and at 0.5 it gives the fourth: the second prompt is
+// on Question four., which never shows, while Talk opens on the first prompt, on Topic four.
+async function bothPromptsWith(takes) {
+  const t = setup({
+    passages: [PROMPT, SECOND, ...STORIES],
+    groups: GROUPS,
+    random: () => 0.5,
+    now: () => NOW,
+    withPath: true,
+    list: () => Promise.resolve(plain(takes)),
+  });
+  t.practice.show({});
+  await flush();
+  return t;
+}
+
 function talkChip(t) {
   return parts(t).chips.find((chip) => chip.dataset.passageId === PROMPT.id);
 }
 
 function storyChip(t) {
   return parts(t).chips.find((chip) => chip.dataset.group === "story");
+}
+
+function secondChip(t) {
+  return parts(t).chips.find((chip) => chip.dataset.passageId === SECOND.id);
 }
 
 // The number of what the card shows: "four" for "Topic four." on Talk and for story four on Read.
@@ -141,6 +195,19 @@ function twelveTaps(t, pick) {
   return shown;
 }
 
+// Taps the second prompt's chip, which selects it, then the control `pick` finds 11 times, and
+// gives the number of the question each of the 12 taps showed: none for a card showing anything
+// else.
+function twelveTapsOnSecond(t, pick) {
+  const shown = [];
+  for (let tap = 0; tap < 12; tap += 1) {
+    (tap === 0 ? secondChip(t) : pick()).click();
+    const text = parts(t).cardText.textContent;
+    shown.push(NUMBERS.find((number) => text === questionOf(number)));
+  }
+  return shown;
+}
+
 // The Talk tab's two ways to draw, then the Read tab's.
 const TALK_TAPS = {
   "its chip": talkChip,
@@ -149,6 +216,11 @@ const TALK_TAPS = {
 const READ_TAPS = {
   "its chip": storyChip,
   "New passage": (t) => parts(t).newTopic,
+};
+// The second prompt's two ways to draw, once a tap on its chip has selected it.
+const SECOND_TAPS = {
+  "its chip": secondChip,
+  "New topic": (t) => parts(t).newTopic,
 };
 
 // Each tap passes over the item on screen and, with every item used, takes the one used or shown
@@ -216,6 +288,36 @@ test("with no takes at all, the taps show every topic and passage once before an
   assert.deepEqual(twelveTaps(t, () => parts(t).newTopic), [...turn, ...turn], "New topic");
   parts(t).read.click();
   assert.deepEqual(twelveTaps(t, () => storyChip(t)), [...turn, ...turn], "the Story chip");
+});
+
+// --- Talk: a prompt Talk does not open on ------------------------------------------------------
+
+// Mount put the second prompt on Question four., which never showed, so the first tap on its chip
+// has no topic of that prompt on screen to pass over: it gives four when four is the one question
+// no take used, or the one used longest ago. Then each tap passes over the question on screen and
+// takes the one used or shown longest ago, so the taps go round the questions in the order the
+// takes used them, four first, and none comes back before the other five have shown. Before, the
+// first tap passed over four as if it were on screen and gave two, the oldest of the others, and
+// only the second tap gave four.
+
+test("another prompt's one unused topic, drawn for it at mount and never shown: its first tap gives it", async () => {
+  for (const [name, control] of Object.entries(SECOND_TAPS)) {
+    const t = await bothPromptsWith(answersTo(NUMBERS.filter((number) => number !== "four")));
+    assert.equal(t.practice.selectedPassage().id, PROMPT.id, `${name}: Talk opens on the first`);
+    const shown = twelveTapsOnSecond(t, () => control(t));
+    assert.equal(shown[0], "four", `${name}: the question no take used comes first`);
+    assert.deepEqual(shown, [...USED_OLDEST_FIRST, ...USED_OLDEST_FIRST], name);
+  }
+});
+
+test("another prompt's topic used longest ago, drawn for it at mount and never shown: its first tap gives it", async () => {
+  for (const [name, control] of Object.entries(SECOND_TAPS)) {
+    const t = await bothPromptsWith(answersTo(NUMBERS));
+    assert.equal(t.practice.selectedPassage().id, PROMPT.id, `${name}: Talk opens on the first`);
+    const shown = twelveTapsOnSecond(t, () => control(t));
+    assert.equal(shown[0], "four", `${name}: the question used longest ago comes first`);
+    assert.deepEqual(shown, [...USED_OLDEST_FIRST, ...USED_OLDEST_FIRST], name);
+  }
 });
 
 // --- What a showing is -------------------------------------------------------------------------
