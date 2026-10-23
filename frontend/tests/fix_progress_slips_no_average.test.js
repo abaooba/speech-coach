@@ -191,6 +191,19 @@ test("no read counted: all three cells read Not measured, in the none style", as
   );
 });
 
+test("one read counted: the chart's label says 1 session, then its latest value", async () => {
+  for (const [sessions, slips] of ONE_COUNTED) {
+    const body = await showChart(sessions, null, "Slips");
+    assert.equal(labelOf(body), "Read · Slips per minute over 1 session, latest " + slips);
+  }
+});
+
+test("no read counted: the chart's label says 0 sessions and gives no latest value", async () => {
+  // A latest of 0 would be heard as a measured 0, a clean read.
+  const body = await showChart(NONE_COUNTED, null, "Slips");
+  assert.equal(labelOf(body), "Read · Slips per minute over 0 sessions");
+});
+
 test("two reads counted: the change and the label are as before", async () => {
   const cases = [
     [readOf("r1", 1, { slipsPerMinute: 2.8 }), readOf("r2", 2, { slipsPerMinute: 1.4 })],
