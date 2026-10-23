@@ -329,10 +329,11 @@
     "well.",
   ].join(" ");
 
-  // The speeches are read word for word, as their transcripts print them. delivery.js never reads
-  // the script, so a "so" right before a comma counts as a habit when the reader pauses there
-  // (SO_HANG_SECONDS): Roosevelt's "So, first of all, ... fear itself" and Kennedy's "And so, my
-  // fellow Americans: ask not" are left out for that reason (passages_read_as_written.test.js).
+  // The speeches are read word for word, as their transcripts print them. delivery.js finds
+  // fillers in the spoken words alone, never against the script, so a "so" right before a comma
+  // counts as a habit when the reader pauses there (SO_HANG_SECONDS): Roosevelt's "So, first of
+  // all, ... fear itself" and Kennedy's "And so, my fellow Americans: ask not" are left out for
+  // that reason (passages_read_as_written.test.js).
   const GETTYSBURG_OPENING = [
     "Four score and seven years ago our fathers brought forth on this continent, a new",
     "nation, conceived in Liberty, and dedicated to the proposition that all men are",

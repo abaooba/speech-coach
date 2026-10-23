@@ -1,12 +1,12 @@
 // Tests that every text Speech Coach hands a speaker to read word for word shows no filler when
 // it is read as written (how.html: "A passage has no filler words to say"): the Read tab's 24
 // passages (docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 3.1), the 30
-// cold reads (section 3.2) and the benchmark read. app.delivery.analyze never reads the script,
-// so a word the text holds still counts as a habit when a reader sets it off: a "so" right
-// before a comma, with the pause a careful reader makes there (delivery.js SO_HANG_SECONDS), is
-// counted as a "so" the speaker hung on. Each text is read here as a careful reader says it,
-// word for word with a pause at every mark, and run through analyze. Modules load with
-// vm.runInNewContext.
+// cold reads (section 3.2) and the benchmark read. app.delivery.analyze finds fillers in the
+// spoken words alone, never against the script, so a word the text holds still counts as a habit
+// when a reader sets it off: a "so" right before a comma, with the pause a careful reader makes
+// there (delivery.js SO_HANG_SECONDS), is counted as a "so" the speaker hung on. Each text is
+// read here as a careful reader says it, word for word with a pause at every mark, and run
+// through analyze. Modules load with vm.runInNewContext.
 "use strict";
 
 const test = require("node:test");
