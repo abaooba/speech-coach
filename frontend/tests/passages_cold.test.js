@@ -189,18 +189,44 @@ test("read as written, a cold read says none of the habit words delivery.js coun
   }
 });
 
-test("Practice's Read tab still lists only the six practice passages, never a cold read", () => {
+// The Read tab shows one chip per group (tester feedback spec, section 2.3), and a group's chip
+// draws one of the group's passages on every tap.
+test("Practice's Read tab lists only the six practice passages, by group, never a cold read", () => {
   const { app, modeOptions, chips } = mountPractice();
   const read = modeOptions.find((option) => option.textContent === "Read");
   read.click();
-  const shown = chips.filter((chip) => !chip.hidden).map((chip) => chip.dataset.passageId);
-  const practicePassageIds = Array.from(app.passages)
-    .filter((entry) => entry.kind === "passage")
-    .map((entry) => entry.id);
+  const shown = chips.filter((chip) => !chip.hidden);
+  const groups = Array.from(app.passages.groups());
+  assert.deepEqual(
+    shown.map((chip) => chip.dataset.group),
+    groups.map((group) => group.id),
+  );
+  assert.deepEqual(
+    shown.map((chip) => chip.textContent),
+    groups.map((group) => group.label),
+  );
+  const practicePassages = Array.from(app.passages).filter((entry) => entry.kind === "passage");
+  const practicePassageIds = practicePassages.map((entry) => entry.id);
   assert.equal(practicePassageIds.length, PASSAGE_COUNT);
-  assert.deepEqual(shown, practicePassageIds);
-  assert.equal(chips.length, app.passages.length, "one chip per app.passages entry");
+  assert.deepEqual(
+    [...new Set(practicePassages.map((entry) => entry.group))],
+    groups.map((group) => group.id),
+    "each practice passage sits in a group with a chip",
+  );
+  assert.equal(chips.length, PROMPT_COUNT + groups.length, "one chip per prompt and per group");
   const coldIds = new Set(Array.from(app.passages.coldReads(), (entry) => entry.id));
   const coldChips = chips.filter((chip) => coldIds.has(chip.dataset.passageId));
   assert.deepEqual(coldChips, [], "no chip for a cold read");
+  // Every tap on a group's chip shows one of that group's practice passages, so the chips show
+  // the six and nothing else.
+  for (const chip of shown) {
+    const members = practicePassages
+      .filter((entry) => entry.group === chip.dataset.group)
+      .map((entry) => entry.id);
+    for (let tap = 0; tap < 3; tap += 1) {
+      chip.click();
+      const passage = app.screens.practice.selectedPassage();
+      assert.ok(members.includes(passage.id), `${passage.id} under ${chip.textContent}`);
+    }
+  }
 });

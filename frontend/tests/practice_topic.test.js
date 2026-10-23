@@ -33,26 +33,31 @@ function chipFor(t, id) {
   return parts(t).chips.find((chip) => chip.dataset.passageId === id);
 }
 
+// Practice draws its topics (tester feedback spec, section 2): at a draw of 0.5, Your day opens on
+// "Second topic.", and New topic then draws the second of the two topics not on screen.
+const DRAW = () => 0.5;
+
 test("a Talk take on a prompt with topics saves the topic on screen", async () => {
-  const t = setup();
-  assert.equal(parts(t).cardText.textContent, "First topic.");
+  const t = setup({ random: DRAW });
+  assert.equal(parts(t).cardText.textContent, "Second topic.");
   const session = await savedTake(t);
-  assert.equal(session.topic, "First topic.");
+  assert.equal(session.topic, "Second topic.");
   assert.equal(session.passageId, "free-talk");
   assert.equal(session.passageTitle, "Your day");
 });
 
 test("after New topic the take saves the topic it moved to", async () => {
-  const t = setup();
-  parts(t).newTopic.click();
+  const t = setup({ random: DRAW });
   parts(t).newTopic.click();
   assert.equal(parts(t).cardText.textContent, "Third topic.");
+  parts(t).newTopic.click();
+  assert.equal(parts(t).cardText.textContent, "Second topic.");
   const session = await savedTake(t);
-  assert.equal(session.topic, "Third topic.");
+  assert.equal(session.topic, "Second topic.");
 });
 
 test("the whole saved session of a Talk take: the five fields and its topic", async () => {
-  const t = setup();
+  const t = setup({ random: DRAW });
   const session = await savedTake(t);
   assert.deepEqual(plain(session), {
     passageId: "free-talk",
@@ -60,7 +65,7 @@ test("the whole saved session of a Talk take: the five fields and its topic", as
     durationSeconds: 12,
     metrics: ANALYSIS.metrics,
     transcript: ANALYSIS.transcript,
-    topic: "First topic.",
+    topic: "Second topic.",
   });
 });
 
@@ -99,29 +104,32 @@ function bannerButton(node, label) {
 // saved is still the one on screen when the take was recorded, not the one Talk moved to while
 // the upload was failing.
 test("Retry upload from the banner saves the topic the take was recorded on", async () => {
-  const t = setup();
+  const t = setup({ random: DRAW });
   const banner = mountBanner(t);
   parts(t).newTopic.click();
+  assert.equal(parts(t).cardText.textContent, "Third topic.");
   await t.recordTake(12000);
   t.rejectUpload("network");
   await flush();
   assert.equal(banner.dataset.kind, "failed");
   assert.equal(t.stateEl.children.length, 0, "the failure is in the banner, not on Practice");
   parts(t).newTopic.click();
+  assert.equal(parts(t).cardText.textContent, "Second topic.", "Talk moved on meanwhile");
   bannerButton(banner, "Retry upload").click();
   t.resolveUpload(ANALYSIS);
   await flush();
   assert.equal(t.calls.save.length, 1, "one take, one save");
-  assert.equal(t.calls.save[0].topic, "Second topic.");
+  assert.equal(t.calls.save[0].topic, "Third topic.");
 });
 
-test("with the real passages, Your day's first take saves its first topic", async () => {
+// Your day holds 29 topics; a draw of 0.5 at mount gives the 15th.
+test("with the real passages, Your day's first take saves the topic drawn at mount", async () => {
   const passages = realPassages();
-  const t = setup({ passages });
+  const t = setup({ passages, random: DRAW });
   const yourDay = passages.find((entry) => entry.id === "free-talk");
   const session = await savedTake(t);
   assert.equal(session.passageId, "free-talk");
-  assert.equal(session.topic, yourDay.topics[0]);
+  assert.equal(session.topic, yourDay.topics[14]);
 });
 
 test("a level take on a prompt saves its material's topic", async () => {

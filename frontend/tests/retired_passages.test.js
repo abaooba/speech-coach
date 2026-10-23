@@ -148,6 +148,8 @@ test("no retired id is a Practice entry, a cold read or benchmark material", () 
   );
 });
 
+// A Talk entry has a chip of its own and a Read group one chip for its passages (tester feedback
+// spec, section 2.3): the chips reach every Practice entry, and nothing else.
 test("Practice lists no chip for a retired id", () => {
   const app = loadApp(["ui.js", "passages.js", path.join("screens", "practice.js")], {
     api: { messages: {} },
@@ -158,10 +160,22 @@ test("Practice lists no chip for a retired id", () => {
   root.appendChild(body);
   app.screens.practice.mount(root);
   const chips = findClass(body, "chip-row").children;
-  assert.equal(chips.length, app.passages.length, "one chip per Practice entry");
+  const entries = Array.from(app.passages);
+  const prompts = entries.filter((entry) => entry.kind === "prompt");
+  assert.equal(
+    chips.length,
+    prompts.length + app.passages.groups().length,
+    "one chip per Talk entry and one per Read group",
+  );
+  const reached = chips.flatMap((chip) =>
+    chip.dataset.group === undefined
+      ? [chip.dataset.passageId]
+      : entries.filter((entry) => entry.group === chip.dataset.group).map((entry) => entry.id),
+  );
+  assert.deepEqual([...reached].sort(), entries.map((entry) => entry.id).sort());
   const retiredIds = RETIRED.map((entry) => entry.id);
   assert.deepEqual(
-    chips.map((chip) => chip.dataset.passageId).filter((id) => retiredIds.includes(id)),
+    reached.filter((id) => retiredIds.includes(id)),
     [],
   );
 });

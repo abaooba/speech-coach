@@ -325,14 +325,20 @@ test("once the box holds a script, its summary says so and counts the words", ()
   assert.equal(t.summary.textContent, "Paste your script (optional)");
 });
 
+// New topic draws any topic but the one on screen (tester feedback spec, section 2.2): with two
+// topics, the other one.
 test("a script left in the closed box is named on its summary and still sent", async () => {
   const t = setup();
   t.scriptBox.open = true;
   t.type("Our case rests on two points.");
   t.scriptBox.open = false;
   const card = byClass(t.body, "passage-card");
+  const before = byClass(card, "passage-card__text").textContent;
   byClass(card, "passage-card__new").click();
-  assert.equal(byClass(card, "passage-card__text").textContent, "Talk about your week.");
+  assert.equal(
+    byClass(card, "passage-card__text").textContent,
+    PASSAGES[0].topics.find((topic) => topic !== before),
+  );
 
   assert.equal(t.summary.textContent, "Your script (6 words)");
   await t.recordTake();

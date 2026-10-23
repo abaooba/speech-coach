@@ -225,6 +225,8 @@ test("path.js assigns exactly app.path", () => {
     "order",
     "ownTakes",
     "pickColdRead",
+    // pickPassage: Practice's Read-tab draw (2026-10-22 tester feedback spec, section 2.1).
+    "pickPassage",
     "pickTopic",
     "playById",
     "ringOf",

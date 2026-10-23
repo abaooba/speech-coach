@@ -2970,23 +2970,39 @@
 
   // --- Cold reads -----------------------------------------------------------------------------
 
-  // A cold read for the next take: a passage from app.passages.coldReads() the speaker has
-  // never read (no take in `history` has its id), drawn with `random`, a function returning a
-  // number in [0, 1) such as Math.random, so a test can fix the draw. Once every cold read has
-  // been read, the one read longest ago comes back, as backend advice does once every entry has
-  // been shown. Null when there are no cold reads.
+  // A cold read for the next take: pickPassage over app.passages.coldReads(), so a passage the
+  // speaker has never read (no take in `history` has its id), drawn with `random`, a function
+  // returning a number in [0, 1) such as Math.random, so a test can fix the draw. Once every cold
+  // read has been read, the one read longest ago comes back, as backend advice does once every
+  // entry has been shown. Null when there are no cold reads.
   function pickColdRead(history, random) {
     if (typeof random !== "function") {
       throw new TypeError("pickColdRead needs a random source, such as Math.random");
     }
-    const coldReads = coldReadPassages();
+    return pickPassage(history, coldReadPassages(), random);
+  }
+
+  // A passage of `passages` for the next take, by the cold reads' rule: one no take in `history`
+  // has read (none carries its id), drawn with `random`, a function returning a number in [0, 1)
+  // such as Math.random; once every one has been read, the one read longest ago. `exclude` is an
+  // id, or a list of them, to pass over while any other is left. Null for an empty list.
+  // Practice's Read tab draws each group's passages with it (spec
+  // docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 2.1).
+  function pickPassage(history, passages, random, exclude) {
+    if (typeof random !== "function") {
+      throw new TypeError("pickPassage needs a random source, such as Math.random");
+    }
+    const all = listOf(passages);
+    const avoided = new Set(typeof exclude === "string" ? [exclude] : listOf(exclude));
+    const allowed = all.filter((passage) => !avoided.has(passage.id));
+    const pool = allowed.length > 0 ? allowed : all;
     const takes = listOf(history).filter((take) => take && typeof take === "object");
     const read = new Set(takes.map((take) => take.passageId));
-    const unread = coldReads.filter((passage) => !read.has(passage.id));
+    const unread = pool.filter((passage) => !read.has(passage.id));
     if (unread.length > 0) {
       return unread[indexFor(random(), unread.length)];
     }
-    return leastRecent(coldReads, takes, (passage, take) => take.passageId === passage.id);
+    return leastRecent(pool, takes, (passage, take) => take.passageId === passage.id);
   }
 
   // The draw as an index into a list of `length`, kept inside it whatever the source returns.
@@ -3128,6 +3144,7 @@
     materialFor,
     pickTopic,
     pickColdRead,
+    pickPassage,
     topFillers,
     localDay,
     addDays,
