@@ -494,12 +494,13 @@
   // is any other item at random. A pool of one gives that one. Math.random draws, so a test fixes
   // it on its vm context's Math.
 
-  // A topic of `entry`, a prompt with topics, other than `current` while another is left. The
-  // Path's rule passes over `current` only once a topic of the prompt has shown (hasShownTopic).
-  // mount() draws every prompt a topic, but only the opening prompt's shows. Another prompt's
-  // has never been on screen, and passing over it could skip the one topic no take has used, or
-  // the one used longest ago. The draw without app.path passes over `current` either way: mount()
-  // drew it at random, so every topic stays as likely as any other.
+  // A topic of `entry`, a prompt with topics. Once a topic of the prompt has shown
+  // (hasShownTopic), it is one other than `current` while another is left. Before that, the
+  // Path's rule passes over none and can give `current` itself: mount() draws every prompt a
+  // topic, but only the opening prompt's shows, so another prompt's `current` has never been on
+  // screen, and passing over it could skip the one topic no take has used or, with every topic
+  // used, the one used longest ago. The draw without app.path passes over `current` either way:
+  // mount() drew it at random, so every topic stays as likely as any other.
   function drawTopic(entry, current) {
     const path = app.path;
     if (path && typeof path.pickTopic === "function") {
