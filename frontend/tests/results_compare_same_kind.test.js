@@ -261,19 +261,23 @@ test("without language.js, or without its rule, every take is talk, as before", 
   }
 });
 
+// A take titled like the bundled sample ("Sample: ..."), saved on `passageId`: on a Talk prompt
+// it is a talk, on a Read tab passage a read.
+function sample(id, day, passageId, wpm) {
+  return { ...take(id, day, passageId, { wpm }), passageTitle: "Sample: " + passageId };
+}
+
 test("a sample stays out of the comparison, whatever its kind", async () => {
-  const sample = {
-    ...take("sample", 10, "explain-something", { wpm: 200 }),
-    passageTitle: "Sample: Explain something",
-  };
-  const body = await shown(
-    [
-      take("talk-1", 8, TALK_PROMPT, { wpm: 110 }),
-      take("read-1", 9, READ_PASSAGE, { wpm: 150 }),
-      sample,
-      take("talk-2", 11, TALK_PROMPT, { wpm: 130 }),
-    ],
-    "talk-2",
-  );
-  assert.equal(deltaTexts(body)[0], "20 faster", "talk-1: neither the sample nor the read");
+  const sessions = [
+    take("talk-1", 7, TALK_PROMPT, { wpm: 110 }),
+    take("read-1", 8, READ_PASSAGE, { wpm: 150 }),
+    sample("talk-sample", 9, "explain-something", 200),
+    sample("read-sample", 10, READ_PASSAGE, 90),
+    take("talk-2", 11, TALK_PROMPT, { wpm: 130 }),
+    take("read-2", 12, COLD_READ, { wpm: 160 }),
+  ];
+  const talk = await shown(sessions, "talk-2");
+  assert.equal(deltaTexts(talk)[0], "20 faster", "talk-1: neither a sample nor the read");
+  const reading = await shown(sessions, "read-2");
+  assert.equal(deltaTexts(reading)[0], "10 faster", "read-1, not the sample read since");
 });
