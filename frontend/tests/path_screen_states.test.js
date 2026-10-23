@@ -439,7 +439,15 @@ test("the benchmark line sits where the card would, before the units", async () 
   const { body } = await shown({ sessions: sitting("2026-10-13") });
   assert.deepEqual(
     body.children.map((child) => classOf(child)),
-    ["path__status", "path__benchmark", "path-unit", "path-unit", "path-unit", "path-unit"],
+    [
+      "path__status",
+      "path__benchmark",
+      "segmented path-switch",
+      "path-unit",
+      "path-unit",
+      "path-unit",
+      "path-unit",
+    ],
   );
   assert.equal(unitsOf(body).length, 4);
 });

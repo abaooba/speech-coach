@@ -4581,13 +4581,13 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* 13. Path screen (#/path), the Loop Path's map (spec
    docs/superpowers/specs/2026-10-14-loop-path.md section 9). Under the h1: the status row, the
-   benchmark, then one block per unit, its card over its steps winding down the page. Each step
-   is a grid row of three columns, the room before the node, the 104px node (its circle over its
-   label) and the side that holds its card, so a node's centre sits at 25% or 75% of the row and
-   the checkpoint's at 50%, where screens/path.js nodeX places them. A link drops from one node's
-   centre to the foot of its row, however tall an open card makes it, crosses in the gap below
-   the row and drops into the next node. Cleared is --ok, current --accent, gold --warn. Nothing
-   animates. */
+   benchmark, the Units switch, then one block per unit, its card over its steps winding down the
+   page; only the unit picked on the switch shows. Each step is a grid row of three columns, the
+   room before the node, the 104px node (its circle over its label) and the side that holds its
+   card, so a node's centre sits at 25% or 75% of the row and the checkpoint's at 50%, where
+   screens/path.js nodeX places them. A link drops from one node's centre to the foot of its row,
+   however tall an open card makes it, crosses in the gap below the row and drops into the next
+   node. Cleared is --ok, current --accent, gold --warn. Nothing animates. */
 .path__status {
   display: flex;
   flex-wrap: wrap;
@@ -4692,9 +4692,73 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-1);
 }
 
-/* A unit: its card, then its steps, a section gap from the next unit. */
-.path-unit + .path-unit {
-  margin-top: var(--s-6);
+/* The Units switch: the segmented control of section 4, its four options two by two, as
+   Progress's metric switch at 200% zoom, --s-3 above the unit it shows. Each option is the
+   unit's name over its level in words, the name in --text (--accent once pressed) and the
+   level in --muted, with the due chip's --muted clock after the name while one of the unit's
+   check-backs is due. Names may wrap but never truncate. */
+.path-switch {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: var(--s-3);
+}
+
+.path-switch__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: var(--s-2);
+  text-align: center;
+}
+
+.path-switch__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.segmented__option--selected .path-switch__name {
+  color: var(--accent);
+}
+
+.path-switch__name svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.path-switch__level {
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* From 600px the four options share one row. */
+@media (min-width: 600px) {
+  .path-switch {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* 200% zoom on a phone leaves a 160 to 215px window, too narrow for two options side by side:
+   the four stack. */
+@media (max-width: 239px) {
+  .path-switch {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A unit: its card, then its steps. Only the unit picked on the switch shows; the others are
+   hidden, and take no room. */
+.path-unit[hidden] {
+  display: none;
 }
 
 .path-unit__card {

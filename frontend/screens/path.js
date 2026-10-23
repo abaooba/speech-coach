@@ -1,7 +1,9 @@
 /* screens/path.js: app.screens.path (#/path), the Loop Path's map (spec
-   docs/superpowers/specs/2026-10-14-loop-path.md section 9): this week's practice days, the
-   check-backs due today and the benchmark, then one block per unit, weakest first, whose levels
-   wind down the page as node buttons that each open a small card. app.path decides every state
+   docs/superpowers/specs/2026-10-14-loop-path.md section 9, and section 5 of
+   docs/superpowers/specs/2026-10-22-tester-feedback-design.md): this week's practice days, the
+   check-backs due today and the benchmark, then the Units switch over one block per unit,
+   weakest first, whose levels wind down the page as node buttons that each open a small card.
+   One unit's block shows at a time, the one picked on the switch. app.path decides every state
    and app.loop writes the dates; this file only draws them. nodeX, dropD and linkD lay out the
    path. */
 (function () {
@@ -79,6 +81,10 @@
   // A change since the first sitting reads "6 → 2", and a screen reader hears "6 to 2".
   const CHANGE_ARROW = "→";
   const CHANGE_ARROW_SPOKEN = "to";
+  // The Units switch's group name, and what an option's name adds while one of its unit's
+  // check-backs is due ("Fillers, level 3 of 5, check-back due").
+  const UNITS_LABEL = "Units";
+  const DUE_NOTE = ", check-back due";
   const NEW_TAB_NOTE = ", opens in a new tab";
   // Between the source line's linked credit and the work that follows it in plain text.
   const WORK_SEPARATOR = ", ";
@@ -122,6 +128,12 @@
   // Counts show() calls, so a slow store read from an earlier visit never paints over a newer
   // one, and a draw still on its way when the screen hides is dropped.
   let showCount = 0;
+
+  // The id of the unit whose block shows, picked on the Units switch. The first draw sets it to
+  // the unit holding the screen's primary Start (the weakest that can start), else the first in
+  // app.path.order, and a tap changes it. It stays while the app is open, through hide() and
+  // every redraw, so a level visit and its back link come back to it.
+  let shownUnitId = null;
 
   // True while a drawn path is on screen: a later show() keeps it up until the new one is
   // ready, where the first one (or one after an error) says the path is loading.
@@ -260,21 +272,30 @@
     return days;
   }
 
-  // The status row, the benchmark, then the units, weakest first: {parts, firstHeading}.
-  // `drawing` hands the one primary button to the first Start drawn on an open card, the
-  // weakest unit's next step, and keeps the first heading for focus.
+  // The status row, the benchmark, the Units switch, then the units, weakest first, of which
+  // only the shown one is not hidden: {parts, firstHeading}. Before the first pick the unit
+  // shown is the first one whose next step can start, the one that holds the screen's primary
+  // Start, else the first unit. `drawing` keeps the first heading for focus: the benchmark's
+  // when one is due, else the shown unit's.
   function buildPath(view) {
-    const drawing = { primaryTaken: false, firstHeading: null, parts: [] };
+    const drawing = { firstHeading: null, parts: [] };
     drawing.parts.push(buildStatus(view));
     const benchmark = buildBenchmark(view.benchmark, drawing);
     if (benchmark !== null) {
       drawing.parts.push(benchmark);
     }
-    view.units.forEach((pathUnit) => drawing.parts.push(buildUnit(pathUnit, view, drawing)));
+    const blocks = view.units.map((pathUnit) => buildUnit(pathUnit, view));
+    if (!blocks.some((block) => block.pathUnit.id === shownUnitId)) {
+      const startable = blocks.find((block) => block.nextStart !== null);
+      shownUnitId = (startable || blocks[0]).pathUnit.id;
+    }
+    drawing.parts.push(buildSwitch(view, blocks));
+    heading(drawing, blocks.find((block) => block.pathUnit.id === shownUnitId).title);
+    blocks.forEach((block) => drawing.parts.push(block.section));
     return drawing;
   }
 
-  // Keeps the first h2 drawn, where focus goes after Try again.
+  // Keeps the first h2 offered, where focus goes after Try again.
   function heading(drawing, element) {
     if (drawing.firstHeading === null) {
       drawing.firstHeading = element;
@@ -397,29 +418,117 @@
     ];
   }
 
+  // --- The Units switch ------------------------------------------------------------------------
+
+  // The house segmented control (DESIGN.md section 6), one toggle per unit in app.path.UNITS'
+  // fixed order, so a unit's place never moves under the thumb. A tap on another unit shows its
+  // block alone and hands its next step's Start the screen's one primary button; the tapped
+  // option keeps focus, and nothing is redrawn, read, announced or scrolled. `blocks` are the
+  // units as buildUnit draws them.
+  function buildSwitch(view, blocks) {
+    const options = app.path.UNITS.map((pathUnit) =>
+      buildOption(pathUnit, view, () => choose(pathUnit.id)),
+    );
+
+    function choose(unitId) {
+      if (unitId === shownUnitId) {
+        return;
+      }
+      shownUnitId = unitId;
+      applyShown();
+    }
+
+    // Shows the picked unit's block and hides the others, gives its next step's Start the
+    // primary look, and presses its option.
+    function applyShown() {
+      blocks.forEach((block) => {
+        const shown = block.pathUnit.id === shownUnitId;
+        block.section.hidden = !shown;
+        if (block.nextStart !== null) {
+          block.nextStart.className = startClass(shown);
+        }
+      });
+      options.forEach((option, index) =>
+        markOption(option, app.path.UNITS[index].id === shownUnitId),
+      );
+    }
+
+    applyShown();
+    return app.ui.el(
+      "div",
+      { class: "segmented path-switch", role: "group", "aria-label": UNITS_LABEL },
+      options,
+    );
+  }
+
+  // An option: the unit's name over its level in words, the name followed by the due chip's
+  // clock while one of the unit's check-backs is due. Its own name says all of it, the clock in
+  // words: "Fillers, level 3 of 5, check-back due".
+  function buildOption(pathUnit, view, onClick) {
+    const level = levelText(pathUnit, view.cleared);
+    const due = view.due.some((entry) => app.path.levelById(entry.levelId).unit === pathUnit.id);
+    const name = pathUnit.title + ", " + lowerFirst(level) + (due ? DUE_NOTE : "");
+    return app.ui.el(
+      "button",
+      {
+        class: "segmented__option path-switch__option",
+        type: "button",
+        "aria-label": name,
+        onClick,
+      },
+      [
+        app.ui.el(
+          "span",
+          { class: "path-switch__name", text: pathUnit.title },
+          due ? chipIcon("clock") : null,
+        ),
+        app.ui.el("span", { class: "path-switch__level", text: level }),
+      ],
+    );
+  }
+
+  // "Level 3 of 5", the unit's first level not cleared yet, resting or not; "All 5 cleared" once
+  // every level is.
+  function levelText(pathUnit, cleared) {
+    const level = app.path.currentLevel(pathUnit, cleared);
+    const count = pathUnit.levels.length;
+    return level ? "Level " + level.number + " of " + count : "All " + count + " cleared";
+  }
+
+  // Presses an option or lets it go, its tint following aria-pressed, as on Progress.
+  function markOption(option, pressed) {
+    option.classList.toggle("segmented__option--selected", pressed);
+    option.setAttribute("aria-pressed", String(pressed));
+  }
+
   // --- A unit ----------------------------------------------------------------------------------
 
-  // One unit: its card, then its levels and checkpoint as an ordered list winding down the page,
-  // the crown beside level 3. Each node opens its own card. The levels and the checkpoint open
-  // theirs one at a time in a unit; the unit's next step (its current level, or once every level
-  // is cleared its open checkpoint) has its card open from the start. The crown opens and closes
-  // its card on its own: it sits under level 3's card, and closing that card as the crown's
-  // opened would pull the crown up from under the finger.
-  function buildUnit(pathUnit, view, drawing) {
+  // One unit, {pathUnit, section, title, nextStart}: `section` its card, then its levels and
+  // checkpoint as an ordered list winding down the page, the crown beside level 3; `title` the
+  // card's h2; `nextStart` the Start on its next step's card, or null when that cannot start.
+  // Each node opens its own card. The levels and the checkpoint open theirs one at a time in a
+  // unit; the unit's next step (its current level, or once every level is cleared its open
+  // checkpoint) has its card open from the start. The crown opens and closes its card on its
+  // own: it sits under level 3's card, and closing that card as the crown's opened would pull
+  // the crown up from under the finger.
+  function buildUnit(pathUnit, view) {
     const cards = oneCardAtATime();
     const steps = pathUnit.levels
       .map((level) => levelStep(pathUnit, level, view))
       .concat([checkpointStep(pathUnit, view)]);
     const next = nextStepOf(steps);
+    let nextStart = null;
     const items = steps.map((step, index) => {
       const x = nodeX(index, steps.length);
       const isNext = step === next;
-      const primary = takePrimary(drawing, isNext && step.card.start !== null);
-      const pair = buildPair(step, POINTERS[x], isNext, primary, cards);
+      const pair = buildPair(step, POINTERS[x], isNext, cards);
+      if (isNext) {
+        nextStart = pair.start;
+      }
       const beside = [];
       if (pathUnit.crown && step.number === CROWN_BESIDE_LEVEL) {
         const crownCard = oneCardAtATime();
-        const crown = buildPair(crownStep(pathUnit, view), POINT_UP, false, false, crownCard);
+        const crown = buildPair(crownStep(pathUnit, view), POINT_UP, false, crownCard);
         beside.push(crown.node, crown.card);
       }
       const link =
@@ -433,9 +542,9 @@
       ]);
     });
     const title = app.ui.el("h2", { class: "path-unit__title", text: pathUnit.title });
-    return app.ui.el("section", { class: "path-unit" }, [
+    const section = app.ui.el("section", { class: "path-unit" }, [
       app.ui.el("div", { class: "path-unit__card" }, [
-        heading(drawing, title),
+        title,
         app.ui.el("p", { class: "path-unit__subtitle", text: pathUnit.subtitle }),
         buildWhy(pathUnit.why),
       ]),
@@ -446,6 +555,7 @@
         items,
       ),
     ]);
+    return { pathUnit, section, title, nextStart };
   }
 
   // The unit's "why this works" line, then its source on a line of its own: the short credit
@@ -485,16 +595,6 @@
     const checkpoint = steps[steps.length - 1];
     const allCleared = levels.every((step) => step.state === CLEARED);
     return allCleared && checkpoint.state === OPEN ? checkpoint : null;
-  }
-
-  // Whether a Start is the screen's one primary button: the first one asked for, on an open
-  // card, which is the weakest unit's next step.
-  function takePrimary(drawing, wanted) {
-    if (!wanted || drawing.primaryTaken) {
-      return false;
-    }
-    drawing.primaryTaken = true;
-    return true;
   }
 
   // --- The steps -------------------------------------------------------------------------------
@@ -696,10 +796,10 @@
 
   // --- Nodes, cards and links ------------------------------------------------------------------
 
-  // A step's node button and its card. The button's name says everything its circle and label
-  // show, which are hidden from screen readers; aria-expanded and aria-controls tie it to the
-  // card, which `cards` opens and closes.
-  function buildPair(step, pointer, startOpen, primary, cards) {
+  // A step's node button and its card, {node, card, start}, `start` the card's Start or null.
+  // The button's name says everything its circle and label show, which are hidden from screen
+  // readers; aria-expanded and aria-controls tie it to the card, which `cards` opens and closes.
+  function buildPair(step, pointer, startOpen, cards) {
     const cardId = CARD_ID_PREFIX + step.id;
     const classes = ["path-node", "path-node--" + step.kind, "path-node--" + step.state].concat(
       step.modifiers.map((modifier) => "path-node--" + modifier),
@@ -724,7 +824,8 @@
           : app.ui.el("span", { class: "path-node__note", "aria-hidden": "true", text: step.note }),
       ],
     );
-    const pair = { node, card: buildCard(cardId, step.card, pointer, startOpen, primary) };
+    const { card, start } = buildCard(cardId, step.card, pointer, startOpen);
+    const pair = { node, card, start };
     cards.add(pair, startOpen);
     return pair;
   }
@@ -734,29 +835,35 @@
     return app.ui.el("span", { class: "path-node__badge" }, app.ui.icon(icon, BADGE_ICON_SIZE));
   }
 
-  // A node's card: its lines, then Start when it has a play to start, primary only for the
-  // screen's one primary action. The next step's card is tinted, and every card points at its
-  // node.
-  function buildCard(id, card, pointer, isNext, primary) {
+  // A node's card and its Start, {card, start}: its lines, then Start when it has a play to
+  // start, else `start` is null. Every Start is drawn secondary; the Units switch gives the
+  // shown unit's next step's the primary look. The next step's card is tinted, and every card
+  // points at its node.
+  function buildCard(id, card, pointer, isNext) {
     const children = card.lines.map((line) =>
       app.ui.el("p", { class: "path-card__text", text: line }),
     );
+    let start = null;
     if (card.start !== null) {
-      const variant = primary ? "btn--primary" : "btn--secondary";
-      children.push(
-        app.ui.el("button", {
-          class: "btn " + variant + " path-card__start",
-          type: "button",
-          "aria-label": START + " " + card.startName,
-          text: START,
-          onClick: () => startPlay(card.start),
-        }),
-      );
+      start = app.ui.el("button", {
+        class: startClass(false),
+        type: "button",
+        "aria-label": START + " " + card.startName,
+        text: START,
+        onClick: () => startPlay(card.start),
+      });
+      children.push(start);
     }
     const classes = ["path-card", "path-card--" + pointer].concat(
       isNext ? ["path-card--current"] : [],
     );
-    return app.ui.el("div", { class: classes.join(" "), id }, children);
+    return { card: app.ui.el("div", { class: classes.join(" "), id }, children), start };
+  }
+
+  // A card's Start is secondary, but for the screen's one primary button: the shown unit's
+  // next step's.
+  function startClass(primary) {
+    return "btn " + (primary ? "btn--primary" : "btn--secondary") + " path-card__start";
   }
 
   // A group of cards, one open at a time (a unit's steps, or a crown alone): opening a node's

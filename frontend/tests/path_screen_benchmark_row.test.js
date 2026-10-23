@@ -125,7 +125,7 @@ test("the Path no longer carries the benchmark's sentence", async () => {
 
 // --- its stylesheet -------------------------------------------------------------------------
 
-test("the row puts the title and the length in its first column, the Start across both rows", () => {
+test("the row's first column holds the title and the length; the Start spans both rows", () => {
   const row = rule(".path-benchmark");
   assert.equal(row.display, "grid");
   assert.equal(row["grid-template-columns"], "minmax(0, 1fr) auto");
