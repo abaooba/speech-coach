@@ -10,8 +10,10 @@
    idle, else from the banner's "See results". In level mode (startLevelTake, spec
    docs/superpowers/specs/2026-10-14-loop-path.md section 7) a level banner stands in for the
    switch and the chips, the take uploads in place, and the saved take goes back to the Level
-   screen instead of Results. It never asks for the microphone before a Record tap, and never
-   stores audio. */
+   screen instead of Results. While a normal take records, a row under the clock shows the pace
+   the phone estimates from the microphone (app.delivery.livePace, spec section 7); every take's
+   analysis then tunes that estimate for its mode, Talk or Read. It never asks for the microphone
+   before a Record tap, and never stores audio. */
 (function () {
   "use strict";
 
@@ -148,6 +150,29 @@
   const LIVE_TAP_COUNT_SUFFIX = " heard";
   const LEVEL_CALLBACKS = ["judge", "onSaved", "onLeave"];
 
+  // The live pace row (spec section 7): the waiting sentence until the estimate has 5 seconds of
+  // speech, then "About 150 wpm" and a cue, or the cue alone while the take's mode has no kept
+  // factor yet. A cue's words come with its icon and tone, the check in --ok or the alert
+  // triangle in --warn, as Results' Pace hint draws them, so color never carries it alone.
+  const PACE_WAITING = "Your pace shows after a few seconds.";
+  const PACE_NUMBER_PREFIX = "About ";
+  const PACE_NUMBER_SUFFIX = " wpm";
+  const PACE_LOOK_ON_TARGET = Object.freeze({ words: "On target", icon: "check", tone: "ok" });
+  const PACE_LOOK_SLOW_DOWN = Object.freeze({ words: "Slow down", icon: "alert", tone: "warn" });
+  const PACE_LOOK_SPEED_UP = Object.freeze({ words: "Speed up", icon: "alert", tone: "warn" });
+  const PACE_ICON_SIZE = 16;
+  // The capture: a ScriptProcessor hands over one channel 1024 samples at a time. It runs only
+  // while it feeds an output, so a gain of 0 keeps it silent.
+  const PACE_BLOCK_SAMPLES = 1024;
+  const PACE_CHANNELS = 1;
+  const PACE_SILENT_GAIN = 0;
+  // Talk and Read each keep their own words-a-peak factor (app.delivery.paceFactorAfter): a
+  // number in the store flag "livePaceFactor:talk" or "livePaceFactor:read".
+  const PACE_FACTOR_FLAG_PREFIX = "livePaceFactor:";
+  const TALK_PACE = "talk";
+  const READ_PACE = "read";
+  const PACE_MODES = [TALK_PACE, READ_PACE];
+
   // The screen's <section>; its data-state attribute drives the CSS for every state.
   let root = null;
   // The one string every other piece of this screen is derived from.
@@ -173,6 +198,10 @@
   // when.
   let listedTakes = [];
   const savedTakes = [];
+
+  // Each mode's kept live pace factor, read from its flag at show() and set again when a take's
+  // tuning is kept: a number, or null while the mode has none and its row shows the cue alone.
+  const paceFactors = { [TALK_PACE]: null, [READ_PACE]: null };
 
   // The theme the toggle shows. Kept here rather than re-read from storage on each tap, so the
   // toggle still cycles when localStorage is blocked and app.ui.getTheme() can only say "auto".
@@ -201,8 +230,9 @@
   let liveTaps = [];
 
   // Nodes built by mount(). render() repaints them; startTimer(), tickTimer() and resetClock()
-  // write the clock. The theme toggle is the one node index.html builds: mount() finds it in
-  // the header. The banner and the live tap join the body only in level mode.
+  // write the clock, and tickTimer() the live pace row too. The theme toggle is the one node
+  // index.html builds: mount() finds it in the header. The banner and the live tap join the body
+  // only in level mode.
   const nodes = {
     themeToggle: null,
     body: null,
@@ -220,6 +250,7 @@
     limit: null,
     limitBar: null,
     limitFill: null,
+    pace: null,
     recordButton: null,
     recordLabel: null,
     hint: null,
@@ -239,7 +270,8 @@
     liveTapCount: null,
   };
 
-  // Everything a live take holds, from the Record tap until Stop or hide() lets it go.
+  // Everything a live take holds, from the Record tap until Stop or hide() lets it go. `pace` is
+  // the take's live pace capture (startLivePace), or null when it did not start.
   const capture = {
     awaitingMic: false,
     stream: null,
@@ -250,6 +282,7 @@
     timerId: null,
     announcedBlocks: 0,
     pausesStarted: false,
+    pace: null,
   };
 
   // A level take, kept through uploading and error so Retry re-sends the same blob. Once the
@@ -275,6 +308,9 @@
   let paintedTextKey = null;
   let paintedKind = null;
 
+  // The words the live pace row last showed, so its children are rebuilt only when they change.
+  let paintedPaceText = null;
+
   // True from the sample tap until its fetch, validation and save have settled.
   let loadingSample = false;
 
@@ -283,7 +319,8 @@
   // its label show in idle and recording only, and error puts its block in their place.
   // chipsDisabled holds the tabs and New topic as well; New topic shows in idle only. In level
   // mode Leave level shows when the nav does (idle and error), so a stray thumb cannot abandon a
-  // take that records or uploads, and "Heard one" shows while a take records.
+  // take that records or uploads, and "Heard one" shows while a take records. The live pace row
+  // shows while a take records, though never in level mode or without its capture (paintPace).
   function viewFor(nextState) {
     if (!STATES.includes(nextState)) {
       throw new Error("practice: unknown state " + JSON.stringify(nextState));
@@ -302,6 +339,7 @@
       showRecord: idle || recording,
       showLeaveLevel: idle || nextState === "error",
       showLiveTap: recording,
+      showPace: recording,
     };
   }
 
@@ -798,7 +836,9 @@
     return nodes.card;
   }
 
-  // The clock, plus "/ 1:00" and a bar that fills toward the limit for a timed entry.
+  // The clock, plus "/ 1:00" and a bar that fills toward the limit for a timed entry, then the
+  // live pace row under them, hidden until a take records. Like the clock, the row is
+  // aria-live off: nothing it says is ever announced.
   function buildTimer() {
     nodes.timer = app.ui.el("div", { class: "timer num", "aria-live": "off", text: TIMER_START });
     nodes.limit = app.ui.el("span", { class: "practice__limit num" });
@@ -806,11 +846,14 @@
     nodes.limitBar = app.ui.el("div", { class: "practice__limit-bar", "aria-hidden": "true" }, [
       nodes.limitFill,
     ]);
+    nodes.pace = app.ui.el("p", { class: "practice__pace", "aria-live": "off" });
+    nodes.pace.hidden = true;
     return app.ui.el("div", { class: "practice__timer" }, [
       app.ui.el("span", { class: "rec-dot", "aria-hidden": "true" }),
       nodes.timer,
       nodes.limit,
       nodes.limitBar,
+      nodes.pace,
     ]);
   }
 
@@ -890,8 +933,9 @@
   }
 
   // Applies one state to the screen. It is the only code that changes this screen's DOM, apart
-  // from the clock (the timer tick writes it and the bar, resetClock() puts it back to 0:00), a
-  // focused chip scrolling into view, and the header's theme toggle, which repaints itself.
+  // from the clock and the live pace row (the timer tick writes them and the bar, resetClock()
+  // puts the clock back to 0:00), a focused chip scrolling into view, and the header's theme
+  // toggle, which repaints itself.
   // `detail` is only read for "error": {title, body, actionLabel, onAction, secondaryLabel?,
   // onSecondary?}, passed straight to app.ui.renderState. A held level request is painted with
   // the state: its banner, its material and limit, and the live tap.
@@ -906,6 +950,7 @@
     paintLevelParts(view);
     paintPassageCard(view, passage);
     paintTimeLimit(passage);
+    paintPace(view);
     paintRecordButton(view);
     paintScriptBox(view);
     paintHint(view);
@@ -1189,12 +1234,14 @@
   // flight, or a failed level upload still holds its take: then its Upload failed block is drawn
   // again, clock and all, whether the upload failed before the speaker left or while they were
   // away. A take analyzed in the background is the banner's business, not this screen's. Each
-  // visit reads the speaker's takes again for the draws; the tab, the entry and the topic stay as
-  // they were left, so Results' "Record again" retries the same topic.
+  // visit reads the speaker's takes again for the draws, and each mode's live pace factor; the
+  // tab, the entry and the topic stay as they were left, so Results' "Record again" retries the
+  // same topic.
   function show() {
     shown = true;
     leavingForResults = false;
     loadTakes();
+    loadPaceFactors();
     if (state === "recording" || state === "uploading") {
       return;
     }
@@ -1209,11 +1256,11 @@
     }
   }
 
-  // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer and pause
-  // sampler go and drop the take. A level upload in flight keeps going, and a failed one keeps
-  // its take; show() will find either. A level request goes too, unless such a take still
-  // answers it: the Level screen asks again when the speaker goes back to it, and a later visit
-  // to Practice is a normal one. Background jobs run on regardless.
+  // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer, pause
+  // sampler and live pace capture go and drop the take. A level upload in flight keeps going,
+  // and a failed one keeps its take; show() will find either. A level request goes too, unless
+  // such a take still answers it: the Level screen asks again when the speaker goes back to it,
+  // and a later visit to Practice is a normal one. Background jobs run on regardless.
   function hide() {
     shown = false;
     leavingForResults = false;
@@ -1386,6 +1433,7 @@
       app.pauses.start(stream);
       capture.pausesStarted = true;
     }
+    startLivePace(stream);
     capture.chosenMimeType = supportedMimeType();
     capture.chunks = [];
     capture.recorder = capture.chosenMimeType
@@ -1424,7 +1472,7 @@
   function onRecorderStopped() {
     const durationSeconds = elapsedSeconds();
     const contentType = capture.recorder.mimeType || capture.chosenMimeType;
-    const { chunks, samples } = releaseCapture();
+    const { chunks, samples, pace } = releaseCapture();
     app.ui.announce(stoppedAnnouncement(Math.floor(durationSeconds)));
 
     if (durationSeconds < MIN_TAKE_SECONDS) {
@@ -1446,6 +1494,8 @@
       topic: topicOf(passage),
       request: levelRequest,
       liveTaps: liveTaps.slice(),
+      // The live pace's {peaks, mode} for tunePace, which takes them once; never saved.
+      pace,
       // {transcript, metrics} once the backend has analyzed the take, then the session to save.
       analysis: null,
       session: null,
@@ -1497,7 +1547,8 @@
   }
 
   // Lets go of everything the live take holds and hands back what the caller may still want:
-  // the chunks collected so far and the pause samples (null without app.pauses).
+  // the chunks collected so far, the pause samples (null without app.pauses) and the live pace's
+  // {peaks, mode} (null without its capture).
   function releaseCapture() {
     stopTimer();
     const { recorder, stream, chunks } = capture;
@@ -1512,11 +1563,12 @@
       stopTracks(stream);
     }
     const samples = capture.pausesStarted ? app.pauses.stop() : null;
+    const pace = releaseLivePace();
     capture.recorder = null;
     capture.stream = null;
     capture.chunks = [];
     capture.pausesStarted = false;
-    return { chunks, samples };
+    return { chunks, samples, pace };
   }
 
   function stopTracks(stream) {
@@ -1529,7 +1581,8 @@
   // "too_short"} when the backend answered 400 (the same blob would fail again and cost a
   // provider call on every retry), or {outcome: "failed", sentence} with the fixed sentence
   // for the Upload failed detail. Retry sends the same blob again only when no analysis came
-  // back, and never judges a take twice.
+  // back, and never judges a take twice. Once the session is built the take tunes its mode's
+  // live pace factor (tunePace), on its own: the save never waits for it.
   async function settle(take) {
     if (take.analysis === null) {
       try {
@@ -1549,6 +1602,7 @@
         // our side, and the speaker's recording is still here for Retry.
         return { outcome: FAILED, sentence: app.api.messages.provider };
       }
+      tunePace(take);
     }
     try {
       const id = await app.store.save(take.session);
@@ -1905,8 +1959,10 @@
     failedUpload = null;
   }
 
-  // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, and announces
-  // the clock every 30 s.
+  // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, announces the
+  // clock every 30 s and, once per new whole second, paints the live pace row. It starts right
+  // after the recorder, so its start is the recording's, which the live pace's peaks are lined
+  // up with (releaseLivePace).
   function startTimer() {
     capture.startedAt = performance.now();
     capture.announcedBlocks = 0;
@@ -1926,6 +1982,7 @@
       capture.announcedBlocks = blocks;
       app.ui.announce(app.ui.formatClock(elapsed));
     }
+    readLivePace(Math.floor(elapsed));
   }
 
   function stopTimer() {
@@ -1954,6 +2011,286 @@
   // Seconds to a tenth, as a take's duration and its live taps are kept.
   function toTenth(seconds) {
     return Math.round(seconds * 10) / 10;
+  }
+
+  // --- the live pace while a take records (spec section 7) ---
+
+  // Starts the take's live pace capture, right after the pause sampler: an AudioContext of its
+  // own at the device's rate, the stream's source into a ScriptProcessor whose blocks go to an
+  // app.delivery.livePace tracker, and a zero gain to the output, without which the processor
+  // never runs. The tracker judges against the shown entry's band and counts with the kept
+  // factor of the take's mode. Every take, level mode's too, is captured, so every take that
+  // counts tunes its mode. Without Web Audio or the estimator the take records without the row;
+  // so it does when a step throws (a tracker refuses a rate under 8 kHz), after whatever was
+  // made is let go.
+  function startLivePace(stream) {
+    const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
+    const delivery = app.delivery;
+    if (!AudioContextClass || !delivery || typeof delivery.livePace !== "function") {
+      return;
+    }
+    const entry = shownEntry();
+    const mode = paceModeOf(entry);
+    const pace = {
+      context: null,
+      source: null,
+      processor: null,
+      silence: null,
+      tracker: null,
+      mode,
+      // With a kept factor the row shows the number as well as the cue (the validation result).
+      numbered: paceFactors[mode] !== null,
+      firstBlockAt: null,
+      readSecond: 0,
+      reading: null,
+    };
+    try {
+      pace.context = new AudioContextClass();
+      pace.tracker = delivery.livePace(pace.context.sampleRate, {
+        band: entry ? entry.targetWpm : null,
+        factor: paceFactors[mode],
+      });
+      pace.source = pace.context.createMediaStreamSource(stream);
+      pace.processor = pace.context.createScriptProcessor(
+        PACE_BLOCK_SAMPLES,
+        PACE_CHANNELS,
+        PACE_CHANNELS,
+      );
+      pace.silence = pace.context.createGain();
+      pace.silence.gain.value = PACE_SILENT_GAIN;
+      pace.processor.onaudioprocess = (event) => pushPaceBlock(pace, event);
+      pace.source.connect(pace.processor);
+      pace.processor.connect(pace.silence);
+      pace.silence.connect(pace.context.destination);
+      // iOS Safari may hand over a suspended context, and a suspended graph hands over nothing.
+      if (pace.context.state === "suspended" && typeof pace.context.resume === "function") {
+        ignoreRejection(pace.context.resume());
+      }
+    } catch {
+      tearDownPace(pace);
+      return;
+    }
+    capture.pace = pace;
+  }
+
+  // The mode a take records in, as app.language.isReadTake will judge the saved take: Read when
+  // a script goes with it (a passage's text, on the Read tab or in a level, or a script pasted on
+  // Talk), Talk otherwise.
+  function paceModeOf(entry) {
+    return scriptFor(entry) === "" ? TALK_PACE : READ_PACE;
+  }
+
+  // One block from the microphone: its first channel goes to the take's tracker. The first
+  // block's arrival is noted, to line the peaks up with the recording (releaseLivePace).
+  function pushPaceBlock(pace, event) {
+    if (pace.tracker === null) {
+      return;
+    }
+    if (pace.firstBlockAt === null) {
+      pace.firstBlockAt = performance.now();
+    }
+    pace.tracker.push(event.inputBuffer.getChannelData(0));
+  }
+
+  // Once per new whole second on the clock, while the row can show: the tracker's reading of the
+  // audio heard so far, painted. Level mode reads nothing, since its row never shows.
+  function readLivePace(second) {
+    const pace = capture.pace;
+    if (pace === null || levelRequest !== null || second <= pace.readSecond) {
+      return;
+    }
+    pace.readSecond = second;
+    pace.reading = pace.tracker.read();
+    paintPace(viewFor(state));
+  }
+
+  // The live pace row, shown only while a normal take records with its capture running: never
+  // in idle, uploading or error, never in level mode, whose takes count, and never for a take
+  // whose capture did not start. It says the waiting sentence until the tracker has a number,
+  // then the number and the cue, or the cue alone, centred, while the take's mode has no kept
+  // factor. The words are the tracker's: its number comes rounded and its cue held. The children
+  // are rebuilt only when the words change.
+  function paintPace(view) {
+    const pace = capture.pace;
+    nodes.pace.hidden = !(view.showPace && levelRequest === null && pace !== null);
+    if (nodes.pace.hidden) {
+      return;
+    }
+    const { number, cue } = paceWordsOf(pace);
+    const waiting = number === null && cue === null;
+    const text = waiting ? PACE_WAITING : [number, cue && cue.words].filter(Boolean).join(" ");
+    if (text === paintedPaceText) {
+      return;
+    }
+    paintedPaceText = text;
+    app.ui.clear(nodes.pace);
+    if (waiting) {
+      nodes.pace.appendChild(
+        app.ui.el("span", { class: "practice__pace-placeholder", text: PACE_WAITING }),
+      );
+      return;
+    }
+    if (number !== null) {
+      nodes.pace.appendChild(
+        app.ui.el("span", { class: "practice__pace-number num", text: number }),
+      );
+    }
+    // The space Results writes in "162 wpm": flex draws no gap from it, but a screen reader
+    // keeps "wpm" and "On" apart.
+    if (number !== null && cue !== null) {
+      nodes.pace.appendChild(document.createTextNode(" "));
+    }
+    if (cue !== null) {
+      nodes.pace.appendChild(paceCueNode(cue));
+    }
+  }
+
+  // What the row says for a take's capture: `number`, "About 150 wpm", once the tracker has a
+  // number and the mode a kept factor, else null; `cue`, its look, once the tracker has a number
+  // and a cue, else null.
+  function paceWordsOf(pace) {
+    const reading = pace.reading;
+    if (reading === null || reading.wpm === null) {
+      return { number: null, cue: null };
+    }
+    return {
+      number: pace.numbered ? PACE_NUMBER_PREFIX + reading.wpm + PACE_NUMBER_SUFFIX : null,
+      cue: paceLookOf(reading.cue),
+    };
+  }
+
+  // The look of app.delivery's cue id, or null for none.
+  function paceLookOf(cue) {
+    const { ON_TARGET, SLOW_DOWN, SPEED_UP } = app.delivery;
+    if (cue === null || cue === undefined) {
+      return null;
+    }
+    if (cue === ON_TARGET) {
+      return PACE_LOOK_ON_TARGET;
+    }
+    if (cue === SLOW_DOWN) {
+      return PACE_LOOK_SLOW_DOWN;
+    }
+    return cue === SPEED_UP ? PACE_LOOK_SPEED_UP : null;
+  }
+
+  // The cue's words, then its icon, which CSS draws first, as a Results hint does.
+  function paceCueNode(look) {
+    return app.ui.el(
+      "span",
+      { class: "practice__pace-cue practice__pace-cue--" + look.tone, text: look.words },
+      [app.ui.icon(look.icon, PACE_ICON_SIZE)],
+    );
+  }
+
+  // Lets the take's live pace capture go, whichever way the take ends (releaseCapture): Stop,
+  // the track ending, hide(), a take under 5 seconds. Hands back what tunePace needs, {peaks,
+  // mode}, or null without a capture or when no block came. The tracker's peaks count from the
+  // first block, the transcript's words from the recorder's start, which came first (startTimer
+  // notes it), so the time between the two goes on every peak: good to a block or so (21 ms at
+  // 48 kHz), well inside the 0.25 s paceFactorAfter allows at the edges of the speech.
+  function releaseLivePace() {
+    const pace = capture.pace;
+    capture.pace = null;
+    if (pace === null) {
+      return null;
+    }
+    const heard = pace.firstBlockAt !== null;
+    const offset = heard ? (pace.firstBlockAt - capture.startedAt) / 1000 : 0;
+    const peaks = heard ? pace.tracker.peaks().map((peak) => peak + offset) : null;
+    tearDownPace(pace);
+    return peaks === null ? null : { peaks, mode: pace.mode };
+  }
+
+  // Clears the handler, disconnects every node made, closes the context and drops the tracker;
+  // safe on a capture whose setup stopped partway.
+  function tearDownPace(pace) {
+    if (pace.processor) {
+      pace.processor.onaudioprocess = null;
+    }
+    [pace.source, pace.processor, pace.silence].forEach((node) => {
+      if (node) {
+        node.disconnect();
+      }
+    });
+    const context = pace.context;
+    if (context && context.state !== "closed" && typeof context.close === "function") {
+      ignoreRejection(context.close());
+    }
+    pace.tracker = null;
+  }
+
+  // resume() and close() answer with promises whose outcome changes nothing here.
+  function ignoreRejection(promise) {
+    if (promise && typeof promise.catch === "function") {
+      promise.catch(() => {});
+    }
+  }
+
+  // Reads each mode's kept live pace factor from its flag. A store without getFlag (some test
+  // fakes) or one that cannot be read leaves the factors as they were; a flag that holds no
+  // number (none kept yet, or cleared with the site's data) means none.
+  async function loadPaceFactors() {
+    const store = app.store;
+    if (!store || typeof store.getFlag !== "function") {
+      return;
+    }
+    await Promise.all(
+      PACE_MODES.map(async (mode) => {
+        try {
+          const value = await store.getFlag(PACE_FACTOR_FLAG_PREFIX + mode);
+          paceFactors[mode] = typeof value === "number" && Number.isFinite(value) ? value : null;
+        } catch {
+          // Blocked or unreadable storage: this mode keeps the factor it had.
+        }
+      }),
+    );
+  }
+
+  // Tunes the take's mode's live pace factor once its analysis is back and its session built
+  // (settle): app.delivery.paceFactorAfter moves the kept factor toward the take's own words a
+  // peak, and the result is kept with app.store.setFlag, then here, only when it moved. A take
+  // that does not count (under 20 seconds or 30 words) leaves it where it was, and so keeps
+  // nothing. The first call takes the peaks with it, so a Retry never tunes a take twice; the
+  // sample never comes here. A store that cannot keep the factor changes nothing the speaker
+  // sees: the mode keeps the factor it had, and its row stays as it was.
+  async function tunePace(take) {
+    const pace = take.pace;
+    take.pace = null;
+    const delivery = app.delivery;
+    const store = app.store;
+    const canTune =
+      Boolean(delivery) &&
+      typeof delivery.paceFactorAfter === "function" &&
+      Boolean(store) &&
+      typeof store.setFlag === "function";
+    if (pace === null || !canTune) {
+      return;
+    }
+    try {
+      const mode = tunedModeOf(take, pace);
+      const kept = paceFactors[mode];
+      // What the take's tracker counted with: the kept factor, or LIVE_PACE_FACTOR for none.
+      const before = kept === null ? delivery.LIVE_PACE_FACTOR : kept;
+      const factor = delivery.paceFactorAfter(kept, take.analysis.transcript, pace.peaks);
+      if (factor === before) {
+        return;
+      }
+      await store.setFlag(PACE_FACTOR_FLAG_PREFIX + mode, factor);
+      paceFactors[mode] = factor;
+    } catch {
+      // Blocked or unwritable storage: the mode keeps the factor it had.
+    }
+  }
+
+  // The mode a take tunes: app.language.isReadTake's verdict on its saved session, the rule the
+  // rank, Progress and History split takes by; without language.js, the mode it recorded in.
+  function tunedModeOf(take, pace) {
+    const language = app.language;
+    if (language && typeof language.isReadTake === "function") {
+      return language.isReadTake(take.session) ? READ_PACE : TALK_PACE;
+    }
+    return pace.mode;
   }
 
   // Both icons draw in currentColor, which the button sets to --on-record: white on the light

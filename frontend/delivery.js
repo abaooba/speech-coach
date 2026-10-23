@@ -149,7 +149,8 @@
   // The cue: the first number shows the one it calls for. After that, Slow down or Speed up
   // once the number has been more than 10 wpm outside the band for 3 s, and On target again
   // once it has been within that for 3 s. The number is an estimate some 10 wpm either way, so
-  // a smaller miss stays On target.
+  // a smaller miss stays On target. The three cue ids are exported, so the live row matches
+  // them without a copy of its own.
   const LIVE_CUE_MARGIN_WPM = 10;
   const LIVE_CUE_HOLD_SECONDS = 3;
   const ON_TARGET = "on-target";
@@ -1273,6 +1274,9 @@
     paceFactorAfter,
     HESITATION,
     HABIT,
+    ON_TARGET,
+    SLOW_DOWN,
+    SPEED_UP,
     HABIT_WORDS,
     LONG_PAUSE_SECONDS,
     UNCLEAR_CONFIDENCE,
