@@ -24,8 +24,8 @@ Phone width, light and dark. The history is seeded with two real takes
 | ![History screen](docs/screenshots/history-light.png) | ![History screen, dark](docs/screenshots/history-dark.png) |
 | ![Onboarding screen](docs/screenshots/onboarding-light.png) | ![Onboarding screen, dark](docs/screenshots/onboarding-dark.png) |
 
-- Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
-  the take.
+- Practice, the home screen: pick a timed prompt or a kind of passage, and each tap draws a
+  new topic or passage. Tap Record, and Stop uploads the take.
 - Results: a speech map pins each restart, freeze and filler to its second. Tap a card to
   see that moment in the transcript. The Coach card comes first: a headline and two or three
   cited tips that point at moments in your take. Four stats, your rank and the marked
