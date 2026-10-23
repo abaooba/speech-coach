@@ -385,13 +385,21 @@ test("circles and labels are drawn for the eye; the button's name speaks for the
 
 // --- drawing --------------------------------------------------------------------------------
 
-test("the body holds the status row, the benchmark, then one block per unit", async () => {
+test("the body holds the status row, the benchmark, the Units switch, then the units", async () => {
   const { body, root, heading } = await shown();
   assert.deepEqual(root.children, [heading, body], "the h1 is left alone");
   assert.equal(heading.textContent, "Path");
   assert.deepEqual(
     body.children.map((child) => classOf(child)),
-    ["path__status", "path-benchmark", "path-unit", "path-unit", "path-unit", "path-unit"],
+    [
+      "path__status",
+      "path-benchmark",
+      "segmented path-switch",
+      "path-unit",
+      "path-unit",
+      "path-unit",
+      "path-unit",
+    ],
   );
   assert.ok(unitsOf(body).every((unit) => unit.tagName === "section"));
 });
