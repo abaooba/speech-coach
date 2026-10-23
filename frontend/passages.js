@@ -7,8 +7,9 @@
 (function () {
   "use strict";
 
-  // One topic shows at a time and New topic moves to the next, so each prompt's text repeats
-  // its first topic and every entry still has text.
+  // One topic shows at a time, drawn again on each tap of its prompt's chip or of New topic
+  // (screens/practice.js). Each prompt's text repeats its first topic, so every entry still has
+  // text.
   const ABOUT_YOU_TOPICS = [
     "Talk about something you are looking forward to this week.",
     "Describe the best thing that happened to you last week.",

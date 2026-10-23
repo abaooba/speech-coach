@@ -247,6 +247,10 @@ function setup(options = {}) {
   if (options.localStorage) {
     context.localStorage = options.localStorage;
   }
+  // Practice draws its topics with Math.random: `random` fixes the draw on the context's Math.
+  if (options.random) {
+    context.Math = Object.create(Math, { random: { value: options.random } });
+  }
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
   app.ui.announce = (text) => calls.announce.push(text);
   vm.runInNewContext(PRACTICE_SOURCE, context, { filename: "practice.js" });
@@ -847,16 +851,20 @@ test("Practice opens on the first entry's tab with that entry selected", () => {
   assert.equal(readFirst.practice.selectedPassage().id, "read1");
 });
 
-test("with the real passages Practice opens on Talk with About you and its first topic", () => {
-  const t = setup({ passages: realPassages() });
+// The topic is drawn at mount (tester feedback spec, section 2.2): at 0.5 the 15th of About
+// you's 29 topics, at 0.99 the 29th.
+test("with the real passages Practice opens on Talk with About you on a drawn topic", () => {
+  const last = setup({ passages: realPassages(), random: () => 0.99 });
+  assert.equal(
+    modeParts(last).cardText.textContent,
+    "Describe a place you spent time today, using three senses.",
+  );
+  const t = setup({ passages: realPassages(), random: () => 0.5 });
   const parts = modeParts(t);
   assert.equal(parts.talk.getAttribute("aria-pressed"), "true");
   assert.equal(t.practice.selectedPassage().id, "free-talk");
   assert.equal(parts.cardTitle.textContent, "About you");
-  assert.equal(
-    parts.cardText.textContent,
-    "Talk about something you are looking forward to this week.",
-  );
+  assert.equal(parts.cardText.textContent, "Talk about a place you would love to visit one day.");
   assert.deepEqual(visibleChipLabels(parts), [
     "About you 1:00",
     "Impromptu 2:00",
@@ -900,8 +908,11 @@ test("each tab keeps its own selection, and switching tabs scrolls the chips bac
   assert.equal(t.practice.selectedPassage().id, "read2");
 });
 
-test("New topic moves to the next topic, wraps, and each prompt keeps its place", () => {
-  const t = setup({ passages: MODES });
+// New topic and every chip tap draw (tester feedback spec, section 2.2): any topic of the prompt
+// but the one it is on, the draw picking among the others in order. `draw.value` is the draw.
+test("New topic draws another topic, and each chip tap draws its prompt a new one", () => {
+  const draw = { value: 0 };
+  const t = setup({ passages: MODES, random: () => draw.value });
   const parts = modeParts(t);
   assert.equal(parts.newTopic.tagName, "button");
   assert.ok(parts.newTopic.classList.contains("btn"));
@@ -911,18 +922,21 @@ test("New topic moves to the next topic, wraps, and each prompt keeps its place"
   assert.equal(icon.getAttribute("data-icon"), "refresh", "the refresh icon follows the words");
 
   assert.equal(parts.cardText.textContent, "First topic.");
+  draw.value = 0.99;
   parts.newTopic.click();
-  assert.equal(parts.cardText.textContent, "Second topic.");
+  assert.equal(parts.cardText.textContent, "Third topic.", "the last of Second and Third");
   parts.newTopic.click();
-  assert.equal(parts.cardText.textContent, "Third topic.");
+  assert.equal(parts.cardText.textContent, "Second topic.", "the last of First and Second");
+  draw.value = 0;
   parts.newTopic.click();
-  assert.equal(parts.cardText.textContent, "First topic.", "wraps to the first topic");
+  assert.equal(parts.cardText.textContent, "First topic.", "the first of First and Third");
   parts.newTopic.click();
+  assert.equal(parts.cardText.textContent, "Second topic.", "the first of Second and Third");
 
   chipFor(parts, "imp").click();
-  assert.equal(parts.cardText.textContent, "Rule topic.");
+  assert.equal(parts.cardText.textContent, "Uniform topic.", "Impromptu was on Rule topic.");
   chipFor(parts, "day").click();
-  assert.equal(parts.cardText.textContent, "Second topic.", "the topic stays as it was left");
+  assert.equal(parts.cardText.textContent, "First topic.", "Your day was on Second topic.");
 });
 
 test("a new topic scrolls the text back to the top", () => {
@@ -933,18 +947,19 @@ test("a new topic scrolls the text back to the top", () => {
   assert.equal(parts.cardText.scrollTop, 0);
 });
 
+// At a draw of 0 each tap gives the first topic other than the one on screen.
 test("New topic reads the new topic out, since focus stays on the button", () => {
-  const t = setup({ passages: MODES });
+  const t = setup({ passages: MODES, random: () => 0 });
   const parts = modeParts(t);
   parts.newTopic.click();
   assert.deepEqual(t.calls.announce, ["Second topic."]);
   parts.newTopic.click();
   parts.newTopic.click();
-  assert.deepEqual(t.calls.announce, ["Second topic.", "Third topic.", "First topic."]);
+  assert.deepEqual(t.calls.announce, ["Second topic.", "First topic.", "Second topic."]);
 });
 
 test("New topic shows only for a prompt with topics, and only in idle", () => {
-  const t = setup({ passages: MODES });
+  const t = setup({ passages: MODES, random: () => 0 });
   const parts = modeParts(t);
   assert.equal(parts.newTopic.hidden, false);
   chipFor(parts, "congress").click();
@@ -953,12 +968,14 @@ test("New topic shows only for a prompt with topics, and only in idle", () => {
   assert.equal(parts.newTopic.hidden, true, "passages have no topics");
   parts.talk.click();
   chipFor(parts, "day").click();
+  // At a draw of 0 the tap drew Your day the first topic but its own; outside idle New topic
+  // changes nothing.
   for (const state of ["recording", "uploading", "error"]) {
     t.practice.render(state, { title: "t", body: "b" });
     assert.equal(parts.newTopic.hidden, true, state);
     assert.equal(parts.newTopic.disabled, true, state);
     parts.newTopic.click();
-    assert.equal(parts.cardText.textContent, "First topic.", `${state} keeps the topic`);
+    assert.equal(parts.cardText.textContent, "Second topic.", `${state} keeps the topic`);
   }
   t.practice.render("idle");
   assert.equal(parts.newTopic.hidden, false);

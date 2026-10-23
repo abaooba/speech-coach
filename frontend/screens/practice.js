@@ -1,11 +1,13 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
    mount() builds the Talk / Read switch, chips, card, timer, record button, hint (with Talk's
-   script box) and state block once; render(state, detail) repaints them. Stop hands the take,
-   with its script (a Read passage's text, or the one pasted on Talk), to a background job that
-   sends it through app.api and saves it with app.store, with the topic it was given; the job
-   reports on the top banner (app.ui.banner) while the speaker records another take or visits
-   any screen; Results opens when the take is saved if Practice still waits in idle, else from
-   the banner's "See results". In level mode (startLevelTake, spec
+   script box) and state block once; render(state, detail) repaints them. A tap on a Talk chip, a
+   Read group's chip or New topic draws a new topic or passage, by the Path's rule, over the
+   speaker's own takes (spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md section
+   2). Stop hands the take, with its script (a Read passage's text, or the one pasted on Talk), to
+   a background job that sends it through app.api and saves it with app.store, with the topic it
+   was given; the job reports on the top banner (app.ui.banner) while the speaker records another
+   take or visits any screen; Results opens when the take is saved if Practice still waits in
+   idle, else from the banner's "See results". In level mode (startLevelTake, spec
    docs/superpowers/specs/2026-10-14-loop-path.md section 7) a level banner stands in for the
    switch and the chips, the take uploads in place, and the saved take goes back to the Level
    screen instead of Results. It never asks for the microphone before a Record tap, and never
@@ -28,7 +30,11 @@
     { kind: "passage", label: "Read" },
   ];
   const MODE_SWITCH_LABEL = "Practice mode";
+  // The Read tab's kind: its passages come in groups, one chip each (app.passages.groups()).
+  const READ_KIND = "passage";
+  // The card's one button: New topic on Talk, New passage on Read.
   const NEW_TOPIC_LABEL = "New topic";
+  const NEW_PASSAGE_LABEL = "New passage";
   const NEW_TOPIC_ICON_SIZE = 16;
   // The card's title names the scrolling text, which is a region keyboard users can focus.
   const CARD_TITLE_ID = "practice-card-title";
@@ -148,11 +154,23 @@
   let state = "idle";
 
   // What the speaker picked, kept as they left it while the app is open: the tab showing
-  // ("prompt" is Talk, "passage" is Read), each tab's own selected entry id, and the topic each
-  // prompt with topics is on (by entry id; a prompt starts on its first topic).
+  // ("prompt" is Talk, "passage" is Read), each tab's own selected entry id (on Read, the passage
+  // drawn for its group's chip), and the topic each prompt with topics is on (by entry id), drawn
+  // at mount and again on each tap of its chip or of New topic.
   let currentKind = MODES[0].kind;
   const selectedIdByKind = {};
-  const topicIndexById = {};
+  const topicById = {};
+
+  // The Read tab's groups, app.passages.groups() as mount() found it: [{id, label}], one chip
+  // each. Empty for passage data without groups, where every passage keeps a chip of its own.
+  let readGroups = [];
+
+  // The speaker's own takes, which the draws read (spec section 2.1): those app.store.list() gave
+  // at the last show(), and every take saved here since the app opened, newest first. A later
+  // list holds the saved ones too; a take counted twice changes no draw, which asks only which
+  // topics and passages takes used, and when.
+  let listedTakes = [];
+  const savedTakes = [];
 
   // The theme the toggle shows. Kept here rather than re-read from storage on each tap, so the
   // toggle still cycles when localStorage is blocked and app.ui.getTheme() can only say "auto".
@@ -195,6 +213,7 @@
     cardTarget: null,
     cardText: null,
     newTopic: null,
+    newTopicIcon: null,
     timer: null,
     limit: null,
     limitBar: null,
@@ -344,22 +363,121 @@
     return Math.round(ratio * 10000) / 10000;
   }
 
-  function topicIndexOf(entry) {
-    return topicIndexById[entry.id] || 0;
+  // The topic a prompt with topics is on: the one last drawn for it, or its first for a prompt
+  // mount() never drew for.
+  function currentTopic(entry) {
+    const topic = topicById[entry.id];
+    return entry.topics.includes(topic) ? topic : entry.topics[0];
   }
 
   // What the card shows: the current topic of a prompt with topics, otherwise the entry's text.
   function cardTextOf(entry) {
-    return hasTopics(entry) ? entry.topics[topicIndexOf(entry)] : entry.text;
+    return hasTopics(entry) ? currentTopic(entry) : entry.text;
   }
 
+  // app.passages.groups() as a list, or none for passage data without it, such as the plain
+  // arrays of the test fixtures.
+  function groupsOf(passages) {
+    return typeof passages.groups === "function" ? Array.from(passages.groups()) : [];
+  }
+
+  // The group a Read passage belongs to, from readGroups, or null for a prompt, a level's
+  // material and a passage of no listed group.
+  function groupOf(entry) {
+    if (!entry || entry.kind !== READ_KIND) {
+      return null;
+    }
+    return readGroups.find((group) => group.id === entry.group) || null;
+  }
+
+  // A group's passages, in the data's order.
+  function passagesOf(group) {
+    return (app.passages || []).filter((entry) => groupOf(entry) === group);
+  }
+
+  // True when New topic (New passage on Read) has another to show: a prompt with topics, or a
+  // passage of a group that holds two or more. A passage on a chip of its own has none.
+  function canDrawAnother(entry) {
+    const group = groupOf(entry);
+    return group === null ? hasTopics(entry) : passagesOf(group).length > 1;
+  }
+
+  // --- draws: a new topic or passage on every tap (spec section 2.1) ---
+
+  // A draw follows the Path's rule when path.js is loaded: from the pool less the item the tap
+  // replaces, one no take of the speaker's has used, at random; once all have been used, the one
+  // used longest ago. Without app.path (some test harnesses) it is any other item at random. A
+  // pool of one gives that one. Math.random draws, so a test fixes it on its vm context's Math.
+
+  // A topic of `entry`, a prompt with topics, other than `current` while another is left.
+  function drawTopic(entry, current) {
+    const path = app.path;
+    if (path && typeof path.pickTopic === "function") {
+      return path.pickTopic(takesForDraws(), entry.id, Math.random, current);
+    }
+    return drawOther(entry.topics, current);
+  }
+
+  // A passage of `group` other than the one `currentId` names while another is left.
+  function drawPassage(group, currentId) {
+    const passages = passagesOf(group);
+    const path = app.path;
+    if (path && typeof path.pickPassage === "function") {
+      return path.pickPassage(takesForDraws(), passages, Math.random, currentId);
+    }
+    const current = passages.find((passage) => passage.id === currentId);
+    return drawOther(passages, current);
+  }
+
+  // Any item of `pool` but `current`, at random; `current` itself when it is all there is.
+  function drawOther(pool, current) {
+    const others = pool.filter((item) => item !== current);
+    const choices = others.length > 0 ? others : pool;
+    return choices[indexFor(Math.random(), choices.length)];
+  }
+
+  // The draw as an index into a list of `length`, kept inside it whatever the source returns.
+  function indexFor(draw, length) {
+    const index = Math.floor(Number(draw) * length);
+    return Number.isFinite(index) ? Math.min(length - 1, Math.max(0, index)) : 0;
+  }
+
+  // The takes saved here, then those the store listed.
+  function takesForDraws() {
+    return savedTakes.concat(listedTakes);
+  }
+
+  // Reads the speaker's takes for the draws. A store without list() (some test fakes), one that
+  // cannot be read and an answer that is no list all leave the takes as they were.
+  async function loadTakes() {
+    if (!app.store || typeof app.store.list !== "function") {
+      return;
+    }
+    try {
+      const sessions = await app.store.list();
+      if (Array.isArray(sessions)) {
+        listedTakes = sessions;
+      }
+    } catch {
+      // Blocked or unreadable storage: the draws go on with the takes they had.
+    }
+  }
+
+  // Each prompt with topics starts on a drawn topic and each tab on its first entry, the Read tab
+  // on a drawn passage of that entry's group (spec sections 2.2 and 2.3).
   function mount(screenRoot) {
     root = screenRoot;
     const passages = app.passages || [];
+    readGroups = groupsOf(passages);
     currentKind = firstKind(passages);
+    passages.filter(hasTopics).forEach((entry) => {
+      topicById[entry.id] = drawTopic(entry, null);
+    });
     MODES.forEach((mode) => {
       const [first] = entriesOfKind(passages, mode.kind);
-      selectedIdByKind[mode.kind] = first ? first.id : null;
+      const group = groupOf(first);
+      const opening = group === null ? first : drawPassage(group, null);
+      selectedIdByKind[mode.kind] = opening ? opening.id : null;
     });
 
     // The header's toggle is absent from test sections that hold only the body.
@@ -559,24 +677,49 @@
     return nodes.modeSwitch;
   }
 
-  // One chip per entry, built once; render() shows only the current tab's chips.
+  // One chip per entry, except that a Read group's passages share one chip, in the place of the
+  // group's first passage; built once, render() shows only the current tab's chips.
   function buildChipRow(passages) {
-    nodes.chips = passages.map((passage) =>
-      app.ui.el("button", {
-        class: "chip",
-        type: "button",
-        "aria-pressed": "false",
-        dataset: { passageId: passage.id, kind: passage.kind },
-        text: chipLabel(passage),
-        onClick: () => selectPassage(passage.id),
-      }),
-    );
+    const chipped = new Set();
+    nodes.chips = [];
+    passages.forEach((entry) => {
+      const group = groupOf(entry);
+      if (group === null) {
+        nodes.chips.push(entryChip(entry));
+      } else if (!chipped.has(group)) {
+        chipped.add(group);
+        nodes.chips.push(groupChip(group));
+      }
+    });
     nodes.chipRow = app.ui.el(
       "div",
       { class: "chip-row", onFocusin: revealFocusedChip },
       nodes.chips,
     );
     return nodes.chipRow;
+  }
+
+  function entryChip(entry) {
+    return app.ui.el("button", {
+      class: "chip",
+      type: "button",
+      "aria-pressed": "false",
+      dataset: { passageId: entry.id, kind: entry.kind },
+      text: chipLabel(entry),
+      onClick: () => selectPassage(entry.id),
+    });
+  }
+
+  // A Read group's chip, named by the group's label alone: its passages are untimed.
+  function groupChip(group) {
+    return app.ui.el("button", {
+      class: "chip",
+      type: "button",
+      "aria-pressed": "false",
+      dataset: { group: group.id, kind: READ_KIND },
+      text: group.label,
+      onClick: () => selectGroup(group),
+    });
   }
 
   // A chip that takes focus while partly under the row's fade scrolls fully into view, inside the
@@ -595,10 +738,11 @@
   }
 
   // The card holds the title, New topic, the target and the text. New topic comes right after
-  // the title, so focus order matches its place at the top right. Its refresh icon follows the
-  // words in the DOM, so the label is plain text; CSS draws the icon first. The text scrolls on
-  // its own, so it is a region named by the title that takes focus: keyboard users can scroll a
-  // long passage in every browser (Safari never focuses a scroller by itself).
+  // the title, so focus order matches its place at the top right; on the Read tab it reads New
+  // passage. Its refresh icon follows the words in the DOM, so the label is plain text; CSS draws
+  // the icon first. The text scrolls on its own, so it is a region named by the title that takes
+  // focus: keyboard users can scroll a long passage in every browser (Safari never focuses a
+  // scroller by itself).
   function buildPassageCard() {
     nodes.cardTitle = app.ui.el("h2", { class: "passage-card__title", id: CARD_TITLE_ID });
     nodes.cardTarget = app.ui.el("p", { class: "passage-card__target" });
@@ -608,15 +752,16 @@
       role: "region",
       "aria-labelledby": CARD_TITLE_ID,
     });
+    nodes.newTopicIcon = app.ui.icon("refresh", NEW_TOPIC_ICON_SIZE);
     nodes.newTopic = app.ui.el(
       "button",
       {
         class: "btn btn--ghost passage-card__new",
         type: "button",
         text: NEW_TOPIC_LABEL,
-        onClick: showNextTopic,
+        onClick: drawAnother,
       },
-      [app.ui.icon("refresh", NEW_TOPIC_ICON_SIZE)],
+      [nodes.newTopicIcon],
     );
     nodes.card = app.ui.el("section", { class: "passage-card" }, [
       nodes.cardTitle,
@@ -653,7 +798,8 @@
   }
 
   // Tabs, chips and New topic only respond in idle; their disabled flags already block taps in
-  // the other states. A chip selects its entry on that entry's own tab.
+  // the other states. A chip selects its entry on that entry's own tab, and a prompt's chip, the
+  // selected one or another, draws the prompt a new topic.
   function selectPassage(passageId) {
     const entry = (app.passages || []).find((candidate) => candidate.id === passageId);
     if (state !== "idle" || !entry) {
@@ -661,7 +807,19 @@
     }
     currentKind = entry.kind;
     selectedIdByKind[entry.kind] = entry.id;
-    render("idle");
+    if (hasTopics(entry)) {
+      showNewTopic(entry);
+    } else {
+      render("idle");
+    }
+  }
+
+  // A Read group's chip, the selected one or another, draws a passage of the group.
+  function selectGroup(group) {
+    if (state !== "idle") {
+      return;
+    }
+    showNewPassage(group);
   }
 
   function selectKind(kind) {
@@ -672,16 +830,37 @@
     render("idle");
   }
 
-  // The selected prompt's next topic, back to the first after the last. Focus stays on New
-  // topic while the card changes beside it, so the live region reads the new topic out.
-  function showNextTopic() {
+  // New topic: another topic for the selected prompt, or on the Read tab (New passage) another
+  // passage of the selected passage's group.
+  function drawAnother() {
     const entry = selectedPassage();
-    if (state !== "idle" || !hasTopics(entry)) {
+    if (state !== "idle" || !canDrawAnother(entry)) {
       return;
     }
-    topicIndexById[entry.id] = (topicIndexOf(entry) + 1) % entry.topics.length;
+    const group = groupOf(entry);
+    if (group === null) {
+      showNewTopic(entry);
+    } else {
+      showNewPassage(group);
+    }
+  }
+
+  // Draws the prompt a topic other than the one it is on and shows it. Focus stays on the chip
+  // or New topic while the card changes beside it, so the live region reads the new topic out.
+  function showNewTopic(entry) {
+    topicById[entry.id] = drawTopic(entry, currentTopic(entry));
     render("idle");
     app.ui.announce(cardTextOf(entry));
+  }
+
+  // Draws a passage of the group other than the one on screen, selects it and reads its title
+  // out, as New topic reads a topic.
+  function showNewPassage(group) {
+    const passage = drawPassage(group, selectedIdByKind[READ_KIND]);
+    currentKind = READ_KIND;
+    selectedIdByKind[READ_KIND] = passage.id;
+    render("idle");
+    app.ui.announce(passage.title);
   }
 
   // Applies one state to the screen. It is the only code that changes this screen's DOM, apart
@@ -721,13 +900,14 @@
     });
   }
 
-  // Only the current tab's chips show; switching tabs scrolls the row back to its start.
+  // Only the current tab's chips show; switching tabs scrolls the row back to its start. The
+  // selected chip is the selected entry's own, or its group's.
   function paintChips(view) {
-    const selectedId = selectedIdByKind[currentKind];
+    const entry = selectedPassage();
     nodes.chipRow.hidden = levelRequest !== null;
     nodes.chips.forEach((chip) => {
       const inTab = chip.dataset.kind === currentKind;
-      const selected = inTab && chip.dataset.passageId === selectedId;
+      const selected = inTab && standsFor(chip, entry);
       chip.hidden = !inTab;
       chip.classList.toggle("chip--selected", selected);
       chip.setAttribute("aria-pressed", String(selected));
@@ -737,6 +917,16 @@
       nodes.chipRow.scrollLeft = 0;
       paintedKind = currentKind;
     }
+  }
+
+  // True when `chip` is the chip of `entry`: a group's chip for a passage of that group, else the
+  // entry's own chip.
+  function standsFor(chip, entry) {
+    if (!entry) {
+      return false;
+    }
+    const group = groupOf(entry);
+    return group === null ? chip.dataset.passageId === entry.id : chip.dataset.group === group.id;
   }
 
   // Level mode's parts join the body while a request is held and leave it with the request, so
@@ -781,7 +971,9 @@
       nodes.cardText.scrollTop = 0;
       paintedTextKey = textKey;
     }
-    nodes.newTopic.hidden = !(view.showNewTopic && levelRequest === null && hasTopics(passage));
+    paintNewTopicLabel(currentKind === READ_KIND ? NEW_PASSAGE_LABEL : NEW_TOPIC_LABEL);
+    const drawable = levelRequest === null && canDrawAnother(passage);
+    nodes.newTopic.hidden = !(view.showNewTopic && drawable);
     nodes.newTopic.disabled = view.chipsDisabled;
     if (!passage) {
       nodes.cardTitle.textContent = "";
@@ -793,6 +985,17 @@
     nodes.cardTitle.textContent = passage.title;
     nodes.cardTarget.textContent = "Target " + lo + " to " + hi + " wpm";
     nodes.cardText.textContent = cardTextOf(passage);
+  }
+
+  // The button's words, then its icon, rebuilt only when the words change. It is cleared first
+  // because the test fakes keep an element's text apart from its children.
+  function paintNewTopicLabel(label) {
+    if (nodes.newTopic.textContent === label) {
+      return;
+    }
+    app.ui.clear(nodes.newTopic);
+    nodes.newTopic.textContent = label;
+    nodes.newTopic.appendChild(nodes.newTopicIcon);
   }
 
   // "/ 1:00" and the bar for a timed entry; an untimed entry hides both.
@@ -959,10 +1162,13 @@
   // Coming back to the screen starts a fresh take at 0:00 unless a level take is already in
   // flight, or a failed level upload still holds its take: then its Upload failed block is drawn
   // again, clock and all, whether the upload failed before the speaker left or while they were
-  // away. A take analyzed in the background is the banner's business, not this screen's.
+  // away. A take analyzed in the background is the banner's business, not this screen's. Each
+  // visit reads the speaker's takes again for the draws; the tab, the entry and the topic stay as
+  // they were left, so Results' "Record again" retries the same topic.
   function show() {
     shown = true;
     leavingForResults = false;
+    loadTakes();
     if (state === "recording" || state === "uploading") {
       return;
     }
@@ -1319,7 +1525,10 @@
       }
     }
     try {
-      return { outcome: SAVED, id: await app.store.save(take.session) };
+      const id = await app.store.save(take.session);
+      // The draws count it from now on, before any list() holds it.
+      savedTakes.unshift(take.session);
+      return { outcome: SAVED, id };
     } catch (error) {
       return { outcome: FAILED, sentence: saveFailureSentence(error) };
     }
