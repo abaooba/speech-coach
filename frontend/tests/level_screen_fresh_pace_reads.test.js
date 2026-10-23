@@ -70,12 +70,12 @@ function readAt(wpm) {
   return readResult({ words, seconds: (words * 60) / wpm });
 }
 
-// Read 1 of a two-read loop, its feedback, then the review's "Read it again": read 2's request.
+// Read 1 of a Pace level, its feedback, then the review's "Read a new passage": read 2's request.
 async function toReadTwo(world, read1) {
   world.tap("Record read 1");
   await world.finishTake(read1);
   world.tap(primaryText(world));
-  world.tap("Read it again");
+  world.tap("Read a new passage");
 }
 
 // --- Pace level 1 -----------------------------------------------------------------------------
@@ -146,7 +146,7 @@ test("a take keeps its draw: read 2 asked for again reads the same passage", asy
   const first = fieldsOf(world.request());
   // Back from Practice without recording: the run still stands on its Review.
   await world.open("pace-1");
-  world.tap("Read it again");
+  world.tap("Read a new passage");
   assert.equal(world.practice.requests.length, 3);
   assert.deepEqual(fieldsOf(world.request()), first);
 });
@@ -171,7 +171,7 @@ test("Pace level 2 reads a new cold read each read, retried pair too, at its ban
   await world.finishTake(readAt(140));
   world.tap("Try read 3");
   await world.finishTake(readAt(140));
-  world.tap("Read it again");
+  world.tap("Read a new passage");
   const reads = world.practice.requests.map(fieldsOf);
   assert.deepEqual(
     reads.map((read) => read.title),

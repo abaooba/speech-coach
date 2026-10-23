@@ -251,7 +251,7 @@ test("Pace level 2 retries a pair: Try read 3, then read 4 before the Result", a
   world.tap("Record read 1");
   await world.finishTake(read(140));
   world.tap(primaryText(world));
-  world.tap("Read it again");
+  world.tap("Read a new passage");
   // Read 2 at 140 is out of its 150 to 170 band: the pair misses.
   await world.finishTake(read(140));
   assert.equal(textOf(find(world.body, "level-result__title")), "Not yet");
@@ -262,7 +262,7 @@ test("Pace level 2 retries a pair: Try read 3, then read 4 before the Result", a
   assert.equal(textOf(find(world.body, "level-heading")), "Read 4");
   const current = find(world.body, "level-steps__item--current");
   assert.equal(textOf(find(current, "level-steps__label")), "Read 4");
-  world.tap("Read it again");
+  world.tap("Read a new passage");
   assert.deepEqual(Array.from(world.request().material.targetWpm), [150, 170]);
   await world.finishTake(read(160));
   assert.equal(textOf(find(world.body, "level-result__title")), "Level cleared");

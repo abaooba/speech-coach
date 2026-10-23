@@ -109,8 +109,10 @@
     "Take 1's audio stays in this phone's memory for this level only, then it is deleted. " +
     "It is never saved.";
   const AUDIO_GONE = "Take 1's audio is gone: it is kept only while this level is open.";
+  // The button that starts a take after the first (nextTakeLabel).
   const SAY_IT_AGAIN = "Say it again";
   const READ_IT_AGAIN = "Read it again";
+  const READ_A_NEW_PASSAGE = "Read a new passage";
   const RECORD_THE_TALK = "Record the talk";
 
   // Result
@@ -486,11 +488,15 @@
     if (!take.read) {
       return "Talk for " + secondsOf(play, take) + " s.";
     }
-    const ladder =
-      play.kind === LOOP && play.material === LADDER_MATERIAL && Array.isArray(take.band);
-    return ladder
+    return isLadderRead(play, take)
       ? "Read the passage at " + take.band[0] + " to " + take.band[1] + " wpm."
       : READ_ALOUD;
+  }
+
+  // A ladder read (Pace levels 1 and 2): held to its own band, on a cold read drawn for it alone
+  // (materialOf).
+  function isLadderRead(play, take) {
+    return play.kind === LOOP && play.material === LADDER_MATERIAL && Array.isArray(take.band);
   }
 
   function countsOf(play, take, takeIndex) {
@@ -1625,9 +1631,7 @@
         iconOf("lock", 14, "level-privacy__icon"),
         el("span", { text: PRIVACY }),
       ]),
-      actionsOf([
-        primaryButton(next.read ? READ_IT_AGAIN : SAY_IT_AGAIN, () => startTake(target, 1)),
-      ]),
+      actionsOf([primaryButton(nextTakeLabel(play, next), () => startTake(target, 1))]),
     );
     return { node: stepNode(parts), heading: title };
   }
@@ -2098,12 +2102,22 @@
     if (target.fix) {
       parts.push(el("p", { class: "level-summary__fix", text: "Your fix: " + target.fix + "." }));
     }
-    let label = take.read ? READ_IT_AGAIN : SAY_IT_AGAIN;
-    if (target.play.kind === BENCHMARK) {
-      label = RECORD_THE_TALK;
-    }
+    const label = nextTakeLabel(target.play, take);
     parts.push(actionsOf([primaryButton(label, () => startTake(target, index))]));
     return { node: stepNode(parts), heading: title };
+  }
+
+  // The button that starts a take after the first, on the Review or a take step: "Say it again"
+  // for a talk ("Record the talk" on the benchmark), "Read it again" for a read of the run's one
+  // passage, and "Read a new passage" for a ladder read, which draws a new cold read.
+  function nextTakeLabel(play, take) {
+    if (play.kind === BENCHMARK) {
+      return RECORD_THE_TALK;
+    }
+    if (!take.read) {
+      return SAY_IT_AGAIN;
+    }
+    return isLadderRead(play, take) ? READ_A_NEW_PASSAGE : READ_IT_AGAIN;
   }
 
   // --- Result ----------------------------------------------------------------------------------
