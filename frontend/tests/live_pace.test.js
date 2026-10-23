@@ -271,10 +271,11 @@ test("a lone sound before the speech does not start the clock", () => {
 test("speech starts at the first peak two more follow within 1.5 s, and only then", () => {
   // Never three peaks within 1.5 s: no speech, no number.
   assert.equal(delivery.livePaceAt([1, 2, 3.2, 4.5, 6, 8, 9.6], 20, 0.69), null);
-  // Three within exactly 1.5 s from 10 s start it: at 15 s the window is 5 s with 2 peaks.
-  const peaks = [1, 2, 3.2, 10, 10.75, 11.5];
+  // Three within exactly 1.5 s from 10 s start it, and the speech goes on with no silence over
+  // 1.5 s: at 15 s the window is 5 s with the 5 peaks after the first.
+  const peaks = [1, 2, 3.2, 10, 10.75, 11.5, 12.5, 13.5, 14.5];
   assert.equal(delivery.livePaceAt(peaks, 14.9, 0.69), null);
-  assert.equal(delivery.livePaceAt(peaks, 15, 0.69).toFixed(3), ((2 * 0.69 * 60) / 5).toFixed(3));
+  assert.equal(delivery.livePaceAt(peaks, 15, 0.69).toFixed(3), ((5 * 0.69 * 60) / 5).toFixed(3));
   // A peak after `at` cannot start the speech early.
   assert.equal(delivery.livePaceAt([1, 1.5, 9], 8, 0.69), null);
 });

@@ -133,9 +133,10 @@
   const LIVE_KEPT_SECONDS = 0.25;
   // A filter value this small is flushed to 0, so a silence never leaves denormal numbers.
   const LIVE_FLUSH_BELOW = 1e-30;
-  // The number: words a minute over the trailing 15 s, or over the time since speech started
-  // while that is shorter, shown once 5 s have passed since it and rounded to 5. A silence over
-  // 1.5 s keeps what the row shows, so a pause at a full stop never says Speed up.
+  // The number: words a minute over the trailing 15 s of speech, or over all of it while that
+  // is shorter, shown once there are 5 s of it and rounded to 5. A silence counts as speech
+  // only up to 1.5 s, and one over 1.5 s keeps what the row shows, so a pause at a full stop
+  // never says Speed up, during it or after it.
   const LIVE_WINDOW_SECONDS = 15;
   const LIVE_MIN_SPEECH_SECONDS = 5;
   const LIVE_ROUND_TO_WPM = 5;
@@ -1102,10 +1103,11 @@
   }
 
   // The live estimate at `at` seconds from syllable peak times (seconds, in order): words a
-  // minute over the trailing LIVE_WINDOW_SECONDS, or over the time since speech started while
-  // that is shorter, the peak speech starts at left out since it only starts the clock. Peaks
-  // after `at` are left out. Null until LIVE_MIN_SPEECH_SECONDS have passed since speech
-  // started. Unrounded; `factor` is words a peak, read through paceFactorOf.
+  // minute over the trailing LIVE_WINDOW_SECONDS of speech, or over all the speech since it
+  // started while that is shorter, the peak speech starts at left out since it only starts the
+  // clock. Speech time is the clock's time with every silence cut to LIVE_SILENCE_SECONDS (see
+  // speechAges). Peaks after `at` are left out. Null until there are LIVE_MIN_SPEECH_SECONDS
+  // of speech. Unrounded; `factor` is words a peak, read through paceFactorOf.
   function livePaceAt(peaks, at, factor) {
     if (!isFiniteNumber(at)) {
       return null;
@@ -1114,12 +1116,33 @@
       ? peaks.filter((time) => isFiniteNumber(time) && time <= at)
       : [];
     const start = speechStartIndex(times);
-    if (start === -1 || at - times[start] < LIVE_MIN_SPEECH_SECONDS) {
+    if (start === -1) {
       return null;
     }
-    const seconds = Math.min(LIVE_WINDOW_SECONDS, at - times[start]);
-    const counted = times.filter((time, index) => index > start && time > at - seconds);
+    const ages = speechAges(times, start, at);
+    if (ages[0] < LIVE_MIN_SPEECH_SECONDS) {
+      return null;
+    }
+    const seconds = Math.min(LIVE_WINDOW_SECONDS, ages[0]);
+    const counted = ages.filter((age, index) => index > 0 && age < seconds);
     return perMinuteExact(counted.length * paceFactorOf(factor), seconds);
+  }
+
+  // How long before `at` each peak from times[start] on came, in seconds of speech: the clock's
+  // time less every silence's time beyond LIVE_SILENCE_SECONDS, whether the silence falls
+  // between two peaks or after the last. The row keeps its value through such a silence, so
+  // the number after it goes on from that value instead of counting the pause as slow speech.
+  function speechAges(times, start, at) {
+    const last = times.length - 1;
+    const ages = [];
+    let cut = Math.max(0, at - times[last] - LIVE_SILENCE_SECONDS);
+    for (let index = last; index >= start; index -= 1) {
+      if (index < last) {
+        cut += Math.max(0, times[index + 1] - times[index] - LIVE_SILENCE_SECONDS);
+      }
+      ages[index - start] = at - times[index] - cut;
+    }
+    return ages;
   }
 
   // The index of the peak speech starts at: the first that LIVE_SPEECH_RUN_PEAKS more follow
