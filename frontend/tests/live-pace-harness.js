@@ -356,7 +356,8 @@ class FakeBlob {
 // or the fake estimator (`delivery`: null for none, or an object of one's own), and practice.js,
 // and mounts the screen into a section that holds only its body. Options: `audio` for the
 // AudioContext fake, `audioGlobal` for the name it goes under ("AudioContext",
-// "webkitAudioContext" or "none"), `flags` for the store's flags, `pauses` for app.pauses.
+// "webkitAudioContext" or "none"), `flags` for the store's flags, `pauses` for app.pauses. The
+// vm context is handed back as `context`, so a test can take a global away or replace it.
 function setup(options = {}) {
   const clock = fakeClock();
   const focused = [];
@@ -474,6 +475,7 @@ function setup(options = {}) {
 
   const t = {
     app,
+    context,
     practice,
     root,
     body,

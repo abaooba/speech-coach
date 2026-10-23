@@ -1,0 +1,126 @@
+// Tests for the live pace capture when part of a take cannot start (frontend/screens/practice.js;
+// spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7, Capture and
+// Display). A recorder that cannot start means no take: the live pace capture, the microphone and
+// the pause sampler all go at once, the block a refused microphone shows takes the record zone,
+// and the next take's capture is the only one left open.
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const { byClass } = require("./fake-dom");
+const { SECOND, assertReleased, graph, paceRow, setup } = require("./live-pace-harness");
+
+const MIC_BLOCKED_TITLE = "Microphone blocked";
+const MIC_BLOCKED_BODY =
+  "Microphone is blocked. Allow it in your browser settings, then try again.";
+const MIC_BLOCKED_ACTION = "Try again";
+
+// A pause sampler that logs its calls in the setup's log, beside each AudioContext made.
+function loggedPauses(log) {
+  return {
+    start() {
+      log.push("pauses.start");
+    },
+    stop() {
+      log.push("pauses.stop");
+      return [];
+    },
+    reconcile: (metrics) => metrics,
+  };
+}
+
+// The ways a browser can refuse to record a stream it has granted: the recorder's start()
+// throws, the recorder cannot be made for it, or there is no MediaRecorder at all.
+const RECORDER_FAILURES = [
+  [
+    "start() throws",
+    (t) => {
+      t.MediaRecorder.prototype.start = () => {
+        throw new Error("start refused");
+      };
+    },
+  ],
+  [
+    "the recorder cannot be made",
+    (t) => {
+      t.context.MediaRecorder = class {
+        static isTypeSupported() {
+          return true;
+        }
+
+        constructor() {
+          throw new Error("type refused");
+        }
+      };
+    },
+  ],
+  [
+    "the browser has no MediaRecorder",
+    (t) => {
+      delete t.context.MediaRecorder;
+    },
+  ],
+];
+
+// The block in the record zone: its title, its body and its action.
+function errorBlock(t) {
+  const block = byClass(t.body, "practice__state").children[0];
+  const action = byClass(block, "state__action");
+  return {
+    title: byClass(block, "state__title").textContent,
+    body: byClass(block, "state__body").textContent,
+    action,
+    actionLabel: action.children.length > 0 ? action.children[0].textContent : action.textContent,
+  };
+}
+
+for (const [name, refuse] of RECORDER_FAILURES) {
+  test(`a recorder that cannot start (${name}) lets the capture, the mic and the sampler go`, async () => {
+    const t = setup({ pauses: loggedPauses });
+    refuse(t);
+    await t.startRecording();
+    assert.equal(t.AudioContext.instances.length, 1, "the capture had started");
+    assertReleased(graph(t));
+    assert.ok(t.streams[0].tracks.every((track) => track.stopped), "the mic is let go");
+    assert.deepEqual(t.log, ["pauses.start", "AudioContext", "pauses.stop"]);
+    assert.equal(t.clock.activeIntervals(), 0, "no clock runs");
+    assert.ok(!t.calls.announce.includes("Recording started"));
+    // The take never began, which the screen says as it does for a refused microphone.
+    assert.equal(t.root.dataset.state, "error");
+    const block = errorBlock(t);
+    assert.equal(block.title, MIC_BLOCKED_TITLE);
+    assert.equal(block.body, MIC_BLOCKED_BODY);
+    assert.equal(block.actionLabel, MIC_BLOCKED_ACTION);
+    assert.equal(paceRow(t).hidden, true);
+    t.clock.advance(10 * SECOND);
+    assert.equal(t.calls.analyze.length, 0, "nothing is sent");
+  });
+}
+
+test("after a recorder that could not start, Try again and a new take leave one context open", async () => {
+  const t = setup();
+  const start = t.MediaRecorder.prototype.start;
+  t.MediaRecorder.prototype.start = () => {
+    throw new Error("start refused");
+  };
+  await t.startRecording();
+  assert.equal(t.root.dataset.state, "error");
+  t.MediaRecorder.prototype.start = start;
+  errorBlock(t).action.click();
+  assert.equal(t.root.dataset.state, "idle");
+  await t.startRecording();
+  assert.equal(t.root.dataset.state, "recording");
+  const [first, second] = t.AudioContext.instances;
+  assert.equal(t.AudioContext.instances.length, 2);
+  assert.equal(first.closes, 1, "the failed take's context is closed");
+  assert.equal(second.closes, 0, "the new take's context runs");
+  assert.deepEqual(
+    t.AudioContext.instances.filter((context) => context.state !== "closed"),
+    [second],
+  );
+  assert.equal(typeof graph(t).processor.onaudioprocess, "function");
+  assert.equal(paceRow(t).hidden, false);
+  assert.ok(t.streams[0].tracks.every((track) => track.stopped), "the first stream is let go");
+  assert.ok(t.streams[1].tracks.every((track) => !track.stopped), "the new one records");
+});

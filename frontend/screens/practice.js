@@ -1414,17 +1414,27 @@
     }
     capture.awaitingMic = false;
     if (stream === null) {
-      render("error", {
-        title: MIC_BLOCKED_TITLE,
-        body: MIC_BLOCKED_BODY,
-        actionLabel: MIC_BLOCKED_ACTION,
-        onAction: () => backToIdle(nodes.recordButton),
-      });
+      showMicBlocked();
       return;
     }
     beginTake(stream);
   }
 
+  // The Microphone blocked block, for a microphone refused, missing, or one this browser
+  // cannot record from. Try again goes back to idle.
+  function showMicBlocked() {
+    render("error", {
+      title: MIC_BLOCKED_TITLE,
+      body: MIC_BLOCKED_BODY,
+      actionLabel: MIC_BLOCKED_ACTION,
+      onAction: () => backToIdle(nodes.recordButton),
+    });
+  }
+
+  // Starts a take on a granted stream: the pause sampler, the live pace capture, the recorder
+  // and the clock. When the browser cannot record the stream (no MediaRecorder, or one that
+  // refuses it) no take starts: what had started is let go at once, the microphone with it,
+  // and the block says what it says for a refused microphone.
   function beginTake(stream) {
     letTakeGo();
     liveTaps = [];
@@ -1434,6 +1444,21 @@
       capture.pausesStarted = true;
     }
     startLivePace(stream);
+    try {
+      startRecorder(stream);
+    } catch {
+      releaseCapture();
+      showMicBlocked();
+      return;
+    }
+    startTimer();
+    app.ui.announce(STARTED_ANNOUNCEMENT);
+    render("recording");
+  }
+
+  // The take's recorder, in the first container this browser can encode, handing over a chunk
+  // every second.
+  function startRecorder(stream) {
     capture.chosenMimeType = supportedMimeType();
     capture.chunks = [];
     capture.recorder = capture.chosenMimeType
@@ -1442,9 +1467,6 @@
     capture.recorder.addEventListener("dataavailable", collectChunk);
     capture.recorder.addEventListener("stop", onRecorderStopped);
     capture.recorder.start(CHUNK_EVERY_MS);
-    startTimer();
-    app.ui.announce(STARTED_ANNOUNCEMENT);
-    render("recording");
   }
 
   // The first container this browser can encode, or "" to let MediaRecorder pick its own
@@ -2022,8 +2044,10 @@
   // factor of the take's mode. Every take, level mode's too, is captured, so every take that
   // counts tunes its mode. Without Web Audio or the estimator the take records without the row;
   // so it does when a step throws (a tracker refuses a rate under 8 kHz), after whatever was
-  // made is let go.
+  // made is let go. A capture still held from before goes first, as app.pauses.start stops its
+  // own sampler.
   function startLivePace(stream) {
+    releaseLivePace();
     const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
     const delivery = app.delivery;
     if (!AudioContextClass || !delivery || typeof delivery.livePace !== "function") {
