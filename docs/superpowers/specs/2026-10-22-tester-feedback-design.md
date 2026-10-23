@@ -183,9 +183,22 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
 - **Validation** before it ships: speech made with macOS `say` at known rates (several voices,
   120 to 200 wpm) and the repo's real takes, run through the estimator; report the error. If the
   uncalibrated median error is over 15%, show the cue words without the number.
+- **Validation result** (2026-10-22, 76 `say` clips from 8 voices at 121 to 247 wpm, plus the
+  repo's two real takes): uncalibrated, the median whole-clip error is 22.0% (it reads low), over
+  the bar; calibrated, 6.3% (leave-one-out) and, tuning in sequence as the app does, 12.6% on a
+  mode's second take and 8.3% on its third; the two real takes are within 7%. So the number
+  waits for the factor: until a mode (Talk or Read) has one take that counts for the factor
+  (20 seconds and 30 words), its row shows the cue words alone, centred, after the waiting
+  sentence; from then on, "About 150 wpm" and the cue. The first reading shows its own cue. A
+  silence counts as speech only up to 1.5 seconds, in the 15-second window and in the 5 seconds
+  before the first reading, so a pause at a full stop never drags the number down for long.
+  Capture runs on every take, level mode included, so every counted take tunes its mode; only
+  the row stays hidden in level mode. The write-up goes in the repo next to this spec.
 - how.html: "While you record, a live pace shows under the clock. Your phone estimates it from
   the beats of your syllables. Results counts your real words, so the two can differ. The live
-  pace runs on your phone and sends nothing."
+  pace runs on your phone and sends nothing." and, after it: "It tunes itself to your voice,
+  once for Talk and once for Read. Until a take of 20 seconds or more has tuned it, it shows only
+  On target, Slow down or Speed up."
 
 ## 8. Tests and docs
 
