@@ -2,8 +2,11 @@
 // (docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 6): the row's meta line
 // reads "<date> · Read", by app.language.isReadTake, the rule Progress charts Talk and Read apart
 // on, so the kind never rests on color. A talk take's row is unchanged, and without language.js
-// every take is talk, as before the rule. ui.js, passages.js, language.js and screens/history.js
-// run for real against the shared fake DOM; summarize and the store are stubs.
+// every take is talk, as before the rule. The marker is a piece of its own after the no-wrap
+// date, and the meta line wraps between the two, so where a row has no room for both (200% zoom
+// on a phone) the marker drops under the date instead of widening the row. ui.js, passages.js,
+// language.js and screens/history.js run for real against the shared fake DOM; summarize and the
+// store are stubs; the meta line's rule is read from styles.css section 9.
 "use strict";
 
 const test = require("node:test");
@@ -20,6 +23,7 @@ const UI_SOURCE = read("ui.js");
 const PASSAGES_SOURCE = read("passages.js");
 const LANGUAGE_SOURCE = read("language.js");
 const HISTORY_SOURCE = read(path.join("screens", "history.js"));
+const CSS = read("styles.css");
 
 const MARKER = " · Read";
 const SUMMARY = { wpm: 152, fillersPerMinute: 1.2, target: [140, 160] };
@@ -99,14 +103,19 @@ function textColumnOf(row) {
   return byClass(openButtonOf(row), "session-row__text");
 }
 
-// The meta line under the title: the date, and the marker for a take read aloud.
-function metaTextOf(row) {
-  return byClass(textColumnOf(row), "session-row__date").textContent;
+function metaOf(row) {
+  return byClass(textColumnOf(row), "session-row__date");
 }
 
 // What a browser's textContent would return: the node's own text followed by its children's.
 function fullText(node) {
   return (node.textContent || "") + (node.children || []).map(fullText).join("");
+}
+
+// The meta line under the title as a browser reads it: the date, and the marker for a take read
+// aloud.
+function metaTextOf(row) {
+  return fullText(metaOf(row));
 }
 
 // [tag, class] of each child, the shape of a row part.
@@ -135,15 +144,28 @@ test("a pasted script followed on Talk says Read, the kind Progress charts it as
   assert.equal(metaTextOf(talked), app.ui.formatDate(strayed.createdAt), "no script block: talk");
 });
 
-test("the marker is words in the muted meta line: no color, no extra part", async () => {
-  const { body } = await shown([TALK, READ_TAB]);
+test("the marker is words in the muted meta line, a piece of its own after the date", async () => {
+  const { app, body } = await shown([TALK, READ_TAB]);
   const [talkRow, readRow] = rowsOf(body);
   assert.deepEqual(shapeOf(textColumnOf(readRow)), [
     ["div", "session-row__title"],
     ["div", "session-row__date"],
   ]);
-  const meta = byClass(textColumnOf(readRow), "session-row__date");
-  assert.equal(meta.children.length, 0, "plain text: no tag, icon or colored span");
+  // The date stays the line's own text, exactly as on a talk row, and the marker follows it in
+  // one plain span: no class or attribute, so no color of its own, and no icon.
+  const meta = metaOf(readRow);
+  assert.equal(meta.textContent, app.ui.formatDate(READ_TAB.createdAt));
+  assert.deepEqual(
+    meta.children.map((child) => [
+      child.tagName,
+      child.className,
+      Object.keys(child.attributes),
+      child.textContent,
+      child.children.length,
+    ]),
+    [["span", "", [], MARKER, 0]],
+  );
+  assert.equal(metaOf(talkRow).children.length, 0, "a talk row's meta line is its date alone");
   assert.deepEqual(shapeOf(openButtonOf(readRow)), shapeOf(openButtonOf(talkRow)));
   assert.deepEqual(shapeOf(readRow), shapeOf(talkRow), "the same open button and trash button");
   const words = fullText(openButtonOf(readRow));
@@ -198,4 +220,79 @@ function codeOf(source) {
 // marker's word lives in one literal, so a wording change is made in one place.
 test("the marker's word is one string literal in history.js", () => {
   assert.equal(codeOf(HISTORY_SOURCE).split('"Read"').length - 1, 1);
+});
+
+// The rules of styles.css section 9 (History), comments left out: {at, selector, declarations},
+// where `at` is the enclosing @media prelude or null.
+function historyRules() {
+  const start = CSS.indexOf("/* 9. History screen");
+  const end = CSS.indexOf("/* 10. Progress screen");
+  assert.ok(start !== -1 && end > start, "styles.css keeps section 9 before section 10");
+  return parseRules(CSS.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, ""));
+}
+
+function squash(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+// The index of the brace that closes the one at `open`.
+function closingBrace(text, open) {
+  let depth = 0;
+  for (let index = open; index < text.length; index += 1) {
+    if (text[index] === "{") {
+      depth += 1;
+    } else if (text[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  throw new Error("styles.css has an unbalanced brace");
+}
+
+function declarationsOf(body) {
+  const declarations = {};
+  body.split(";").forEach((part) => {
+    const colon = part.indexOf(":");
+    if (colon !== -1) {
+      declarations[squash(part.slice(0, colon))] = squash(part.slice(colon + 1));
+    }
+  });
+  return declarations;
+}
+
+function parseRules(text, at = null, rules = []) {
+  let cursor = 0;
+  while (text.indexOf("{", cursor) !== -1) {
+    const open = text.indexOf("{", cursor);
+    const close = closingBrace(text, open);
+    const prelude = squash(text.slice(cursor, open));
+    const body = text.slice(open + 1, close);
+    if (prelude.startsWith("@")) {
+      parseRules(body, prelude, rules);
+    } else {
+      rules.push({ at, selector: prelude, declarations: declarationsOf(body) });
+    }
+    cursor = close + 1;
+  }
+  return rules;
+}
+
+// A meta line that could not wrap made a read row 14px wider than a talk row ("· Read" ran past
+// the no-wrap stats line), so at 200% zoom on a phone it scrolled the page sideways. Now the line
+// is a wrapping row of two no-wrap pieces, whose narrowest is the date, as on a talk row.
+test("the meta line wraps between the date and the marker, never inside either", () => {
+  const rules = historyRules();
+  const meta = rules.filter((rule) => rule.selector === ".session-row__date");
+  assert.deepEqual(meta.map((rule) => rule.at), [null], "one rule, the same at every width");
+  const { declarations } = meta[0];
+  assert.equal(declarations.display, "flex", "the date and the marker are its pieces");
+  assert.equal(declarations["flex-wrap"], "wrap", "the marker can drop under the date");
+  assert.equal(declarations["white-space"], "nowrap", "neither piece breaks inside");
+  // The marker's leading space collapses at the start of its piece; the gap stands in for it.
+  assert.equal(declarations["column-gap"], "var(--s-1)");
+  assert.equal(declarations.color, "var(--muted)", "the marker shares the date's muted words");
+  const marker = rules.filter((rule) => /\.session-row__date\s*[> ]/.test(rule.selector));
+  assert.deepEqual(marker, [], "no rule of its own: no color, size or wrapping of its own");
 });

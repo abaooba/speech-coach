@@ -119,9 +119,14 @@
     return Array.isArray(target) && target.length === 2 && target.every(Number.isFinite);
   }
 
-  // The date, with " · Read" after it for a take read aloud; a talk take's line is the date alone.
-  function metaText(session, date) {
-    return isReadTake(session) ? date + META_SEPARATOR + READ_MARKER : date;
+  // The date, then for a take read aloud " · Read" in a span of its own; a talk take's line is
+  // the date alone. The stylesheet wraps the line between the two, so a row with no room for both
+  // (200% zoom on a phone) drops the marker under the date instead of growing wider.
+  function buildMetaLine(session, date) {
+    const marker = isReadTake(session)
+      ? app.ui.el("span", { text: META_SEPARATOR + READ_MARKER })
+      : null;
+    return app.ui.el("div", { class: "session-row__date", text: date }, marker);
   }
 
   // A take read aloud (app.language.isReadTake): a passage, a cold read, the benchmark read or a
@@ -259,7 +264,7 @@
       [
         app.ui.el("div", { class: "session-row__text" }, [
           app.ui.el("div", { class: "session-row__title", text: session.passageTitle }),
-          app.ui.el("div", { class: "session-row__date", text: metaText(session, date) }),
+          buildMetaLine(session, date),
         ]),
         app.ui.el("span", { class: "session-row__stats num", text: statsText(summary) }),
         status === null ? null : buildStatus(status),
