@@ -1,7 +1,7 @@
 // Tests for the cold-read passages in frontend/passages.js (docs/PLAN.md T44): original
 // everyday readings (explainers, short stories and news-style pieces) for the skill path's
 // coldRead mode, which hands a speaker a text they have never read. app.passages.coldReads()
-// hands them out; they are not entries of app.passages, so Practice's Read tab keeps its six
+// hands them out; they are not entries of app.passages, so Practice's Read tab keeps its 24
 // passages. Modules load with vm.runInNewContext.
 "use strict";
 
@@ -18,9 +18,9 @@ const FRONTEND_DIR = path.join(__dirname, "..");
 const MIN_COLD_READS = 12;
 const MIN_WORDS = 120;
 const MAX_WORDS = 200;
-// app.passages beside the cold reads: five timed prompts, then six passages.
+// app.passages beside the cold reads: five timed prompts, then 24 passages.
 const PROMPT_COUNT = 5;
-const PASSAGE_COUNT = 6;
+const PASSAGE_COUNT = 24;
 const MAX_TITLE_LENGTH = 40;
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // A transcript may write a number or a symbol either way ("20%" or "twenty percent"), so a
@@ -137,7 +137,7 @@ test("cold-read ids and titles are unique and never repeat an app.passages entry
   }
 });
 
-test("app.passages keeps its eleven entries, five prompts, six passages, none a cold read", () => {
+test("app.passages keeps its 29 entries, five prompts, 24 passages, none a cold read", () => {
   const practice = Array.from(loadPassages());
   assert.equal(practice.length, PROMPT_COUNT + PASSAGE_COUNT);
   assert.equal(practice.filter((entry) => entry.kind === "prompt").length, PROMPT_COUNT);
@@ -191,7 +191,7 @@ test("read as written, a cold read says none of the habit words delivery.js coun
 
 // The Read tab shows one chip per group (tester feedback spec, section 2.3), and a group's chip
 // draws one of the group's passages on every tap.
-test("Practice's Read tab lists only the six practice passages, by group, never a cold read", () => {
+test("Practice's Read tab lists only the 24 practice passages, by group, never a cold read", () => {
   const { app, modeOptions, chips } = mountPractice();
   const read = modeOptions.find((option) => option.textContent === "Read");
   read.click();
@@ -218,7 +218,7 @@ test("Practice's Read tab lists only the six practice passages, by group, never 
   const coldChips = chips.filter((chip) => coldIds.has(chip.dataset.passageId));
   assert.deepEqual(coldChips, [], "no chip for a cold read");
   // Every tap on a group's chip shows one of that group's practice passages, so the chips show
-  // the six and nothing else.
+  // the 24 and nothing else.
   for (const chip of shown) {
     const members = practicePassages
       .filter((entry) => entry.group === chip.dataset.group)

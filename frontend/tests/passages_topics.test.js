@@ -176,6 +176,24 @@ const ALL_IDS = [
   "liberty-or-death",
   "drill-st-clusters",
   "drill-pl-bl-clusters",
+  "explainer-cut-apples",
+  "explainer-echoes",
+  "explainer-floating-ice",
+  "explainer-moon-phases",
+  "explainer-bicycles",
+  "story-phone-call",
+  "story-name-i-forgot",
+  "story-corner-bakery",
+  "story-soup-next-door",
+  "story-giving-directions",
+  "fdr-fear-itself",
+  "jfk-ask-not",
+  "tr-man-in-the-arena",
+  "jfk-grace-and-beauty",
+  "drill-th-sounds",
+  "drill-r-and-l",
+  "drill-v-and-w",
+  "drill-word-endings",
 ];
 
 function loadPassages() {
@@ -264,7 +282,7 @@ test("every topic is a distinct sentence under 15 words", () => {
   }
 });
 
-test("all eleven ids in order, prompts first, so Practice opens on Talk with About you", () => {
+test("all 29 ids in order, prompts first, so Practice opens on Talk with About you", () => {
   const passages = loadPassages();
   assert.deepEqual(
     passages.map((entry) => entry.id),

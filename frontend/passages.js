@@ -158,10 +158,9 @@
     "Tell the story of something you waited a long time for.",
   ];
 
-  // The Read tab's everyday texts: an explainer and a short story, original, read as written.
-  // Like the cold reads, they hold no digit, symbol, quotation mark, number word or habit word,
-  // so a take that reads one as written shows no misread and no filler. The explainer is also
-  // the Pace ladder's passage (path.js), 109 words, so the ladder reads keep their set seconds.
+  // The Read tab's everyday texts: six explainers and six short stories, original, read as
+  // written. Like the cold reads, they hold no digit, symbol, quotation mark, number word or habit
+  // word, so a take that reads one as written shows no misread and no filler.
   const EXPLAINER_RAINBOWS = [
     "A rainbow appears when sunlight meets rain at the right angle. Sunlight looks white, but it",
     "is really a mix of many colors. When a beam of light enters a raindrop, it slows down and",
@@ -172,6 +171,56 @@
     "back to the sun and look up.",
   ].join(" ");
 
+  const EXPLAINER_CUT_APPLES = [
+    "Cut an apple, and soon the pale slices start to turn brown. Each cell of the fruit keeps",
+    "certain natural chemicals apart from a helper called an enzyme. A knife breaks the cells",
+    "open, and the chemicals meet the enzyme. Then the enzyme helps oxygen from the air turn",
+    "the chemicals brown. The color is harmless, but the fruit looks less fresh. Lemon juice",
+    "slows the change, because its sour acid makes the enzyme work more slowly. That is why",
+    "cooks often add lemon juice to fruit salad. Next time you cut an apple, brush lemon",
+    "juice on half the slices, and watch the difference.",
+  ].join(" ");
+
+  const EXPLAINER_ECHOES = [
+    "An echo is a sound that comes back to you. When you shout, your voice travels through",
+    "the air as waves of vibration. A large, hard surface, such as a cliff, sends much of",
+    "that sound back. Soft surfaces, such as grass and fresh snow, soak up sound and send",
+    "less back. Distance matters. If the surface is near, the sound returns quickly and",
+    "blends with your voice. If it is far enough away, you hear a separate copy a moment",
+    "later. That is why a shout in a steep, rocky valley comes back clearly. Stand far back",
+    "from a tall wall and clap once. Listen for the echo.",
+  ].join(" ");
+
+  const EXPLAINER_FLOATING_ICE = [
+    "Drop an ice cube into a glass of water, and it stays at the top. Most liquids get",
+    "smaller when they freeze. Water does the opposite. When it freezes, its molecules lock",
+    "into an open pattern with tiny gaps between them. The same water takes up more space as",
+    "ice, which makes ice lighter for its size. That is why ice floats. It is also why lakes",
+    "freeze from the top down. The ice forms a lid, and fish can survive the winter beneath",
+    "it. Pour yourself a cold drink with ice, and notice how much of each cube sits below the",
+    "surface.",
+  ].join(" ");
+
+  const EXPLAINER_MOON_PHASES = [
+    "The moon makes no light of its own. It shines by reflecting sunlight. The sun always",
+    "lights up half of the moon, the half facing it. As the moon circles the Earth each",
+    "month, we see different amounts of that bright half. When the moon is between the Earth",
+    "and the sun, the bright half faces away from us. When the moon is on the side of the",
+    "Earth away from the sun, we see the whole bright half. That is why the moon seems to",
+    "change shape over the month. Look for the moon on a few nights this week, and watch the",
+    "bright part grow or shrink.",
+  ].join(" ");
+
+  const EXPLAINER_BICYCLES = [
+    "A bicycle stays upright mainly because its rider keeps steering. When the bike starts to",
+    "lean left, the rider turns the front wheel slightly left. The wheels roll back under the",
+    "rider, and the bike straightens up. When it leans right, the rider steers right. These",
+    "corrections are tiny, and most riders make them without thinking. Steering can only",
+    "catch a fall while the wheels are rolling, and it works better with some speed. That is",
+    "why a bike wobbles when you ride slowly and falls over when you stop. Next time you",
+    "ride, notice the small turns your hands keep making.",
+  ].join(" ");
+
   const STORY_WRONG_TRAIN = [
     "On my first morning in a new city, I got on the wrong train. I only noticed when the",
     "station names stopped matching the map in my hand. My heart was racing, and every word of",
@@ -179,6 +228,55 @@
     "help. She smiled, studied the map, and told me to change at the next stop. Then she walked",
     "with me to the right platform. I arrived late, but I arrived. Since that day, asking a",
     "stranger for help no longer frightens me. Most people are glad to help when you ask.",
+  ].join(" ");
+
+  const STORY_PHONE_CALL = [
+    "After I moved abroad, I avoided phone calls. On a call, I could not see the other",
+    "person, and my words came out too fast. Then my bike broke. The repair shop only took",
+    "appointments by phone. I wrote my sentences on a card and practiced them out loud. When",
+    "a man answered, my mouth went dry, and I wanted to say everything at once. Instead, I",
+    "slowed down and paused after each sentence. He understood every word, and the call took",
+    "less than a minute. Now I speak at a calm pace on every call. It helps the listener",
+    "understand, and it gives me time to think.",
+  ].join(" ");
+
+  const STORY_NAME_I_FORGOT = [
+    "On the first day of language class, the student beside me told me her name. By the",
+    "break, I had forgotten it. Every morning after that, she greeted me by name, and I only",
+    "smiled and waved. Weeks went by, and it felt too late to ask. Then the teacher asked us",
+    "to introduce each other to the class. My face felt hot. I whispered an apology and asked",
+    "her name again. She laughed and admitted that she had forgotten mine too. Every morning,",
+    "she had read it on my notebook. These days, if I forget a name, I ask again right away.",
+    "Everyone forgets, and everyone understands.",
+  ].join(" ");
+
+  const STORY_CORNER_BAKERY = [
+    "Every morning before class, I bought bread at the corner bakery. For weeks, I ordered by",
+    "pointing. On a cold winter day, I decided to try a full sentence. I practiced it the",
+    "whole way there. The baker listened, pressed her lips together, and burst out laughing.",
+    "Instead of warm bread, I had asked her for a warm room. In her language, the words for",
+    "bread and room sound almost the same. She said the word for bread slowly, and I repeated",
+    "it until it felt natural. I have never forgotten that word. The words I get wrong are",
+    "the words I remember best.",
+  ].join(" ");
+
+  const STORY_SOUP_NEXT_DOOR = [
+    "On a rainy Sunday, I cooked a soup from my home country. The smell of garlic and ginger",
+    "filled the hallway. Soon, there was a knock at my door. It was my neighbor, an older",
+    "woman I barely knew. I was sure she had come to complain. But she was smiling. She",
+    "wanted to know what I was cooking. I did not know the names of half the ingredients.",
+    "Instead of explaining, I handed her a bowl. The next weekend, she knocked again, holding",
+    "a warm apple cake. We still share very few words, but we share a lot of food. Kindness",
+    "does not need perfect grammar.",
+  ].join(" ");
+
+  const STORY_GIVING_DIRECTIONS = [
+    "For months, I felt stuck in my new language. Last week, a tourist at my bus stop asked",
+    "me the way to the museum. Without thinking, I told her to walk past the park, turn left",
+    "at the flower shop, and follow the river to the bridge. She thanked me and hurried off.",
+    "Only then did I notice what had happened. I had not translated a single word in my head.",
+    "The sentences had simply come out, the way they do in my own language. Progress is",
+    "quiet. Often you notice it only when someone else needs your help.",
   ].join(" ");
 
   const DRILL_ST_CLUSTERS = [
@@ -196,6 +294,39 @@
     "the bleached cloth. Blake plays the clarinet, and Claire plays the cello, climbing",
     "slowly through each clear, clean phrase. Clean clay plates clink. Plan the pause,",
     "place the stress, and let every blend land.",
+  ].join(" ");
+
+  const DRILL_TH_SOUNDS = [
+    "This month, my brother and I thought of a way to thank our mother. Rather than buy",
+    "something, we gathered thick cloth, thin thread, and soft feathers, and together we made",
+    "them into a pillow. Neither of us had ever threaded a needle, and the edges were not",
+    "very smooth. On Thursday, when she saw it, she smiled, then thanked us both. I think",
+    "that smile was worth more than anything from a shop.",
+  ].join(" ");
+
+  const DRILL_R_AND_L = [
+    "Early on a rainy morning, the road along the lake is quiet. Light rain drips from the",
+    "trees, and a robin rests on the railing. Later, the clouds clear and a crowd arrives.",
+    "Families spread blankets on the long green grass and pass around rice, grilled lamb, and",
+    "tall glasses of lemonade. Children race to the shore, laughing loudly. I really love",
+    "this hour, when the air feels fresh and the whole world looks relaxed.",
+  ].join(" ");
+
+  const DRILL_V_AND_W = [
+    "Every winter, we visit a very small village in a wide, quiet valley. We travel west in a",
+    "white van, wearing warm wool scarves over our sweaters. While the wind blows over the",
+    "river, we wave to the vet walking her wet dog. The woman at the bakery welcomes us with",
+    "sweet vanilla waffles. In the evening, we sit by the window with a view of the woods,",
+    "and we wish the visit would never end.",
+  ].join(" ");
+
+  const DRILL_WORD_ENDINGS = [
+    "Last Friday, I invited friends for dinner. I washed and chopped the vegetables, roasted",
+    "the potatoes, and baked a fresh loaf of bread. My friends arrived late, but they brought",
+    "flowers and a chocolate tart. We talked and laughed, everyone asked for more bread, and",
+    "nobody checked the clock. When the candles melted, we cleaned the plates, folded the",
+    "napkins, and packed the leftovers. I hugged each guest, waved from the steps, and slept",
+    "well.",
   ].join(" ");
 
   const GETTYSBURG_OPENING = [
@@ -219,6 +350,63 @@
     "sweet, as to be purchased at the price of chains and slavery? Forbid it, Almighty",
     "God. I know not what course others may take; but as for me, give me liberty or",
     "give me death.",
+  ].join(" ");
+
+  // The opening of the address as printed on the Avalon Project's page (Yale Law School), which
+  // Bartleby's Inaugural Addresses of the Presidents matches word for word; as delivered it
+  // differs in a few words. The double hyphen is kept as printed: the script alignment reads the
+  // two words it joins as two.
+  const FDR_FEAR_ITSELF = [
+    "I am certain that my fellow Americans expect that on my induction into the Presidency I",
+    "will address them with a candor and a decision which the present situation of our Nation",
+    "impels. This is preeminently the time to speak the truth, the whole truth, frankly and",
+    "boldly. Nor need we shrink from honestly facing conditions in our country today. This",
+    "great Nation will endure as it has endured, will revive and will prosper. So, first of",
+    "all, let me assert my firm belief that the only thing we have to fear is fear",
+    "itself--nameless, unreasoning, unjustified terror which paralyzes needed efforts to",
+    "convert retreat into advance.",
+  ].join(" ");
+
+  // The passage of the address that builds to its best-known line, as the National Archives
+  // transcript prints it, which the American Presidency Project matches character for
+  // character; its double hyphens are kept as printed.
+  const JFK_ASK_NOT = [
+    "In the long history of the world, only a few generations have been granted the role of",
+    "defending freedom in its hour of maximum danger. I do not shrink from this",
+    "responsibility--I welcome it. I do not believe that any of us would exchange places with",
+    "any other people or any other generation. The energy, the faith, the devotion which we",
+    "bring to this endeavor will light our country and all who serve it--and the glow from",
+    "that fire can truly light the world. And so, my fellow Americans: ask not what your",
+    "country can do for you--ask what you can do for your country.",
+  ].join(" ");
+
+  // The man in the arena passage of the speech at the Sorbonne, from The credit belongs, as the
+  // American Presidency Project prints it, word for word as in the 1910 book African and
+  // European Addresses; popular copies differ in up to three places, and this follows the book.
+  const TR_MAN_IN_THE_ARENA = [
+    "The credit belongs to the man who is actually in the arena, whose face is marred by dust",
+    "and sweat and blood; who strives valiantly; who errs, and comes short again and again,",
+    "because there is no effort without error and shortcoming; but who does actually strive",
+    "to do the deeds; who knows the great enthusiasms, the great devotions; who spends",
+    "himself in a worthy cause; who at the best knows in the end the triumph of high",
+    "achievement, and who at the worst, if he fails, at least fails while daring greatly, so",
+    "that his place shall never be with those cold and timid souls who know neither victory",
+    "nor defeat.",
+  ].join(" ");
+
+  // From the remarks at Amherst College, the second sentence of one paragraph through the third
+  // of the next, as the American Presidency Project prints them; the JFK Library's transcript
+  // agrees word for word.
+  const JFK_GRACE_AND_BEAUTY = [
+    "I look forward to an America which will not be afraid of grace and beauty, which will",
+    "protect the beauty of our natural environment, which will preserve the great old",
+    "American houses and squares and parks of our national past, and which will build",
+    "handsome and balanced cities for our future. I look forward to an America which will",
+    "reward achievement in the arts as we reward achievement in business or statecraft. I",
+    "look forward to an America which will steadily raise the standards of artistic",
+    "accomplishment and which will steadily enlarge cultural opportunities for all of our",
+    "citizens. And I look forward to an America which commands respect throughout the world",
+    "not only for its strength but for its civilization as well.",
   ].join(" ");
 
   app.passages = [
@@ -320,6 +508,154 @@
       targetWpm: [120, 140],
       group: "drill",
     },
+    {
+      id: "explainer-cut-apples",
+      kind: "passage",
+      title: "Explainer: why cut apples turn brown",
+      text: EXPLAINER_CUT_APPLES,
+      targetWpm: [150, 170],
+      group: "explainer",
+    },
+    {
+      id: "explainer-echoes",
+      kind: "passage",
+      title: "Explainer: how an echo works",
+      text: EXPLAINER_ECHOES,
+      targetWpm: [150, 170],
+      group: "explainer",
+    },
+    {
+      id: "explainer-floating-ice",
+      kind: "passage",
+      title: "Explainer: why ice floats",
+      text: EXPLAINER_FLOATING_ICE,
+      targetWpm: [150, 170],
+      group: "explainer",
+    },
+    {
+      id: "explainer-moon-phases",
+      kind: "passage",
+      title: "Explainer: why the moon changes shape",
+      text: EXPLAINER_MOON_PHASES,
+      targetWpm: [150, 170],
+      group: "explainer",
+    },
+    {
+      id: "explainer-bicycles",
+      kind: "passage",
+      title: "Explainer: how a bicycle stays up",
+      text: EXPLAINER_BICYCLES,
+      targetWpm: [150, 170],
+      group: "explainer",
+    },
+    {
+      id: "story-phone-call",
+      kind: "passage",
+      title: "Story: the phone call",
+      text: STORY_PHONE_CALL,
+      targetWpm: [150, 170],
+      group: "story",
+    },
+    {
+      id: "story-name-i-forgot",
+      kind: "passage",
+      title: "Story: the name I forgot",
+      text: STORY_NAME_I_FORGOT,
+      targetWpm: [150, 170],
+      group: "story",
+    },
+    {
+      id: "story-corner-bakery",
+      kind: "passage",
+      title: "Story: the corner bakery",
+      text: STORY_CORNER_BAKERY,
+      targetWpm: [150, 170],
+      group: "story",
+    },
+    {
+      id: "story-soup-next-door",
+      kind: "passage",
+      title: "Story: the soup next door",
+      text: STORY_SOUP_NEXT_DOOR,
+      targetWpm: [150, 170],
+      group: "story",
+    },
+    {
+      id: "story-giving-directions",
+      kind: "passage",
+      title: "Story: giving directions",
+      text: STORY_GIVING_DIRECTIONS,
+      targetWpm: [150, 170],
+      group: "story",
+    },
+    {
+      id: "fdr-fear-itself",
+      kind: "passage",
+      title: "Franklin D. Roosevelt, fear itself",
+      text: FDR_FEAR_ITSELF,
+      targetWpm: [130, 150],
+      source: "Franklin D. Roosevelt, First Inaugural Address, 1933",
+      group: "speech",
+    },
+    {
+      id: "jfk-ask-not",
+      kind: "passage",
+      title: "John F. Kennedy, ask not",
+      text: JFK_ASK_NOT,
+      targetWpm: [130, 150],
+      source: "John F. Kennedy, Inaugural Address, 1961",
+      group: "speech",
+    },
+    {
+      id: "tr-man-in-the-arena",
+      kind: "passage",
+      title: "Theodore Roosevelt, man in the arena",
+      text: TR_MAN_IN_THE_ARENA,
+      targetWpm: [130, 150],
+      source: "Theodore Roosevelt, Citizenship in a Republic, 1910",
+      group: "speech",
+    },
+    {
+      id: "jfk-grace-and-beauty",
+      kind: "passage",
+      title: "John F. Kennedy, grace and beauty",
+      text: JFK_GRACE_AND_BEAUTY,
+      targetWpm: [130, 150],
+      source: "John F. Kennedy, Remarks at Amherst College, 1963",
+      group: "speech",
+    },
+    {
+      id: "drill-th-sounds",
+      kind: "passage",
+      title: "Drill: th as in think and this",
+      text: DRILL_TH_SOUNDS,
+      targetWpm: [120, 140],
+      group: "drill",
+    },
+    {
+      id: "drill-r-and-l",
+      kind: "passage",
+      title: "Drill: r and l sounds",
+      text: DRILL_R_AND_L,
+      targetWpm: [120, 140],
+      group: "drill",
+    },
+    {
+      id: "drill-v-and-w",
+      kind: "passage",
+      title: "Drill: v and w sounds",
+      text: DRILL_V_AND_W,
+      targetWpm: [120, 140],
+      group: "drill",
+    },
+    {
+      id: "drill-word-endings",
+      kind: "passage",
+      title: "Drill: word endings and -ed",
+      text: DRILL_WORD_ENDINGS,
+      targetWpm: [120, 140],
+      group: "drill",
+    },
   ];
 
   // The Read tab's groups, in its order. Each passage above names its group by id; Practice shows
@@ -343,13 +679,13 @@
   // news-style pieces of 120 to 200 words. None holds a digit or a symbol, which a transcript may
   // write either way, a number word a transcript may write as digits, or a habit word delivery.js
   // counts (like, so, you know, actually, basically), so a take that reads one as written shows
-  // no misread and no filler. They are not entries of app.passages, so the Read tab keeps its
-  // six passages; coldReads() hands them out. On 2026-10-14 every debate-style cold read was
+  // no misread and no filler. They are not entries of app.passages, so the Read tab never lists
+  // them; coldReads() hands them out. On 2026-10-14 every debate-style cold read was
   // rewritten as everyday prose under the id it had, so a take saved on one still counts as read:
   // an id names a slot, not its subject.
 
   // A steady pace for a text read for the first time, a step under the 150 to 170 of the Read
-  // tab's explainer and story, which can be rehearsed. It is also the band summarize() in
+  // tab's explainers and stories, which can be rehearsed. It is also the band summarize() in
   // screens/results.js falls back on for an id that is not in app.passages, so a cold-read take
   // is held to this band on every screen.
   const COLD_READ_TARGET_WPM = [140, 160];

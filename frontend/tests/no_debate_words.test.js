@@ -122,7 +122,7 @@ test("the debate words are caught, and everyday words are not", () => {
 
 test("no Practice passage, prompt or topic holds a debate word", () => {
   const passages = Array.from(APP.passages);
-  assert.equal(passages.length, 11, "every Practice entry is read");
+  assert.equal(passages.length, 29, "every Practice entry is read");
   for (const entry of passages) {
     stringsIn(JSON.parse(JSON.stringify(entry)), entry.id).forEach(([where, text]) =>
       assertNoDebateWords(where, text),
