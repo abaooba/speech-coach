@@ -40,8 +40,12 @@ docs/superpowers/specs/2026-10-18-fresh-reads-and-rehearsal-design.md.
   test hook is added to the screen.)
 - Practice keeps the speaker's own takes in module state for the draws: `app.store.list()`,
   guarded (`typeof app.store.list === "function"`, any rejection or throw ignored), loaded at
-  `show()` and added to when a take is saved. Without it, a draw is uniform. Practice mounts
-  before its first `show()`, so the draws at mount know no take yet and are uniform.
+  `show()` and added to when a take is saved. A list's answer replaces the takes listed before,
+  and of the takes saved here Practice keeps only those saved after that list was asked for,
+  which it may not hold yet. The others are in the answer unless History has deleted them, so a
+  deleted take stops counting at the next visit, not at the next reload. Without it, a draw is
+  uniform. Practice mounts before its first `show()`, so the draws at mount know no take yet
+  and are uniform.
 - Practice also counts every topic and passage its draws have put on screen since the app
   opened as used at the moment it was shown, the ones each tab opens on included. A tap saves
   nothing, so without this, once every item of a pool had been used, the taps gave the two used

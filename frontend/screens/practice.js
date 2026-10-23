@@ -213,12 +213,13 @@
   let readGroups = [];
 
   // The speaker's own takes, which the draws read (spec section 2.1): those app.store.list() gave
-  // at the last show(), and every take saved here since the app opened, newest first, each cut
-  // down to the fields a draw reads (drawFieldsOf). A later list holds the saved ones too; a take
-  // counted twice changes no draw, which asks only which topics and passages takes used, and
+  // in its latest answer, and every take saved here since that list was asked for, which it may
+  // not hold yet, newest first, each cut down to the fields a draw reads (drawFieldsOf). A take
+  // saved before is in the answer, unless History has deleted it, and then it no longer counts.
+  // A take in both changes no draw, which asks only which topics and passages takes used, and
   // when.
   let listedTakes = [];
-  const savedTakes = [];
+  let savedTakes = [];
 
   // Every topic and passage the draws have put on screen since the app opened, the ones each tab
   // opens on included, newest first (spec section 2.1). A tap saves nothing, so without these,
@@ -559,19 +560,23 @@
     return { passageId, passageTitle, topic, createdAt };
   }
 
-  // Reads the speaker's takes for the draws. A store without list() (some test fakes), one that
-  // cannot be read and an answer that is no list all leave the takes as they were; an item that
-  // is no session is left out.
+  // Reads the speaker's takes for the draws. The answer replaces the takes listed before, and of
+  // the takes saved here it keeps only those saved after the list was asked for: the others are
+  // in the answer, unless History deleted them. A store without list() (some test fakes), one
+  // that cannot be read and an answer that is no list all leave the takes as they were; an item
+  // that is no session is left out.
   async function loadTakes() {
     if (!app.store || typeof app.store.list !== "function") {
       return;
     }
+    const savedBeforeAsking = new Set(savedTakes);
     try {
       const sessions = await app.store.list();
       if (Array.isArray(sessions)) {
         listedTakes = sessions
           .filter((session) => Boolean(session) && typeof session === "object")
           .map(drawFieldsOf);
+        savedTakes = savedTakes.filter((take) => !savedBeforeAsking.has(take));
       }
     } catch {
       // Blocked or unreadable storage: the draws go on with the takes they had.

@@ -343,6 +343,68 @@ test("every show() reads the takes again", async () => {
   assert.equal(cardText(t), "Third topic.");
 });
 
+// A level take talked on "Third topic.", the material the Path gave, which no draw here showed.
+function levelOnThird() {
+  const third = "Third topic.";
+  return levelRequest({
+    material: {
+      kind: "prompt",
+      id: "day",
+      title: "Your day",
+      text: third,
+      targetWpm: [140, 160],
+      topic: third,
+    },
+  }).request;
+}
+
+// The take is saved here, then deleted in History, so the store lists none when Practice shows
+// again: from that list on it no longer counts, and the draw at 0.99 of Second and Third gives
+// Third. Before, every take saved here stayed in the draws until the app reloaded, and the draw
+// gave Second, the one topic it took as unused.
+test("a take deleted in History stops steering the draws once show() lists the store again", async () => {
+  const random = drawOf(0);
+  const t = setup({ passages: PASSAGES, random, withPath: true, list: () => Promise.resolve([]) });
+  t.startLevel(levelOnThird());
+  await flush();
+  await t.recordTake(12000);
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "Third topic.");
+  assert.equal(cardText(t), "First topic.", "back on the topic Talk drew at mount");
+  t.practice.hide();
+  t.practice.show({});
+  await flush();
+  random.value = 0.99;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Third topic.", "no take uses Third topic. any more");
+});
+
+// A take saved while show()'s list is still out may be missing from its answer, so it still
+// counts once that list answers without it: the draw at 0.99 passes over Third, which the take
+// used, and gives Second, the one topic left.
+test("a take saved while show()'s list is out still counts when that list answers without it", async () => {
+  const random = drawOf(0);
+  const answers = [];
+  const t = setup({
+    passages: PASSAGES,
+    random,
+    withPath: true,
+    list: () => new Promise((resolve) => answers.push(resolve)),
+  });
+  t.startLevel(levelOnThird());
+  await t.recordTake(12000);
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "Third topic.");
+  assert.equal(answers.length, 1, "the list the level's show() asked for is still out");
+  answers.shift()([]);
+  await flush();
+  random.value = 0.99;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "Third topic. was used");
+});
+
 // The store has no list(), so only the takes saved here steer the draws, at 0.99: Third at
 // mount, then Second (0.99 of First and Second), then First, the one topic no take used. A draw
 // blind to the takes would give Third last, and the old next-topic step started on First.
