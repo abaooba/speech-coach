@@ -17,7 +17,7 @@ opens with a short comment, four to eight lines, saying what it owns and what it
 | `store.js` | `app.store` | IndexedDB on the device. `save(session)` resolves with the new id, `list()` is newest first, then `get(id)` and `remove(id)`; `getFlag(key)` and `setFlag(key, value)` keep small settings such as `onboarded` (`setFlag(key, undefined)` deletes one; History deletes a take's `coachNotes:<id>` and `languageCheck:<id>` with it); `markLevelCleared(levelId, clearedAt)` and `listClearedLevels()` keep the Loop Path's records (a level such as `fillers-3`, a passed check-back `fillers-3_cb1`, a crown tier `fillers_crown-2`, a checkpoint `fillers_checkpoint`), each at its first clearing, `clearedAt` now unless given. A session holds metrics and transcript, the `topic` it was said on when it had one and, for a Path take, `path` (`{play, kind, take, scored, passed, stage, inRoom}`), from which the Path reads attempts, misses and benchmark sittings; never audio: `save` refuses a session carrying `blob` or `audio`. Everything stays on this device and nothing is sent. The first load after the accounts were removed moves the levels an old account sync kept into `pathProgress` and deletes the `signedInAccount` and `accountSync` flags. |
 | `sheet.js` | `app.sheet` | The bottom sheet that follows a take or a Path level, and the first-visit guides. `open({label, line, primary, ...})` shows one sheet at a time (the page behind it is inert, Tab stays inside, Esc, the scrim and the handle close it, focus returns to what opened it); `guideOnce(name, {...})` shows a guide the first time only, using the store flag `guideSeen:<name>`. `lineParts(headline, moments)` turns a coach headline `{text, momentId}` into parts, its quoted words in the mark of the moment it names, and `fillLine(node, parts, quoteClass?)` draws them node by node; the sheet, the Coach card and the Level screen draw the coach's line with these. The sheet is the one place with a shadow and a second big button, and it calls nothing on a server. |
 | `api.js` | `app.api` | The one call to the backend. `analyze(blob, contentType, script)` posts to `POST /api/analyze` and resolves with `{transcript, metrics}`; a `script` with words goes along as the form field `script`, and `metrics.script` then lists restarts, skipped and misread script words (the backend drops a script the take does not follow and scores it as free talk). A failure rejects with an `Error` whose `.kind` is one of four: `network` (no reply, or still open after three minutes), `too_short` (400), `provider` (502) or `unknown` (any other failure). `messages` holds the fixed sentences for the first three; `unknown` reads as `provider`. |
-| `passages.js` | `app.passages` | The fixed practice material, everyday only (no debate), `[{id, kind, title, text, targetWpm: [lo, hi], source?, timeLimitSeconds?, topics?, group?}]`: timed prompts (the Talk tab) first, then passages (the Read tab), each in a `group`. `groups()` returns a new `[{id, label}]` on each call, the Read tab's groups in order (Explainer, Story, Speech and Drill), one chip each. `coldReads()` returns a new list of the cold reads (`coldRead: true`), original everyday passages that no tab lists: the Path's Restarts levels 1 to 4 and their check-backs read them, and so does every read of Pace levels 1 and 2 and the Pace crown. `benchmark()` returns new `{read, talk}` objects, the Path's benchmark: the passage "Benchmark read" and the 90-second prompt "Benchmark talk", which no tab lists and no other take practices. `retired()` returns new `{id, kind, targetWpm, timeLimitSeconds?}` objects for the ids old takes still carry after the debate entries left Practice on 2026-10-14, so an old take keeps its band and time limit; nothing shows them. No DOM. |
+| `passages.js` | `app.passages` | The fixed practice material, everyday only (no debate), `[{id, kind, title, text, targetWpm: [lo, hi], source?, timeLimitSeconds?, topics?, group?}]`: timed prompts (the Talk tab) first, then the 24 passages (the Read tab), six in each `group`. `groups()` returns a new `[{id, label}]` on each call, the Read tab's groups in order (Explainer, Story, Speech and Drill), one chip each. `coldReads()` returns a new list of the 30 cold reads (`coldRead: true`), original everyday passages that no tab lists: the Path's Restarts levels 1 to 4 and their check-backs read them, and so does every read of Pace levels 1 and 2 and the Pace crown. `benchmark()` returns new `{read, talk}` objects, the Path's benchmark: the passage "Benchmark read" and the 90-second prompt "Benchmark talk", which no tab lists and no other take practices. `retired()` returns new `{id, kind, targetWpm, timeLimitSeconds?}` objects for the ids old takes still carry after the debate entries left Practice on 2026-10-14, so an old take keeps its band and time limit; nothing shows them. No DOM. |
 | `delivery.js` | `app.delivery` | The filler rules. `analyze(words, metrics)` re-scores a stored take into the delivery report that Results, tips and Progress read; `classify(words)` labels each word `"hesitation"`, `"habit"` or null; `isHesitation(text)` tests one word. Also the `HESITATION`, `HABIT` and `HABIT_WORDS` constants. Pure: no DOM, no store. |
 | `rank.js` | `app.rank` | Owner-written (docs/PLAN.md T36). `takeScore(report, targetWpm)` scores one take from 0 to 100 from its `app.delivery` report and pace band; `rating(history)` averages the newest 10 takes, weighted by length and pulled toward 40; `tier(rating, history)` names it from `TIERS` (Novice, Contender 40, Varsity 60, Elite 75, Champion 88, Master 96, and Flawless 99, which also needs each of the last 10 takes to run 2 minutes or more, score 97 or more and hold no long pause); `streak(history, today)` gives `{current, longest}`, the days in a row with a take. Pure: no DOM, no store. Results and the rank card read it; the Path and the Level screen never do. |
 | `rankcard.js` | `app.rankCard` | The rank card, "ladder and lens" (docs/PLAN.md T37), on Progress and Results only. `model(takes, options)` works out everything it shows, reading the rank only through `app.rank` and scoring each take with `app.screens.results.summarize` against its own band; it is pure (no clock, DOM or store). Samples and undated takes never count, and only Talk takes are rated (owner decision 2026-10-22): a take read aloud (`app.language.isReadTake`) never moves the rating, though it counts toward the streak. It returns null when the speaker has no take of their own, without rank.js or results.js, or on Results for a sample; before the first Talk take the model is unrated (`tier`, `rating`, `ladder` and the rest null) and `build` draws only its note and foot. Progress passes `{screen: "progress", today}` and gets the streak foot, with a `note` once a take was read aloud; Results passes `{screen: "results", takeId}` and gets the card as it stood after that take, with the change line, the notch and the take's foot sentences, while a read take's card shows the rating as it stood, with no change line. Once the speaker has a read take, the projection and the gate say "Talk take". `build(model, {screen})` draws it node by node, the wedge with `createElementNS`; nothing in it takes focus. |
@@ -117,6 +117,8 @@ the store" set up the Path and Level rows.
 | History | No sessions yet | Empty the store, tap "Start practicing", open `#/history`. Deleting the last session in History shows it too. | Microphone, "No sessions yet" / "Your first recording will show up here." Button "Record", which opens Practice. |
 | Progress | Need two sessions, one take | Empty the store, tap "Start practicing", save one session (store round trip, step 1), open `#/progress`. A sample is not a take: tap "See a sample result" on Practice, come back, and the same block shows. | Chart, "Need two sessions" / "Record one more to see a trend." Button "Record", which opens Practice. The rank card sits above the block: "Contender", "40.1", "19.9 to Varsity" and "Current streak 1 day, longest 1" for the store round trip's take. |
 | Progress | Need two sessions, no take | Empty the store, tap "Start practicing", open `#/progress`. | Chart, "Need two sessions" / "Record two sessions to see a trend." Button "Record". No rank card. |
+| Progress | Need two Read takes | Empty the store, tap "Start practicing", run the Progress seed snippet, save one take read aloud (store round trip, step 1), open `#/progress` and tap "Read". | Under the caption "1 take · read aloud · not rated": chart, "Need two Read takes" / "Record one more Read take to see a trend." Button "Record", which opens Practice. |
+| Progress | Need two Talk takes | Empty the store, tap "Start practicing", save two takes read aloud (store round trip, step 1, twice), open `#/progress`, which opens on Read, and tap "Talk". | Under the caption "0 takes · your own words · rated": chart, "Need two Talk takes" / "Record two Talk takes to see a trend." Button "Record". The rank card above reads "No rating yet: it starts with your first Talk take. Read takes count for your streak." |
 | Path | Loading | Reload on Practice, run "Hold the store" (Hold or fail the store), then open `#/path`. Reload to undo. | Spinner, "Loading your path" / "This takes a moment." No button. Only a first draw shows it: a later visit keeps the drawn path up until the new one is ready. |
 | Path | Path unavailable | Reload on Practice, run "Fail the store", then open `#/path`. | Alert triangle, "Path unavailable" / "Could not load your path. Try again." Button "Try again", which reads the store again: run "Restore the store" first and the path draws, focus on its first heading. |
 | Level | Loading | As for the Path's Loading, but open `#/level/fillers-1`. | Spinner, "Loading your level" / "Reading your past takes." No button, and the h1 already reads "Fillers, level 1". A store that fails shows no error here: with "Fail the store" the level opens at Goal, as a new speaker's. |
@@ -191,8 +193,8 @@ reload.
    app.passages.length
    ```
 
-   It prints `11`: five timed prompts, then six passages. `app.passages.coldReads().length`
-   prints `15`, the cold reads, which no tab lists, and `app.passages.benchmark().read.title`
+   It prints `29`: five timed prompts, then 24 passages. `app.passages.coldReads().length`
+   prints `30`, the cold reads, which no tab lists, and `app.passages.benchmark().read.title`
    prints `'Benchmark read'`, the Path's benchmark passage, which no tab lists either.
 
 **Progress seed.** Five sessions with varied numbers, one per day over the last five days.
@@ -351,22 +353,23 @@ keyboard.
    and a screen reader hears it. A tap on a chip, the selected one included, draws a new topic
    for that prompt the same way. About you has 29 topics and every other prompt has 25. Tap
    "Read": the chips become four groups with no times, "Explainer" (selected), "Story",
-   "Speech" and "Drill", and the card shows "Explainer: how rainbows form". Explainer and Story
-   hold one passage each, so their card has no New passage button. Tap "Speech": the card
-   shows one of its two speeches, with "New passage" at its top right. Tap "New passage", or
-   "Speech" again: the other speech shows, and a screen reader hears its title. Tap "Drill":
-   its card shows "New passage" too, and a tap on it draws another drill. Tap "Talk": "About
-   you" is still selected, on the topic you left. Under the clock a timed chip shows "/ 1:00"
-   and an empty bar; a passage shows neither.
+   "Speech" and "Drill", and the card shows one of the six explainers, drawn at random, with
+   "New passage" at its top right (its icon alone under 360px wide, still named "New
+   passage"). Every group holds six passages. Tap "New passage", or "Explainer" again: another
+   explainer shows, never the one on screen, and a screen reader hears its title. Tap
+   "Speech": one of the six speeches shows, and each tap after it shows another. Tap "Talk":
+   "About you" is still selected, on the topic you left. Under the clock a timed chip shows
+   "/ 1:00" and an empty bar; a passage shows neither.
 
 2. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
    speak for about 10 seconds (the timer counts with the red dot pulsing to its left while the
    clock stays centered, the bar under it fills toward the limit, the nav and "See a sample
    result" disappear and the card grows into their room, and the hint reads "Tap Stop when you
-   finish. It uploads right away."), then tap Stop. While recording, the tabs, the chips and
-   New topic are disabled; the selected tab and chip stay readable. At Stop the screen is back
-   in idle at 0:00 with the nav, and the blue banner at the top says "Analyzing your speech" with
-   a spinner. The hash becomes `#/results/<id>` when the reply lands, and in the console:
+   finish. It uploads right away."), then tap Stop. While recording, the tabs and the chips are
+   disabled and New topic is hidden; the selected tab and chip stay readable. At Stop the
+   screen is back in idle at 0:00 with the nav, and the blue banner at the top says "Analyzing
+   your speech" with a spinner. The hash becomes `#/results/<id>` when the reply lands, and in
+   the console:
 
    ```js
    await app.store.list()
@@ -384,17 +387,26 @@ keyboard.
    the clock at 0:00 and the bar empty, and nothing is uploaded. Coming back from Results also
    starts at 0:00 with an empty bar.
 
-5. Small phones: in the DevTools device toolbar at 375 x 667, idle shows the whole "About you"
-   topic, the record button, "Record", the hint and "See a sample result" above the nav with
-   no page scroll. At 320 x 568 the card still shows two lines above its fade, the whole topic
-   for all but the longest few: the hint and the sample button hide, the record button shrinks
-   and the gaps under the card tighten, so the button and its label sit above the nav with no
-   page scroll. Tap Record: the nav hides and the card grows into its room. An error block from
-   the table takes the card's place too, so the whole block, both actions included, sits above
-   the nav with no page scroll; the selected chip still names the option. In landscape
-   (667 x 375) the card keeps those two lines, the sample button stays, and the page scrolls.
-   At 200% zoom (187 x 333) the card keeps its two lines, the hint and the sample button hide
-   as on a small phone, and the page scrolls.
+5. Small phones: in the DevTools device toolbar at 375 x 667, idle on Talk shows the record
+   button, "Record", the hint, "See a sample result" and the script box's summary above the
+   nav, and the page scrolls 11px. The card sits at its 120px floor with under one line clear
+   of its fade, so an About you topic, two lines at this width, shows its first line and fades
+   out on its second. On Read a one-line title leaves two lines of the passage clear, a
+   two-line title one. At 360 x 640 the Read tab also hides the hint's words and the sample
+   button, so a passage keeps four, three or two lines clear beside a title of one, two or
+   three lines. At 320 x 568 the card shows two lines above its fade, the whole topic for all
+   but the longest two: the hint and the sample button hide, the record button shrinks and the
+   gaps under the card tighten, so the button and its label sit above the nav with no page
+   scroll. On Read there New passage shows its icon alone, and a one-line title leaves two
+   lines of the passage clear, a two-line title one. An error block from the table takes the
+   card's place too, so the whole block, both actions included, sits above the nav with no
+   page scroll; the selected chip still names the option. Tap Record: the nav hides and the
+   card grows into its room, less the live pace row's line under the clock. In landscape
+   (667 x 375) the card keeps two lines, the sample button stays, and the page scrolls. At 200%
+   zoom (187 x 333) the hint and the sample button hide as on a small phone and the page
+   scrolls, but the card stays at its 148px floor and the title beside the card's button fills
+   it: in idle no line of the topic or passage is clear of the fade, and "About you" breaks
+   into a letter or two a line beside New topic.
 
 6. Theme toggle: the icon right of "Speech Coach" is a half-filled circle for Auto, and a
    screen reader names it "Theme: Auto. Switch to dark." Tap it: the page turns dark whatever
@@ -416,15 +428,16 @@ explanation of making coffee.
    stretch". Hesitation sounds (um, uh) are not counted as words. The Pace hint reads "Target
    lo to hi" in green with a check when the pace is inside the passage's range, or "Slow
    down" / "Speed up" in rust with a warning triangle outside it; the numbers come from the
-   passage you recorded (Gettysburg and Patrick Henry are 130 to 150, the explainer and the
-   story 150 to 170, Explain something 130 to 160, About you 140 to 160). An old take saved on
-   a retired debate entry keeps the band it was recorded under. The Fillers stat shows "/min"
-   and its hint reads "Target under 3" in green at 3 or less and "Aim for under 3" in rust
-   above. The Pauses stat reads "1 pause" or "3 pauses", and its hint counts the freezes,
-   "0 over 5 s" in green or "1 over 5 s" in rust. The Clean stretch stat shows seconds and reads "Target 15 s" in green from 15 s, or
-   "Aim past 15 s" in rust. Every cell has the same rows, so the four stay level. Then the
-   rank card (step 8), its big number labelled "Rating" above "This take scored 34.". No nav
-   item is highlighted.
+   passage you recorded (the speeches, such as Gettysburg and Patrick Henry, are 130 to 150,
+   the explainers and the stories 150 to 170, the drills 120 to 140, Explain something
+   130 to 160, About you 140 to 160). An old take saved on a retired debate entry keeps the
+   band it was recorded under. The Fillers stat shows "/min" and its hint reads "Target under
+   3" in green at 3 or less and "Aim for under 3" in rust above. The Pauses stat reads
+   "1 pause" or "3 pauses", and its hint counts the freezes, "0 over 5 s" in green or
+   "1 over 5 s" in rust. The Clean stretch stat shows seconds and reads "Target 15 s" in green
+   from 15 s, or "Aim past 15 s" in rust. Every cell has the same rows, so the four stay level.
+   Then the rank card (step 8), its big number labelled "Rating" above "This take scored 34.".
+   No nav item is highlighted.
 
 2. Compare with the last take: record a second take (the Practice happy path again), or run
    the Progress seed snippet and open the newest row in History. Every stat ends with a small
@@ -615,8 +628,8 @@ take with the store round trip (step 1). Then open http://127.0.0.1:8000/#/histo
    Switch the OS theme (or DevTools "Emulate CSS prefers-color-scheme: dark"): the green
    and rust status words stay readable.
 
-**Progress (about one minute).** Needs two saved sessions; a real trend needs more. Empty the
-store, tap "Start practicing", run the Progress seed snippet, then open
+**Progress (about three minutes).** Needs two saved sessions; a real trend needs more. Empty
+the store, tap "Start practicing", run the Progress seed snippet, then open
 http://127.0.0.1:8000/#/progress.
 
 1. Under the "Progress" heading: the rank card (step 6), then a segmented control of four
