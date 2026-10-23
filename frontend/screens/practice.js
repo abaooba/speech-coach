@@ -168,10 +168,14 @@
   const PACE_LOOK_SPEED_UP = Object.freeze({ words: "Speed up", icon: "alert", tone: "warn" });
   const PACE_ICON_SIZE = 16;
   // The capture: a ScriptProcessor hands over one channel 1024 samples at a time. It runs only
-  // while it feeds an output, so a gain of 0 keeps it silent.
+  // while it feeds an output, so a gain of 0 keeps it silent. A capture that no block has
+  // reached when the clock shows 0:03 is taken to hear nothing (iOS can leave a context's
+  // resume() unanswered, and a suspended graph hands over nothing), so it goes as one whose
+  // resume was refused.
   const PACE_BLOCK_SAMPLES = 1024;
   const PACE_CHANNELS = 1;
   const PACE_SILENT_GAIN = 0;
+  const PACE_NO_AUDIO_SECONDS = 3;
   // Talk and Read each keep their own words-a-peak factor (app.delivery.paceFactorAfter): a
   // number in the store flag "livePaceFactor:talk" or "livePaceFactor:read".
   const PACE_FACTOR_FLAG_PREFIX = "livePaceFactor:";
@@ -277,8 +281,8 @@
   };
 
   // Everything a live take holds, from the Record tap until Stop or hide() lets it go. `pace` is
-  // the take's live pace capture (startLivePace), or null when it did not start or its context
-  // refused to resume (dropLivePace).
+  // the take's live pace capture (startLivePace), or null when it did not start, its context
+  // refused to resume, or no block reached it by 0:03 (dropLivePace).
   const capture = {
     awaitingMic: false,
     stream: null,
@@ -2009,9 +2013,10 @@
   }
 
   // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, announces the
-  // clock every 30 s and, once per new whole second, paints the live pace row. It starts right
-  // after the recorder, so its start is the recording's, which the live pace's peaks are lined
-  // up with (releaseLivePace).
+  // clock every 30 s and, once per new whole second, paints the live pace row, or lets its
+  // capture go when no audio has reached it (readLivePace). It starts right after the recorder,
+  // so its start is the recording's, which the live pace's peaks are lined up with
+  // (releaseLivePace).
   function startTimer() {
     capture.startedAt = performance.now();
     capture.announcedBlocks = 0;
@@ -2115,7 +2120,8 @@
       pace.processor.connect(pace.silence);
       pace.silence.connect(pace.context.destination);
       // iOS Safari may hand over a suspended context, and a suspended graph hands over nothing.
-      // One that refuses to resume never will, so its capture goes and the row with it.
+      // One that refuses to resume never will, so its capture goes and the row with it; one
+      // whose resume() never answers goes at 0:03 (readLivePace).
       if (pace.context.state === "suspended" && typeof pace.context.resume === "function") {
         whenRefused(pace.context.resume(), () => dropLivePace(pace));
       }
@@ -2147,15 +2153,24 @@
     pace.tracker.push(samples);
   }
 
-  // Once per new whole second on the clock, while the row can show numbers: the tracker's
-  // reading of the audio heard so far, painted. Level mode reads nothing, since its row never
-  // shows, and neither does an untuned take, whose row keeps its sentence to the end.
+  // Once per new whole second on the clock. A capture that no block has reached by
+  // PACE_NO_AUDIO_SECONDS goes (dropLivePace), level mode's too, so its context is freed. Else,
+  // while the row can show numbers, the tracker's reading of the audio heard so far, painted.
+  // Level mode reads nothing, since its row never shows, and neither does an untuned take, whose
+  // row keeps its sentence to the end.
   function readLivePace(second) {
     const pace = capture.pace;
-    if (pace === null || levelRequest !== null || !pace.tuned || second <= pace.readSecond) {
+    if (pace === null || second <= pace.readSecond) {
       return;
     }
     pace.readSecond = second;
+    if (pace.firstSampleAt === null && second >= PACE_NO_AUDIO_SECONDS) {
+      dropLivePace(pace);
+      return;
+    }
+    if (levelRequest !== null || !pace.tuned) {
+      return;
+    }
     pace.reading = pace.tracker.read();
     paintPace(viewFor(state));
   }
@@ -2267,8 +2282,9 @@
     return peaks === null ? null : { peaks, mode: pace.mode };
   }
 
-  // A capture whose context refused to resume goes as if it had never started, unless its take
-  // has let it go already: the row hides for the rest of the take, which tunes nothing.
+  // A capture whose context refused to resume, or that no block reached by 0:03, goes as if it
+  // had never started, unless its take has let it go already: the context closes and the row
+  // hides for the rest of the take, which tunes nothing.
   function dropLivePace(pace) {
     if (capture.pace !== pace) {
       return;

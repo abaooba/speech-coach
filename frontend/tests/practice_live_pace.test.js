@@ -6,11 +6,12 @@
 // factor, a row in the timer shows the waiting sentence, then "About 150 wpm" and the cue; until
 // then it says only when the live pace starts (practice_live_pace_untuned.test.js). It repaints
 // once per new whole second from the clock's tick, is never announced, and shows only while a
-// normal take records. Once a take's analysis is back,
-// its mode's factor is tuned (app.delivery.paceFactorAfter) and kept in a store flag, never on
-// the session. Every browser API is a fake the tests drive by hand. The estimator is a fake whose
-// readings each test sets, with cue ids unlike delivery.js's own so the row must use
-// app.delivery's; the last tests run the real one on synthetic syllables.
+// normal take records. A capture no block has reached by 0:03 goes, so a test whose take runs
+// longer hands it a block first. Once a take's analysis is back, its mode's factor is tuned
+// (app.delivery.paceFactorAfter) and kept in a store flag, never on the session. Every browser
+// API is a fake the tests drive by hand. The estimator is a fake whose readings each test sets,
+// with cue ids unlike delivery.js's own so the row must use app.delivery's; the last tests run
+// the real one on synthetic syllables.
 "use strict";
 
 const test = require("node:test");
@@ -177,6 +178,7 @@ test("a tuned take starts at the waiting sentence and keeps it until the tracker
   await t.startRecording();
   const waiting = { hidden: false, parts: ["span.practice__pace-placeholder"], text: WAITING };
   assert.deepEqual(rowView(t), waiting);
+  block(t);
   for (let second = 1; second <= 4; second += 1) {
     readNext(t, { wpm: null, cue: null });
     assert.deepEqual(rowView(t), waiting, "at " + second + " s");
@@ -268,6 +270,7 @@ test("the row reads the tracker once per new whole second on the clock, from the
   const t = setup({ flags: { [TALK_FLAG]: 0.8 } });
   await t.show();
   await t.startRecording();
+  block(t);
   const tracker = lastTracker(t);
   t.clock.advance(750);
   assert.equal(tracker.reads, 0);
@@ -285,6 +288,7 @@ test("the row's children are rebuilt only when its words change", async () => {
   const t = setup({ flags: { [TALK_FLAG]: 0.7 } });
   await t.show();
   await t.startRecording();
+  block(t);
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
   const before = paceRow(t).children.slice();
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
@@ -300,6 +304,7 @@ test("the row is shown only while recording: hidden in idle, uploading and error
   const t = setup();
   assert.equal(paceRow(t).hidden, true, "idle");
   await t.startRecording();
+  block(t);
   assert.equal(paceRow(t).hidden, false, "recording");
   t.practice.render("uploading");
   assert.equal(paceRow(t).hidden, true, "uploading");
@@ -308,6 +313,7 @@ test("the row is shown only while recording: hidden in idle, uploading and error
   t.practice.render("recording");
   assert.equal(paceRow(t).hidden, false, "recording again");
   t.clock.advance(6 * SECOND);
+  assert.equal(paceRow(t).hidden, false, "still recording at 0:06");
   await t.stopRecording();
   assert.equal(t.root.dataset.state, "idle");
   assert.equal(paceRow(t).hidden, true, "idle after Stop");
@@ -361,6 +367,7 @@ test("the pace is never announced", async () => {
   const t = setup({ flags: { [TALK_FLAG]: 0.7 } });
   await t.show();
   await t.startRecording();
+  block(t);
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
   readNext(t, { wpm: 185, cue: CUE.SLOW_DOWN });
   for (let second = 0; second < 30; second += 1) {
@@ -373,6 +380,7 @@ test("the row adds no interval, timeout or animation frame", async () => {
   const t = setup({ flags: { [TALK_FLAG]: 0.8 } });
   await t.show();
   await t.startRecording();
+  block(t);
   assert.equal(t.clock.activeIntervals(), 1, "the clock's one 250 ms tick");
   for (let second = 0; second < 8; second += 1) {
     readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
@@ -388,6 +396,7 @@ test("every take starts at the waiting sentence: nothing carries over", async ()
   await t.startRecording();
   assert.equal(t.app.delivery.trackers.length, 2, "a new tracker for the new take");
   assert.deepEqual(rowView(t).text, WAITING);
+  block(t);
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
   assert.deepEqual(rowView(t).text, "About 150 wpm On target");
   t.clock.advance(5 * SECOND);
@@ -403,6 +412,7 @@ test("every take starts at the waiting sentence: nothing carries over", async ()
 test("Stop lets the capture go", async () => {
   const t = setup();
   await t.startRecording();
+  block(t);
   const g = graph(t);
   t.clock.advance(8 * SECOND);
   await t.stopRecording();
@@ -413,6 +423,7 @@ test("Stop lets the capture go", async () => {
 test("the track ending on its own lets the capture go", async () => {
   const t = setup();
   await t.startRecording();
+  block(t);
   const g = graph(t);
   t.clock.advance(8 * SECOND);
   t.MediaRecorder.last.finish();
@@ -424,6 +435,7 @@ test("the track ending on its own lets the capture go", async () => {
 test("leaving mid-take lets the capture go", async () => {
   const t = setup();
   await t.startRecording();
+  block(t);
   const g = graph(t);
   t.clock.advance(3 * SECOND);
   t.practice.hide();
@@ -435,6 +447,7 @@ test("leaving mid-take lets the capture go", async () => {
 test("a take under 5 seconds lets the capture go", async () => {
   const t = setup();
   await t.startRecording();
+  block(t);
   const g = graph(t);
   t.clock.advance(3 * SECOND);
   await t.stopRecording();
@@ -448,6 +461,7 @@ test("a level take's Stop lets the capture go", async () => {
   const t = setup();
   t.startLevel(request);
   await t.startRecording();
+  block(t);
   const g = graph(t);
   t.clock.advance(8 * SECOND);
   await t.stopRecording();

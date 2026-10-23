@@ -1,12 +1,15 @@
-// Tests for the live pace row of a take whose mode has no kept factor yet
-// (frontend/screens/practice.js; spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md
-// section 7, Validation result). In the app the untuned cue was right on 1 of 4 first takes (the
-// validation note's "End to end in the app"), so an untuned row never guesses: from its first
-// paint to the end of the take it says when the live pace starts, "Live pace starts after a 20 s
-// talk." or "... read." by the take's mode, in the waiting sentence's placeholder look, and never
-// a number or a cue. Its blocks still reach the tracker, so the take tunes its mode once its
-// analysis is back. Every browser API is a fake the tests drive by hand; the last test runs the
-// real estimator on synthetic syllables.
+// Tests for the live pace row of a take whose mode has no kept factor yet, and for a capture no
+// audio reaches (frontend/screens/practice.js; spec
+// docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7, Validation result). In
+// the app the untuned cue was right on 1 of 4 first takes (the validation note's "End to end in
+// the app"), so an untuned row never guesses: from its first paint to the end of the take it
+// says when the live pace starts, "Live pace starts after a 20 s talk." or "... read." by the
+// take's mode, in the waiting sentence's placeholder look, and never a number or a cue. Its
+// blocks still reach the tracker, so the take tunes its mode once its analysis is back. A
+// capture that no block has reached when the clock shows 0:03 goes as one whose context refused
+// to resume does: the context closes, the row hides for the rest of the take and the take tunes
+// nothing, in level mode too. Every browser API is a fake the tests drive by hand; the last test
+// runs the real estimator on synthetic syllables.
 "use strict";
 
 const test = require("node:test");
@@ -16,7 +19,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const { byClass } = require("./fake-dom");
-const { flush, plain } = require("./practice-harness");
+const { flush, levelRequest, plain } = require("./practice-harness");
 const {
   ANALYSIS,
   CUE,
@@ -25,7 +28,9 @@ const {
   SECOND,
   TALK_FLAG,
   WAITING,
+  assertReleased,
   block,
+  graph,
   lastTracker,
   paceRow,
   readNext,
@@ -220,6 +225,112 @@ test("a factor kept while an untuned take records leaves that take on its line",
   }
   assert.deepEqual(rowView(t), sentenceRow(TALK_LINE), "for the whole take");
   assert.equal(second.reads, 0);
+});
+
+// --- no audio by 0:03 ---
+
+test("a capture no block reached by 0:03 goes: context closed, row hidden, nothing tuned", async () => {
+  for (const flags of [{}, { [TALK_FLAG]: 0.8 }]) {
+    const label = TALK_FLAG in flags ? "tuned" : "untuned";
+    const t = setup({ flags });
+    await t.show();
+    await t.startRecording();
+    const g = graph(t);
+    const tracker = lastTracker(t);
+    t.clock.advance(3 * SECOND - 1);
+    assert.equal(g.context.closes, 0, label + ": kept at 0:02");
+    assert.equal(paceRow(t).hidden, false, label);
+    t.clock.advance(1);
+    assertReleased(g);
+    assert.equal(paceRow(t).hidden, true, label + ": hidden at 0:03");
+    assert.equal(tracker.reads, label === "tuned" ? 2 : 0, label + ": read at 0:01 and 0:02 only");
+    t.clock.advance(20 * SECOND);
+    assert.equal(paceRow(t).hidden, true, label + ": for the rest of the take");
+    assert.equal(g.context.closes, 1, label + ": closed once");
+    assert.equal(t.root.dataset.state, "recording", label + ": the take records on");
+    assert.equal(t.clock.activeIntervals(), 1, label + ": the clock's one tick");
+    await t.stopRecording();
+    t.app.delivery.nextFactor = 0.75;
+    t.resolveUpload();
+    await flush();
+    assert.equal(t.calls.save.length, 1, label + ": the take is saved");
+    assert.equal(t.app.delivery.tunings.length, 0, label + ": it tunes nothing");
+    assert.deepEqual(t.calls.setFlag, [], label);
+  }
+});
+
+test("a context whose resume() never answers goes at 0:03, and a late answer changes nothing", async () => {
+  for (const accepted of [true, false]) {
+    const t = setup({ audio: { state: "suspended", holdResume: true } });
+    await t.show();
+    await t.startRecording();
+    const g = graph(t);
+    assert.equal(g.context.resumes, 1, "asked once");
+    t.clock.advance(3 * SECOND);
+    assertReleased(g);
+    assert.equal(paceRow(t).hidden, true);
+    g.context.answerResume(accepted);
+    await flush();
+    assert.equal(g.context.closes, 1, "closed once");
+    assert.equal(paceRow(t).hidden, true, "still hidden after a late " + accepted);
+    t.clock.advance(5 * SECOND);
+    assert.equal(paceRow(t).hidden, true);
+  }
+});
+
+test("in level mode a capture no block reached by 0:03 goes too, and nothing reads the tracker", async () => {
+  const { request } = levelRequest();
+  const t = setup();
+  t.startLevel(request);
+  await t.startRecording();
+  const g = graph(t);
+  const tracker = lastTracker(t);
+  t.clock.advance(3 * SECOND - 1);
+  assert.equal(g.context.closes, 0, "kept at 0:02");
+  t.clock.advance(1);
+  assertReleased(g);
+  assert.equal(tracker.reads, 0, "never read in level mode");
+  assert.equal(paceRow(t).hidden, true);
+  t.clock.advance(20 * SECOND);
+  await t.stopRecording();
+  assert.equal(t.root.dataset.state, "uploading");
+  t.app.delivery.nextFactor = 0.8;
+  t.resolveUpload();
+  await flush();
+  assert.equal(t.calls.save.length, 1, "the level take is saved");
+  assert.equal(t.app.delivery.tunings.length, 0, "it tunes nothing");
+  assert.deepEqual(t.calls.setFlag, []);
+});
+
+test("a block at 0:02 keeps the capture, in normal and in level mode, and the take tunes", async () => {
+  for (const level of [false, true]) {
+    const label = level ? "level mode" : "normal";
+    const t = setup();
+    if (level) {
+      t.startLevel(levelRequest().request);
+    } else {
+      await t.show();
+    }
+    await t.startRecording();
+    const g = graph(t);
+    t.clock.advance(2 * SECOND);
+    block(t);
+    t.clock.advance(20 * SECOND);
+    assert.equal(g.context.closes, 0, label + ": kept past 0:03");
+    assert.equal(typeof g.processor.onaudioprocess, "function", label);
+    assert.equal(paceRow(t).hidden, level, label + (level ? ": no row in level mode" : ": shown"));
+    if (!level) {
+      assert.deepEqual(rowView(t), sentenceRow(TALK_LINE), label);
+    }
+    lastTracker(t).peakTimes = [2.5, 3, 3.5];
+    t.app.delivery.nextFactor = 0.75;
+    t.clock.advance(3 * SECOND);
+    await t.stopRecording();
+    t.resolveUpload();
+    await flush();
+    assert.equal(t.app.delivery.tunings.length, 1, label);
+    assert.deepEqual(plain(t.calls.setFlag), [[TALK_FLAG, 0.75]], label);
+  }
 });
 
 // --- what the row says, and how ---
