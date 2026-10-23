@@ -257,6 +257,46 @@ test("the Pace crown reads an unread cold read at 180 wpm; a new run, another", 
   assert.equal(again.seconds, secondsAt(again.material, 180));
 });
 
+test("the sheet's Try again after a missed Pace crown reads another new cold read", async () => {
+  // The same draw every time: only the missed read, saved by this run, keeps it from coming back.
+  const world = createWorld({
+    history: steadyHistory(),
+    cleared: clearedOn(["pace-1", "pace-2", "pace-3"]),
+    draws: [0],
+  });
+  const sheets = [];
+  world.app.sheet = {
+    open(options) {
+      sheets.push(options);
+      return { update() {}, close() {} };
+    },
+  };
+  // What app.nextMove picks after a missed crown: a new run of it.
+  world.app.nextMove = () => ({
+    kind: "retry",
+    label: "Try again",
+    why: "",
+    href: "#/level/pace_crown",
+  });
+  await world.open("pace_crown");
+  world.tap("Read it");
+  const missed = fieldsOf(world.request());
+  await world.finishTake(readAt(150));
+  assert.equal(textOf(find(world.body, "level-result__title")), "Not yet");
+  assert.equal(sheets.length, 1, "the sheet follows the result");
+  assert.equal(sheets[0].primary.label, "Try again");
+  sheets[0].primary.onSelect();
+  await world.settle();
+  assert.equal(textOf(find(world.body, "level-heading")), "Goal", "a new run");
+  world.tap("Read it");
+  assert.equal(world.practice.requests.length, 2);
+  const again = fieldsOf(world.request());
+  assert.notEqual(again.material.id, missed.material.id);
+  assert.ok(coldReadIds(world).includes(again.material.id), again.material.id);
+  assert.deepEqual(again.material.targetWpm, [170, 190]);
+  assert.equal(again.seconds, secondsAt(again.material, 180));
+});
+
 // --- Practice's time bar ----------------------------------------------------------------------
 
 test("Practice's time bar lasts the drawn passage's seconds, full at its end", async () => {
