@@ -1,7 +1,8 @@
 // Tests for the live pace estimator in frontend/delivery.js (spec 2026-10-22 section 7). The
 // tracker app.delivery.livePace counts syllable peaks in the microphone's samples as they
 // arrive, after de Jong and Wempe (2009); livePaceAt turns the peaks into words a minute over
-// the trailing window; nextLiveReading applies the live row's rules (rounded to 5, a 10 wpm
+// the trailing window, from the first run of syllables (a lone tap or breath before the speech
+// never starts it); nextLiveReading applies the live row's rules (rounded to 5, a 10 wpm
 // margin held 3 s, a silence over 1.5 s keeps the last value); paceFactorAfter tunes the
 // words-a-peak factor from a finished take. The module is pure, so it loads into a bare vm
 // context. The signals are synthetic and seeded: voiced syllables (a harmonic tone under a
