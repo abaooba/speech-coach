@@ -134,9 +134,9 @@
   // A filter value this small is flushed to 0, so a silence never leaves denormal numbers.
   const LIVE_FLUSH_BELOW = 1e-30;
   // The number: words a minute over the trailing 15 s of speech, or over all of it while that
-  // is shorter, shown once there are 5 s of it and rounded to 5. A silence counts as speech
-  // only up to 1.5 s, and one over 1.5 s keeps what the row shows, so a pause at a full stop
-  // never says Speed up, during it or after it.
+  // is shorter, shown once there are 5 s of it and rounded to 5. A silence counts toward those
+  // seconds only up to 1.5 s, and one over 1.5 s keeps what the row shows, so a pause at a full
+  // stop never says Speed up, during it or after it.
   const LIVE_WINDOW_SECONDS = 15;
   const LIVE_MIN_SPEECH_SECONDS = 5;
   const LIVE_ROUND_TO_WPM = 5;
@@ -1135,12 +1135,12 @@
   function speechAges(times, start, at) {
     const last = times.length - 1;
     const ages = [];
-    let cut = Math.max(0, at - times[last] - LIVE_SILENCE_SECONDS);
+    let leftOut = Math.max(0, at - times[last] - LIVE_SILENCE_SECONDS);
     for (let index = last; index >= start; index -= 1) {
       if (index < last) {
-        cut += Math.max(0, times[index + 1] - times[index] - LIVE_SILENCE_SECONDS);
+        leftOut += Math.max(0, times[index + 1] - times[index] - LIVE_SILENCE_SECONDS);
       }
-      ages[index - start] = at - times[index] - cut;
+      ages[index - start] = at - times[index] - leftOut;
     }
     return ages;
   }
