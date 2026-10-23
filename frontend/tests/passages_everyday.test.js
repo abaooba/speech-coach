@@ -84,7 +84,7 @@ test("the Read tab's explainer and story read cleanly, as written", () => {
   everydayPassages().forEach(assertReadsCleanly);
 });
 
-test("the explainer is the Pace ladder's passage: 109 words, as the rebuttal it replaced", () => {
+test("the explainer keeps its 109 words, as the rebuttal it replaced", () => {
   const [explainer] = everydayPassages();
   assert.equal(explainer.text.trim().split(/\s+/).length, 109);
 });

@@ -145,12 +145,16 @@ test("reads: each read's title, body and passage", async () => {
     ladder.body,
     "Read the passage at 140 to 160 wpm. Read 2 counts: 140 to 160 wpm.",
   );
-  assert.equal(ladder.seconds, pace.app.path.playById("pace-1").takes[0].seconds);
-  assert.equal(ladder.material.id, "explainer-rainbows");
+  // A ladder read is a cold read, timed to its words at the read's 150 wpm.
+  const ladderWords = ladder.material.text.trim().split(/\s+/).length;
+  assert.equal(ladder.seconds, Math.ceil((ladderWords * 60) / 150));
+  const ladderDrawn = pace.app.path.materialFor("pace-1", steadyHistory(), () => 0, 0);
+  assert.deepEqual(ladder.material, plain(ladderDrawn));
+  assert.ok(ladder.material.id.startsWith("cold-read-"), ladder.material.id);
   assert.deepEqual(ladder.material.targetWpm, [140, 160]);
 });
 
-test("Pace level 2: both reads count, each on the same passage at its own band", async () => {
+test("Pace level 2: both reads count, each on a new passage at its own band", async () => {
   const world = createWorld({ history: steadyHistory(), cleared: clearedOn(["pace-1"]) });
   await world.open("pace-2");
   world.tap("Record read 1");
@@ -167,10 +171,14 @@ test("Pace level 2: both reads count, each on the same passage at its own band",
   world.tap("Read it again");
   const read2 = fieldsOf(world.request());
   assert.equal(read2.title, "Read 2 of 2");
-  assert.equal(read2.material.id, read1.material.id);
-  assert.equal(read2.material.text, read1.material.text);
+  assert.notEqual(read2.material.id, read1.material.id);
+  assert.notEqual(read2.material.text, read1.material.text);
+  assert.ok(read2.material.id.startsWith("cold-read-"), read2.material.id);
   assert.deepEqual(read2.material.targetWpm, [150, 170]);
-  assert.equal(read2.seconds, world.app.path.playById("pace-2").takes[1].seconds);
+  // Each read is timed to its own passage at its own pace: 140, then 160 wpm.
+  const wordsIn = (material) => material.text.trim().split(/\s+/).length;
+  assert.equal(read1.seconds, Math.ceil((wordsIn(read1.material) * 60) / 140));
+  assert.equal(read2.seconds, Math.ceil((wordsIn(read2.material) * 60) / 160));
 });
 
 test("one-take plays: one take or one read, with the target", async () => {
@@ -235,9 +243,11 @@ test("one-take plays: one take or one read, with the target", async () => {
     assert.equal(fields.eyebrow, "Path: " + world.app.path.playById(playId).heading, playId);
     assert.equal(fields.title, title, playId);
     assert.equal(fields.body, body, playId);
+    // null: the crown's read lasts as long as its drawn passage takes at 180 wpm.
+    const words = fields.material.text.trim().split(/\s+/).length;
     assert.equal(
       fields.seconds,
-      seconds === null ? world.app.path.playById(playId).takes[0].seconds : seconds,
+      seconds === null ? Math.ceil((words * 60) / 180) : seconds,
       playId,
     );
     assert.equal(fields.liveTap, false, playId);

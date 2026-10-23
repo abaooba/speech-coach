@@ -302,10 +302,11 @@
 
   // --- The run ---------------------------------------------------------------------------------
 
-  // A new run: {playId, play, baseline, cleared, history, material, takes, sessions, kept,
-  // choices, fix, inRoom, audio, ...}. The baseline is frozen here from the takes before the
-  // play (null for a speaker with none, until a take with speech sets it), and the material is
-  // drawn here once for every take of a loop.
+  // A new run: {playId, play, baseline, cleared, history, material, materials, takes, sessions,
+  // kept, choices, fix, inRoom, audio, ...}. The baseline is frozen here from the takes before
+  // the play (null for a speaker with none, until a take with speech sets it), and take 1's
+  // material is drawn here: a loop keeps it for every take, except that each ladder (Pace) read
+  // draws its own (materialOf).
   function startRun(playId, history, cleared) {
     const baseline = app.path.baseline(history);
     const play = app.path.playById(playId, { baseline, cleared });
@@ -316,6 +317,9 @@
       cleared,
       history,
       material: app.path.materialFor(play, history, Math.random, 0),
+      // By take index: the material each take was said or read on, kept from the moment its
+      // request is built (materialOf).
+      materials: [],
       topFillers: play.listsTopFillers ? app.path.topFillers(history) : [],
       // Whether the play's last run was cut off after take 1 today, its audio gone with it.
       takeOneGone: takeOneCutOff(play, history),
@@ -385,22 +389,31 @@
     }
   }
 
-  // A take step's material: the run's own, drawn at the Goal. A ladder read asks again for its
-  // own band on the same passage, and the benchmark's take 2 is its talk.
+  // A take's material: drawn the first time it is asked for, when the take's request is built
+  // (requestFor), then kept on the run by take index, so the take's seconds, its Review and the
+  // coach's request all read the passage it was read from. Take 1's is the run's own, drawn at
+  // the Goal, and a loop keeps that for every take, except that each ladder (Pace) read draws a
+  // new cold read over the run's own saved takes first (historyNow), so read 2 never repeats
+  // read 1's passage while another is unread. The benchmark's take 2 is its talk.
   function materialOf(target, takeIndex) {
-    const key = target.play.material;
-    const material =
-      (key === LADDER_MATERIAL || key === BENCHMARK_MATERIAL) && takeIndex > 0
-        ? app.path.materialFor(target.playId, target.history, Math.random, takeIndex)
+    if (!target.materials[takeIndex]) {
+      const key = target.play.material;
+      const ownMaterial = (key === LADDER_MATERIAL || key === BENCHMARK_MATERIAL) && takeIndex > 0;
+      target.materials[takeIndex] = ownMaterial
+        ? app.path.materialFor(target.playId, historyNow(target), Math.random, takeIndex)
         : target.material;
+    }
+    const material = target.materials[takeIndex];
     return Object.assign({}, material, { targetWpm: Array.from(material.targetWpm) });
   }
 
-  // The take at `takeIndex`, resolved against the run's frozen baseline.
+  // The take at `takeIndex`, resolved against the run's frozen baseline and the material kept
+  // for it, which times a ladder read (its seconds are null until the take's request is built).
   function takeOf(target, takeIndex) {
     return app.path.takeAt(target.playId, takeIndex, {
       baseline: target.baseline,
       cleared: target.cleared,
+      material: target.materials[takeIndex] || null,
     });
   }
 
@@ -425,15 +438,17 @@
     practice.startLevelTake(request);
   }
 
-  // What Practice shows and calls back for one take.
+  // What Practice shows and calls back for one take. Its material comes first: a ladder read
+  // lasts as long as the passage drawn for it takes at its pace.
   function requestFor(target, takeIndex) {
     const play = target.play;
+    const material = materialOf(target, takeIndex);
     const take = takeOf(target, takeIndex);
     return {
       eyebrow: "Path: " + play.heading,
       title: bannerTitle(play, take, takeIndex),
       body: bannerBody(target, take, takeIndex),
-      material: materialOf(target, takeIndex),
+      material,
       seconds: secondsOf(play, take),
       liveTap: play.liveTap === true,
       judge: (result) => judgeTake(target, takeIndex, result),
