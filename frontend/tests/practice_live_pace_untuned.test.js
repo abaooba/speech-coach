@@ -230,9 +230,9 @@ test("a factor kept while an untuned take records leaves that take on its line",
 // --- no audio by 0:03 ---
 
 test("a capture no block reached by 0:03 goes: context closed, row hidden, nothing tuned", async () => {
-  for (const flags of [{}, { [TALK_FLAG]: 0.8 }]) {
-    const label = TALK_FLAG in flags ? "tuned" : "untuned";
-    const t = setup({ flags });
+  for (const tuned of [false, true]) {
+    const label = tuned ? "tuned" : "untuned";
+    const t = setup({ flags: tuned ? { [TALK_FLAG]: 0.8 } : {} });
     await t.show();
     await t.startRecording();
     const g = graph(t);
@@ -243,7 +243,7 @@ test("a capture no block reached by 0:03 goes: context closed, row hidden, nothi
     t.clock.advance(1);
     assertReleased(g);
     assert.equal(paceRow(t).hidden, true, label + ": hidden at 0:03");
-    assert.equal(tracker.reads, label === "tuned" ? 2 : 0, label + ": read at 0:01 and 0:02 only");
+    assert.equal(tracker.reads, tuned ? 2 : 0, label + (tuned ? ": read at 0:01 and 0:02" : ""));
     t.clock.advance(20 * SECOND);
     assert.equal(paceRow(t).hidden, true, label + ": for the rest of the take");
     assert.equal(g.context.closes, 1, label + ": closed once");
