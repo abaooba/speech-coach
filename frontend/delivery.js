@@ -1050,7 +1050,8 @@
     let y2 = 0;
     return (x) => {
       let y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-      if (Math.abs(y) < LIVE_FLUSH_BELOW) {
+      // Compared both ways rather than through Math.abs: this runs twice for every sample.
+      if (y < LIVE_FLUSH_BELOW && y > -LIVE_FLUSH_BELOW) {
         y = 0;
       }
       x2 = x1;
