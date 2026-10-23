@@ -123,21 +123,56 @@ async function saveTake(t) {
 
 // --- The chips --------------------------------------------------------------------------------
 
-test("the Read tab shows one chip per group in its first passage's place, and one per other", () => {
+test("the Read tab shows one chip per group in groups() order, then one per other passage", () => {
   const t = onRead();
   assert.deepEqual(
     visibleChips(t).map((chip) => chip.textContent),
-    ["Explainer", "Story", "Speech", "Loose passage", "Drill", "A poem"],
+    ["Explainer", "Story", "Speech", "Drill", "Loose passage", "A poem"],
   );
   assert.deepEqual(
     visibleChips(t).map((chip) => chip.dataset.group || null),
-    ["explainer", "story", "speech", null, "drill", null],
+    ["explainer", "story", "speech", "drill", null, null],
   );
   assert.deepEqual(
     visibleChips(t).map((chip) => chip.dataset.passageId || null),
-    [null, null, null, "loose", null, "poem"],
+    [null, null, null, null, "loose", "poem"],
   );
   assert.equal(parts(t).chips.length, 7, "one Talk chip and six Read chips");
+});
+
+// groups() decides the Read tab's order (spec section 2.3), whatever order the data lists the
+// passages in: here Drill's and Speech's come first and a passage of no group before them all.
+test("the group chips follow groups(), not the data's order, and Read opens on the first", () => {
+  const ofGroup = (id) => PASSAGES.filter((entry) => entry.group === id);
+  const loose = PASSAGES.filter((entry) => entry.id === "loose");
+  const reordered = [
+    TALK,
+    ...loose,
+    ...ofGroup("drill"),
+    ...ofGroup("speech"),
+    ...ofGroup("story"),
+    ...ofGroup("explainer"),
+  ];
+  const t = setup({ passages: reordered, groups: GROUPS, random: drawOf(0) });
+  parts(t).read.click();
+  assert.deepEqual(
+    visibleChips(t).map((chip) => chip.textContent),
+    ["Explainer", "Story", "Speech", "Drill", "Loose passage"],
+  );
+  assert.equal(shownId(t), "explainer-one", "the first group's passage, not the data's first");
+  assert.deepEqual(pressed(t), ["Explainer"]);
+});
+
+test("a group groups() lists but no passage names gets no chip; Read opens on the next", () => {
+  const withoutExplainer = PASSAGES.filter((entry) => entry.group !== "explainer");
+  const t = setup({ passages: withoutExplainer, groups: GROUPS, random: drawOf(0) });
+  parts(t).read.click();
+  assert.deepEqual(
+    visibleChips(t).map((chip) => chip.textContent),
+    ["Story", "Speech", "Drill", "Loose passage", "A poem"],
+  );
+  assert.equal(shownId(t), "story-one");
+  assert.deepEqual(pressed(t), ["Story"]);
 });
 
 test("a group chip is a toggle button like the others, named by the group's label", () => {

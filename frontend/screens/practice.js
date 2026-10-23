@@ -161,8 +161,9 @@
   const selectedIdByKind = {};
   const topicById = {};
 
-  // The Read tab's groups, app.passages.groups() as mount() found it: [{id, label}], one chip
-  // each. Empty for passage data without groups, where every passage keeps a chip of its own.
+  // The Read tab's groups, app.passages.groups() as mount() found it, in its order and less any
+  // group no passage names: [{id, label}], one chip each. Empty for passage data without groups,
+  // where every passage keeps a chip of its own.
   let readGroups = [];
 
   // The speaker's own takes, which the draws read (spec section 2.1): those app.store.list() gave
@@ -375,10 +376,14 @@
     return hasTopics(entry) ? currentTopic(entry) : entry.text;
   }
 
-  // app.passages.groups() as a list, or none for passage data without it, such as the plain
-  // arrays of the test fixtures.
+  // app.passages.groups() as a list, in its order, less any group no Read passage names, which
+  // would have nothing to draw; none for passage data without it, such as the plain arrays of
+  // the test fixtures.
   function groupsOf(passages) {
-    return typeof passages.groups === "function" ? Array.from(passages.groups()) : [];
+    const groups = typeof passages.groups === "function" ? Array.from(passages.groups()) : [];
+    return groups.filter((group) =>
+      passages.some((entry) => entry.kind === READ_KIND && entry.group === group.id),
+    );
   }
 
   // The group a Read passage belongs to, from readGroups, or null for a prompt, a level's
@@ -463,8 +468,18 @@
     }
   }
 
-  // Each prompt with topics starts on a drawn topic and each tab on its first entry, the Read tab
-  // on a drawn passage of that entry's group (spec sections 2.2 and 2.3).
+  // The entry a tab opens on, its first chip's: on the Read tab a drawn passage of the first
+  // group, whose chip leads the tab's chips, and otherwise the tab's first entry.
+  function openingEntry(passages, kind) {
+    if (kind === READ_KIND && readGroups.length > 0) {
+      return drawPassage(readGroups[0], null);
+    }
+    const [first] = entriesOfKind(passages, kind);
+    return first || null;
+  }
+
+  // Each prompt with topics starts on a drawn topic and each tab on its first chip's entry, the
+  // Read tab on a drawn passage of the first group (spec sections 2.2 and 2.3).
   function mount(screenRoot) {
     root = screenRoot;
     const passages = app.passages || [];
@@ -474,9 +489,7 @@
       topicById[entry.id] = drawTopic(entry, null);
     });
     MODES.forEach((mode) => {
-      const [first] = entriesOfKind(passages, mode.kind);
-      const group = groupOf(first);
-      const opening = group === null ? first : drawPassage(group, null);
+      const opening = openingEntry(passages, mode.kind);
       selectedIdByKind[mode.kind] = opening ? opening.id : null;
     });
 
@@ -677,18 +690,19 @@
     return nodes.modeSwitch;
   }
 
-  // One chip per entry, except that a Read group's passages share one chip, in the place of the
-  // group's first passage; built once, render() shows only the current tab's chips.
+  // One chip per entry, in the data's order, except that a Read group's passages share one chip:
+  // the group chips lead the Read tab's chips, in app.passages.groups() order, and a passage of
+  // no listed group keeps a chip of its own after them. Built once; render() shows only the
+  // current tab's chips.
   function buildChipRow(passages) {
-    const chipped = new Set();
+    const firstRead = passages.findIndex((entry) => entry.kind === READ_KIND);
     nodes.chips = [];
-    passages.forEach((entry) => {
-      const group = groupOf(entry);
-      if (group === null) {
+    passages.forEach((entry, index) => {
+      if (index === firstRead) {
+        nodes.chips.push(...readGroups.map(groupChip));
+      }
+      if (groupOf(entry) === null) {
         nodes.chips.push(entryChip(entry));
-      } else if (!chipped.has(group)) {
-        chipped.add(group);
-        nodes.chips.push(groupChip(group));
       }
     });
     nodes.chipRow = app.ui.el(
