@@ -91,6 +91,14 @@ rebuttals, resolutions, judges or opponents); no exclamation mark anywhere in pa
 Ids are lowercase slugs; titles are unique and under 40 characters; the existing six keep their
 ids, titles and texts.
 
+Read as written, with a pause at each comma and stop, no text read word for word (a Read passage,
+a cold read or the benchmark read) shows a filler (passages_read_as_written.test.js). delivery.js
+counts "so" before a comma as a habit, so no speech excerpt holds "So," or "And so,". That is why
+Roosevelt's "fear itself" and Kennedy's "ask not" lines are not on the Read tab: the speeches are
+fdr-happiness (First Inaugural, 1933) and jfk-to-the-moon (Rice University, 1962) instead.
+Bringing those two lines back would mean delivery.js skipping a habit word the script holds at
+that point, which re-scores saved reads: an owner decision.
+
 ### 3.2 The Path: 15 more cold reads
 
 `app.passages.coldReads()` grows from 15 to 30. The new ones come after the old (whose ids,

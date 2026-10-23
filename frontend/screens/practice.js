@@ -899,6 +899,9 @@
     const view = viewFor(nextState);
     state = nextState;
     root.dataset.state = view.dataState;
+    // The tab's kind, as the chips and New topic carry it: on short phones styles.css hides the
+    // Read tab's hint words and sample button (section 7).
+    root.dataset.kind = currentKind;
 
     const passage = shownEntry();
     paintModeSwitch(view);
@@ -997,7 +1000,7 @@
       nodes.cardText.scrollTop = 0;
       paintedTextKey = textKey;
     }
-    paintNewTopicLabel(currentKind === READ_KIND ? NEW_PASSAGE_LABEL : NEW_TOPIC_LABEL);
+    paintNewTopicButton(currentKind);
     const drawable = levelRequest === null && canDrawAnother(passage);
     nodes.newTopic.hidden = !(view.showNewTopic && drawable);
     nodes.newTopic.disabled = view.chipsDisabled;
@@ -1013,15 +1016,32 @@
     nodes.cardText.textContent = cardTextOf(passage);
   }
 
-  // The button's words, then its icon, rebuilt only when the words change. It is cleared first
-  // because the test fakes keep an element's text apart from its children.
-  function paintNewTopicLabel(label) {
+  // New topic, or New passage on the Read tab: the button's words, then its icon, rebuilt only
+  // when the words change. It is cleared first because the test fakes keep an element's text
+  // apart from its children. It carries its tab's kind, as the chips do, for styles.css: under
+  // 360px the Read tab's button shows its icon alone (section 7), so there its words are also its
+  // aria-label (DESIGN.md section 9). Talk's always shows its words.
+  function paintNewTopicButton(kind) {
+    const label = kind === READ_KIND ? NEW_PASSAGE_LABEL : NEW_TOPIC_LABEL;
+    nodes.newTopic.dataset.kind = kind;
+    if (kind === READ_KIND) {
+      nodes.newTopic.setAttribute("aria-label", label);
+    } else {
+      removeAttribute(nodes.newTopic, "aria-label");
+    }
     if (nodes.newTopic.textContent === label) {
       return;
     }
     app.ui.clear(nodes.newTopic);
     nodes.newTopic.textContent = label;
     nodes.newTopic.appendChild(nodes.newTopicIcon);
+  }
+
+  // The test fakes have no removeAttribute.
+  function removeAttribute(node, name) {
+    if (typeof node.removeAttribute === "function") {
+      node.removeAttribute(name);
+    }
   }
 
   // "/ 1:00" and the bar for a timed entry; an untimed entry hides both.
