@@ -279,27 +279,33 @@ test("a context whose resume() never answers goes at 0:03, and a late answer cha
 });
 
 test("in level mode a capture no block reached by 0:03 goes too, and nothing reads the tracker", async () => {
-  const { request } = levelRequest();
-  const t = setup();
-  t.startLevel(request);
-  await t.startRecording();
-  const g = graph(t);
-  const tracker = lastTracker(t);
-  t.clock.advance(3 * SECOND - 1);
-  assert.equal(g.context.closes, 0, "kept at 0:02");
-  t.clock.advance(1);
-  assertReleased(g);
-  assert.equal(tracker.reads, 0, "never read in level mode");
-  assert.equal(paceRow(t).hidden, true);
-  t.clock.advance(20 * SECOND);
-  await t.stopRecording();
-  assert.equal(t.root.dataset.state, "uploading");
-  t.app.delivery.nextFactor = 0.8;
-  t.resolveUpload();
-  await flush();
-  assert.equal(t.calls.save.length, 1, "the level take is saved");
-  assert.equal(t.app.delivery.tunings.length, 0, "it tunes nothing");
-  assert.deepEqual(t.calls.setFlag, []);
+  // Tuned too: in normal mode a tuned take's tracker is read at 0:01 and 0:02.
+  for (const tuned of [false, true]) {
+    const label = tuned ? "tuned" : "untuned";
+    const t = setup({ flags: tuned ? { [TALK_FLAG]: 0.8 } : {} });
+    t.startLevel(levelRequest().request);
+    await flush();
+    await t.startRecording();
+    const g = graph(t);
+    const tracker = lastTracker(t);
+    assert.equal(tracker.options.factor, tuned ? 0.8 : null, label + ": Talk's kept factor");
+    t.clock.advance(3 * SECOND - 1);
+    assert.equal(g.context.closes, 0, label + ": kept at 0:02");
+    assert.equal(tracker.reads, 0, label + ": not read at 0:01 or 0:02");
+    t.clock.advance(1);
+    assertReleased(g);
+    assert.equal(tracker.reads, 0, label + ": never read in level mode");
+    assert.equal(paceRow(t).hidden, true, label);
+    t.clock.advance(20 * SECOND);
+    await t.stopRecording();
+    assert.equal(t.root.dataset.state, "uploading", label);
+    t.app.delivery.nextFactor = 0.8;
+    t.resolveUpload();
+    await flush();
+    assert.equal(t.calls.save.length, 1, label + ": the level take is saved");
+    assert.equal(t.app.delivery.tunings.length, 0, label + ": it tunes nothing");
+    assert.deepEqual(t.calls.setFlag, [], label);
+  }
 });
 
 test("a block at 0:02 keeps the capture, in normal and in level mode, and the take tunes", async () => {
