@@ -38,8 +38,8 @@ const READ_PASSAGES = {
   speech: [
     ["gettysburg-opening", "Gettysburg Address, opening"],
     ["liberty-or-death", "Patrick Henry, liberty or death"],
-    ["fdr-fear-itself", "Franklin D. Roosevelt, fear itself"],
-    ["jfk-ask-not", "John F. Kennedy, ask not"],
+    ["fdr-happiness", "Franklin D. Roosevelt, on happiness"],
+    ["jfk-to-the-moon", "John F. Kennedy, to the moon"],
     ["tr-man-in-the-arena", "Theodore Roosevelt, man in the arena"],
     ["jfk-grace-and-beauty", "John F. Kennedy, grace and beauty"],
   ],
@@ -65,8 +65,8 @@ const GROUP_RULES = {
 const SPEECH_SOURCES = {
   "gettysburg-opening": "Abraham Lincoln, Gettysburg Address, 1863",
   "liberty-or-death": "Patrick Henry, speech to the Virginia Convention, 1775",
-  "fdr-fear-itself": "Franklin D. Roosevelt, First Inaugural Address, 1933",
-  "jfk-ask-not": "John F. Kennedy, Inaugural Address, 1961",
+  "fdr-happiness": "Franklin D. Roosevelt, First Inaugural Address, 1933",
+  "jfk-to-the-moon": "John F. Kennedy, Address at Rice University, 1962",
   "tr-man-in-the-arena": "Theodore Roosevelt, Citizenship in a Republic, 1910",
   "jfk-grace-and-beauty": "John F. Kennedy, Remarks at Amherst College, 1963",
 };
@@ -109,9 +109,9 @@ const NEW_COLD_READ_IDS = [
 const COLD_READ_WORDS = [142, 164];
 const COLD_READ_BAND = [140, 160];
 
-// Each new text's words, split on whitespace as the word ranges count them. The script
-// alignment (backend/script_align.py) reads a dash-joined word as two, so it reads 108 words in
-// fdr-fear-itself ("itself--nameless") and in jfk-ask-not (three such words).
+// Each new text's words, split on whitespace as the word ranges count them. None joins two
+// words with a dash, so the script alignment (backend/script_align.py), which reads such a word
+// as two, counts the same.
 const NEW_TEXT_WORDS = {
   "explainer-cut-apples": 105,
   "explainer-echoes": 109,
@@ -123,8 +123,8 @@ const NEW_TEXT_WORDS = {
   "story-corner-bakery": 104,
   "story-soup-next-door": 107,
   "story-giving-directions": 99,
-  "fdr-fear-itself": 107,
-  "jfk-ask-not": 105,
+  "fdr-happiness": 121,
+  "jfk-to-the-moon": 118,
   "tr-man-in-the-arena": 112,
   "jfk-grace-and-beauty": 123,
   "drill-th-sounds": 74,

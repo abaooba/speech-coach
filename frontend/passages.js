@@ -329,6 +329,10 @@
     "well.",
   ].join(" ");
 
+  // The speeches are read word for word, as their transcripts print them. delivery.js never reads
+  // the script, so a "so" right before a comma counts as a habit when the reader pauses there
+  // (SO_HANG_SECONDS): Roosevelt's "So, first of all, ... fear itself" and Kennedy's "And so, my
+  // fellow Americans: ask not" are left out for that reason (passages_read_as_written.test.js).
   const GETTYSBURG_OPENING = [
     "Four score and seven years ago our fathers brought forth on this continent, a new",
     "nation, conceived in Liberty, and dedicated to the proposition that all men are",
@@ -352,32 +356,31 @@
     "give me death.",
   ].join(" ");
 
-  // The opening of the address as printed on the Avalon Project's page (Yale Law School), which
-  // Bartleby's Inaugural Addresses of the Presidents matches word for word; as delivered it
-  // differs in a few words. The double hyphen is kept as printed: the script alignment reads the
-  // two words it joins as two.
-  const FDR_FEAR_ITSELF = [
-    "I am certain that my fellow Americans expect that on my induction into the Presidency I",
-    "will address them with a candor and a decision which the present situation of our Nation",
-    "impels. This is preeminently the time to speak the truth, the whole truth, frankly and",
-    "boldly. Nor need we shrink from honestly facing conditions in our country today. This",
-    "great Nation will endure as it has endured, will revive and will prosper. So, first of",
-    "all, let me assert my firm belief that the only thing we have to fear is fear",
-    "itself--nameless, unreasoning, unjustified terror which paralyzes needed efforts to",
-    "convert retreat into advance.",
+  // Two paragraphs from the middle of the address, as printed on the Avalon Project's page (Yale
+  // Law School), which the Miller Center's text matches word for word; as delivered, it opens
+  // "Yes, the money changers", reads "the moral stimulation" and adds "my friends".
+  const FDR_HAPPINESS = [
+    "The money changers have fled from their high seats in the temple of our civilization. We",
+    "may now restore that temple to the ancient truths. The measure of the restoration lies in",
+    "the extent to which we apply social values more noble than mere monetary profit. Happiness",
+    "lies not in the mere possession of money; it lies in the joy of achievement, in the thrill",
+    "of creative effort. The joy and moral stimulation of work no longer must be forgotten in",
+    "the mad chase of evanescent profits. These dark days will be worth all they cost us if they",
+    "teach us that our true destiny is not to be ministered unto but to minister to ourselves",
+    "and to our fellow men.",
   ].join(" ");
 
-  // The passage of the address that builds to its best-known line, as the National Archives
-  // transcript prints it, which the American Presidency Project matches character for
-  // character; its double hyphens are kept as printed.
-  const JFK_ASK_NOT = [
-    "In the long history of the world, only a few generations have been granted the role of",
-    "defending freedom in its hour of maximum danger. I do not shrink from this",
-    "responsibility--I welcome it. I do not believe that any of us would exchange places with",
-    "any other people or any other generation. The energy, the faith, the devotion which we",
-    "bring to this endeavor will light our country and all who serve it--and the glow from",
-    "that fire can truly light the world. And so, my fellow Americans: ask not what your",
-    "country can do for you--ask what you can do for your country.",
+  // The passage of the address at Rice University that opens on its best-known line, as the
+  // American Presidency Project prints it; Teaching American History's transcript matches it word
+  // for word, writing office in lower case.
+  const JFK_TO_THE_MOON = [
+    "We choose to go to the moon. We choose to go to the moon in this decade and do the other",
+    "things, not because they are easy, but because they are hard, because that goal will serve",
+    "to organize and measure the best of our energies and skills, because that challenge is one",
+    "that we are willing to accept, one we are unwilling to postpone, and one which we intend to",
+    "win, and the others, too. It is for these reasons that I regard the decision last year to",
+    "shift our efforts in space from low to high gear as among the most important decisions",
+    "that will be made during my incumbency in the Office of the Presidency.",
   ].join(" ");
 
   // The man in the arena passage of the speech at the Sorbonne, from The credit belongs, as the
@@ -589,21 +592,21 @@
       group: "story",
     },
     {
-      id: "fdr-fear-itself",
+      id: "fdr-happiness",
       kind: "passage",
-      title: "Franklin D. Roosevelt, fear itself",
-      text: FDR_FEAR_ITSELF,
+      title: "Franklin D. Roosevelt, on happiness",
+      text: FDR_HAPPINESS,
       targetWpm: [130, 150],
       source: "Franklin D. Roosevelt, First Inaugural Address, 1933",
       group: "speech",
     },
     {
-      id: "jfk-ask-not",
+      id: "jfk-to-the-moon",
       kind: "passage",
-      title: "John F. Kennedy, ask not",
-      text: JFK_ASK_NOT,
+      title: "John F. Kennedy, to the moon",
+      text: JFK_TO_THE_MOON,
       targetWpm: [130, 150],
-      source: "John F. Kennedy, Inaugural Address, 1961",
+      source: "John F. Kennedy, Address at Rice University, 1962",
       group: "speech",
     },
     {
