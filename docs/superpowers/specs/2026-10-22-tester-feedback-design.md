@@ -40,8 +40,9 @@ docs/superpowers/specs/2026-10-18-fresh-reads-and-rehearsal-design.md.
   test hook is added to the screen.)
 - Practice keeps the speaker's own takes in module state for the draws: `app.store.list()`,
   guarded (`typeof app.store.list === "function"`, any rejection or throw ignored), loaded at
-  `show()` and added to when a take is saved. Without it, a draw reads no take. Practice mounts
-  before its first `show()`, so the draws at mount read no take yet and are uniform.
+  `show()` and added to when a take is saved. Without it, a draw reads only the takes saved
+  here since the app opened. Practice mounts before its first `show()`, so the draws at mount
+  read no take yet and are uniform.
   - A list's answer replaces the takes listed before, and of the takes saved here Practice
     keeps only those saved after that list was asked for, which it may not hold yet. The others
     are in the answer unless History has deleted them, so a deleted take stops counting at the

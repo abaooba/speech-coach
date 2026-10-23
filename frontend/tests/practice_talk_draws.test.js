@@ -265,8 +265,8 @@ test("level mode draws nothing, and leaving it brings the topic back as it was",
 
 // --- The speaker's takes and app.path -------------------------------------------------------
 
-// The store has no list(), so the draw reads no take: only the topic Talk opened on, shown from
-// mount and stamped then, with the clock held still (spec section 2.1).
+// The store has no list() and no take is saved, so the draw reads no take: only the topic Talk
+// opened on, shown from mount and stamped then, with the clock held still (spec section 2.1).
 test("with path.js loaded a topic draw is app.path.pickTopic(takes, prompt, Math.random, topic)", () => {
   const random = drawOf(0);
   const t = setup({ passages: PASSAGES, random, now: () => NOW, withPath: true });
