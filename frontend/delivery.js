@@ -131,13 +131,18 @@
   const LIVE_KEPT_SECONDS = 0.25;
   // A filter value this small is flushed to 0, so a silence never leaves denormal numbers.
   const LIVE_FLUSH_BELOW = 1e-30;
-  // The number: words a minute over the trailing 15 s, or over the time since the first peak
+  // The number: words a minute over the trailing 15 s, or over the time since speech started
   // while that is shorter, shown once 5 s have passed since it and rounded to 5. A silence over
   // 1.5 s keeps what the row shows, so a pause at a full stop never says Speed up.
   const LIVE_WINDOW_SECONDS = 15;
   const LIVE_MIN_SPEECH_SECONDS = 5;
   const LIVE_ROUND_TO_WPM = 5;
   const LIVE_SILENCE_SECONDS = 1.5;
+  // Speech starts at the first peak that 2 more follow within 1.5 s. A tap on Record, a click or
+  // a breath before the first word is a lone peak (the owner's read take has two, 1.6 s before
+  // it), and starting the clock there would pull the first numbers down.
+  const LIVE_SPEECH_RUN_PEAKS = 2;
+  const LIVE_SPEECH_RUN_SECONDS = 1.5;
   // The cue: Slow down or Speed up once the number has been more than 10 wpm outside the band
   // for 3 s, and On target again once it has been within that for 3 s. The number is an
   // estimate some 10 wpm either way, so a smaller miss stays On target.
@@ -1094,25 +1099,36 @@
   }
 
   // The live estimate at `at` seconds from syllable peak times (seconds, in order): words a
-  // minute over the trailing LIVE_WINDOW_SECONDS, or over the time since the first peak while
-  // that is shorter, the first peak left out since it only starts the clock. Peaks after `at`
-  // are left out. Null until LIVE_MIN_SPEECH_SECONDS have passed since the first peak.
-  // Unrounded; `factor` is words a peak, read through paceFactorOf.
+  // minute over the trailing LIVE_WINDOW_SECONDS, or over the time since speech started while
+  // that is shorter, the peak speech starts at left out since it only starts the clock. Peaks
+  // after `at` are left out. Null until LIVE_MIN_SPEECH_SECONDS have passed since speech
+  // started. Unrounded; `factor` is words a peak, read through paceFactorOf.
   function livePaceAt(peaks, at, factor) {
-    const times = Array.isArray(peaks) ? peaks.filter(isFiniteNumber) : [];
-    if (times.length === 0 || !isFiniteNumber(at)) {
+    if (!isFiniteNumber(at)) {
       return null;
     }
-    const sinceFirst = at - times[0];
-    if (sinceFirst < LIVE_MIN_SPEECH_SECONDS) {
+    const times = Array.isArray(peaks)
+      ? peaks.filter((time) => isFiniteNumber(time) && time <= at)
+      : [];
+    const start = speechStartIndex(times);
+    if (start === -1 || at - times[start] < LIVE_MIN_SPEECH_SECONDS) {
       return null;
     }
-    const seconds = Math.min(LIVE_WINDOW_SECONDS, sinceFirst);
-    const counted =
-      sinceFirst <= LIVE_WINDOW_SECONDS
-        ? times.filter((time, index) => index > 0 && time <= at)
-        : times.filter((time) => time > at - LIVE_WINDOW_SECONDS && time <= at);
+    const seconds = Math.min(LIVE_WINDOW_SECONDS, at - times[start]);
+    const counted = times.filter((time, index) => index > start && time > at - seconds);
     return perMinuteExact(counted.length * paceFactorOf(factor), seconds);
+  }
+
+  // The index of the peak speech starts at: the first that LIVE_SPEECH_RUN_PEAKS more follow
+  // within LIVE_SPEECH_RUN_SECONDS, or -1 while none has. Once found it never moves: a later
+  // peak cannot fall within the run of an earlier one.
+  function speechStartIndex(times) {
+    for (let i = 0; i + LIVE_SPEECH_RUN_PEAKS < times.length; i += 1) {
+      if (times[i + LIVE_SPEECH_RUN_PEAKS] - times[i] <= LIVE_SPEECH_RUN_SECONDS) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   // The live row's next state, from the one before (null at the start of a take) and one read:

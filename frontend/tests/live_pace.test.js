@@ -250,6 +250,34 @@ test("after 15 s only the trailing 15 s count", () => {
   assert.equal(delivery.livePaceAt(burst, 30, 0.69).toFixed(3), expected);
 });
 
+test("a lone sound before the speech does not start the clock", () => {
+  // A tap and a breath at 0.2 and 0.45 s, then syllables every 0.25 s from 2 s: speech starts
+  // at 2 s, so the number waits until 7 s and counts as if the sounds were not there.
+  const speech = evenPeaks(2, 30, 0.25);
+  const withSounds = [0.2, 0.45, ...speech];
+  assert.equal(delivery.livePaceAt(withSounds, 6.9, 0.69), null);
+  const expected = ((20 * 0.69 * 60) / 5).toFixed(3);
+  assert.equal(delivery.livePaceAt(withSounds, 7, 0.69).toFixed(3), expected);
+  for (const at of [7, 12, 20]) {
+    assert.equal(
+      delivery.livePaceAt(withSounds, at, 0.69).toFixed(3),
+      delivery.livePaceAt(speech, at, 0.69).toFixed(3),
+      `at ${at} s`,
+    );
+  }
+});
+
+test("speech starts at the first peak two more follow within 1.5 s, and only then", () => {
+  // Never three peaks within 1.5 s: no speech, no number.
+  assert.equal(delivery.livePaceAt([1, 2, 3.2, 4.5, 6, 8, 9.6], 20, 0.69), null);
+  // Three within exactly 1.5 s from 10 s start it: at 15 s the window is 5 s with 2 peaks.
+  const peaks = [1, 2, 3.2, 10, 10.75, 11.5];
+  assert.equal(delivery.livePaceAt(peaks, 14.9, 0.69), null);
+  assert.equal(delivery.livePaceAt(peaks, 15, 0.69).toFixed(3), ((2 * 0.69 * 60) / 5).toFixed(3));
+  // A peak after `at` cannot start the speech early.
+  assert.equal(delivery.livePaceAt([1, 1.5, 9], 8, 0.69), null);
+});
+
 test("livePaceAt scales with the factor, and reads a missing or wild factor safely", () => {
   const peaks = evenPeaks(1, 30, 0.25);
   assert.equal(delivery.livePaceAt(peaks, 30, 1).toFixed(3), "240.000");
@@ -411,6 +439,18 @@ test("a tracker shows nothing until 5 s of speech, then the syllables' pace roun
   const at20 = readings.find((reading) => reading.at === 20);
   const truth = (signal.syllables.filter((t) => t > 5 && t <= 20).length * 0.69 * 60) / 15;
   assert.ok(Math.abs(at20.wpm / truth - 1) <= 0.15, `read ${at20.wpm}, truth ${truth.toFixed(1)}`);
+});
+
+test("a faint voiced sound before the take begins is a peak, but no start of speech", () => {
+  const sampleRate = 16000;
+  const signal = speechLike({ sampleRate, seconds: 14, snrDb: 30, seed: 23, startSeconds: 2.5 });
+  addSyllable(signal.samples, sampleRate, 0.3, 0.06, 0.05, 120);
+  const tracker = trackerFed(signal.samples, sampleRate, 1024, { band: BAND });
+  const peaks = tracker.peaks();
+  assert.ok(peaks[0] < 0.5, `the sound at 0.3 s is a peak (first peak ${peaks[0]} s)`);
+  const firstSyllable = peaks.find((peak) => peak > 2);
+  assert.deepEqual(plain(tracker.read(firstSyllable + 4.9)), { wpm: null, cue: null });
+  assert.equal(typeof tracker.read(firstSyllable + 5.5).wpm, "number");
 });
 
 test("after the speech stops the tracker keeps its last reading", () => {
