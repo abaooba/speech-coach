@@ -988,6 +988,20 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: none;
 }
 
+/* Under 360px a long Read title wraps to three or four lines beside New passage ("Theodore
+   Roosevelt, man in the arena" at 320 x 568), and the text keeps no clear line above the fade.
+   There the Read tab's button shows its icon alone, in the same place with the same focus ring:
+   a 44 x 44 target whose words drop to no size, while its aria-label keeps them as its name
+   (practice.js). Talk's New topic, and every width from 360px, keep the words. */
+@media (max-width: 359px) {
+  #screen-practice .passage-card__new[data-kind="passage"] {
+    width: 44px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+}
+
 /* A three-column grid keeps the clock centered: the recording dot sits in the left column
    beside it, and the right column is free for a time limit. The wrapper carries the gap above. */
 .practice__timer {
