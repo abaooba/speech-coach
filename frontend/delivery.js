@@ -149,9 +149,16 @@
   // The cue: the first number shows the one it calls for. After that, Slow down or Speed up
   // once the number has been more than 10 wpm outside the band for 3 s, and On target again
   // once it has been within that for 3 s. The number is an estimate some 10 wpm either way, so
-  // a smaller miss stays On target.
+  // a smaller miss stays On target. The three cue ids are exported, so the live row matches
+  // them without a copy of its own.
   const LIVE_CUE_MARGIN_WPM = 10;
   const LIVE_CUE_HOLD_SECONDS = 3;
+  // The row reads once a second of the clock, but the audio heard by then comes in whole blocks
+  // (1024 samples: 21 ms at 48 kHz, 128 ms at 8 kHz) and a tick can run late, so 3 s of the
+  // clock can hold a little under 3 s of audio. With half a read of slack a new cue shows on the
+  // read 3 s after the first that called for it: an error under half a second either way never
+  // puts it a read later or a read sooner.
+  const LIVE_CUE_HOLD_SLACK_SECONDS = 0.5;
   const ON_TARGET = "on-target";
   const SLOW_DOWN = "slow-down";
   const SPEED_UP = "speed-up";
@@ -1164,8 +1171,9 @@
   // LIVE_ROUND_TO_WPM, or null until there is one; `cue` "on-target", "slow-down" or
   // "speed-up", null without a number or a valid band. The first number shows the cue it calls
   // for; after that the cue changes only once the number has called for another one for
-  // LIVE_CUE_HOLD_SECONDS, the cue it calls for held in `pendingCue` since `pendingSince`. A
-  // silence over LIVE_SILENCE_SECONDS keeps the state as it was.
+  // LIVE_CUE_HOLD_SECONDS, less LIVE_CUE_HOLD_SLACK_SECONDS, the cue it calls for held in
+  // `pendingCue` since `pendingSince`. A silence over LIVE_SILENCE_SECONDS keeps the state as it
+  // was.
   function nextLiveReading(previous, sample) {
     const state = previous || { wpm: null, cue: null, pendingCue: null, pendingSince: null };
     const { at, estimate, quietSeconds, band } = sample || {};
@@ -1184,7 +1192,7 @@
       return { wpm, cue, pendingCue: null, pendingSince: null };
     }
     const since = state.pendingCue === called ? state.pendingSince : at;
-    if (at - since >= LIVE_CUE_HOLD_SECONDS) {
+    if (at - since >= LIVE_CUE_HOLD_SECONDS - LIVE_CUE_HOLD_SLACK_SECONDS) {
       return { wpm, cue: called, pendingCue: null, pendingSince: null };
     }
     return { wpm, cue, pendingCue: called, pendingSince: since };
@@ -1227,13 +1235,31 @@
   // peaks, that ratio kept within the same bounds, to a thousandth. Words are the transcript's
   // without hesitation sounds, as Results counts pace; peaks are the tracker's inside the speech,
   // the first word's start to the last word's end, give or take PACE_FACTOR_EDGE_SECONDS. A take
-  // under PACE_FACTOR_MIN_SECONDS of speech or PACE_FACTOR_MIN_WORDS words, or with no peak in
-  // its speech, leaves the factor as it was.
+  // that does not count (countsForPaceFactor) leaves the factor as it was.
   function paceFactorAfter(factor, words, peaks) {
     const kept = paceFactorOf(factor);
+    const take = paceTakeOf(words, peaks);
+    if (take === null) {
+      return kept;
+    }
+    const own = paceFactorOf(take.words / take.peaks);
+    return Math.round((kept + PACE_FACTOR_WEIGHT * (own - kept)) * 1000) / 1000;
+  }
+
+  // Whether a take counts toward its mode's factor: PACE_FACTOR_MIN_SECONDS of speech or more,
+  // PACE_FACTOR_MIN_WORDS words or more without hesitation sounds, and a peak in its speech, as
+  // paceFactorAfter reads them. A take that counts may still give the factor back unmoved, to
+  // the thousandth, so a caller asks this to know whether its mode has been tuned.
+  function countsForPaceFactor(words, peaks) {
+    return paceTakeOf(words, peaks) !== null;
+  }
+
+  // A take's words without hesitation sounds and its peaks inside the speech, {words, peaks},
+  // when it counts toward the factor; null when it does not.
+  function paceTakeOf(words, peaks) {
     const list = toWords(words);
     if (list.length === 0) {
-      return kept;
+      return null;
     }
     const first = list[0].start;
     const last = list[list.length - 1].end;
@@ -1246,11 +1272,7 @@
     ).length;
     const counts =
       last - first >= PACE_FACTOR_MIN_SECONDS && counted >= PACE_FACTOR_MIN_WORDS && inSpeech > 0;
-    if (!counts) {
-      return kept;
-    }
-    const own = paceFactorOf(counted / inSpeech);
-    return Math.round((kept + PACE_FACTOR_WEIGHT * (own - kept)) * 1000) / 1000;
+    return counts ? { words: counted, peaks: inSpeech } : null;
   }
 
   // `count` a minute over `seconds`, unrounded.
@@ -1271,8 +1293,12 @@
     livePaceAt,
     nextLiveReading,
     paceFactorAfter,
+    countsForPaceFactor,
     HESITATION,
     HABIT,
+    ON_TARGET,
+    SLOW_DOWN,
+    SPEED_UP,
     HABIT_WORDS,
     LONG_PAUSE_SECONDS,
     UNCLEAR_CONFIDENCE,

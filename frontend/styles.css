@@ -1092,6 +1092,57 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: none;
 }
 
+/* The live pace row spans the next row, --s-2 under the bar (or under the clock, when an
+   untimed take's bar row is empty): one centred line, the number --muted at 500, then the cue in
+   its tone at 600 with its 16px icon drawn first. The two parts never break inside, so at 200%
+   zoom the row wraps between them, number over cue. Nothing in it moves. */
+.practice__pace {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 var(--s-2);
+  min-width: 0;
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* flex would otherwise beat the hidden attribute */
+.practice__pace[hidden] {
+  display: none;
+}
+
+.practice__pace-number,
+.practice__pace-cue {
+  white-space: nowrap;
+}
+
+.practice__pace-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-weight: 600;
+}
+
+.practice__pace-cue svg {
+  flex: none;
+  order: -1;
+}
+
+.practice__pace-cue--ok {
+  color: var(--ok);
+}
+
+.practice__pace-cue--warn {
+  color: var(--warn);
+}
+
 /* The icons inside draw in currentColor: --on-record keeps them at least 3:1 in both schemes. */
 .btn-record {
   display: block;
@@ -1274,6 +1325,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 
   #screen-practice .practice__limit-bar {
+    margin-top: var(--s-1);
+  }
+
+  #screen-practice .practice__pace {
     margin-top: var(--s-1);
   }
 
