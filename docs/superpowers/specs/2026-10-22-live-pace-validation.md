@@ -9,10 +9,15 @@ before the live row was built. This note keeps the method, the numbers and the v
 - **Uncalibrated, the median whole-clip error is 22.0%**, over the spec's 15% bar. That is on 76
   macOS `say` clips: 8 English voices, 121 to 247 wpm. The estimate reads low (bias -22.0%), and
   only 33% of clips are within 15%.
-- **Calibrated, it holds up.** Leave-one-out on the same voice gives a 6.3% median whole-clip
-  error (p90 20.2%) and 8.3% (13.0 wpm) over 15 s windows. Tuning in sequence, as the app does
-  (start at 0.69, halfway to each take's own ratio), gives 12.6% on a mode's 2nd take, 8.3% on
-  its 3rd and 6.6% after.
+- **Calibrated, it holds up near the speaker's usual pace.** Leave-one-out on the same voice
+  gives a 6.3% median whole-clip error (p90 20.2%) and 8.3% (13.0 wpm) over 15 s windows.
+  Tuning in sequence, as the app does (start at 0.69, halfway to each take's own ratio), gives
+  12.6% on a mode's 2nd take, 8.3% on its 3rd and 6.6% after.
+- **After tuning, a slow take reads fast, so Speed up comes late or not at all.** Words a peak
+  falls as speech slows (about 10% per 50 wpm within a voice), so a factor tuned at one pace
+  pulls the number toward that pace. End to end, a 121 wpm take read 137 on average after tuning
+  at 149, and Speed up never showed (End to end in the app, below). Slow speakers are the ones
+  this misses. It is TTS only: check with real slow takes before relying on Speed up.
 - **The owner's two real takes are within 7%**: read -6.4%, talk +4.4%. The start factor 0.69
   came from these same two takes, so this is in-sample. They are the only human speech here.
 - **So the number waits for the factor** (spec section 7, Validation result). Until a mode, Talk
@@ -123,7 +128,7 @@ The first number shows 5.5 s after the first word (median).
 |---|---|---|---|---|
 | Read, 146.3 wpm | clean | 137 (-6.4%); with the talk's factor 0.661: 131 (-10.3%) | 7.0% (9.7 wpm) | 0 of 24 wrong; 3 of 24 with the talk's factor |
 | Talk, 75.7 wpm | clean | 79 (+4.4%); with the read's factor 0.737: 84 (+11.5%) | 6.7% (4.4 wpm) | 0 of 26 wrong |
-| Read | white noise 20 / 10 dB | -7.3% / -10.3% | 7.0% / 4.6% | 0 wrong |
+| Read | white noise 20 / 10 dB | -7.3% / -10.3% | 7.0% / 4.6% | 0 wrong before the later fixes; 1 of 24 after, at each level |
 | Talk | white noise 20 / 10 dB | +4.4% / -0.9% | 6.7% / 5.1% | 0 wrong |
 | Read | second voice -12 / -6 dB | -5.4% / +6.5% | 5.0% / 8.4% | 0 wrong |
 | Talk | second voice -12 / -6 dB | +13.2% / +25.6% | 9.1% / 6.3% | 0 wrong |
@@ -166,13 +171,39 @@ only the first-cue rule moves their cues:
 | Uncalibrated: the wrong way | 10.4% | 11.6% |
 | Uncalibrated: missed | 37.7% | 34.7% |
 
-- Real read take: still 0 of 24 wrong; with the talk's factor, 1 of 24 (was 3).
+- Real read take: still 0 of 24 wrong; with the talk's factor, 1 of 24 (was 3). Under white
+  noise at 20 and 10 dB: 1 of 24 at each level (was 0).
 - Real talk take: misses fell from 3 to 0. Its first 3 s used to show On target at 95 wpm.
 - The talk take's pauses of 1.6 to 3.0 s now read higher afterwards: the median gap between the
   shown number and Results' pace went from +1.5 to +4.7 wpm.
 - The whole-clip and window error figures are unchanged.
 - Before a mode is tuned, the row shows the cue alone, and the uncalibrated cue figures above
   apply to it.
+- Since this re-run, the cue hold allows half a read of slack (`LIVE_CUE_HOLD_SLACK_SECONDS`).
+  The audio at each once-a-second read comes in whole blocks, so 3 clock seconds often held
+  2.98 s of audio, and a new cue waited a fourth second. The replay reads at whole seconds, so
+  none of its figures move.
+
+## End to end in the app
+
+Six takes from the live row's build and review (2026-10-22): `say` clips at 48 kHz played into
+headless Chrome as its microphone, through the app with blank keys and the backend's answer
+faked from each clip's word times. The truth is the clip's words over the trailing 15 s. The
+factor is the mode's kept one when the take began.
+
+| Take | Band | Factor | True pace | Row | Cue |
+|---|---|---|---|---|---|
+| Talk, first | 140 to 160 | none | 149 | On target throughout (cue alone) | right |
+| Talk, first, another voice | 140 to 160 | none | 185 | On target throughout (cue alone) | missed: Slow down was due |
+| Read, first, that voice | 150 to 170 | none | 185 | On target throughout (cue alone) | missed: Slow down was due |
+| Read, first | 150 to 170 | none | 165 | Speed up from 0:30 to 0:35, while the trailing pace was 148 to 168 | wrong |
+| Talk, tuned at 149 | 140 to 160 | 0.735 | 121 | 125 to 155 (mean 137, +13%), On target to the end | missed: Speed up never showed |
+| Talk, tuned again | 140 to 160 | 0.703 | 108 | 105 to 135 (mean 120, +11%), Speed up from 0:22 | late: called from 0:18 |
+
+- The untuned cue was right on 1 of 4 first takes, in line with the uncalibrated figures above.
+- After tuning, the number was pulled toward the pace the factor was tuned at.
+- The Speed up first called at 0:18 waited for 0:22, a fourth second; with the hold's slack it
+  shows at 0:21.
 
 ## Caveats
 
