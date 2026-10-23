@@ -167,9 +167,10 @@
   let readGroups = [];
 
   // The speaker's own takes, which the draws read (spec section 2.1): those app.store.list() gave
-  // at the last show(), and every take saved here since the app opened, newest first. A later
-  // list holds the saved ones too; a take counted twice changes no draw, which asks only which
-  // topics and passages takes used, and when.
+  // at the last show(), and every take saved here since the app opened, newest first, each cut
+  // down to the fields a draw reads (drawFieldsOf). A later list holds the saved ones too; a take
+  // counted twice changes no draw, which asks only which topics and passages takes used, and
+  // when.
   let listedTakes = [];
   const savedTakes = [];
 
@@ -452,8 +453,17 @@
     return savedTakes.concat(listedTakes);
   }
 
+  // What a draw reads of a saved session: the passage it used, its title (app.path leaves the
+  // bundled sample out by it), its topic and when it was made. Practice keeps only these, so it
+  // holds no second copy of the takes' transcripts and metrics while the app is open.
+  function drawFieldsOf(session) {
+    const { passageId, passageTitle, topic, createdAt } = session;
+    return { passageId, passageTitle, topic, createdAt };
+  }
+
   // Reads the speaker's takes for the draws. A store without list() (some test fakes), one that
-  // cannot be read and an answer that is no list all leave the takes as they were.
+  // cannot be read and an answer that is no list all leave the takes as they were; an item that
+  // is no session is left out.
   async function loadTakes() {
     if (!app.store || typeof app.store.list !== "function") {
       return;
@@ -461,7 +471,9 @@
     try {
       const sessions = await app.store.list();
       if (Array.isArray(sessions)) {
-        listedTakes = sessions;
+        listedTakes = sessions
+          .filter((session) => Boolean(session) && typeof session === "object")
+          .map(drawFieldsOf);
       }
     } catch {
       // Blocked or unreadable storage: the draws go on with the takes they had.
@@ -1540,8 +1552,9 @@
     }
     try {
       const id = await app.store.save(take.session);
-      // The draws count it from now on, before any list() holds it.
-      savedTakes.unshift(take.session);
+      // The draws count it from now on, before any list() holds it, with the createdAt the store
+      // has just set on it.
+      savedTakes.unshift(drawFieldsOf(take.session));
       return { outcome: SAVED, id };
     } catch (error) {
       return { outcome: FAILED, sentence: saveFailureSentence(error) };

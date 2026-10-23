@@ -349,6 +349,44 @@ test("a take saved on Practice joins the takes the next draws read", async () =>
   assert.equal(cardText(t), "First topic.", "Third topic. and Second topic. were used");
 });
 
+// A draw reads four fields of a take: its passage, its title (the sample check), its topic and
+// its time. Practice keeps only those of the takes it lists and saves, so it holds no second
+// copy of their transcripts and metrics while the app is open.
+test("the takes the draws read keep only their passage, title, topic and time", async () => {
+  const listed = talkOn("day", "Second topic.", "2026-10-22T09:00:00.000Z");
+  const t = setup({
+    passages: PASSAGES,
+    random: drawOf(0),
+    withPath: true,
+    list: () => Promise.resolve(plain([listed])),
+  });
+  const asked = [];
+  const pickTopic = t.app.path.pickTopic;
+  t.app.path.pickTopic = (history, ...rest) => {
+    asked.push(plain(history));
+    return pickTopic(history, ...rest);
+  };
+  t.practice.show({});
+  await flush();
+  await saveTake(t);
+  assert.equal(t.calls.save[0].topic, "First topic.");
+  assert.ok("transcript" in t.calls.save[0], "the store still gets the whole take");
+  parts(t).newTopic.click();
+  // The fake store sets no createdAt; app.store.save sets it on the session before it resolves.
+  assert.deepEqual(asked, [
+    [
+      { passageId: "day", passageTitle: "Your day", topic: "First topic." },
+      {
+        passageId: "day",
+        passageTitle: "Your day",
+        topic: "Second topic.",
+        createdAt: "2026-10-22T09:00:00.000Z",
+      },
+    ],
+  ]);
+  assert.equal(cardText(t), "Third topic.", "both other topics were used");
+});
+
 test("a store whose list() fails, throws or gives no list leaves the draws working", async () => {
   const lists = [
     () => Promise.reject(new Error("blocked")),
