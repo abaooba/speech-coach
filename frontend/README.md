@@ -25,7 +25,7 @@ opens with a short comment, four to eight lines, saying what it owns and what it
 | `loop.js` | `app.loop` | The Level screen's pure helpers (spec section 8), which read the rules only through `app.path`: `stepsFor(play)` (Goal · Take 1 · Review · Take 2 · Result for a two-take loop), `feedbackFor` (take 1's number against its target, the change line such as "1.4 fewer than Tuesday" and, on a live-tap level, "You caught 3 of 5 live."), `momentsFor` (up to three moments, earliest first, with the words around each slip), `matchTaps` with `SPOT_IT_WINDOW` and `LIVE_TAP_WINDOW`, `fillerTimes`, `clipFor` (what "Play 3 s" plays: from 1 s before the moment, never before 0), `dateText` and `whenText` (days in words), and `WHAT_HAPPENED`, the review's four choices. No DOM, store, clock or Math.random. |
 | `coach.js` | `app.coach` | `coachMoments(report, words)` lists a take's moments (restarts, fillers, pauses, long pauses, misreads, skips, and the possible-stumble and unclear-word hints) in the shape `POST /api/advice` takes: `{id, kind, at, clock, seconds, text, before, after, expected, hint}`, at most 40, with the speech map's clock. `coachTakeaway(moments, summary)` is the rule-based line shown at once, `{text, momentId}`, and gives a strength line for a clean take. Pure; reads `app.screens.results.restartSpan` and `bareText` when called. |
 | `nextmove.js` | `app.nextMove` | `nextMove({history, cleared, today, after})` is the one thing to do next, `{kind, label, href, why}`: Try again (a level with attempts left today, a crown or a checkpoint; never a check-back), what follows the play just done (`after.levelId` is any play's route id: a level's next level or checkpoint, a check-back's next due check-back or its unit's current level, a crown's unit's current level, the weakest unit after a checkpoint or the benchmark), level 1 of the weakest unit, a due check-back, the benchmark, the weakest unit's current level, or Record another take (first match wins). Pure; reads `app.path`. `app.nextMove.go(href)` opens a move's route through `app.router.go`. |
-| `language.js` | `app.language` | The grammar and vocabulary check the speaker asks for: `canCheck(session)` (a talked take of 20 words or more), `isReadTake(session)` (the one rule for a take read aloud: a passage, a cold read, the benchmark read, or a pasted script the take followed, which the rank card, Results' tier and Progress share), `check(session)` posts to `POST /api/language-check` once per take and keeps an "ok" result under the flag `languageCheck:<id>`, `cached(session)`, `build(result)` draws Grammar, Stronger words and Say it better; `requestBody`, `parse` and `changedWords` are pure. |
+| `language.js` | `app.language` | The grammar and vocabulary check the speaker asks for: `canCheck(session)` (a talked take of 20 words or more), `isReadTake(session)` (the one rule for a take read aloud: a passage, a cold read, the benchmark read, or a pasted script the take followed, which the rank card, Results' tier and arrows, History's "Read" marker and Progress share), `check(session)` posts to `POST /api/language-check` once per take and keeps an "ok" result under the flag `languageCheck:<id>`, `cached(session)`, `build(result)` draws Grammar, Stronger words and Say it better; `requestBody`, `parse` and `changedWords` are pure. |
 | `tips.js` | `app.tips` | `select(report, options)` returns at most two `{id, text}` rule tips in priority order; pure. `DEFAULT_TIER` ("Novice") is the tier a speaker with no rank is coached at, the server's own default. `coachNotes(session, report, targetWpm, tier)` is the one request to `POST /api/advice` (docs/PLAN.md T41): it resolves `{tips: [{entryId, text, drill, citation: {label, url, type}}], source}` (`source` is `"ai"` when Claude wrote the notes for the take, `"library"` when the library's own words stand in) or null, and never rejects. It asks through `app.api.postJson`; it keeps a reply Claude wrote under the flag `coachNotes:<id>`, so that take is asked about once (the library's own words are shown but not kept, so a later visit asks again), and the entry ids shown under `coachNotesShown`, oldest first and at most 2,000, which the next request sends so a guest sees each entry once while new ones remain. That list is read again when a reply lands and written one reply at a time, so two takes answered together both add their ids, and a take asked about again while its request is open gets that request's promise instead of a second request. `adviceRequest` and `parseCoachNotes` are the pure halves: the request body with whole counts, a real pace band and a 1,500-character excerpt, and the reply checked so only web links are drawn. |
 | `pauses.js` | `app.pauses` | Human-owned (T08); agents never edit it. `start(stream)` samples the microphone's loudness while a take records, `stop()` hands the samples back, and `reconcile(metrics, samples)` folds the quiet stretches into the backend's pauses. |
 | `screens/practice.js` | `app.screens.practice` | `mount`, `show`, `hide`, plus `startLevelTake(request)`, `render(state, detail)` (the one function that repaints the screen), the `state` string (`idle`, `recording`, `uploading` or `error`), `STATES`, `viewFor` and `selectedPassage`. Each prompt with topics opens on a drawn topic, and the Read tab, which shows one chip per group of `app.passages.groups()`, on a drawn passage of the first group; a tap on a Talk chip or New topic draws a new topic, and a tap on a group's chip or New passage a passage of that group, by `app.path.pickTopic` and `pickPassage` over the speaker's takes (`app.store.list()` at each `show`, and every take saved since). The tab, the chip and the topic stay as the speaker left them while the app is open. Records a take and, at Stop, hands it to a background job that uploads it through `app.api` and saves it through `app.store`, with the topic on screen as its `topic` for a prompt with topics; Practice is back in idle at once, `app.ui.banner` reports on the job over every screen ("Analyzing your speech", then "Results ready" with "See results", or "Upload failed" with "Retry upload" and "Record a new take"), and Results opens on the save while Practice waits in idle, else from the banner (DESIGN.md section 7, "Background jobs"). `startLevelTake(request)` (spec section 7) holds one take's request from the Level screen and goes to `#/practice` in level mode: a banner with the request's eyebrow, title and body and "Leave level" takes the place of the Talk / Read switch and the chips; New topic, the script box and "See a sample result" hide; the card shows the request's material and the clock its `seconds`; with `liveTap`, "Heard one" counts taps while the take records. Record, Stop and every error behave as in normal mode, except that a level take uploads in place (state `uploading`, the Analyzing block in the record zone, no banner), since the Level screen waits on it. A saved level take never opens Results: Practice calls `request.judge` before the save and `request.onSaved` after it, with the blob, which it then keeps no reference to; "Leave level" calls `request.onLeave`. |
@@ -125,7 +125,7 @@ the store" set up the Path and Level rows.
 | Level | Back tomorrow | Miss Fillers level 1 three times in one day ("Not yet", then "Try take 3" and "Try take 4"), or empty the store and run "Three misses today" (Path records). Open `#/level/fillers-1`. | Moon, "Back tomorrow" / "This level opens again tomorrow." Button "Back to path". The third miss's Result ends with "This level opens again tomorrow." over a primary "Back to path", and on the Path, with Fillers picked on the Units switch, the node shows a moon and "Back tomorrow", its card "This level opens again tomorrow." with no Start. |
 | Level | Not due yet | Empty the store, run "Cleared today" (Path records), open `#/level/fillers-1_checkback`. | Calendar, "Not due yet" / "Check-back 1 is due Friday, Oct 16." (two days after the level was cleared, here on Wednesday, Oct 14). Button "Back to path". |
 | Level | Locked in | Empty the store, run "Locked in" (Path records), open `#/level/fillers-1_checkback`. | Check, "Locked in" / "Both check-backs passed. Nothing is left to check." Button "Back to path". On the Path, with Fillers picked on the Units switch, the node wears a full gold ring, its card "Cleared Oct 14." and "Locked in Oct 14." (the day the snippet ran). |
-| Level | Take 1's audio gone (not a block) | A reload never shows it: it starts the level again at Goal, and take 1 goes with the run. Instead, start Fillers level 1, tap "Record take 1" and Record, say "um" at least three times, stop uvicorn while recording and tap Stop. Tap History in the nav, which ends the run, then Practice: the Upload failed block is back under the banner. Start uvicorn, tap "Retry upload", then "Review 3 moments (30 s)". | The level opens on take 1's feedback. Under "Look at 3 moments", "Take 1's audio is gone: it is kept only while this level is open." stands where the "Play 3 s" buttons would; the moments, their "What happened?" chips, "Your fix for take 2" and "Say it again" stay. |
+| Level | Take 1's audio gone (not a block) | A reload never shows it: it starts the level again at Goal, and take 1 goes with the run. Instead, start Fillers level 1 (tap Fillers on the Path's Units switch, then Start), tap "Record take 1" and Record, say "um" at least three times, stop uvicorn while recording and tap Stop. Tap History in the nav, which ends the run, then Practice: the Upload failed block is back under the banner. Start uvicorn, tap "Retry upload", then "Review 3 moments (30 s)". | The level opens on take 1's feedback. Under "Look at 3 moments", "Take 1's audio is gone: it is kept only while this level is open." stands where the "Play 3 s" buttons would; the moments, their "What happened?" chips, "Your fix for take 2" and "Say it again" stay. |
 
 ### DevTools snippets
 
@@ -156,7 +156,8 @@ reload.
    await app.store.save({passageId:'free-talk', passageTitle:'About you', durationSeconds:12, metrics:{words_per_minute:150, duration:12, word_count:30, fillers:{um:1}, pauses:[], repeats:[], pace_windows:[]}, transcript:[]})
    ```
 
-   It resolves with a new id string.
+   It resolves with a new id string. The same call with `passageId:'story-wrong-train',
+   passageTitle:'Story: the wrong train'` saves a take read aloud instead.
 
 2. Reload the page, then list:
 
@@ -211,7 +212,8 @@ new MutationObserver(() => console.log('live:', document.getElementById('live').
 ```
 
 **Path records.** Each one sets up a state of Fillers level 1. Empty the store first, since a
-level cleared again keeps its first date, then open `#/path` or the level again.
+level cleared again keeps its first date, then open the level, or open `#/path` and tap Fillers
+on the Units switch.
 
 - Cleared today:
 
@@ -352,9 +354,10 @@ keyboard.
    "Speech" and "Drill", and the card shows "Explainer: how rainbows form". Explainer and Story
    hold one passage each, so their card has no New passage button. Tap "Speech": the card
    shows one of its two speeches, with "New passage" at its top right. Tap "New passage", or
-   "Speech" again: the other speech shows, and a screen reader hears its title. Tap "Talk":
-   "About you" is still selected, on the topic you left. Under the clock a timed chip shows
-   "/ 1:00" and an empty bar; a passage shows neither.
+   "Speech" again: the other speech shows, and a screen reader hears its title. Tap "Drill":
+   its card shows "New passage" too, and a tap on it draws another drill. Tap "Talk": "About
+   you" is still selected, on the topic you left. Under the clock a timed chip shows "/ 1:00"
+   and an empty bar; a passage shows neither.
 
 2. Happy path: tap Record. The microphone prompt appears now, not on page load. Allow it,
    speak for about 10 seconds (the timer counts with the red dot pulsing to its left while the
@@ -559,19 +562,21 @@ explanation of making coffee.
    "Flawless, from 99" to "Contender, from 40, your tier" and "Novice, from 0"; nothing in the
    card takes focus. The sample shows no card.
 
-**History (about one minute).** Needs two saved sessions: run the Practice happy path twice,
-or save two with the store round trip. Then open http://127.0.0.1:8000/#/history.
+**History (about one minute).** Needs two saved sessions and a take read aloud: run the
+Practice happy path twice and read a passage on the Read tab, or save two sessions and a read
+take with the store round trip (step 1). Then open http://127.0.0.1:8000/#/history.
 
-1. The nav keeps Practice, Path, Progress and History. Under the heading, one row
-   per session, newest first: the passage title over the date, which a take read aloud (a
-   Read passage, a Path read or a pasted script the take followed) follows with " · Read",
-   then the stats as `152 wpm · 3.1 /min` (the same numbers as that session's
-   first two Results cards) and a status word with its icon. A green check reads "On
-   target"; a rust warning triangle reads "Too slow", "Too fast" or "Fillers over 3", and
-   two misses read "Too slow · Fillers over 3". Pace is judged against that passage's
-   target range, ends included; fillers miss above 3 a minute. The store round trip's
-   session (150 wpm, one "um" in 12 seconds, so 5 a minute) reads "Fillers over 3". A muted
-   trash icon sits at the right of each row. The History nav item is highlighted.
+1. The nav keeps Practice, Path, Progress and History. Under the heading, one row per
+   session, newest first: the passage title over the date, then the stats as
+   `152 wpm · 3.1 /min` (the same numbers as that session's first two Results cards) and a
+   status word with its icon. A take read aloud (a Read passage, a Path read or a pasted
+   script the take followed) has " · Read" after its date ("Oct 9, 10:21 PM · Read"); a talk
+   row shows the date alone. A green check reads "On target"; a rust warning triangle reads
+   "Too slow", "Too fast" or "Fillers over 3", and two misses read "Too slow · Fillers over 3".
+   Pace is judged against that passage's target range, ends included; fillers miss above 3 a
+   minute. The store round trip's session (150 wpm, one "um" in 12 seconds, so 5 a minute)
+   reads "Fillers over 3". A muted trash icon sits at the right of each row. The History nav
+   item is highlighted.
 
 2. Tap a row: the hash becomes `#/results/<id>` and Results shows that session, opened at
    the top of the page even when the list was scrolled, and the tab reads "Results · Speech
@@ -610,8 +615,9 @@ or save two with the store round trip. Then open http://127.0.0.1:8000/#/history
    Switch the OS theme (or DevTools "Emulate CSS prefers-color-scheme: dark"): the green
    and rust status words stay readable.
 
-**Progress (about one minute).** Needs two saved sessions; a real trend needs more. Run the
-Progress seed snippet, then open http://127.0.0.1:8000/#/progress.
+**Progress (about one minute).** Needs two saved sessions; a real trend needs more. Empty the
+store, tap "Start practicing", run the Progress seed snippet, then open
+http://127.0.0.1:8000/#/progress.
 
 1. Under the "Progress" heading: the rank card (step 6), then a segmented control of four
    options, "Pace" (selected), "Fillers", "Pauses" and "Clean", all on one row at 320px; then
@@ -664,6 +670,18 @@ Progress seed snippet, then open http://127.0.0.1:8000/#/progress.
    sample, there is no card. Narrower than 320px (200% zoom on a phone) the ladder moves under
    the stats.
 
+7. Talk and Read: empty the store again, tap "Start practicing", run the seed snippet, then
+   save one take read aloud (store round trip, step 1) and open Progress. The rank card adds
+   "Only Talk takes count for your rating. Read takes count for your streak.", and its foot
+   reads "Current streak 6 days, longest 6". Under the card sits a tab bar of two tabs, "Talk"
+   and "Read" (a group named "Takes to show"), across the column with no box or tint: Talk,
+   the one shown, in bold over a blue underline, Read in grey over a thin grey line. Under the
+   tabs the caption "5 takes · your own words · rated", then the four options, and every title
+   starts with the mode ("Talk · Words per minute"). Tap "Read": the bold and the underline
+   move to it, the caption reads "1 take · read aloud · not rated", and "Need two Read takes" /
+   "Record one more Read take to see a trend." stands under it with "Record". Under 300px
+   (200% zoom on a phone) the two tabs still share one row.
+
 **Path (about two minutes).** Empty the store, reload, tap "Start practicing", then tap "Path"
 in the nav, its icon two dots joined by an S curve.
 
@@ -673,12 +691,13 @@ in the nav, its icon two dots joined by an S curve.
    beside a secondary "Start" that a screen reader hears as "Start benchmark". Under it the
    Units switch names all four units, each over "Level 1 of 5", two by two on a phone (one row
    from 600px wide): Restarts and Fillers, then Long pauses and Pace. With no takes none is
-   weaker, so Restarts is pressed and only its unit shows. A unit opens with its card: the title, the subtitle ("Read it three
-   times, then twice, then say it" for Restarts) and the why line, then its source on a line of
-   its own after "Source: ", the short credit as a link that opens in a new tab and the work in
-   plain text after it ("Lambert, Kormos and Minn (2017)", then ", Task Repetition and Second
-   Language Speech Processing" for Restarts; "Pawlik and Perrin (2020)" for Fillers). No rank,
-   tier or rating shows anywhere on the Path.
+   weaker, so Restarts is pressed and only its unit shows. A unit opens with its card: the
+   title, the subtitle ("Read it three times, then twice, then say it" for Restarts) and the
+   why line, then its source on a line of its own after "Source: ", the short credit as a link
+   that opens in a new tab and the work in plain text after it
+   ("Lambert, Kormos and Minn (2017)", then ", Task Repetition and Second Language Speech
+   Processing" for Restarts; "Pawlik and Perrin (2020)" for Fillers). No rank, tier or rating
+   shows anywhere on the Path.
 
 2. Under the card the unit's steps wind left and right down the page, joined by a grey line:
    level 1 is current, a blue circle with "1"; levels 2 to 5 are outlined, each with a lock;
