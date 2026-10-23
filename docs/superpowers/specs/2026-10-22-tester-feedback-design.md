@@ -259,9 +259,9 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
 - how.html: "While you record, a live pace shows under the clock. Your phone estimates it from
   the beats of your syllables. Results counts your real words, so the two can differ. The live
   pace runs on your phone and sends nothing." and, after it: "It tunes itself to your voice,
-  separately for Talk and for Read. It starts after your first take of 30 seconds or more in
-  each. Each later take that long can tune it again. During a Path level it stays hidden, but
-  your takes still tune it." It never says it tunes once ("once for Talk and once for Read"
+  separately for Talk and for Read. It starts once a take of 30 seconds or more in each has
+  tuned it. Each later take that long can tune it again. During a Path level it stays hidden,
+  but your takes still tune it." It never says it tunes once ("once for Talk and once for Read"
   read that way): every take that counts updates its mode's factor (Factor, above).
 
 ## 8. Tests and docs

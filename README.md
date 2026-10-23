@@ -27,8 +27,8 @@ Phone width, light and dark. The history is seeded with two real takes
 - Practice, the home screen: pick a timed prompt or a kind of passage, and each tap draws a
   new topic or passage. Tap Record, and Stop uploads the take. While you record, a row under
   the clock shows your estimated pace, such as "About 150 wpm", and On target, Slow down or
-  Speed up. It tunes itself to your voice, separately for Talk and for Read, and starts after
-  your first take of 30 seconds or more in each; until then the row says when it starts. Each
+  Speed up. It tunes itself to your voice, separately for Talk and for Read, and starts once a
+  take of 30 seconds or more in each has tuned it; until then the row says when it starts. Each
   later take that long can tune it again, in a Path level too, where the row stays hidden.
 - Results: a speech map pins each restart, freeze and filler to its second. Tap a card to
   see that moment in the transcript. The Coach card comes first: a headline and two or three

@@ -1,14 +1,15 @@
 // The live pace's words (spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md section
 // 7): how.html says, word for word and once each, that a live pace shows under the clock while
 // you record, that the phone estimates it and sends nothing, and that it tunes itself for Talk
-// and for Read apart, from the first take of 30 seconds or more in each, and that each later
-// take that long can tune it again, in a Path level too, where the row stays hidden. It says
-// "can": a take whose live capture went mid-take tunes nothing, and a take counts only with 20
-// seconds of speech and 30 words without hesitation sounds (delivery.js countsForPaceFactor). It
-// never says it tunes once: every take that counts updates its mode's factor, halfway to its own
-// words a peak within the factor's bounds (practice.js tunePace, delivery.js paceFactorAfter).
-// Those paragraphs get a section of their own just before "Your audio", whose privacy sentences
-// stay as they were. The row's fixed sentence lives in one string literal, in practice.js.
+// and for Read apart, starting once a take of 30 seconds or more in each has tuned it, and that
+// each later take that long can tune it again, in a Path level too, where the row stays hidden.
+// It says "has tuned it" and "can", never that a take that long always tunes it: a take whose
+// live capture went mid-take tunes nothing, and a take counts only with 20 seconds of speech and
+// 30 words without hesitation sounds (delivery.js countsForPaceFactor). It never says it tunes
+// once: every take that counts updates its mode's factor, halfway to its own words a peak within
+// the factor's bounds (practice.js tunePace, delivery.js paceFactorAfter). Those paragraphs get
+// a section of their own just before "Your audio", whose privacy sentences stay as they were.
+// The row's fixed sentence lives in one string literal, in practice.js.
 "use strict";
 
 const test = require("node:test");
@@ -28,7 +29,7 @@ const FIRST_PARAGRAPH = [
 ];
 const SECOND_PARAGRAPH = [
   "It tunes itself to your voice, separately for Talk and for Read.",
-  "It starts after your first take of 30 seconds or more in each.",
+  "It starts once a take of 30 seconds or more in each has tuned it.",
   "Each later take that long can tune it again.",
   "During a Path level it stays hidden, but your takes still tune it.",
 ];
