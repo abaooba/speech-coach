@@ -25,7 +25,9 @@ Phone width, light and dark. The history is seeded with two real takes
 | ![Onboarding screen](docs/screenshots/onboarding-light.png) | ![Onboarding screen, dark](docs/screenshots/onboarding-dark.png) |
 
 - Practice, the home screen: pick a timed prompt or a kind of passage, and each tap draws a
-  new topic or passage. Tap Record, and Stop uploads the take.
+  new topic or passage. Tap Record, and Stop uploads the take. While you record, a row under
+  the clock estimates your pace and says On target, Slow down or Speed up, once one take of
+  20 seconds or more has tuned it to your voice.
 - Results: a speech map pins each restart, freeze and filler to its second. Tap a card to
   see that moment in the transcript. The Coach card comes first: a headline and two or three
   cited tips that point at moments in your take. Four stats, your rank and the marked
@@ -50,7 +52,8 @@ Phone width, light and dark. The history is seeded with two real takes
 ## How it works
 
 1. The browser records audio with `MediaRecorder` and measures loudness
-   with the Web Audio API to find pauses locally.
+   with the Web Audio API to find pauses locally. While you record, it also
+   estimates a live pace from the beats of your syllables, on the phone.
 2. The audio is sent to a small FastAPI backend, which forwards it to a
    speech-to-text provider (Deepgram or AssemblyAI) with filler words kept.
 3. The backend computes the metrics from the word timestamps and returns
@@ -275,6 +278,11 @@ its first load, so when one of those changes, or the `SHELL` list does, bump
   transcriber's word confidence. They are hints, never counted in any card,
   tip or score. Tapping a word plays it with the device's built-in voice, and
   the app sends nothing.
+- While a take records, the phone estimates a live pace from the microphone's
+  sound itself: nothing is sent and no audio is saved. Two numbers, one for
+  Talk and one for Read (the store flags `livePaceFactor:talk` and
+  `livePaceFactor:read`), are kept in IndexedDB to tune it to your voice, and
+  clearing site data deletes them.
 
 ## AI disclosure
 
