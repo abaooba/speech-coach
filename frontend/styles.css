@@ -1118,6 +1118,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: none;
 }
 
+/* A capture that goes mid-take (a refused resume, or no audio by 0:03) hides its row for the
+   rest of the take, but the row keeps its box, as Leave level keeps its own: the clock, the bar
+   and the card above stay where they were while the speaker talks. visibility takes the words
+   out of sight and out of the accessibility tree, and the id outranks the [hidden] rule above.
+   practice.js drops the class when the take ends. */
+#screen-practice[data-state="recording"] .practice__pace--held[hidden] {
+  display: flex;
+  visibility: hidden;
+}
+
 .practice__pace-number,
 .practice__pace-cue {
   white-space: nowrap;

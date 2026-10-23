@@ -3,8 +3,9 @@
 // Display). A recorder that cannot start means no take: the live pace capture, the microphone and
 // the pause sampler all go at once, the block a refused microphone shows takes the record zone,
 // and the next take's capture is the only one left open. A context that refuses to resume never
-// hands over a block, so its capture goes too and the row hides for the rest of the take; so
-// does one whose resume() has not answered by 0:03, since no block has reached it.
+// hands over a block, so its capture goes too and the row hides for the rest of the take, its
+// box kept so the clock above it stays put; so does one whose resume() has not answered by 0:03,
+// since no block has reached it.
 "use strict";
 
 const test = require("node:test");
@@ -13,6 +14,9 @@ const assert = require("node:assert/strict");
 const { byClass } = require("./fake-dom");
 const { flush } = require("./practice-harness");
 const { SECOND, assertReleased, block, graph, paceRow, setup } = require("./live-pace-harness");
+
+// The class styles.css keeps a hidden row's box for, while its take records.
+const HELD = "practice__pace--held";
 
 const MIC_BLOCKED_TITLE = "Microphone blocked";
 const MIC_BLOCKED_BODY =
@@ -139,11 +143,15 @@ test("a context that refuses to resume lets its capture go, and the row hides fo
   assert.equal(g.context.resumes, 1, "it was asked once");
   assertReleased(g);
   assert.equal(paceRow(t).hidden, true);
+  // The refusal comes after the take's first paint, so the row keeps its box (styles.css).
+  assert.ok(paceRow(t).classList.contains(HELD), "its box held");
   t.clock.advance(8 * SECOND);
   assert.equal(paceRow(t).hidden, true, "for the whole take");
+  assert.ok(paceRow(t).classList.contains(HELD), "its box held for the whole take");
   assert.equal(t.root.dataset.state, "recording", "the take records on");
   assert.equal(t.clock.activeIntervals(), 1, "the clock's one tick");
   await t.stopRecording();
+  assert.ok(!paceRow(t).classList.contains(HELD), "Stop lets the box go");
   t.app.delivery.nextFactor = 0.75;
   t.resolveUpload();
   await flush();

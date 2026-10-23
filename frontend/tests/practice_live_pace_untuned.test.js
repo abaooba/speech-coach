@@ -56,6 +56,12 @@ function sentenceRow(text) {
   return { hidden: false, parts: ["span.practice__pace-placeholder"], text };
 }
 
+// Whether the hidden row holds its box: styles.css keeps the box of a row with this class while
+// its take records.
+function held(t) {
+  return paceRow(t).classList.contains("practice__pace--held");
+}
+
 function chooseRead(t) {
   byClass(t.body, "segmented").children.find((option) => option.textContent === "Read").click();
 }
@@ -273,6 +279,7 @@ test("a context whose resume() never answers goes at 0:03, and a late answer cha
     await flush();
     assert.equal(g.context.closes, 1, "closed once");
     assert.equal(paceRow(t).hidden, true, "still hidden after a late " + accepted);
+    assert.equal(held(t), true, "its box still held after a late " + accepted);
     t.clock.advance(5 * SECOND);
     assert.equal(paceRow(t).hidden, true);
   }
@@ -296,6 +303,7 @@ test("in level mode a capture no block reached by 0:03 goes too, and nothing rea
     assertReleased(g);
     assert.equal(tracker.reads, 0, label + ": never read in level mode");
     assert.equal(paceRow(t).hidden, true, label);
+    assert.equal(held(t), false, label + ": level mode shows no row, so it holds no box");
     t.clock.advance(20 * SECOND);
     await t.stopRecording();
     assert.equal(t.root.dataset.state, "uploading", label);
@@ -306,6 +314,58 @@ test("in level mode a capture no block reached by 0:03 goes too, and nothing rea
     assert.equal(t.app.delivery.tunings.length, 0, label + ": it tunes nothing");
     assert.deepEqual(t.calls.setFlag, [], label);
   }
+});
+
+// --- a dropped capture's row keeps its place ---
+
+test("a capture dropped at 0:03 hides the row but keeps its box, words and all, until Stop", async () => {
+  for (const tuned of [false, true]) {
+    const label = tuned ? "tuned" : "untuned";
+    const words = tuned ? WAITING : TALK_LINE;
+    const t = setup({ flags: tuned ? { [TALK_FLAG]: 0.8 } : {} });
+    await t.show();
+    await t.startRecording();
+    t.clock.advance(3 * SECOND - 1);
+    const row = paceRow(t);
+    const [sentence] = row.children;
+    assert.deepEqual(rowView(t), sentenceRow(words), label + ": at 0:02");
+    assert.equal(held(t), false, label + ": nothing to hold while it shows");
+    t.clock.advance(1);
+    assert.equal(row.hidden, true, label + ": hidden at 0:03");
+    assert.equal(held(t), true, label + ": its box is held, so the clock above it stays put");
+    assert.equal(row.children.length, 1, label);
+    assert.equal(row.children[0], sentence, label + ": the same words, so the same box");
+    t.clock.advance(20 * SECOND);
+    assert.equal(held(t), true, label + ": for the rest of the take");
+    assert.equal(rowView(t).text, words, label);
+    await t.stopRecording();
+    assert.equal(t.root.dataset.state, "idle", label);
+    assert.equal(row.hidden, true, label);
+    assert.equal(held(t), false, label + ": the take's end lets the box go");
+    t.clock.advance(SECOND);
+    await t.startRecording();
+    assert.equal(held(t), false, label + ": the next take starts with nothing held");
+    assert.deepEqual(rowView(t), sentenceRow(words), label + ": and shows its row");
+  }
+});
+
+test("leaving mid-take lets a held row go, and a block before 0:03 holds nothing", async () => {
+  const t = setup();
+  await t.show();
+  await t.startRecording();
+  t.clock.advance(5 * SECOND);
+  assert.equal(held(t), true, "dropped at 0:03");
+  t.practice.hide();
+  assert.equal(t.root.dataset.state, "idle");
+  assert.equal(paceRow(t).hidden, true);
+  assert.equal(held(t), false, "hide() lets it go");
+
+  await t.show();
+  await t.startRecording();
+  block(t);
+  t.clock.advance(10 * SECOND);
+  assert.equal(paceRow(t).hidden, false, "a capture that heard a block keeps its row");
+  assert.equal(held(t), false);
 });
 
 test("a block at 0:02 keeps the capture, in normal and in level mode, and the take tunes", async () => {

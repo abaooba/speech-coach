@@ -171,11 +171,13 @@
   // while it feeds an output, so a gain of 0 keeps it silent. A capture that no block has
   // reached when the clock shows 0:03 is taken to hear nothing (iOS can leave a context's
   // resume() unanswered, and a suspended graph hands over nothing), so it goes as one whose
-  // resume was refused.
+  // resume was refused. Either way its row hides with the held class, which keeps the row's box
+  // until the take ends (styles.css), so the clock above it never moves mid-take.
   const PACE_BLOCK_SAMPLES = 1024;
   const PACE_CHANNELS = 1;
   const PACE_SILENT_GAIN = 0;
   const PACE_NO_AUDIO_SECONDS = 3;
+  const PACE_HELD_CLASS = "practice__pace--held";
   // Talk and Read each keep their own words-a-peak factor (app.delivery.paceFactorAfter): a
   // number in the store flag "livePaceFactor:talk" or "livePaceFactor:read".
   const PACE_FACTOR_FLAG_PREFIX = "livePaceFactor:";
@@ -282,7 +284,8 @@
 
   // Everything a live take holds, from the Record tap until Stop or hide() lets it go. `pace` is
   // the take's live pace capture (startLivePace), or null when it did not start, its context
-  // refused to resume, or no block reached it by 0:03 (dropLivePace).
+  // refused to resume, or no block reached it by 0:03 (dropLivePace); `paceDropped` is true once
+  // it went one of those last two ways, so the row holds its box to the take's end (paintPace).
   const capture = {
     awaitingMic: false,
     stream: null,
@@ -294,6 +297,7 @@
     announcedBlocks: 0,
     pausesStarted: false,
     pace: null,
+    paceDropped: false,
   };
 
   // A level take, kept through uploading and error so Retry re-sends the same blob. Once the
@@ -1621,6 +1625,7 @@
     capture.stream = null;
     capture.chunks = [];
     capture.pausesStarted = false;
+    capture.paceDropped = false;
     return { chunks, samples, pace };
   }
 
@@ -2177,14 +2182,18 @@
 
   // The live pace row, shown only while a normal take records with its capture running: never
   // in idle, uploading or error, never in level mode, whose takes count, and never for a take
-  // whose capture did not start or was dropped. A take whose mode had no kept factor when it
-  // began says when the live pace starts, from first to last, and never a number or a cue. A
-  // tuned take says the waiting sentence until the tracker has a number, then the number and the
-  // cue. The words are the tracker's: its number comes rounded and its cue held. The children
-  // are rebuilt only when the words change.
+  // whose capture did not start or was dropped. A dropped capture's row hides with its last
+  // words and the held class, which keeps its box until the take ends, so nothing above Record
+  // moves while the speaker talks. A take whose mode had no kept factor when it began says when
+  // the live pace starts, from first to last, and never a number or a cue. A tuned take says the
+  // waiting sentence until the tracker has a number, then the number and the cue. The words are
+  // the tracker's: its number comes rounded and its cue held. The children are rebuilt only when
+  // the words change.
   function paintPace(view) {
     const pace = capture.pace;
-    nodes.pace.hidden = !(view.showPace && levelRequest === null && pace !== null);
+    const normalTake = view.showPace && levelRequest === null;
+    nodes.pace.hidden = !(normalTake && pace !== null);
+    nodes.pace.classList.toggle(PACE_HELD_CLASS, normalTake && capture.paceDropped);
     if (nodes.pace.hidden) {
       return;
     }
@@ -2284,12 +2293,13 @@
 
   // A capture whose context refused to resume, or that no block reached by 0:03, goes as if it
   // had never started, unless its take has let it go already: the context closes and the row
-  // hides for the rest of the take, which tunes nothing.
+  // hides for the rest of the take, which tunes nothing. The row keeps its box (paintPace).
   function dropLivePace(pace) {
     if (capture.pace !== pace) {
       return;
     }
     releaseLivePace();
+    capture.paceDropped = true;
     paintPace(viewFor(state));
   }
 
