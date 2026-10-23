@@ -3456,7 +3456,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-weight: 600;
 }
 
+/* The meta line: the date, then for a take read aloud " · Read" in a span of its own. Neither
+   piece wraps inside, but the line wraps between them, so where a row has no room for both (200%
+   zoom on a phone) the marker drops under the date instead of widening the row: the line is never
+   narrower than its date, as on a talk row. The span's leading space collapses at the start of its
+   piece, so the gap stands in for it. */
 .session-row__date {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--s-1);
   margin-top: var(--s-1);
   font-size: var(--fs-micro);
   line-height: 1.3;

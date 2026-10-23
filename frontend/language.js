@@ -61,8 +61,9 @@
 
   // A take that followed its script (the backend's script block), or one recorded on a passage
   // that is read aloud: a Read tab passage, a Path cold read, the benchmark read, or a retired
-  // passage an old take still carries. The rank (rankcard.js, results.js) and the Progress charts
-  // split takes on this same rule, so the three never disagree on what counts as reading.
+  // passage an old take still carries. The rank (rankcard.js, results.js), the Progress charts,
+  // the Results arrows and the History "Read" marker split takes on this same rule, so they all
+  // agree on what counts as reading.
   function isReadTake(session) {
     if (!session || typeof session !== "object") {
       return false;

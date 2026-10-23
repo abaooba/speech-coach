@@ -1,9 +1,9 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
-   show({id}) reads the take and the speaker's take before it from app.store, never writing, and
-   draws the meta line, the Coach card (app.screens.coachCard), speech map, stat strip, rank card
-   (app.rankCard), transcript and actions node by node, never from markup; the
-   cited coach notes (app.tips.coachNotes) upgrade the card when they arrive. summarize and
-   the other pure helpers touch no DOM or app.ui. */
+   show({id}) reads the take and the speaker's take of the same kind before it (Talk or Read,
+   app.language.isReadTake) from app.store, never writing, and draws the meta line, the Coach card
+   (app.screens.coachCard), speech map, stat strip, rank card (app.rankCard), transcript and actions
+   node by node, never from markup; the cited coach notes (app.tips.coachNotes) upgrade the card
+   when they arrive. summarize and the other pure helpers touch no DOM or app.ui. */
 (function () {
   "use strict";
 
@@ -376,8 +376,9 @@
     return typeof title === "string" && title.startsWith(SAMPLE_TITLE_PREFIX);
   }
 
-  // True for a take read aloud (app.language.isReadTake), which never sets the rank's tier.
-  // Without language.js every take counts as talk, as before the rule.
+  // True for a take read aloud (app.language.isReadTake), which never sets the rank's tier and is
+  // compared only with another take read aloud. Without language.js every take counts as talk,
+  // as before the rule.
   function isReadTake(session) {
     const language = app.language;
     return (
@@ -1138,14 +1139,21 @@
     }
   }
 
-  // The speaker's take saved just before this one, or null: the first listed session created
-  // earlier that is not a sample. A sample has no last take: it is compared with nothing.
+  // The speaker's take of the same kind saved just before this one, or null: the first listed
+  // session created earlier that is not a sample and is of the same kind as this one (both read
+  // aloud or both talk, by isReadTake), so a talk is never measured against a read, nor a read
+  // against a talk. A sample has no last take: it is compared with nothing.
   function previousOf(session, sessions) {
     if (isSample(session)) {
       return null;
     }
+    const read = Boolean(isReadTake(session));
     const earlier = sessions.find(
-      (other) => Boolean(other) && !isSample(other) && other.createdAt < session.createdAt,
+      (other) =>
+        Boolean(other) &&
+        !isSample(other) &&
+        other.createdAt < session.createdAt &&
+        Boolean(isReadTake(other)) === read,
     );
     return earlier || null;
   }
@@ -1301,7 +1309,8 @@
   // strip (each stat with its "vs last take" line when there is a last take, and then one note
   // under the strip), the rank card once the store's list has rated the take, words to check and
   // the transcript (both skipped without words too), the action bar. `previous` is the last
-  // take, or null while there is none to compare with; it is summarized for the comparison only.
+  // take of the same kind (previousOf), or null while there is none to compare with; it is
+  // summarized for the comparison only.
   // Returns the Coach heading, or null without a card.
   function renderSession(session, view, previous) {
     const { summary, plan, hasTranscript, map, rankCard } = view;
