@@ -7,7 +7,7 @@ from the repository root.
 ## Module responsibilities
 
 Each script `index.html` loads is an IIFE that assigns exactly one `app.<name>`. Every script
-opens with a short comment, four to eight lines, saying what it owns and what it must not do.
+opens with a comment saying what it owns and what it must not do.
 `DESIGN.md` section 2 holds the full contracts; this table is the map.
 
 | File | Export | Owns and promises |
