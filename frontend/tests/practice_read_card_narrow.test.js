@@ -1,11 +1,11 @@
 // Tests for the Read card's New passage button under 360px (frontend/styles.css section 7 and
-// frontend/screens/practice.js; the owner's decision on the 320 x 568 review, where a speech's
-// title wrapped to four lines beside the button and left no line of the passage clear of the
-// fade). Under 360px of viewport width, on the Read tab only, the button shows its icon alone:
-// the same place, a 44 x 44 target, the same focus ring, and its words still its name, as its
-// aria-label (DESIGN.md section 6: an icon sits beside visible text or carries an aria-label).
-// Talk's New topic keeps its words at every width, and from 360px the Read tab's does too. The
-// stylesheet is read as text; the screen mounts on practice-harness.js.
+// frontend/screens/practice.js). In the 320 x 568 screenshots of the Read groups a speech's title
+// wrapped to four lines beside the button and left no line of the passage clear of the fade.
+// Under 360px of viewport width, on the Read tab only, the button shows its icon alone: the same
+// place, a 44 x 44 target, the same focus ring, and its words still its name, as its aria-label
+// (DESIGN.md section 9: an icon sits beside visible text or carries an aria-label). Talk's New
+// topic keeps its words at every width, and from 360px the Read tab's does too. The stylesheet
+// is read as text; the screen mounts on practice-harness.js.
 "use strict";
 
 const test = require("node:test");

@@ -1020,7 +1020,7 @@
   // when the words change. It is cleared first because the test fakes keep an element's text
   // apart from its children. It carries its tab's kind, as the chips do, for styles.css: under
   // 360px the Read tab's button shows its icon alone (section 7), so there its words are also its
-  // aria-label (DESIGN.md section 6). Talk's always shows its words.
+  // aria-label (DESIGN.md section 9). Talk's always shows its words.
   function paintNewTopicButton(kind) {
     const label = kind === READ_KIND ? NEW_PASSAGE_LABEL : NEW_TOPIC_LABEL;
     nodes.newTopic.dataset.kind = kind;
