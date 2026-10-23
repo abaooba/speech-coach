@@ -70,7 +70,8 @@ const CUE = Object.freeze({ ON_TARGET: "cue:on", SLOW_DOWN: "cue:slow", SPEED_UP
 // app.delivery's live pace half, faked. livePace keeps every tracker it makes; a tracker logs
 // the blocks pushed to it and how often it was read, and hands back `reading` and `peakTimes`
 // as the test sets them. paceFactorAfter logs its arguments and returns `nextFactor`, or the kept
-// factor (LIVE_PACE_FACTOR for none) as the real one does for a take that does not count.
+// factor (LIVE_PACE_FACTOR for none) as the real one does for a take that does not count; and
+// countsForPaceFactor says a take counts exactly when the test has set a `nextFactor`.
 function fakeDelivery() {
   const delivery = {
     ...CUE,
@@ -109,6 +110,9 @@ function fakeDelivery() {
         return delivery.nextFactor;
       }
       return typeof factor === "number" ? factor : delivery.LIVE_PACE_FACTOR;
+    },
+    countsForPaceFactor() {
+      return delivery.nextFactor !== null;
     },
   };
   return delivery;

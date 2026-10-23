@@ -2295,8 +2295,9 @@
 
   // Tunes the take's mode's live pace factor once its analysis is back and its session built
   // (settle): app.delivery.paceFactorAfter moves the kept factor toward the take's own words a
-  // peak, and the result is kept with app.store.setFlag, then here, only when it moved. A take
-  // that does not count (under 20 seconds or 30 words) leaves it where it was, and so keeps
+  // peak, and a take that counts (app.delivery.countsForPaceFactor: 20 seconds and 30 words)
+  // keeps the result with app.store.setFlag, then here, even when it did not move: its mode has
+  // a factor from then on, so the row shows the number. A take that does not count keeps
   // nothing. The first call takes the peaks with it, so a Retry never tunes a take twice; the
   // sample never comes here. A store that cannot keep the factor changes nothing the speaker
   // sees: the mode keeps the factor it had, and its row stays as it was.
@@ -2308,6 +2309,7 @@
     const canTune =
       Boolean(delivery) &&
       typeof delivery.paceFactorAfter === "function" &&
+      typeof delivery.countsForPaceFactor === "function" &&
       Boolean(store) &&
       typeof store.setFlag === "function";
     if (pace === null || !canTune) {
@@ -2315,11 +2317,9 @@
     }
     try {
       const mode = tunedModeOf(take, pace);
-      const kept = paceFactors[mode];
-      // What the take's tracker counted with: the kept factor, or LIVE_PACE_FACTOR for none.
-      const before = kept === null ? delivery.LIVE_PACE_FACTOR : kept;
-      const factor = delivery.paceFactorAfter(kept, take.analysis.transcript, pace.peaks);
-      if (factor === before) {
+      const words = take.analysis.transcript;
+      const factor = delivery.paceFactorAfter(paceFactors[mode], words, pace.peaks);
+      if (!delivery.countsForPaceFactor(words, pace.peaks)) {
         return;
       }
       await store.setFlag(PACE_FACTOR_FLAG_PREFIX + mode, factor);

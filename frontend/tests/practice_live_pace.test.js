@@ -589,7 +589,7 @@ test("without language.js the take is tuned in the mode it was recorded in", asy
   assert.deepEqual(plain(t.calls.setFlag), [[READ_FLAG, 0.8]]);
 });
 
-test("a factor the take left as it was is not kept", async () => {
+test("a take that does not count keeps no factor", async () => {
   // No factor kept: a take that does not count gives back LIVE_PACE_FACTOR.
   const fresh = setup();
   await fresh.show();

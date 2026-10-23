@@ -1228,13 +1228,31 @@
   // peaks, that ratio kept within the same bounds, to a thousandth. Words are the transcript's
   // without hesitation sounds, as Results counts pace; peaks are the tracker's inside the speech,
   // the first word's start to the last word's end, give or take PACE_FACTOR_EDGE_SECONDS. A take
-  // under PACE_FACTOR_MIN_SECONDS of speech or PACE_FACTOR_MIN_WORDS words, or with no peak in
-  // its speech, leaves the factor as it was.
+  // that does not count (countsForPaceFactor) leaves the factor as it was.
   function paceFactorAfter(factor, words, peaks) {
     const kept = paceFactorOf(factor);
+    const take = paceTakeOf(words, peaks);
+    if (take === null) {
+      return kept;
+    }
+    const own = paceFactorOf(take.words / take.peaks);
+    return Math.round((kept + PACE_FACTOR_WEIGHT * (own - kept)) * 1000) / 1000;
+  }
+
+  // Whether a take counts toward its mode's factor: PACE_FACTOR_MIN_SECONDS of speech or more,
+  // PACE_FACTOR_MIN_WORDS words or more without hesitation sounds, and a peak in its speech, as
+  // paceFactorAfter reads them. A take that counts may still give the factor back unmoved, to
+  // the thousandth, so a caller asks this to know whether its mode has been tuned.
+  function countsForPaceFactor(words, peaks) {
+    return paceTakeOf(words, peaks) !== null;
+  }
+
+  // A take's words without hesitation sounds and its peaks inside the speech, {words, peaks},
+  // when it counts toward the factor; null when it does not.
+  function paceTakeOf(words, peaks) {
     const list = toWords(words);
     if (list.length === 0) {
-      return kept;
+      return null;
     }
     const first = list[0].start;
     const last = list[list.length - 1].end;
@@ -1247,11 +1265,7 @@
     ).length;
     const counts =
       last - first >= PACE_FACTOR_MIN_SECONDS && counted >= PACE_FACTOR_MIN_WORDS && inSpeech > 0;
-    if (!counts) {
-      return kept;
-    }
-    const own = paceFactorOf(counted / inSpeech);
-    return Math.round((kept + PACE_FACTOR_WEIGHT * (own - kept)) * 1000) / 1000;
+    return counts ? { words: counted, peaks: inSpeech } : null;
   }
 
   // `count` a minute over `seconds`, unrounded.
@@ -1272,6 +1286,7 @@
     livePaceAt,
     nextLiveReading,
     paceFactorAfter,
+    countsForPaceFactor,
     HESITATION,
     HABIT,
     ON_TARGET,
