@@ -24,8 +24,8 @@ Phone width, light and dark. The history is seeded with two real takes
 | ![History screen](docs/screenshots/history-light.png) | ![History screen, dark](docs/screenshots/history-dark.png) |
 | ![Onboarding screen](docs/screenshots/onboarding-light.png) | ![Onboarding screen, dark](docs/screenshots/onboarding-dark.png) |
 
-- Practice, the home screen: pick a timed topic or a passage, tap Record, and Stop uploads
-  the take.
+- Practice, the home screen: pick a timed prompt or a kind of passage, and each tap draws a
+  new topic or passage. Tap Record, and Stop uploads the take.
 - Results: a speech map pins each restart, freeze and filler to its second. Tap a card to
   see that moment in the transcript. The Coach card comes first: a headline and two or three
   cited tips that point at moments in your take. Four stats, your rank and the marked
@@ -36,7 +36,8 @@ Phone width, light and dark. The history is seeded with two real takes
 - Progress: one metric charted across your takes, with your latest, your best and your change
   from the average, under your rank and streak. Talk and Read takes are charted apart, and only
   Talk takes count for the rank: a passage read aloud has no filler words to say.
-- History: every take, newest first, with its pace, fillers per minute and a status word.
+- History: every take, newest first, with its pace, fillers per minute and a status word; a
+  take read aloud says "Read" after its date.
 - Onboarding, shown on first launch: the no-account promise, what is measured and where your
   audio and transcript go.
 
