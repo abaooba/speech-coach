@@ -3599,6 +3599,32 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-5);
 }
 
+/* The Talk | Read switch is a tab bar over two sets of charts, not one more filter like the
+   boxed metric switch under it: no box or tint, body-size labels, a 1px hairline across the
+   column and a 2px accent underline under the mode shown. Same buttons, same aria-pressed. */
+.segmented.progress__modes {
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.progress__modes .segmented__option {
+  min-height: 48px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+.progress__modes .segmented__option--selected {
+  border-bottom: 2px solid var(--accent);
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* What a Read slip is, in one muted line tight under "Read · Slips per minute". */
 .progress__definition {
   margin: 0 0 var(--s-3);
