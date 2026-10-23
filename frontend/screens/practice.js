@@ -2065,7 +2065,7 @@
       mode,
       // With a kept factor the row shows the number as well as the cue (the validation result).
       numbered: paceFactors[mode] !== null,
-      firstBlockAt: null,
+      firstSampleAt: null,
       readSecond: 0,
       reading: null,
     };
@@ -2107,15 +2107,17 @@
   }
 
   // One block from the microphone: its first channel goes to the take's tracker. The first
-  // block's arrival is noted, to line the peaks up with the recording (releaseLivePace).
+  // block notes when the tracker's first sample was heard, the block's arrival less its own
+  // length, to line the peaks up with the recording (releaseLivePace).
   function pushPaceBlock(pace, event) {
     if (pace.tracker === null) {
       return;
     }
-    if (pace.firstBlockAt === null) {
-      pace.firstBlockAt = performance.now();
+    const samples = event.inputBuffer.getChannelData(0);
+    if (pace.firstSampleAt === null) {
+      pace.firstSampleAt = performance.now() - (samples.length / pace.context.sampleRate) * 1000;
     }
-    pace.tracker.push(event.inputBuffer.getChannelData(0));
+    pace.tracker.push(samples);
   }
 
   // Once per new whole second on the clock, while the row can show: the tracker's reading of the
@@ -2210,19 +2212,21 @@
   }
 
   // Lets the take's live pace capture go, whichever way the take ends (releaseCapture): Stop,
-  // the track ending, hide(), a take under 5 seconds. Hands back what tunePace needs, {peaks,
-  // mode}, or null without a capture or when no block came. The tracker's peaks count from the
-  // first block, the transcript's words from the recorder's start, which came first (startTimer
-  // notes it), so the time between the two goes on every peak: good to a block or so (21 ms at
-  // 48 kHz), well inside the 0.25 s paceFactorAfter allows at the edges of the speech.
+  // the track ending, hide(), a take under 5 seconds, a recorder that cannot start. Hands back
+  // what tunePace needs, {peaks, mode}, or null without a capture or when no block came. The
+  // tracker's peaks count from its first sample, the transcript's words from the recorder's
+  // start (startTimer notes it), so the time between the two goes on every peak. That sample's
+  // time is its block's arrival less the block's length (1024 samples: 21 ms at 48 kHz, 128 ms
+  // at 8 kHz), late only by the time the browser takes to hand a block over, some tens of
+  // milliseconds: well inside the 0.25 s paceFactorAfter allows at the edges of the speech.
   function releaseLivePace() {
     const pace = capture.pace;
     capture.pace = null;
     if (pace === null) {
       return null;
     }
-    const heard = pace.firstBlockAt !== null;
-    const offset = heard ? (pace.firstBlockAt - capture.startedAt) / 1000 : 0;
+    const heard = pace.firstSampleAt !== null;
+    const offset = heard ? (pace.firstSampleAt - capture.startedAt) / 1000 : 0;
     const peaks = heard ? pace.tracker.peaks().map((peak) => peak + offset) : null;
     tearDownPace(pace);
     return peaks === null ? null : { peaks, mode: pace.mode };

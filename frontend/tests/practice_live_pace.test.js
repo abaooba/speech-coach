@@ -482,11 +482,12 @@ test("after the take's analysis its mode's factor is tuned once and kept in its 
   const [tuning] = t.app.delivery.tunings;
   assert.equal(tuning.factor, null, "no factor kept yet");
   assert.deepEqual(plain(tuning.words), plain(ANALYSIS.transcript));
-  // The peaks count from the first block, which came 0.12 s after the recorder started; the
-  // words count from the recorder's start.
+  // The peaks count from the first block's first sample, its 1024 samples (21.3 ms at 48 kHz)
+  // before the block came 0.12 s after the recorder started; the words count from the
+  // recorder's start.
   assert.deepEqual(
     tuning.peaks.map((peak) => Math.round(peak * 1000) / 1000),
-    [0.62, 1.12, 1.62],
+    [0.599, 1.099, 1.599],
   );
   assert.deepEqual(plain(t.calls.setFlag), [[TALK_FLAG, 0.75]]);
   assert.equal(t.flags.get(TALK_FLAG), 0.75);
