@@ -3,9 +3,9 @@
 // with topics starts on a drawn topic at mount, a tap on a Talk chip (the selected one or another)
 // and New topic each draw a new topic and read it out, and the tabs, a visit elsewhere and level
 // mode keep the topic as it was. A draw is app.path.pickTopic over the speaker's takes
-// (app.store.list() at show(), and each take saved since) when path.js is loaded, and otherwise
-// any topic but the one on screen, at random. The harness is practice-harness.js; a `random`
-// stub on the vm context's Math fixes every draw.
+// (app.store.list() at show(), and each take saved since) and the topics shown since the app
+// opened when path.js is loaded, and otherwise any topic but the one on screen, at random. The
+// harness is practice-harness.js; a `random` stub on the vm context's Math fixes every draw.
 "use strict";
 
 const test = require("node:test");
@@ -54,6 +54,14 @@ const PASSAGES = [
 
 // Record is ignored for a moment after a Stop (a bouncing thumb), so a second take waits it out.
 const STOP_GRACE_MS = 500;
+
+// The clock a test holds still with setup's `now`, and the stamp of a topic shown `ms` after it:
+// each showing is stamped 1 ms after the last when the clock stands still.
+const NOW = Date.parse("2026-10-23T12:00:00.000Z");
+
+function at(ms) {
+  return new Date(NOW + ms).toISOString();
+}
 
 // A random source that returns `value`, which a test may change between taps, and counts how
 // often it was asked.
@@ -257,9 +265,11 @@ test("level mode draws nothing, and leaving it brings the topic back as it was",
 
 // --- The speaker's takes and app.path -------------------------------------------------------
 
+// The store has no list() and no take is saved, so the draw reads no take: only the topic Talk
+// opened on, shown from mount and stamped then, with the clock held still (spec section 2.1).
 test("with path.js loaded a topic draw is app.path.pickTopic(takes, prompt, Math.random, topic)", () => {
   const random = drawOf(0);
-  const t = setup({ passages: PASSAGES, random, withPath: true });
+  const t = setup({ passages: PASSAGES, random, now: () => NOW, withPath: true });
   const asked = [];
   const pickTopic = t.app.path.pickTopic;
   t.app.path.pickTopic = (...args) => {
@@ -270,7 +280,7 @@ test("with path.js loaded a topic draw is app.path.pickTopic(takes, prompt, Math
   chipFor(t, "imp").click();
   assert.equal(asked.length, 2);
   const [history, promptId, source, current] = asked[0];
-  assert.deepEqual(plain(history), []);
+  assert.deepEqual(plain(history), [{ passageId: "day", topic: "First topic.", createdAt: at(0) }]);
   assert.equal(promptId, "day");
   assert.equal(source, random, "the vm's own Math.random");
   assert.equal(current, "First topic.");
@@ -333,9 +343,134 @@ test("every show() reads the takes again", async () => {
   assert.equal(cardText(t), "Third topic.");
 });
 
-// The store has no list(), so only the takes saved here steer the draws, at 0.99: Third at
-// mount, then Second (0.99 of First and Second), then First, the one topic no take used. A draw
-// blind to the takes would give Third last, and the old next-topic step started on First.
+// A level take talked on "Third topic.", the material the Path gave, which no draw here showed.
+function levelOnThird() {
+  const third = "Third topic.";
+  return levelRequest({
+    material: {
+      kind: "prompt",
+      id: "day",
+      title: "Your day",
+      text: third,
+      targetWpm: [140, 160],
+      topic: third,
+    },
+  }).request;
+}
+
+// The take is saved here, then deleted in History, so the store lists none when Practice shows
+// again: from that list on it no longer counts, and the draw at 0.99 of Second and Third gives
+// Third. Before, every take saved here stayed in the draws until the app reloaded, and the draw
+// gave Second, the one topic it took as unused.
+test("a take deleted in History stops steering the draws once show() lists the store again", async () => {
+  const random = drawOf(0);
+  const t = setup({ passages: PASSAGES, random, withPath: true, list: () => Promise.resolve([]) });
+  t.startLevel(levelOnThird());
+  await flush();
+  await t.recordTake(12000);
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "Third topic.");
+  assert.equal(cardText(t), "First topic.", "back on the topic Talk drew at mount");
+  t.practice.hide();
+  t.practice.show({});
+  await flush();
+  random.value = 0.99;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Third topic.", "no take uses Third topic. any more");
+});
+
+// A take from an earlier visit, on Third, which the first show() lists. Listed again at the next
+// show(), it still keeps Third out, and the draw at 0.99 of Second and Third gives Second.
+// Deleted in History before that show(), it is missing from the next answer, which replaces the
+// takes listed before, so the draw gives Third. Were each answer added to the ones before, the
+// deleted take would steer the draws until the app reloaded, and the draw would give Second.
+test("a listed take deleted in History stops steering the draws once the next list answers", async () => {
+  const onThird = talkOn("day", "Third topic.");
+  const cases = [
+    [[onThird], "Second topic.", "listed again, the take still counts"],
+    [[], "Third topic.", "deleted in History, the take no longer counts"],
+  ];
+  for (const [nextList, topic, message] of cases) {
+    const lists = [[onThird], nextList];
+    const random = drawOf(0);
+    const t = setup({
+      passages: PASSAGES,
+      random,
+      withPath: true,
+      list: () => Promise.resolve(plain(lists.shift() || [])),
+    });
+    assert.equal(cardText(t), "First topic.", "drawn at mount");
+    t.practice.show({});
+    await flush();
+    t.practice.hide();
+    t.practice.show({});
+    await flush();
+    assert.equal(lists.length, 0, "each show() asked the store");
+    random.value = 0.99;
+    parts(t).newTopic.click();
+    assert.equal(cardText(t), topic, message);
+  }
+});
+
+// A take saved here counts until a list asked for after it answers, which then holds it unless
+// History has deleted it. So while the next show()'s list is still out, the level take on Third
+// still counts: the draw at 0.99 of Second and Third passes over Third and gives Second. Were the
+// takes saved here dropped as soon as that list was asked for, the draw would give Third.
+test("a take saved here still counts while the next show()'s list is out", async () => {
+  const random = drawOf(0);
+  const answers = [];
+  const t = setup({
+    passages: PASSAGES,
+    random,
+    withPath: true,
+    list: () => new Promise((resolve) => answers.push(resolve)),
+  });
+  t.startLevel(levelOnThird());
+  answers.shift()([]);
+  await flush();
+  await t.recordTake(12000);
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "Third topic.");
+  assert.equal(cardText(t), "First topic.", "back on the topic Talk drew at mount");
+  t.practice.hide();
+  t.practice.show({});
+  assert.equal(answers.length, 1, "the list this show() asked for is still out");
+  random.value = 0.99;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "Third topic. was used");
+});
+
+// A take saved while show()'s list is still out may be missing from its answer, so it still
+// counts once that list answers without it: the draw at 0.99 passes over Third, which the take
+// used, and gives Second, the one topic left.
+test("a take saved while show()'s list is out still counts when that list answers without it", async () => {
+  const random = drawOf(0);
+  const answers = [];
+  const t = setup({
+    passages: PASSAGES,
+    random,
+    withPath: true,
+    list: () => new Promise((resolve) => answers.push(resolve)),
+  });
+  t.startLevel(levelOnThird());
+  await t.recordTake(12000);
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "Third topic.");
+  assert.equal(answers.length, 1, "the list the level's show() asked for is still out");
+  answers.shift()([]);
+  await flush();
+  random.value = 0.99;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "Third topic. was used");
+});
+
+// The store has no list(), so only the takes saved here and the topics shown steer the draws, at
+// 0.99: Third at mount, then Second (0.99 of First and Second), then First, the one topic no take
+// used. The old next-topic step started on First. Each topic a take was saved on had shown
+// first, so the showings alone give this order too; the next test pins what a saved take adds.
 test("a take saved on Practice joins the takes the next draws read", async () => {
   const t = setup({ passages: PASSAGES, random: drawOf(0.99), withPath: true });
   assert.equal(cardText(t), "Third topic.");
@@ -349,14 +484,45 @@ test("a take saved on Practice joins the takes the next draws read", async () =>
   assert.equal(cardText(t), "First topic.", "Third topic. and Second topic. were used");
 });
 
+// A take saved here counts as used at the time the store saved it (store.js stamps createdAt as
+// it saves). A take saves in the background, so Talk can move on first: the take on First, saved
+// once Second shows, makes First the newer, and once Third has shown the draw gives Second, the
+// one used or shown longest ago. If the saved take did not count, First, shown at mount, would
+// come back first.
+test("a take saved after New topic moved on counts from the time the store saved it", async () => {
+  let clock = NOW;
+  const t = setup({ passages: PASSAGES, random: drawOf(0), now: () => clock, withPath: true });
+  t.app.store.save = (session) => {
+    session.createdAt = new Date(clock).toISOString();
+    t.calls.save.push(session);
+    return Promise.resolve("talk-take");
+  };
+  assert.equal(cardText(t), "First topic.");
+  await t.recordTake(12000);
+  clock += 60000;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "shown while the take uploads");
+  clock += 60000;
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "First topic.");
+  assert.equal(t.calls.save[0].createdAt, at(120000));
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Third topic.", "the one topic neither used nor shown");
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "shown at 1:00, while First's take saved at 2:00");
+});
+
 // A draw reads four fields of a take: its passage, its title (the sample check), its topic and
 // its time. Practice keeps only those of the takes it lists and saves, so it holds no second
-// copy of their transcripts and metrics while the app is open.
+// copy of their transcripts and metrics while the app is open. After the takes come the topics
+// the draws have shown, here the one Talk opened on, stamped at mount with the clock held still.
 test("the takes the draws read keep only their passage, title, topic and time", async () => {
   const listed = talkOn("day", "Second topic.", "2026-10-22T09:00:00.000Z");
   const t = setup({
     passages: PASSAGES,
     random: drawOf(0),
+    now: () => NOW,
     withPath: true,
     list: () => Promise.resolve(plain([listed])),
   });
@@ -382,6 +548,7 @@ test("the takes the draws read keep only their passage, title, topic and time", 
         topic: "Second topic.",
         createdAt: "2026-10-22T09:00:00.000Z",
       },
+      { passageId: "day", topic: "First topic.", createdAt: at(0) },
     ],
   ]);
   assert.equal(cardText(t), "Third topic.", "both other topics were used");

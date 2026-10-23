@@ -5,7 +5,8 @@
 // touches (getUserMedia, MediaRecorder, Blob, performance.now, setInterval) is a fake the tests
 // drive by hand, and a level request's callbacks log their calls. Practice draws its topics and
 // passages with Math.random: a test fixes the draw by handing setup() a `random` stub, which the
-// vm context's own Math carries.
+// vm context's own Math carries, and holds the clock that stamps what Practice shows with a
+// `now` stub, which the context's own Date carries.
 "use strict";
 
 const fs = require("node:fs");
@@ -318,8 +319,9 @@ function levelRequest(overrides = {}) {
 // Loads ui.js and practice.js against the fakes and mounts the screen into a section that holds
 // only its body, like the other Practice tests. Returns the screen, its body, the call logs and
 // the controls for the mic prompt, the clock and the upload. Options: `passages` for the data,
-// `groups` for app.passages.groups(), `random` for the context's Math.random, `list` for
-// app.store.list, `withPath` to load the real path.js first, as index.html does, and `pauses`.
+// `groups` for app.passages.groups(), `random` for the context's Math.random, `now` for the
+// context's Date.now, `list` for app.store.list, `withPath` to load the real path.js first, as
+// index.html does, and `pauses`.
 function setup(options = {}) {
   const clock = fakeClock();
   const focused = [];
@@ -378,11 +380,22 @@ function setup(options = {}) {
   if (options.random) {
     context.Math = Object.create(Math, { random: { value: options.random } });
   }
+  // The context's own Date, built and read as before, but its now() is the stub, so a test can
+  // hold the clock still and see two things happen in the same millisecond.
+  if (options.now) {
+    context.Date = class extends Date {
+      static now() {
+        return options.now();
+      }
+    };
+  }
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
   app.ui.announce = (text) => calls.announce.push(text);
   if (options.withPath) {
-    // path.js reads passages.js's own data as it loads (the Pace ladder's passage), so it loads
-    // on that; every call afterwards reads the test's data, which app.passages holds again.
+    // passages.js loads first only to keep index.html's script order: path.js no longer needs its
+    // data to load. It reads app.passages when called, so every call reads the test's data, which
+    // app.passages holds again. (While loading it reads only the Impromptu band its talk levels
+    // hold, 140 to 160 wpm, the same as its own default.)
     const testPassages = app.passages;
     vm.runInNewContext(PASSAGES_SOURCE, context, { filename: "passages.js" });
     vm.runInNewContext(PATH_SOURCE, context, { filename: "path.js" });

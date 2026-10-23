@@ -36,18 +36,42 @@ docs/superpowers/specs/2026-10-18-fresh-reads-and-rehearsal-design.md.
 ### 2.1 The draw
 
 - Practice draws with `Math.random`. (Tests fix the draw by giving the vm context a `Math`
-  whose `random` is a stub; no test hook is added to the screen.)
+  whose `random` is a stub, and hold its clock still with a `Date` whose `now` is a stub; no
+  test hook is added to the screen.)
 - Practice keeps the speaker's own takes in module state for the draws: `app.store.list()`,
   guarded (`typeof app.store.list === "function"`, any rejection or throw ignored), loaded at
-  `show()` and added to when a take is saved. Without it, a draw is uniform.
+  `show()` and added to when a take is saved. Without it, a draw reads only the takes saved
+  here since the app opened. Practice mounts before its first `show()`, so the draws at mount
+  read no take yet and are uniform.
+  - A list's answer replaces the takes listed before, and of the takes saved here Practice
+    keeps only those saved after that list was asked for, which it may not hold yet. The others
+    are in the answer unless History has deleted them, so a deleted take stops counting at the
+    next visit, not at the next reload.
+- Practice also counts every topic and passage its draws have put on screen since the app
+  opened as used at the moment it was shown, the ones each tab opens on included. A tap saves
+  nothing, so without this, once every item of a pool had been used, the taps gave the two used
+  longest ago in turn (in Chrome, 2 different items in 12 taps on Drill, Story, Explainer,
+  Speech, About you and Impromptu), and with one item left unused, that one and the one used
+  longest ago.
+  - Only what shows counts. The Talk tab opens on its first prompt, so that prompt's topic at
+    mount counts. Another prompt's topic at mount never shows: a tap on its chip draws it a new
+    one first. A level's material is the request's, drawn by the Path, and does not count.
+  - The list lives in module state only. It is never saved, never sent, and never read by
+    Progress, History, the rank or the Path, whose own draws read the takes alone, as before.
+  - Each showing goes to the draw as one more history entry, with the fields the draw reads:
+    `passageId` (the prompt's id for a topic), `topic` for a topic, and `createdAt`. It has no
+    `passageTitle`, so `isOwnTake` keeps it, as it keeps every take but the bundled sample. Its
+    `createdAt` is the clock's time in ISO 8601, at least 1 ms after the showing before it, so
+    two showings in the same millisecond keep their order.
 - The rule is the Path's (`app.path.pickTopic`, `pickColdRead`): from the pool minus the item on
-  screen now, an item no own take has used, at random; once every item has been used, the one
-  used longest ago. A pool of one gives that one. Talk topics use `app.path.pickTopic(history,
-  promptId, Math.random, current)` when `app.path` is loaded; passages use a new pure
-  `app.path.pickPassage(history, passages, random, exclude)` with the same rule, and
-  `pickColdRead(history, random)` becomes `pickPassage` over the cold reads (same results, so
-  its tests hold). Without `app.path` (some test harnesses), the draw is uniform over the pool
-  minus the current item.
+  screen now, an item no own take has used and Practice has not shown, at random; failing that,
+  the one used or shown longest ago. So taps go through the whole pool before any item comes
+  back, and never give the item on screen. A pool of one gives that one. Talk topics use
+  `app.path.pickTopic(history, promptId, Math.random, current)` when `app.path` is loaded;
+  passages use a new pure `app.path.pickPassage(history, passages, random, exclude)` with the
+  same rule, and `pickColdRead(history, random)` becomes `pickPassage` over the cold reads (same
+  results, so its tests hold). Without `app.path` (some test harnesses), the draw is uniform
+  over the pool minus the current item.
 
 ### 2.2 Talk
 

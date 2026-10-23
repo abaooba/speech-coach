@@ -46,10 +46,18 @@ test("a Talk take on a prompt with topics saves the topic on screen", async () =
   assert.equal(session.passageTitle, "Your day");
 });
 
+// With path.js loaded the draws follow the tester feedback spec's rule (section 2.1), on a draw
+// the test changes: at 0.99 Your day opens on "Third topic.", and at 0 New topic moves to "First
+// topic.", the first of the two others. The next New topic passes over First, and Third has been
+// shown, so it gives "Second topic.", the one topic not shown yet. The take saves that: neither
+// the topic drawn at mount nor the one New topic moved to first.
 test("after New topic the take saves the topic it moved to", async () => {
-  const t = setup({ random: DRAW });
+  const draw = { value: 0.99 };
+  const t = setup({ random: () => draw.value, withPath: true });
+  assert.equal(parts(t).cardText.textContent, "Third topic.", "the topic drawn at mount");
+  draw.value = 0;
   parts(t).newTopic.click();
-  assert.equal(parts(t).cardText.textContent, "Third topic.");
+  assert.equal(parts(t).cardText.textContent, "First topic.");
   parts(t).newTopic.click();
   assert.equal(parts(t).cardText.textContent, "Second topic.");
   const session = await savedTake(t);
