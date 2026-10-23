@@ -1,10 +1,9 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
    show({id}) reads the take and the speaker's take of the same kind before it (Talk or Read,
-   app.language.isReadTake) from app.store, never writing, and draws the meta line, the Coach
-   card (app.screens.coachCard), speech map, stat strip, rank card
-   (app.rankCard), transcript and actions node by node, never from markup; the
-   cited coach notes (app.tips.coachNotes) upgrade the card when they arrive. summarize and
-   the other pure helpers touch no DOM or app.ui. */
+   app.language.isReadTake) from app.store, never writing, and draws the meta line, the Coach card
+   (app.screens.coachCard), speech map, stat strip, rank card (app.rankCard), transcript and actions
+   node by node, never from markup; the cited coach notes (app.tips.coachNotes) upgrade the card
+   when they arrive. summarize and the other pure helpers touch no DOM or app.ui. */
 (function () {
   "use strict";
 
@@ -1141,9 +1140,9 @@
   }
 
   // The speaker's take of the same kind saved just before this one, or null: the first listed
-  // session created earlier that is not a sample and was read aloud exactly when this one was
-  // (isReadTake), so a talk is never measured against a read, nor a read against a talk. A
-  // sample has no last take: it is compared with nothing.
+  // session created earlier that is not a sample and is of the same kind as this one (both read
+  // aloud or both talk, by isReadTake), so a talk is never measured against a read, nor a read
+  // against a talk. A sample has no last take: it is compared with nothing.
   function previousOf(session, sessions) {
     if (isSample(session)) {
       return null;
