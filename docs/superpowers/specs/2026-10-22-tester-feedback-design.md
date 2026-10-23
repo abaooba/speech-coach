@@ -203,19 +203,28 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
 - **Validation result** (2026-10-22, 76 `say` clips from 8 voices at 121 to 247 wpm, plus the
   repo's two real takes): uncalibrated, the median whole-clip error is 22.0% (it reads low), over
   the bar; calibrated, 6.3% (leave-one-out) and, tuning in sequence as the app does, 12.6% on a
-  mode's second take and 8.3% on its third; the two real takes are within 7%. So the number
-  waits for the factor: until a mode (Talk or Read) has one take that counts for the factor
-  (20 seconds and 30 words), its row shows the cue words alone, centred, after the waiting
-  sentence; from then on, "About 150 wpm" and the cue. The first reading shows its own cue. A
-  silence counts as speech only up to 1.5 seconds, in the 15-second window and in the 5 seconds
-  before the first reading, so a pause at a full stop never drags the number down for long.
-  Capture runs on every take, level mode included, so every counted take tunes its mode; only
-  the row stays hidden in level mode. The write-up goes in the repo next to this spec.
+  mode's second take and 8.3% on its third; the two real takes are within 7%. So the row waits
+  for the factor. A take that starts while its mode (Talk or Read, by the mode it records in:
+  Read when a script goes with it) has no take that counts for the factor (20 seconds and 30
+  words) says "Live pace starts after a 20 s talk." or "Live pace starts after a 20 s read." in
+  the waiting sentence's look, from its first paint to its end, and never a number or a cue: in
+  the app the untuned cue was right on only 1 of 4 first takes (the write-up's "End to end in
+  the app"). Its blocks still reach the tracker, so the take tunes its mode when it counts. A
+  take whose mode has a factor shows "Your pace shows after a few seconds." until the tracker
+  has a number, then "About 150 wpm" and the cue. A capture that no block has reached when the
+  clock shows 0:03 (a context whose resume() never answers, as iOS can leave it, hands over
+  nothing) goes as one whose resume was refused: the context closes, the row hides for the rest
+  of the take, and the take tunes nothing, in level mode too; one block before then keeps it.
+  The first reading shows its own cue. A silence counts as speech only up to 1.5 seconds, in
+  the 15-second window and in the 5 seconds before the first reading, so a pause at a full stop
+  never drags the number down for long. Capture runs on every take, level mode included, so
+  every counted take tunes its mode; only the row stays hidden in level mode. The write-up goes
+  in the repo next to this spec.
 - how.html: "While you record, a live pace shows under the clock. Your phone estimates it from
   the beats of your syllables. Results counts your real words, so the two can differ. The live
   pace runs on your phone and sends nothing." and, after it: "It tunes itself to your voice,
-  once for Talk and once for Read. Until a take of 20 seconds or more has tuned it, it shows only
-  On target, Slow down or Speed up."
+  once for Talk and once for Read. It starts after your first take of 20 seconds or more in
+  each."
 
 ## 8. Tests and docs
 
