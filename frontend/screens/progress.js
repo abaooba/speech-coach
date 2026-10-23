@@ -209,7 +209,8 @@
 
   // Fixed copy (DESIGN.md section 8): the under-two state, whose words count what is missing
   // (two takes with none yet, one more after the first), the summary row, the band legend, the
-  // chart's aria-label and the table.
+  // chart's aria-label (one session or more, the latest value only when a take is charted) and
+  // the table.
   const MIN_SESSIONS = 2;
   const EMPTY_TITLE = "Need two sessions";
   const EMPTY_BODY_NONE = "Record two sessions to see a trend.";
@@ -234,7 +235,9 @@
   const NOT_MEASURED = "Not measured";
   const LEGEND_PREFIX = "Target under ";
   const LABEL_OVER = " over ";
-  const LABEL_LATEST = " sessions, latest ";
+  const LABEL_ONE_SESSION = " session";
+  const LABEL_SESSIONS = " sessions";
+  const LABEL_LATEST = ", latest ";
   const CAPTION_SUFFIX = " by session";
   const SESSION_HEADER = "Session";
   const DATE_HEADER = "Date";
@@ -753,20 +756,28 @@
   }
 
   // The summary row: three cells, each a label over its value. The change cell leads with a
-  // triangle or a dash, like the delta lines on the Results cards.
+  // triangle or a dash, like the delta lines on the Results cards, or reads "Not measured" with
+  // no icon when no earlier take is charted to average (changeOrNone).
   function buildSummary(metric, summary) {
-    const change = describeChange(metric, summary.change);
     const best = valueOrNone(metric, summary.best, "progress-summary__value num");
     return app.ui.el("dl", { class: "progress-summary" }, [
       summaryItem(LATEST_LABEL, valueOrNone(metric, summary.latest)),
       summaryItem(BEST_LABEL, best),
-      summaryItem(
-        CHANGE_LABEL,
-        app.ui.el("dd", { class: "progress-summary__change num" }, [
-          app.ui.icon(change.icon, CHANGE_ICON_SIZE),
-          change.text,
-        ]),
-      ),
+      summaryItem(CHANGE_LABEL, changeOrNone(metric, summary.change)),
+    ]);
+  }
+
+  // The change cell, or "Not measured" as Latest and Best read it when no earlier take was
+  // charted to average (Slips with one read counted, or none). A chart of every take, as each
+  // Talk chart is, draws two takes or more, so it always has one.
+  function changeOrNone(metric, change) {
+    if (change === null) {
+      return valueOrNone(metric, null);
+    }
+    const described = describeChange(metric, change);
+    return app.ui.el("dd", { class: "progress-summary__change num" }, [
+      app.ui.icon(described.icon, CHANGE_ICON_SIZE),
+      described.text,
     ]);
   }
 
@@ -777,8 +788,9 @@
     ]);
   }
 
-  // A value as its cell shows it, or "Not measured" for none: a Best no take can win, or a
-  // Latest with no take charted (Slips when no read could be counted).
+  // A value as its cell shows it, or "Not measured" for none: a Best no take can win, a Latest
+  // with no take charted (Slips when no read could be counted), or a change with no earlier take
+  // charted to average.
   function valueOrNone(metric, value, className) {
     if (value === null) {
       return summaryValue(NOT_MEASURED, "progress-summary__value progress-summary__value--none");
@@ -824,14 +836,13 @@
       bottom: geometry.height - geometry.padBottom,
       width: geometry.width,
     };
-    const latest = values.length > 0 ? values[values.length - 1] : 0;
     const bandTop = metric.targetUnder ? Math.max(yOf(metric.targetUnder), frame.top) : null;
 
     const svg = svgEl("svg", {
       class: "chart",
       viewBox: "0 0 " + geometry.width + " " + geometry.height,
       role: "img",
-      "aria-label": label + LABEL_OVER + values.length + LABEL_LATEST + latest,
+      "aria-label": chartLabel(label, values),
     });
     [
       ...band(bandTop, frame),
@@ -845,6 +856,15 @@
       ...bestMarker(points, bestIndex, metric.color, frame),
     ].forEach((node) => svg.appendChild(node));
     return svg;
+  }
+
+  // The chart's aria-label: its title, the takes it draws and the last one's value, "Words per
+  // minute over 5 sessions, latest 158", or "1 session" for one. With none drawn it names no
+  // latest value, which a screen reader would hear as a measured 0.
+  function chartLabel(label, values) {
+    const sessions = values.length === 1 ? LABEL_ONE_SESSION : LABEL_SESSIONS;
+    const latest = values.length > 0 ? LABEL_LATEST + values[values.length - 1] : "";
+    return label + LABEL_OVER + values.length + sessions + latest;
   }
 
   // The target band from the bottom of the plot up to the target, for a metric that has one.

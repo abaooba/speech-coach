@@ -345,7 +345,7 @@ test("with no read counted for slips, Latest and Best read Not measured", async 
   assert.deepEqual(summaryOf(body), [
     "LatestNot measured",
     "BestNot measured",
-    "From your averageNo change",
+    "From your averageNot measured",
   ]);
 });
 

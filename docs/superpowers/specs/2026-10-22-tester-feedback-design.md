@@ -157,6 +157,10 @@ the benchmark keeps its passage and prompt.
 - Deploying this branch puts the split on the live app.
 - Progress: the Talk | Read switch is restyled so it reads as two separate sets of charts, not
   one more filter. The look comes from Superdesign (section 9).
+- Progress: when no earlier take is charted to average (Read's Slips with one read counted, or
+  none), "From your average" reads "Not measured" in Latest and Best's none style, never "No
+  change", and the chart's aria-label says "1 session" for one point and names no latest value
+  with none. A Talk chart needs two takes, so nothing it shows changes.
 - Results: the arrows compare a take with the latest earlier own take **of the same kind** (Talk
   with Talk, Read with Read, by `app.language.isReadTake`), and show nothing when there is none.
   Once the store holds a take of the other kind (never a sample), the note under the strip reads
