@@ -13,7 +13,10 @@ saved on the phone.
 ## How a take becomes a score
 
 1. Practice records with `MediaRecorder` and, in parallel, `pauses.js` reads
-   loudness from the Web Audio API to find silences over 1.5 seconds.
+   loudness from the Web Audio API to find silences over 1.5 seconds. A second
+   Web Audio reader, Practice's live pace capture, feeds the microphone's samples
+   to `delivery.js`'s `livePace` tracker, so a row under the clock shows an
+   estimated pace while the take records; nothing of it leaves the phone.
 2. Stop posts the audio (and the script, on the Read tab) to `POST /api/analyze`.
 3. The backend forwards the audio once to AssemblyAI with `disfluencies: true`,
    so "um" and "uh" come back as words with timestamps, then asks AssemblyAI
@@ -23,7 +26,9 @@ saved on the phone.
    against it and reports restarts, skips and misreads. Both are pure functions.
 5. The browser saves words and metrics in IndexedDB (`store.js`) and
    `delivery.js` re-scores every stored take by today's rules, so old takes
-   never go stale when a rule changes.
+   never go stale when a rule changes. A take with 20 seconds of speech and 30
+   words or more also tunes the live pace to the speaker's voice: one words-a-peak factor for
+   Talk and one for Read, kept as store flags (`paceFactorAfter`).
 6. Results asks `POST /api/advice` for coach notes. The request carries the take's
    numbers, part of the transcript and its moments (`coach.js`: each restart,
    filler, pause, misread or unclear-word hint with its words, the words around
@@ -60,7 +65,7 @@ saved on the phone.
 | `frontend/api.js` | `app.api.analyze` with a 180 s deadline and typed errors |
 | `frontend/store.js` | IndexedDB sessions, flags and Path progress, on the device only |
 | `frontend/passages.js` | Talk prompts, Read passages, cold reads, the benchmark |
-| `frontend/delivery.js` | Filler rules, pause classes, clean stretch, restarts: the delivery report |
+| `frontend/delivery.js` | Filler rules, pause classes, clean stretch, restarts: the delivery report; the live pace estimate while a take records |
 | `frontend/pauses.js` | Browser-side pause detection with Web Audio (human-owned) |
 | `frontend/rank.js` | Take scores, the rating and the seven tiers (owner-written) |
 | `frontend/rankcard.js` | The rank card on Progress and Results |
@@ -71,7 +76,7 @@ saved on the phone.
 | `frontend/language.js` | The grammar and vocabulary check the speaker asks for on a take |
 | `frontend/tips.js` | Rule-based tips and the coach-notes request |
 | `frontend/sw.js` | Service worker: caches the app shell, never audio, never `/api` |
-| `frontend/screens/practice.js` | Record, upload, level mode, the sample |
+| `frontend/screens/practice.js` | Record, the live pace row, upload, level mode, the sample |
 | `frontend/screens/results.js` | Coach card, speech map, metric cards, rank card, words to check, transcript |
 | `frontend/screens/coachcard.js` | The Coach card at the top of Results: headline, moment-linked tips, the grammar check |
 | `frontend/screens/history.js` | Every take, newest first, with delete; a take read aloud says "Read" after its date |
