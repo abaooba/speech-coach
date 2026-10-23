@@ -4,8 +4,9 @@
 // under it, so it read as one more filter. It is now drawn as a tab bar over two sets of charts:
 // no box and no tint, body-size labels, a 1px hairline across the column and a 2px accent
 // underline under the mode shown. Only section 10 of styles.css changes. The markup, a group of
-// aria-pressed toggle buttons, stays as progress_talk_read.test.js pins it. The node suite has no
-// layout engine, so these pin the rules; the screenshot loop checks how they render.
+// aria-pressed toggle buttons, stays as progress_talk_read.test.js pins it, and how.html names
+// the tabs in words that match them. The node suite has no layout engine, so these pin the rules;
+// the screenshot loop checks how they render.
 "use strict";
 
 const test = require("node:test");
@@ -105,6 +106,11 @@ function barRulesOf(rules) {
     .map((rule) => [rule.at, rule.selector]);
 }
 
+// how.html as a reader sees it: no tags, no comments, one space between words.
+function textOf(html) {
+  return squash(html.replace(/<!--[\s\S]*?-->/g, " ").replace(/<[^>]*>/g, " "));
+}
+
 test("the Talk | Read bar drops the segmented box: no fill, border, radius, gap or padding", () => {
   assert.deepEqual(ruleOf(BAR), {
     gap: "0",
@@ -173,4 +179,17 @@ test("the tabs stay toggle buttons: Progress never makes them a tablist", () => 
   // switch and the metric switch, so a screen reader hears the same control on every screen.
   const source = read(path.join("screens", "progress.js"));
   assert.doesNotMatch(source, /tablist|aria-selected|["']tab["']/);
+});
+
+test("how.html says the Talk and Read tabs switch between the separate charts", () => {
+  const html = read("how.html");
+  const start = html.indexOf("<h2>Your rank</h2>");
+  assert.ok(start !== -1, "how.html has a 'Your rank' section");
+  const section = textOf(html.slice(start, html.indexOf("</section>", start)));
+  const sentence = "Switch between them with the Talk and Read tabs.";
+  assert.ok(
+    section.includes("Progress shows Talk takes and Read takes on separate charts. " + sentence),
+    "the sentence follows the one about the separate charts",
+  );
+  assert.equal(textOf(html).split(sentence).length - 1, 1, "the page says it once");
 });
