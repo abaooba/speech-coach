@@ -392,8 +392,10 @@ function setup(options = {}) {
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
   app.ui.announce = (text) => calls.announce.push(text);
   if (options.withPath) {
-    // path.js reads passages.js's own data as it loads (the Pace ladder's passage), so it loads
-    // on that; every call afterwards reads the test's data, which app.passages holds again.
+    // passages.js loads first only to keep index.html's script order: path.js no longer needs its
+    // data to load. It reads app.passages when called, so every call reads the test's data, which
+    // app.passages holds again. (While loading it reads only the Impromptu band its talk levels
+    // hold, 140 to 160 wpm, the same as its own default.)
     const testPassages = app.passages;
     vm.runInNewContext(PASSAGES_SOURCE, context, { filename: "passages.js" });
     vm.runInNewContext(PATH_SOURCE, context, { filename: "path.js" });
