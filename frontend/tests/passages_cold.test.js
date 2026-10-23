@@ -23,6 +23,10 @@ const PROMPT_COUNT = 5;
 const PASSAGE_COUNT = 24;
 const MAX_TITLE_LENGTH = 40;
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// The Read tab's chips draw at random (tester feedback spec, section 2.1): a seeded draw, and room
+// for four taps a passage, let a group's chip show every passage of the group.
+const SEED = 2026;
+const TAPS_PER_PASSAGE = 4;
 // A transcript may write a number or a symbol either way ("20%" or "twenty percent"), so a
 // script that holds one could mark a word read correctly as a misread.
 const DIGIT_OR_SYMBOL = /[0-9%$&@#+=<>\/\\]/;
@@ -68,10 +72,26 @@ function says(words, phrase) {
   return words.some((_, start) => parts.every((part, offset) => words[start + offset] === part));
 }
 
-// The real Practice screen on the real passages, loaded as index.html loads them.
-function mountPractice() {
+// A seeded draw (mulberry32): the same numbers in [0, 1) on every run, so a test that taps a chip
+// many times sees the same passages each time.
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(state ^ (state >>> 15), state | 1);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// The real Practice screen on the real passages, loaded as index.html loads them. Practice draws
+// with Math.random; `random`, when given, is the vm context's own (as practice-harness.js does).
+function mountPractice(random) {
   const app = { screens: {}, ui: {}, store: {}, api: { messages: {} }, router: {} };
   const context = { app, document: fakeDocument() };
+  if (random) {
+    context.Math = Object.create(Math, { random: { value: random } });
+  }
   for (const file of ["ui.js", "passages.js", "screens/practice.js"]) {
     vm.runInNewContext(source(file), context, { filename: file });
   }
@@ -192,7 +212,7 @@ test("read as written, a cold read says none of the habit words delivery.js coun
 // The Read tab shows one chip per group (tester feedback spec, section 2.3), and a group's chip
 // draws one of the group's passages on every tap.
 test("Practice's Read tab lists only the 24 practice passages, by group, never a cold read", () => {
-  const { app, modeOptions, chips } = mountPractice();
+  const { app, modeOptions, chips } = mountPractice(seededRandom(SEED));
   const read = modeOptions.find((option) => option.textContent === "Read");
   read.click();
   const shown = chips.filter((chip) => !chip.hidden);
@@ -217,16 +237,24 @@ test("Practice's Read tab lists only the 24 practice passages, by group, never a
   const coldIds = new Set(Array.from(app.passages.coldReads(), (entry) => entry.id));
   const coldChips = chips.filter((chip) => coldIds.has(chip.dataset.passageId));
   assert.deepEqual(coldChips, [], "no chip for a cold read");
-  // Every tap on a group's chip shows one of that group's practice passages, so the chips show
-  // the 24 and nothing else.
+  // Every tap on a group's chip shows one of that group's practice passages, and the taps reach
+  // each of them, so the chips show the 24 and nothing else.
   for (const chip of shown) {
     const members = practicePassages
       .filter((entry) => entry.group === chip.dataset.group)
       .map((entry) => entry.id);
-    for (let tap = 0; tap < 3; tap += 1) {
+    const seen = new Set();
+    const taps = TAPS_PER_PASSAGE * members.length;
+    for (let tap = 0; tap < taps && seen.size < members.length; tap += 1) {
       chip.click();
       const passage = app.screens.practice.selectedPassage();
       assert.ok(members.includes(passage.id), `${passage.id} under ${chip.textContent}`);
+      seen.add(passage.id);
     }
+    assert.deepEqual(
+      members.filter((id) => !seen.has(id)),
+      [],
+      `${taps} taps on ${chip.textContent} show every one of its passages`,
+    );
   }
 });
