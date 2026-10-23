@@ -837,8 +837,8 @@
 
   // A node's card and its Start, {card, start}: its lines, then Start when it has a play to
   // start, else `start` is null. Every Start is drawn secondary; the Units switch gives the
-  // shown unit's next step's the primary look. The next step's card is tinted, and every card
-  // points at its node.
+  // primary look to the Start on the shown unit's next step. The next step's card is tinted, and
+  // every card points at its node.
   function buildCard(id, card, pointer, isNext) {
     const children = card.lines.map((line) =>
       app.ui.el("p", { class: "path-card__text", text: line }),
@@ -860,8 +860,8 @@
     return { card: app.ui.el("div", { class: classes.join(" "), id }, children), start };
   }
 
-  // A card's Start is secondary, but for the screen's one primary button: the shown unit's
-  // next step's.
+  // The class of a card's Start: secondary, except for the screen's one primary button, the
+  // Start on the shown unit's next step.
   function startClass(primary) {
     return "btn " + (primary ? "btn--primary" : "btn--secondary") + " path-card__start";
   }
