@@ -72,7 +72,10 @@ test("through a silence the estimate holds still once it passes 1.5 s", () => {
     assert.equal(delivery.livePaceAt(before, at, 0.69), held, `at ${at} s`);
   }
   // A second into it the silence still counts, as any shorter pause does.
-  assert.equal(delivery.livePaceAt(before, 21, 0.69).toFixed(3), ((56 * 0.69 * 60) / 15).toFixed(3));
+  assert.equal(
+    delivery.livePaceAt(before, 21, 0.69).toFixed(3),
+    ((56 * 0.69 * 60) / 15).toFixed(3),
+  );
 });
 
 test("a 3 s pause at 150 wpm never says Speed up, and the number goes on from the held one", () => {
