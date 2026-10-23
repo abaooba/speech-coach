@@ -3,7 +3,9 @@
    tests one word); analyze(words, metrics) re-scores any saved take into the report Results, tips
    and Progress read, so they never mix two definitions. findStumbles(words) finds the words that
    ran long enough to hide a small stutter: a transcript hint that no report or score reads.
-   Pure: no DOM, no store, no I/O. */
+   livePace(sampleRate) estimates the pace from the microphone's samples while a take records,
+   and paceFactorAfter(factor, words, peaks) tunes that estimate from the take's words after.
+   Pure: no DOM, no store, no I/O, no Web Audio (samples come in as plain Float32Arrays). */
 (function () {
   "use strict";
 
@@ -96,6 +98,66 @@
   const MAX_UNCLEAR_WORDS = 5;
   // A word under three letters ("to", "of") has too little to judge.
   const UNCLEAR_MIN_LETTERS = 3;
+
+  // The live pace while a take records (spec 2026-10-22 section 7) counts syllable nuclei in the
+  // microphone's samples the way de Jong and Wempe (2009) do: a peak of loudness with a dip
+  // before it and a voice in it. Words are peaks times a words-a-peak factor. It runs on the
+  // phone and sends nothing. Loudness is read in the 100 to 5000 Hz band (the top kept under
+  // the Nyquist limit at low sample rates) over 32 ms windows, one every 8 ms.
+  const LIVE_LOW_HZ = 100;
+  const LIVE_HIGH_HZ = 5000;
+  const LIVE_HIGH_MAX_SHARE_OF_RATE = 0.45;
+  const LIVE_HOP_SECONDS = 0.008;
+  const LIVE_HOPS_PER_WINDOW = 4;
+  // A peak is at least 2 dB over the median loudness heard so far, at least 1.5 dB over the
+  // quietest window since the last peak, the loudest within 3 hops either side, and voiced.
+  const LIVE_ABOVE_MEDIAN_DB = 2;
+  const LIVE_MIN_DIP_DB = 1.5;
+  const LIVE_LOOKAHEAD_HOPS = 3;
+  // Voiced: the 40 ms around the peak repeat at a pitch between 75 and 400 Hz, a normalized
+  // autocorrelation of 0.45 or more. A hiss ("s") or a click never does.
+  const LIVE_VOICING_SECONDS = 0.04;
+  const LIVE_PITCH_LOW_HZ = 75;
+  const LIVE_PITCH_HIGH_HZ = 400;
+  const LIVE_MIN_VOICING = 0.45;
+  // The median comes from a histogram of every window's loudness in 0.25 dB bins from -120 dB
+  // (digital silence) to 0 dB (full scale), so a long take costs no more than a short one.
+  const LIVE_FLOOR_DB = -120;
+  const LIVE_CEILING_DB = 0;
+  const LIVE_BIN_DB = 0.25;
+  // The lowest sample rate the band and the pitch range fit in, and the recent band-passed
+  // audio kept for the voicing check behind the look-ahead (it needs about 60 ms).
+  const LIVE_MIN_SAMPLE_RATE = 8000;
+  const LIVE_KEPT_SECONDS = 0.25;
+  // A filter value this small is flushed to 0, so a silence never leaves denormal numbers.
+  const LIVE_FLUSH_BELOW = 1e-30;
+  // The number: words a minute over the trailing 15 s, or over the time since the first peak
+  // while that is shorter, shown once 5 s have passed since it and rounded to 5. A silence over
+  // 1.5 s keeps what the row shows, so a pause at a full stop never says Speed up.
+  const LIVE_WINDOW_SECONDS = 15;
+  const LIVE_MIN_SPEECH_SECONDS = 5;
+  const LIVE_ROUND_TO_WPM = 5;
+  const LIVE_SILENCE_SECONDS = 1.5;
+  // The cue: Slow down or Speed up once the number has been more than 10 wpm outside the band
+  // for 3 s, and On target again once it has been within that for 3 s. The number is an
+  // estimate some 10 wpm either way, so a smaller miss stays On target.
+  const LIVE_CUE_MARGIN_WPM = 10;
+  const LIVE_CUE_HOLD_SECONDS = 3;
+  const ON_TARGET = "on-target";
+  const SLOW_DOWN = "slow-down";
+  const SPEED_UP = "speed-up";
+  // Words a peak: 0.69 to start, between the owner's talk take (0.65) and read take (0.74).
+  // Each counted take then moves it halfway to its own words over peaks, one factor a mode (the
+  // caller keeps Talk and Read apart), kept within 0.45 and 1.1. A take counts with 20 s of
+  // speech and 30 words or more. A peak this close outside the first word or the last is
+  // still the take's: the recorder and the live tracker start a moment apart.
+  const LIVE_PACE_FACTOR = 0.69;
+  const PACE_FACTOR_MIN = 0.45;
+  const PACE_FACTOR_MAX = 1.1;
+  const PACE_FACTOR_WEIGHT = 0.5;
+  const PACE_FACTOR_MIN_SECONDS = 20;
+  const PACE_FACTOR_MIN_WORDS = 30;
+  const PACE_FACTOR_EDGE_SECONDS = 0.25;
 
   function normalizeWord(text) {
     return String(text || "").toLowerCase().replace(EDGE_PUNCTUATION, "");
@@ -797,6 +859,362 @@
     return Math.round(value * 1000) / 1000;
   }
 
+  // A live pace tracker for one take, at the microphone's `sampleRate` in Hz (8000 or more, a
+  // RangeError otherwise). push(samples) takes each block of samples as it arrives: a
+  // Float32Array of any length, read at once and never held (only the last LIVE_KEPT_SECONDS of
+  // band-passed audio stay). peaks() is a copy of the syllable peaks found so far, in seconds
+  // from the first sample pushed; seconds() is the audio pushed so far. read(at) is what the
+  // live row shows at `at` seconds (the audio pushed so far when left out), {wpm, cue} as
+  // nextLiveReading gives them, read about once a second and in time order. options.band is the
+  // entry's [lo, hi] the cue compares with; options.factor is the speaker's words a peak for
+  // the take's mode (LIVE_PACE_FACTOR when missing).
+  function livePace(sampleRate, options) {
+    if (!isFiniteNumber(sampleRate) || sampleRate < LIVE_MIN_SAMPLE_RATE) {
+      throw new RangeError(
+        "livePace needs a sample rate of " + LIVE_MIN_SAMPLE_RATE + " Hz or more",
+      );
+    }
+    const given = options && typeof options === "object" ? options : {};
+    const factor = paceFactorOf(given.factor);
+    const peaks = [];
+    const detector = peakDetector(sampleRate, (seconds) => peaks.push(seconds));
+    let reading = null;
+    function read(at) {
+      const now = at === undefined ? detector.seconds() : at;
+      const heard = peaks.filter((peak) => peak <= now);
+      reading = nextLiveReading(reading, {
+        at: now,
+        estimate: livePaceAt(heard, now, factor),
+        quietSeconds: heard.length > 0 ? now - heard[heard.length - 1] : Infinity,
+        band: given.band,
+      });
+      return { wpm: reading.wpm, cue: reading.cue };
+    }
+    return {
+      push: detector.push,
+      peaks: () => peaks.slice(),
+      seconds: detector.seconds,
+      read,
+    };
+  }
+
+  // The streaming half of livePace: each sample is band-passed and its energy summed into 8 ms
+  // hops; each new 32 ms window brings the window LIVE_LOOKAHEAD_HOPS before it up for a
+  // decision, and `found(seconds)` hears every one that is a syllable peak, at the window's
+  // middle. Every decision uses only the audio up to it, so a peak is known some 40 ms after
+  // its middle.
+  function peakDetector(sampleRate, found) {
+    const highPass = biquad("highpass", sampleRate, LIVE_LOW_HZ);
+    const lowPass = biquad(
+      "lowpass",
+      sampleRate,
+      Math.min(LIVE_HIGH_HZ, sampleRate * LIVE_HIGH_MAX_SHARE_OF_RATE),
+    );
+    const hop = Math.round(sampleRate * LIVE_HOP_SECONDS);
+    const windowSamples = hop * LIVE_HOPS_PER_WINDOW;
+    const recent = new Float32Array(powerOfTwoAtLeast(sampleRate * LIVE_KEPT_SECONDS));
+    const recentMask = recent.length - 1;
+    const hopEnergies = new Float64Array(LIVE_HOPS_PER_WINDOW);
+    // The levels of the latest windows: the one being decided and LIVE_LOOKAHEAD_HOPS each side.
+    const levels = new Float64Array(2 * LIVE_LOOKAHEAD_HOPS + 1);
+    const histogram = new Uint32Array(Math.round((LIVE_CEILING_DB - LIVE_FLOOR_DB) / LIVE_BIN_DB));
+    const voicing = voicingCheck(sampleRate, recent);
+    let pushed = 0;
+    let hopEnergy = 0;
+    let hopFill = 0;
+    let hops = 0;
+    let windows = 0;
+    let anyPeak = false;
+    let quietestSincePeak = Infinity;
+
+    function push(samples) {
+      const count = samples && samples.length > 0 ? samples.length : 0;
+      for (let i = 0; i < count; i += 1) {
+        // A value that is not a finite number (never one from a microphone) reads as silence,
+        // so it cannot poison the filters for the rest of the take.
+        const raw = samples[i];
+        const value = lowPass(highPass(raw - raw === 0 ? raw : 0));
+        recent[pushed & recentMask] = value;
+        pushed += 1;
+        hopEnergy += value * value;
+        hopFill += 1;
+        if (hopFill === hop) {
+          endHop();
+        }
+      }
+    }
+
+    function endHop() {
+      hopEnergies[hops % LIVE_HOPS_PER_WINDOW] = hopEnergy;
+      hops += 1;
+      hopEnergy = 0;
+      hopFill = 0;
+      if (hops >= LIVE_HOPS_PER_WINDOW) {
+        const energy = hopEnergies.reduce((sum, value) => sum + value, 0);
+        addWindow(levelOf(energy / windowSamples));
+      }
+    }
+
+    // Window n covers hops n to n + 3; its look-ahead is complete once window n + 3 is in.
+    function addWindow(level) {
+      levels[windows % levels.length] = level;
+      histogram[binOf(level, histogram.length)] += 1;
+      windows += 1;
+      const candidate = windows - 1 - LIVE_LOOKAHEAD_HOPS;
+      if (candidate >= LIVE_LOOKAHEAD_HOPS) {
+        decide(candidate);
+      }
+    }
+
+    function levelAt(index) {
+      return levels[index % levels.length];
+    }
+
+    function decide(index) {
+      const level = levelAt(index);
+      quietestSincePeak = Math.min(quietestSincePeak, level);
+      const last = index + LIVE_LOOKAHEAD_HOPS;
+      for (let other = index - LIVE_LOOKAHEAD_HOPS; other <= last; other += 1) {
+        if (other !== index && levelAt(other) > level) {
+          return;
+        }
+      }
+      if (level < medianLevel(histogram, windows) + LIVE_ABOVE_MEDIAN_DB) {
+        return;
+      }
+      if (anyPeak && level - quietestSincePeak < LIVE_MIN_DIP_DB) {
+        return;
+      }
+      const middle = index * hop + windowSamples / 2;
+      if (!voicing(middle)) {
+        return;
+      }
+      anyPeak = true;
+      quietestSincePeak = level;
+      found(middle / sampleRate);
+    }
+
+    return { push, seconds: () => pushed / sampleRate };
+  }
+
+  // Whether the band-passed audio around sample `middle` (held in `recent`, a ring indexed by
+  // sample number) is voiced: its normalized autocorrelation over LIVE_VOICING_SECONDS reaches
+  // LIVE_MIN_VOICING at a lag inside the pitch range. Running sums of squares give each lag's
+  // two energies at once.
+  function voicingCheck(sampleRate, recent) {
+    const mask = recent.length - 1;
+    const half = Math.round((sampleRate * LIVE_VOICING_SECONDS) / 2);
+    const length = 2 * half;
+    const minLag = Math.round(sampleRate / LIVE_PITCH_HIGH_HZ);
+    const maxLag = Math.min(length - 1, Math.round(sampleRate / LIVE_PITCH_LOW_HZ));
+    const stretch = new Float64Array(length);
+    const squares = new Float64Array(length + 1);
+    return (middle) => {
+      const from = middle - half;
+      for (let i = 0; i < length; i += 1) {
+        const value = recent[(from + i) & mask];
+        stretch[i] = value;
+        squares[i + 1] = squares[i] + value * value;
+      }
+      for (let lag = minLag; lag <= maxLag; lag += 1) {
+        const overlap = length - lag;
+        let product = 0;
+        for (let i = 0; i < overlap; i += 1) {
+          product += stretch[i] * stretch[i + lag];
+        }
+        const energies = squares[overlap] * (squares[length] - squares[lag]);
+        if (energies > 0 && product / Math.sqrt(energies) >= LIVE_MIN_VOICING) {
+          return true;
+        }
+      }
+      return false;
+    };
+  }
+
+  // A second-order filter from the RBJ audio cookbook, "highpass" or "lowpass" at `hz` with a Q
+  // of 1/sqrt(2), as a function from each sample to the filtered sample, keeping its own state.
+  function biquad(type, sampleRate, hz) {
+    const w0 = (2 * Math.PI * hz) / sampleRate;
+    const cos = Math.cos(w0);
+    const alpha = Math.sin(w0) * Math.SQRT1_2;
+    const a0 = 1 + alpha;
+    const edge = (type === "highpass" ? 1 + cos : 1 - cos) / 2 / a0;
+    const b0 = edge;
+    const b1 = (type === "highpass" ? -2 : 2) * edge;
+    const b2 = edge;
+    const a1 = (-2 * cos) / a0;
+    const a2 = (1 - alpha) / a0;
+    let x1 = 0;
+    let x2 = 0;
+    let y1 = 0;
+    let y2 = 0;
+    return (x) => {
+      let y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+      if (Math.abs(y) < LIVE_FLUSH_BELOW) {
+        y = 0;
+      }
+      x2 = x1;
+      x1 = x;
+      y2 = y1;
+      y1 = y;
+      return y;
+    };
+  }
+
+  function powerOfTwoAtLeast(value) {
+    let size = 1;
+    while (size < value) {
+      size *= 2;
+    }
+    return size;
+  }
+
+  // A window's loudness in dB from its mean square, never under LIVE_FLOOR_DB (a silent window's
+  // log is minus infinity).
+  function levelOf(meanSquare) {
+    return Math.max(LIVE_FLOOR_DB, 10 * Math.log10(meanSquare));
+  }
+
+  function binOf(level, bins) {
+    return Math.min(bins - 1, Math.max(0, Math.floor((level - LIVE_FLOOR_DB) / LIVE_BIN_DB)));
+  }
+
+  // The median of the `count` levels counted in `histogram`, as the middle of its bin.
+  function medianLevel(histogram, count) {
+    const rank = Math.floor(count / 2);
+    let seen = 0;
+    for (let bin = 0; bin < histogram.length; bin += 1) {
+      seen += histogram[bin];
+      if (seen > rank) {
+        return LIVE_FLOOR_DB + (bin + 0.5) * LIVE_BIN_DB;
+      }
+    }
+    return LIVE_CEILING_DB;
+  }
+
+  // The live estimate at `at` seconds from syllable peak times (seconds, in order): words a
+  // minute over the trailing LIVE_WINDOW_SECONDS, or over the time since the first peak while
+  // that is shorter, the first peak left out since it only starts the clock. Peaks after `at`
+  // are left out. Null until LIVE_MIN_SPEECH_SECONDS have passed since the first peak.
+  // Unrounded; `factor` is words a peak, read through paceFactorOf.
+  function livePaceAt(peaks, at, factor) {
+    const times = Array.isArray(peaks) ? peaks.filter(isFiniteNumber) : [];
+    if (times.length === 0 || !isFiniteNumber(at)) {
+      return null;
+    }
+    const sinceFirst = at - times[0];
+    if (sinceFirst < LIVE_MIN_SPEECH_SECONDS) {
+      return null;
+    }
+    const seconds = Math.min(LIVE_WINDOW_SECONDS, sinceFirst);
+    const counted =
+      sinceFirst <= LIVE_WINDOW_SECONDS
+        ? times.filter((time, index) => index > 0 && time <= at)
+        : times.filter((time) => time > at - LIVE_WINDOW_SECONDS && time <= at);
+    return perMinuteExact(counted.length * paceFactorOf(factor), seconds);
+  }
+
+  // The live row's next state, from the one before (null at the start of a take) and one read:
+  // `at` in seconds, `estimate` livePaceAt's words a minute (null until there is enough
+  // speech), `quietSeconds` the time since the latest peak and `band` the entry's [lo, hi].
+  // Returns {wpm, cue, pendingCue, pendingSince}: `wpm` the number to show, rounded to
+  // LIVE_ROUND_TO_WPM, or null until there is one; `cue` "on-target", "slow-down" or
+  // "speed-up", null without a number or a valid band. The cue starts On target and changes
+  // only once the number has called for another one for LIVE_CUE_HOLD_SECONDS, the cue it
+  // calls for held in `pendingCue` since `pendingSince`. A silence over LIVE_SILENCE_SECONDS
+  // keeps the state as it was.
+  function nextLiveReading(previous, sample) {
+    const state = previous || { wpm: null, cue: null, pendingCue: null, pendingSince: null };
+    const { at, estimate, quietSeconds, band } = sample || {};
+    const silent = typeof quietSeconds === "number" && quietSeconds > LIVE_SILENCE_SECONDS;
+    if (silent || !isFiniteNumber(estimate) || !isFiniteNumber(at)) {
+      return state;
+    }
+    const wpm = Math.round(estimate / LIVE_ROUND_TO_WPM) * LIVE_ROUND_TO_WPM;
+    const range = bandOf(band);
+    if (range === null) {
+      return { wpm, cue: null, pendingCue: null, pendingSince: null };
+    }
+    const called = cueFor(wpm, range);
+    const cue = state.cue === null ? ON_TARGET : state.cue;
+    if (called === cue) {
+      return { wpm, cue, pendingCue: null, pendingSince: null };
+    }
+    const since = state.pendingCue === called ? state.pendingSince : at;
+    if (at - since >= LIVE_CUE_HOLD_SECONDS) {
+      return { wpm, cue: called, pendingCue: null, pendingSince: null };
+    }
+    return { wpm, cue, pendingCue: called, pendingSince: since };
+  }
+
+  // The cue a number calls for against the band [lo, hi]: Slow down or Speed up only when it is
+  // more than LIVE_CUE_MARGIN_WPM outside.
+  function cueFor(wpm, [lo, hi]) {
+    if (wpm > hi + LIVE_CUE_MARGIN_WPM) {
+      return SLOW_DOWN;
+    }
+    if (wpm < lo - LIVE_CUE_MARGIN_WPM) {
+      return SPEED_UP;
+    }
+    return ON_TARGET;
+  }
+
+  // [lo, hi] for two numbers in order, else null.
+  function bandOf(band) {
+    const valid =
+      Array.isArray(band) &&
+      band.length === 2 &&
+      isFiniteNumber(band[0]) &&
+      isFiniteNumber(band[1]) &&
+      band[0] <= band[1];
+    return valid ? [band[0], band[1]] : null;
+  }
+
+  // Words a peak as the estimate uses it: a number kept within PACE_FACTOR_MIN and
+  // PACE_FACTOR_MAX, or LIVE_PACE_FACTOR for anything else (nothing kept yet).
+  function paceFactorOf(value) {
+    if (!isFiniteNumber(value)) {
+      return LIVE_PACE_FACTOR;
+    }
+    return Math.min(PACE_FACTOR_MAX, Math.max(PACE_FACTOR_MIN, value));
+  }
+
+  // The words-a-peak factor after a take, for the take's mode: `factor` (the speaker's kept one,
+  // read through paceFactorOf) moved PACE_FACTOR_WEIGHT of the way to the take's own words over
+  // peaks, that ratio kept within the same bounds, to a thousandth. Words are the transcript's
+  // without hesitation sounds, as Results counts pace; peaks are the tracker's inside the speech,
+  // the first word's start to the last word's end, give or take PACE_FACTOR_EDGE_SECONDS. A take
+  // under PACE_FACTOR_MIN_SECONDS of speech or PACE_FACTOR_MIN_WORDS words, or with no peak in
+  // its speech, leaves the factor as it was.
+  function paceFactorAfter(factor, words, peaks) {
+    const kept = paceFactorOf(factor);
+    const list = toWords(words);
+    if (list.length === 0) {
+      return kept;
+    }
+    const first = list[0].start;
+    const last = list[list.length - 1].end;
+    const counted = list.filter((word) => !isHesitation(word.text)).length;
+    const inSpeech = (Array.isArray(peaks) ? peaks : []).filter(
+      (time) =>
+        isFiniteNumber(time) &&
+        time >= first - PACE_FACTOR_EDGE_SECONDS &&
+        time <= last + PACE_FACTOR_EDGE_SECONDS,
+    ).length;
+    const counts =
+      last - first >= PACE_FACTOR_MIN_SECONDS && counted >= PACE_FACTOR_MIN_WORDS && inSpeech > 0;
+    if (!counts) {
+      return kept;
+    }
+    const own = paceFactorOf(counted / inSpeech);
+    return Math.round((kept + PACE_FACTOR_WEIGHT * (own - kept)) * 1000) / 1000;
+  }
+
+  // `count` a minute over `seconds`, unrounded.
+  function perMinuteExact(count, seconds) {
+    return (count * SECONDS_PER_MINUTE) / seconds;
+  }
+
   app.delivery = {
     analyze,
     classify,
@@ -806,11 +1224,16 @@
     isCountedPause,
     isLongPause,
     wordBeforePause,
+    livePace,
+    livePaceAt,
+    nextLiveReading,
+    paceFactorAfter,
     HESITATION,
     HABIT,
     HABIT_WORDS,
     LONG_PAUSE_SECONDS,
     UNCLEAR_CONFIDENCE,
     MAX_UNCLEAR_WORDS,
+    LIVE_PACE_FACTOR,
   };
 })();
