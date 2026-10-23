@@ -153,6 +153,12 @@
   // them without a copy of its own.
   const LIVE_CUE_MARGIN_WPM = 10;
   const LIVE_CUE_HOLD_SECONDS = 3;
+  // The row reads once a second of the clock, but the audio heard by then comes in whole blocks
+  // (1024 samples: 21 ms at 48 kHz, 128 ms at 8 kHz) and a tick can run late, so 3 s of the
+  // clock can hold a little under 3 s of audio. With half a read of slack a new cue shows on the
+  // read 3 s after the first that called for it: an error under half a second either way never
+  // puts it a read later or a read sooner.
+  const LIVE_CUE_HOLD_SLACK_SECONDS = 0.5;
   const ON_TARGET = "on-target";
   const SLOW_DOWN = "slow-down";
   const SPEED_UP = "speed-up";
@@ -1165,8 +1171,9 @@
   // LIVE_ROUND_TO_WPM, or null until there is one; `cue` "on-target", "slow-down" or
   // "speed-up", null without a number or a valid band. The first number shows the cue it calls
   // for; after that the cue changes only once the number has called for another one for
-  // LIVE_CUE_HOLD_SECONDS, the cue it calls for held in `pendingCue` since `pendingSince`. A
-  // silence over LIVE_SILENCE_SECONDS keeps the state as it was.
+  // LIVE_CUE_HOLD_SECONDS, less LIVE_CUE_HOLD_SLACK_SECONDS, the cue it calls for held in
+  // `pendingCue` since `pendingSince`. A silence over LIVE_SILENCE_SECONDS keeps the state as it
+  // was.
   function nextLiveReading(previous, sample) {
     const state = previous || { wpm: null, cue: null, pendingCue: null, pendingSince: null };
     const { at, estimate, quietSeconds, band } = sample || {};
@@ -1185,7 +1192,7 @@
       return { wpm, cue, pendingCue: null, pendingSince: null };
     }
     const since = state.pendingCue === called ? state.pendingSince : at;
-    if (at - since >= LIVE_CUE_HOLD_SECONDS) {
+    if (at - since >= LIVE_CUE_HOLD_SECONDS - LIVE_CUE_HOLD_SLACK_SECONDS) {
       return { wpm, cue: called, pendingCue: null, pendingSince: null };
     }
     return { wpm, cue, pendingCue: called, pendingSince: since };
