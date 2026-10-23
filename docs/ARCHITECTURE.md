@@ -74,7 +74,7 @@ saved on the phone.
 | `frontend/screens/practice.js` | Record, upload, level mode, the sample |
 | `frontend/screens/results.js` | Coach card, speech map, metric cards, rank card, words to check, transcript |
 | `frontend/screens/coachcard.js` | The Coach card at the top of Results: headline, moment-linked tips, the grammar check |
-| `frontend/screens/history.js` | Every take, newest first, with delete |
+| `frontend/screens/history.js` | Every take, newest first, with delete; a take read aloud says "Read" after its date |
 | `frontend/screens/progress.js` | One metric charted across takes, Talk and Read apart; the rank card and streak |
 | `frontend/screens/path.js` | The winding Path with its units and nodes |
 | `frontend/screens/level.js` | One Loop Path level: goal, take 1, review, take 2, result |
