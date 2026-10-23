@@ -31,8 +31,8 @@ Phone width, light and dark. The history is seeded with two real takes
   cited tips that point at moments in your take. Four stats, your rank and the marked
   transcript follow. "Words to check" chips say a word the transcriber was unsure of with your
   phone's own voice. On a talked take, "Check grammar & vocabulary" is an optional extra.
-- After a take or a level, a bottom sheet names the one next step. Each tab also opens a short
-  guide the first time you visit it.
+- After a take or a level, a bottom sheet names the one next step. Practice and the first Path
+  level you open each show a short guide once.
 - Progress: one metric charted across your takes, with your latest, your best and your change
   from the average, under your rank and streak. Talk and Read takes are charted apart, and only
   Talk takes count for the rank: a passage read aloud has no filler words to say.
