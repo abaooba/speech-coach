@@ -1258,8 +1258,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* Short screens (320 x 568, landscape phones, 200% zoom): the card's floor keeps its title, its
-   target and two full lines of text above the fade, and the record zone tightens to make room:
-   a 72px record button, --s-2 and --s-1 gaps, no hint words. */
+   target and two full lines of text above the fade (one under a two-line title), and the record
+   zone tightens to make room: a 72px record button, --s-2 and --s-1 gaps, no hint words. */
 @media (max-height: 600px) {
   #screen-practice .passage-card {
     min-height: 148px;
@@ -1295,6 +1295,17 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    scrolls anyway. */
 @media (max-height: 600px) and (max-width: 479px) {
   #screen-practice .practice__hint {
+    display: none;
+  }
+}
+
+/* On the Read tab, phones 650px tall or less (360 x 640) also drop the hint's words and the
+   sample button: beside New passage a title takes two or three lines, and with them in place the
+   passage kept no line clear of the fade. The empty row keeps its --s-1. Talk keeps both, and the
+   sample stays one tab away. practice.js marks the screen with its tab's kind. */
+@media (max-height: 650px) and (max-width: 479px) {
+  #screen-practice[data-kind="passage"] .practice__hint-text,
+  #screen-practice[data-kind="passage"] .practice__sample {
     display: none;
   }
 }

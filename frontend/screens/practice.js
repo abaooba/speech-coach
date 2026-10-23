@@ -899,6 +899,9 @@
     const view = viewFor(nextState);
     state = nextState;
     root.dataset.state = view.dataState;
+    // The tab's kind, as the chips and New topic carry it: on short phones styles.css hides the
+    // Read tab's hint words and sample button (section 7).
+    root.dataset.kind = currentKind;
 
     const passage = shownEntry();
     paintModeSwitch(view);
