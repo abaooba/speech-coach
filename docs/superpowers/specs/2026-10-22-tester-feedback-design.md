@@ -56,8 +56,8 @@ docs/superpowers/specs/2026-10-18-fresh-reads-and-rehearsal-design.md.
   - Only what shows counts. The Talk tab opens on its first prompt, so that prompt's topic at
     mount counts. Another prompt's topic at mount never shows: a tap on its chip draws it one
     first. That topic was never on screen, so the Path's rule does not pass over it: when it is
-    the one topic left unused, or the one used longest ago, the tap gives it. A level's material
-    is the request's, drawn by the Path, and does not count.
+    the one topic left unused, or, with every topic used, the one used longest ago, the tap
+    gives it. A level's material is the request's, drawn by the Path, and does not count.
   - The list lives in module state only. It is never saved, never sent, and never read by
     Progress, History, the rank or the Path, whose own draws read the takes alone, as before.
   - Each showing goes to the draw as one more history entry, with the fields the draw reads:

@@ -294,11 +294,11 @@ test("with no takes at all, the taps show every topic and passage once before an
 
 // Mount put the second prompt on Question four., which never showed, so the first tap on its chip
 // has no topic of that prompt on screen to pass over: it gives four when four is the one question
-// no take used, or the one used longest ago. Then each tap passes over the question on screen and
-// takes the one used or shown longest ago, so the taps go round the questions in the order the
-// takes used them, four first, and none comes back before the other five have shown. Before, the
-// first tap passed over four as if it were on screen and gave two, the oldest of the others, and
-// only the second tap gave four.
+// no take used, or, with every question used, the one used longest ago. Then each tap passes over
+// the question on screen and takes the one used or shown longest ago, so the taps go round the
+// questions in the order the takes used them, four first, and none comes back before the other
+// five have shown. Before, the first tap passed over four as if it were on screen and gave two,
+// the oldest of the others, and only the second tap gave four.
 
 test("another prompt's one unused topic, drawn for it at mount and never shown: its first tap gives it", async () => {
   for (const [name, control] of Object.entries(SECOND_TAPS)) {
@@ -310,7 +310,7 @@ test("another prompt's one unused topic, drawn for it at mount and never shown: 
   }
 });
 
-test("another prompt's topic used longest ago, drawn for it at mount and never shown: its first tap gives it", async () => {
+test("with every topic used, another prompt's topic used longest ago, drawn for it at mount and never shown: its first tap gives it", async () => {
   for (const [name, control] of Object.entries(SECOND_TAPS)) {
     const t = await bothPromptsWith(answersTo(NUMBERS));
     assert.equal(t.practice.selectedPassage().id, PROMPT.id, `${name}: Talk opens on the first`);
