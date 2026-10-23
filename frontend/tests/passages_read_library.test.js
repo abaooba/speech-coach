@@ -2,10 +2,14 @@
 // (docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 3): the Read tab holds
 // 24 passages, six in each of its four groups, each group under the rules of section 3.1, and
 // app.passages.coldReads() holds 30 cold reads, the old fifteen first, under the rules of 3.2.
-// Ids and titles stay unique across everything passages.js hands out. The rules the other
-// passage tests already run over every entry stay there: no exclamation mark
-// (passages_content.test.js), a cold read's plain sentences (passages_cold.test.js) and clean
-// words (passages_everyday.test.js). Modules load with vm.runInNewContext.
+// Every Read passage is plain sentences, and the explainers and stories also read cleanly, as
+// the first explainer and story do in passages_everyday.test.js. Ids and titles stay unique
+// across everything passages.js hands out, and no title can break a line after a leading
+// hyphen. Other files keep the rules they already run: no exclamation mark anywhere in
+// passages.js (passages_content.test.js); the cold reads' and the benchmark read's plain
+// sentences and clean words (passages_cold.test.js and passages_everyday.test.js); and no filler
+// when a text is read as written (passages_read_as_written.test.js). Modules load with
+// vm.runInNewContext.
 "use strict";
 
 const test = require("node:test");
@@ -244,6 +248,16 @@ test("only speeches carry a source, each 'Speaker, work, year' as checked", () =
   );
   for (const entry of sourced) {
     assert.match(entry.source, SOURCE_FORMAT, `source of ${entry.id}`);
+  }
+});
+
+test("every Read passage is plain sentences: a capital first, a stop or question mark last", () => {
+  const passages = readPassages();
+  assert.equal(passages.length, 24, "six passages in each of the four groups");
+  for (const { id, text } of passages) {
+    assert.match(text, /^[A-Z]/, `${id} starts a sentence`);
+    assert.match(text, /[.?]$/, `${id} ends a sentence`);
+    assert.doesNotMatch(text, /\s{2}/, `${id} has a doubled space`);
   }
 });
 

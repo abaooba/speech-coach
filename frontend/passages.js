@@ -1075,9 +1075,9 @@
   // The benchmark (docs/superpowers/specs/2026-10-14-loop-path.md section 5): one passage to read
   // and one prompt to talk on, held out from everything else, so the same two at every sitting
   // show real progress outside the path. Neither is an entry of app.passages or a cold read, so
-  // no other take ever practises them. The read keeps the cold reads' rules: original everyday
-  // prose (an explainer), 140 to 180 words, with no digit, symbol, quotation mark, number word or
-  // habit word.
+  // no other take ever practises them. The read is original everyday prose (an explainer) of 140
+  // to 180 words, and like the cold reads it holds no digit, symbol, quotation mark, number word
+  // or habit word.
   const BENCHMARK_TARGET_WPM = [140, 160];
   const BENCHMARK_TALK_SECONDS = 90;
 
