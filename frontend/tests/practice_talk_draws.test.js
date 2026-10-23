@@ -380,6 +380,68 @@ test("a take deleted in History stops steering the draws once show() lists the s
   assert.equal(cardText(t), "Third topic.", "no take uses Third topic. any more");
 });
 
+// A take from an earlier visit, on Third, which the first show() lists. Listed again at the next
+// show(), it still keeps Third out, and the draw at 0.99 of Second and Third gives Second.
+// Deleted in History before that show(), it is missing from the next answer, which replaces the
+// takes listed before, so the draw gives Third. Were each answer added to the ones before, the
+// deleted take would steer the draws until the app reloaded, and the draw would give Second.
+test("a listed take deleted in History stops steering the draws once the next list answers", async () => {
+  const onThird = talkOn("day", "Third topic.");
+  const cases = [
+    [[onThird], "Second topic.", "listed again, the take still counts"],
+    [[], "Third topic.", "deleted in History, the take no longer counts"],
+  ];
+  for (const [nextList, topic, message] of cases) {
+    const lists = [[onThird], nextList];
+    const random = drawOf(0);
+    const t = setup({
+      passages: PASSAGES,
+      random,
+      withPath: true,
+      list: () => Promise.resolve(plain(lists.shift() || [])),
+    });
+    assert.equal(cardText(t), "First topic.", "drawn at mount");
+    t.practice.show({});
+    await flush();
+    t.practice.hide();
+    t.practice.show({});
+    await flush();
+    assert.equal(lists.length, 0, "each show() asked the store");
+    random.value = 0.99;
+    parts(t).newTopic.click();
+    assert.equal(cardText(t), topic, message);
+  }
+});
+
+// A take saved here counts until a list asked for after it answers, which then holds it unless
+// History has deleted it. So while the next show()'s list is still out, the level take on Third
+// still counts: the draw at 0.99 of Second and Third passes over Third and gives Second. Were the
+// takes saved here dropped as soon as that list was asked for, the draw would give Third.
+test("a take saved here still counts while the next show()'s list is out", async () => {
+  const random = drawOf(0);
+  const answers = [];
+  const t = setup({
+    passages: PASSAGES,
+    random,
+    withPath: true,
+    list: () => new Promise((resolve) => answers.push(resolve)),
+  });
+  t.startLevel(levelOnThird());
+  answers.shift()([]);
+  await flush();
+  await t.recordTake(12000);
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "Third topic.");
+  assert.equal(cardText(t), "First topic.", "back on the topic Talk drew at mount");
+  t.practice.hide();
+  t.practice.show({});
+  assert.equal(answers.length, 1, "the list this show() asked for is still out");
+  random.value = 0.99;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "Third topic. was used");
+});
+
 // A take saved while show()'s list is still out may be missing from its answer, so it still
 // counts once that list answers without it: the draw at 0.99 passes over Third, which the take
 // used, and gives Second, the one topic left.
