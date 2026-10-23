@@ -354,7 +354,7 @@ keyboard.
 2. Tap "Start practicing": Practice shows with the nav. Reload: Practice opens directly, and
    the onboarding flag snippet prints `true`.
 
-**Practice (about one minute).** Start the server as under Manual checks.
+**Practice (about seven minutes).** Start the server as under Manual checks.
 
 1. Talk and Read: Practice opens on the Talk tab with "About you 1:00" selected. The chips
    read "About you 1:00", "Impromptu 2:00", "Interview answer 1:30", "Explain something 2:00"
@@ -406,19 +406,21 @@ keyboard.
    out on its second. On Read a one-line title leaves two lines of the passage clear, a
    two-line title one. At 360 x 640 the Read tab also hides the hint's words and the sample
    button, so a passage keeps four, three or two lines clear beside a title of one, two or
-   three lines. At 320 x 568 the card shows two lines above its fade, the whole topic for all
-   but the longest two: the hint and the sample button hide, the record button shrinks and the
-   gaps under the card tighten, so the button and its label sit above the nav with no page
-   scroll. On Read there New passage shows its icon alone, and a one-line title leaves two
-   lines of the passage clear, a two-line title one. An error block from the table takes the
-   card's place too, so the whole block, both actions included, sits above the nav with no
-   page scroll; the selected chip still names the option. Tap Record: the nav hides and the
-   card grows into its room, less the live pace row's line under the clock. In landscape
-   (667 x 375) the card keeps two lines, the sample button stays, and the page scrolls. At 200%
-   zoom (187 x 333) the hint and the sample button hide as on a small phone and the page
-   scrolls, but the card stays at its 148px floor and the title beside the card's button fills
-   it: in idle no line of the topic or passage is clear of the fade, and "About you" breaks
-   into a letter or two a line beside New topic.
+   three lines. Talk keeps them there: the page scrolls 38px, and until it does the nav covers
+   the bottom of the script box's summary. At 320 x 568 the card shows two lines above its
+   fade, the whole topic for all but the longest two: the hint and the sample button hide, the
+   record button shrinks and the gaps under the card tighten, so the button and its label sit
+   above the nav with no page scroll. On Read there New passage shows its icon alone, and a
+   one-line title leaves two lines of the passage clear, a two-line title one. An error block
+   from the table takes the card's place too and sits above the nav with no page scroll. In
+   normal mode each has one action and the selected chip still names the option; a level
+   take's Upload failed block, the only one with two actions, fits under the level banner with
+   both. Tap Record: the nav hides and the card grows into its room, less the live pace row's
+   line under the clock. In landscape (667 x 375) the card keeps two lines, the sample button
+   stays, and the page scrolls. At 200% zoom (187 x 333) the hint and the sample button hide as
+   on a small phone and the page scrolls, but the card stays at its 148px floor and the title
+   beside the card's button fills it: in idle no line of the topic or passage is clear of the
+   fade, and "About you" breaks into a letter or two a line beside New topic.
 
 6. Theme toggle: the icon right of "Speech Coach" is a half-filled circle for Auto, and a
    screen reader names it "Theme: Auto. Switch to dark." Tap it: the page turns dark whatever
@@ -426,7 +428,7 @@ keyboard.
    again for Light (a sun, "Theme: Light"), and again for Auto (the device setting decides).
    Reload: the choice is kept. The header stays one line, as tall as the "Practice" heading.
 
-**Results (about two minutes).** Needs one saved session, so run the Practice happy path
+**Results (about fifteen minutes).** Needs one saved session, so run the Practice happy path
 first; the hash is then `#/results/<id>`. Without a microphone, Practice in idle shows "See a
 sample result", which opens a sample take on this screen: "Sample: Explain something", a short
 explanation of making coffee.
