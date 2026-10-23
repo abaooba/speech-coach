@@ -465,6 +465,23 @@ test("the pick is kept through a redraw from a changed store and a visit elsewhe
   assert.equal(store.calls, 3);
 });
 
+test("with no tap, the unit shown first is kept through a visit and a changed store", async () => {
+  const { app, body, screen, store } = await shown({ sessions: [fillerHeavyTake("2026-10-13")] });
+  assertShown(body, "Fillers");
+  screen.hide();
+  store.sessions = [];
+  // With no takes app.path.order falls back to UNITS, so a first draw now would show Restarts.
+  const order = Array.from(app.path.order(store.sessions), (pathUnit) => pathUnit.title);
+  assert.deepEqual(order, ["Restarts", "Fillers", "Long pauses", "Pace"]);
+  await screen.show({});
+  assert.deepEqual(unitsOf(body).map(titleOf), order, "redrawn in the new order");
+  assert.equal(store.calls, 2);
+  assertShown(body, "Fillers");
+  const primaries = primariesOf(body);
+  assert.equal(primaries.length, 1);
+  assert.equal(primaries[0], firstLevelStart(body, "Fillers"));
+});
+
 test("the due chip starts the first check-back due and leaves the pick alone", async () => {
   const cleared = [
     record("pace-1", "2026-10-07"),
