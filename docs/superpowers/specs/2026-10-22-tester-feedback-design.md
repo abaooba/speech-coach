@@ -206,7 +206,7 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
   mode's second take and 8.3% on its third; the two real takes are within 7%. So the row waits
   for the factor. A take that starts while its mode (Talk or Read, by the mode it records in:
   Read when a script goes with it) has no take that counts for the factor (20 seconds and 30
-  words) says "Live pace starts after a 20 s talk." or "Live pace starts after a 20 s read." in
+  words) says "Live pace starts after a 30 s talk." or "Live pace starts after a 30 s read." in
   the waiting sentence's look, from its first paint to its end, and never a number or a cue: in
   the app the untuned cue was right on only 1 of 4 first takes (the write-up's "End to end in
   the app"). Its blocks still reach the tracker, so the take tunes its mode when it counts. A
@@ -225,7 +225,7 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
 - how.html: "While you record, a live pace shows under the clock. Your phone estimates it from
   the beats of your syllables. Results counts your real words, so the two can differ. The live
   pace runs on your phone and sends nothing." and, after it: "It tunes itself to your voice,
-  once for Talk and once for Read. It starts after your first take of 20 seconds or more in
+  once for Talk and once for Read. It starts after your first take of 30 seconds or more in
   each."
 
 ## 8. Tests and docs
