@@ -1,9 +1,12 @@
 // The live pace's words (spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md section
 // 7): how.html says, word for word and once each, that a live pace shows under the clock while
-// you record, that the phone estimates it and sends nothing, and that it tunes itself once for
-// Talk and once for Read, so it starts after the first take of 30 seconds or more in each. Those
-// paragraphs get a section of their own just before "Your audio", whose privacy sentences stay
-// as they were. The row's fixed sentence lives in one string literal, in practice.js.
+// you record, that the phone estimates it and sends nothing, and that it tunes itself for Talk
+// and for Read apart, from the first take of 30 seconds or more in each, again with every take
+// that long, and in a Path level too, where the row stays hidden. It never says it tunes once:
+// every take that counts moves its mode's factor halfway to its own words a peak (practice.js
+// tunePace, delivery.js paceFactorAfter). Those paragraphs get a section of their own just
+// before "Your audio", whose privacy sentences stay as they were. The row's fixed sentence lives
+// in one string literal, in practice.js.
 "use strict";
 
 const test = require("node:test");
@@ -22,8 +25,10 @@ const FIRST_PARAGRAPH = [
   "The live pace runs on your phone and sends nothing.",
 ];
 const SECOND_PARAGRAPH = [
-  "It tunes itself to your voice, once for Talk and once for Read.",
+  "It tunes itself to your voice, separately for Talk and for Read.",
   "It starts after your first take of 30 seconds or more in each.",
+  "Every take that long tunes it again.",
+  "During a Path level it stays hidden, but your takes still tune it.",
 ];
 
 // Text as a reader sees it: no tags, no comments, one space between words.
