@@ -49,7 +49,7 @@ const READ_PASSAGES = {
     ["drill-th-sounds", "Drill: th as in think and this"],
     ["drill-r-and-l", "Drill: r and l sounds"],
     ["drill-v-and-w", "Drill: v and w sounds"],
-    ["drill-word-endings", "Drill: word endings and -ed"],
+    ["drill-word-endings", "Drill: word endings"],
   ],
 };
 
@@ -303,6 +303,16 @@ test("ids are slugs and titles short, each used once, across all of passages.js"
     assert.ok(title.length < MAX_TITLE_LENGTH, `"${title}" is ${title.length} long`);
   }
   assert.equal(new Set(titles).size, titles.length, "a title is used twice");
+});
+
+// A browser may break a line right after a hyphen, so a word that starts with one ("-ed") would
+// leave its last letters alone on the card's next line.
+test("no title has a word that starts with a hyphen or a dash", () => {
+  const benchmark = APP.passages.benchmark();
+  const titled = [...Array.from(APP.passages), ...coldReads(), benchmark.read, benchmark.talk];
+  for (const { id, title } of titled) {
+    assert.doesNotMatch(title, /(?:^|\s)[-‐‑–—]/, `title of ${id}`);
+  }
 });
 
 test("each new text keeps its exact word count", () => {

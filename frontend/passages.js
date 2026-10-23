@@ -654,7 +654,7 @@
     {
       id: "drill-word-endings",
       kind: "passage",
-      title: "Drill: word endings and -ed",
+      title: "Drill: word endings",
       text: DRILL_WORD_ENDINGS,
       targetWpm: [120, 140],
       group: "drill",
