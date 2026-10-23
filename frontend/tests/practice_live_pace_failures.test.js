@@ -3,7 +3,9 @@
 // Display). A recorder that cannot start means no take: the live pace capture, the microphone and
 // the pause sampler all go at once, the block a refused microphone shows takes the record zone,
 // and the next take's capture is the only one left open. A context that refuses to resume never
-// hands over a block, so its capture goes too and the row hides for the rest of the take.
+// hands over a block, so its capture goes too and the row hides for the rest of the take, its
+// box kept so the clock above it stays put; so does one whose resume() has not answered by 0:03,
+// since no block has reached it.
 "use strict";
 
 const test = require("node:test");
@@ -11,7 +13,10 @@ const assert = require("node:assert/strict");
 
 const { byClass } = require("./fake-dom");
 const { flush } = require("./practice-harness");
-const { SECOND, assertReleased, graph, paceRow, setup } = require("./live-pace-harness");
+const { SECOND, assertReleased, block, graph, paceRow, setup } = require("./live-pace-harness");
+
+// The class styles.css keeps a hidden row's box for, while its take records.
+const HELD = "practice__pace--held";
 
 const MIC_BLOCKED_TITLE = "Microphone blocked";
 const MIC_BLOCKED_BODY =
@@ -138,11 +143,15 @@ test("a context that refuses to resume lets its capture go, and the row hides fo
   assert.equal(g.context.resumes, 1, "it was asked once");
   assertReleased(g);
   assert.equal(paceRow(t).hidden, true);
+  // The refusal comes after the take's first paint, so the row keeps its box (styles.css).
+  assert.ok(paceRow(t).classList.contains(HELD), "its box held");
   t.clock.advance(8 * SECOND);
   assert.equal(paceRow(t).hidden, true, "for the whole take");
+  assert.ok(paceRow(t).classList.contains(HELD), "its box held for the whole take");
   assert.equal(t.root.dataset.state, "recording", "the take records on");
   assert.equal(t.clock.activeIntervals(), 1, "the clock's one tick");
   await t.stopRecording();
+  assert.ok(!paceRow(t).classList.contains(HELD), "Stop lets the box go");
   t.app.delivery.nextFactor = 0.75;
   t.resolveUpload();
   await flush();
@@ -161,15 +170,22 @@ test("a context that resumes late, once asked, keeps its capture and the row", a
   assert.equal(g.context.closes, 0);
   assert.equal(typeof g.processor.onaudioprocess, "function");
   assert.equal(paceRow(t).hidden, false);
+  // Resumed, it hands over blocks, so 0:03 keeps it too.
+  block(t);
+  t.clock.advance(4 * SECOND);
+  assert.equal(g.context.closes, 0, "still open at 0:06");
+  assert.equal(paceRow(t).hidden, false);
 });
 
 test("a refusal that comes after its take has ended leaves the next take's capture alone", async () => {
   const t = setup({ audio: { state: "suspended", holdResume: true } });
   await t.startRecording();
   const first = graph(t);
-  t.clock.advance(6 * SECOND);
+  t.clock.advance(3 * SECOND);
+  assert.equal(first.context.closes, 1, "no block by 0:03 let the first capture go");
+  t.clock.advance(3 * SECOND);
   await t.stopRecording();
-  assert.equal(first.context.closes, 1, "Stop let the first capture go");
+  assert.equal(first.context.closes, 1, "Stop found it gone");
   t.clock.advance(SECOND);
   await t.startRecording();
   const second = graph(t);

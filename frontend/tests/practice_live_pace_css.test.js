@@ -3,7 +3,8 @@
 // one centred line in the timer's third row, --s-2 under the bar (--s-1 on short screens), the
 // number --muted at 500 and the cue at 600 in --ok or --warn with its icon drawn first; the two
 // parts never break inside, so at 200% zoom the row wraps between them. Tokens only, nothing
-// animates, and [hidden] beats the flex display.
+// animates, and [hidden] beats the flex display, except for a row whose capture went mid-take:
+// it keeps its box, out of sight, while its take records.
 "use strict";
 
 const test = require("node:test");
@@ -104,6 +105,17 @@ test("the row spans the timer's third row: one centred, wrapping flex line under
 
 test("the hidden attribute beats the row's flex display", () => {
   assert.deepEqual(ruleFor([".practice__pace[hidden]"]), { display: "none" });
+});
+
+test("a held row keeps its box out of sight while its take records, over the [hidden] rule", () => {
+  const held = '#screen-practice[data-state="recording"] .practice__pace--held[hidden]';
+  assert.deepEqual(ruleFor([held]), { display: "flex", visibility: "hidden" });
+  // The id outranks .practice__pace[hidden]; it also comes after it.
+  assert.ok(CSS.indexOf(held + " {") > CSS.indexOf("\n.practice__pace[hidden] {"));
+  const heldRules = paceRules().filter((rule) =>
+    rule.selectors.some((selector) => selector.includes("practice__pace--held")),
+  );
+  assert.equal(heldRules.length, 1, "no other rule styles a held row");
 });
 
 test("the number and the cue never break inside; nothing else in the row is held to one line", () => {

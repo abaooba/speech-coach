@@ -17,15 +17,24 @@ before the live row was built. This note keeps the method, the numbers and the v
   falls as speech slows (about 10% per 50 wpm within a voice), so a factor tuned at one pace
   pulls the number toward that pace. End to end, a 121 wpm take read 137 on average after tuning
   at 149, and Speed up never showed (End to end in the app, below). Slow speakers are the ones
-  this misses. It is TTS only: check with real slow takes before relying on Speed up.
+  this misses. It is TTS only: check with real slow takes before relying on Speed up. Open
+  item: a factor that depends on pace (words a peak as a function of the peak rate) would follow
+  a speaker who slows down; it is not built.
 - **The owner's two real takes are within 7%**: read -6.4%, talk +4.4%. The start factor 0.69
   came from these same two takes, so this is in-sample. They are the only human speech here.
-- **So the number waits for the factor** (spec section 7, Validation result). Until a mode, Talk
-  or Read, has one take of 20 seconds and 30 words, its row shows the cue words alone. After
+- **So the row waits for the factor** (spec section 7, Validation result). Until a mode, Talk or
+  Read, has one take of 20 seconds and 30 words, its row says "Live pace starts after a 20 s
+  talk." or "Live pace starts after a 20 s read." and shows no number and no cue, because in the
+  app the untuned cue was right on only 1 of 4 first takes (End to end in the app, below). After
   that it shows "About 150 wpm" and the cue.
 - Noise: white noise at 20 and 10 dB SNR changes nothing that matters. A continuous second voice
   adds peaks: at -12 dB, +1% on the real read and +8% on the real talk; at -6 dB, +14% and +20%.
-- CPU: 0.25% of one core at 48 kHz on a Mac. Not measured on a phone.
+- CPU on a Mac (2026-10-23, the owner's two real takes joined, 67 s, each push timed): a
+  1024-sample block costs 0.05 ms on average in node and 0.10 to 0.18 ms in headless Chrome on
+  the Practice page, under 1% of its 21.3 ms at 48 kHz. The slowest 5% take up to 0.3 ms in
+  node and 0.9 ms in Chrome, the worst block 2.3 ms and 4.1 ms. 44.1 kHz costs about the same.
+  A 10-minute take's tracker grows only by its list of peaks, some 17 kB from the first minute
+  to the tenth. Not measured on a phone.
 
 ## Method
 
@@ -177,8 +186,8 @@ only the first-cue rule moves their cues:
 - The talk take's pauses of 1.6 to 3.0 s now read higher afterwards: the median gap between the
   shown number and Results' pace went from +1.5 to +4.7 wpm.
 - The whole-clip and window error figures are unchanged.
-- Before a mode is tuned, the row shows the cue alone, and the uncalibrated cue figures above
-  apply to it.
+- Before a mode is tuned, the row showed the cue alone, so the uncalibrated cue figures above
+  applied to it. It now shows no cue until then (End to end in the app, below).
 - Since this re-run, the cue hold allows half a read of slack (`LIVE_CUE_HOLD_SLACK_SECONDS`).
   The audio at each once-a-second read comes in whole blocks, so 3 clock seconds often held
   2.98 s of audio, and a new cue waited a fourth second. The replay reads at whole seconds, so
@@ -201,7 +210,12 @@ factor is the mode's kept one when the take began.
 | Talk, tuned again | 140 to 160 | 0.703 | 108 | 105 to 135 (mean 120, +11%), Speed up from 0:22 | late: called from 0:18 |
 
 - The untuned cue was right on 1 of 4 first takes, in line with the uncalibrated figures above.
-- After tuning, the number was pulled toward the pace the factor was tuned at.
+  So the app no longer shows it: until a mode is tuned, the row says "Live pace starts after a
+  20 s talk." or "Live pace starts after a 20 s read." for the whole take, with no number and
+  no cue. The Row column is what these takes showed before that change.
+- After tuning, the number was pulled toward the pace the factor was tuned at. That limit stays
+  open: a slow take still reads fast after tuning (121 wpm showed as 137 on average, and Speed
+  up never appeared). A factor that depends on pace is the follow-up.
 - The Speed up first called at 0:18 waited for 0:22, a fourth second; with the hold's slack it
   shows at 0:21.
 

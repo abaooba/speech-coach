@@ -78,18 +78,25 @@ test("only the first block sets the move: blocks after it leave the peaks where 
 });
 
 test("in level mode the capture collects peaks for the tuning, but the tracker is never read", async () => {
-  const { request } = levelRequest();
-  const t = setup();
-  t.startLevel(request);
-  await t.startRecording();
-  for (let second = 0; second < 12; second += 1) {
-    block(t);
-    t.clock.advance(SECOND);
+  // Tuned too: an untuned take is never read anyway, while a tuned one is read once a second
+  // in normal mode, so only level mode keeps it unread.
+  for (const tuned of [false, true]) {
+    const label = tuned ? "tuned" : "untuned";
+    const { request } = levelRequest();
+    const t = setup({ flags: tuned ? { [TALK_FLAG]: 0.8 } : {} });
+    t.startLevel(request);
+    await flush();
+    await t.startRecording();
+    const tracker = lastTracker(t);
+    assert.equal(tracker.options.factor, tuned ? 0.8 : null, label + ": Talk's kept factor");
+    for (let second = 0; second < 12; second += 1) {
+      block(t);
+      t.clock.advance(SECOND);
+    }
+    assert.equal(tracker.blocks.length, 12, label + ": every block reaches the tracker");
+    assert.equal(tracker.reads, 0, label + ": nothing reads it");
+    assert.equal(paceRow(t).hidden, true, label);
   }
-  const tracker = lastTracker(t);
-  assert.equal(tracker.blocks.length, 12, "every block reaches the tracker");
-  assert.equal(tracker.reads, 0, "nothing reads it");
-  assert.equal(paceRow(t).hidden, true);
 });
 
 // --- what a take keeps ---
@@ -155,5 +162,5 @@ test("with delivery.js's tuning, the same words a peak over 17.8 s keeps nothing
   await t.startRecording();
   assert.equal(lastTracker(t).options.factor, null, "still none");
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
-  assert.equal(rowView(t).text, "On target", "the cue alone");
+  assert.equal(rowView(t).text, "Live pace starts after a 20 s talk.", "still untuned");
 });

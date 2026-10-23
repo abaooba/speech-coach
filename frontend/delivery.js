@@ -165,8 +165,9 @@
   // Words a peak: 0.69 to start, between the owner's talk take (0.65) and read take (0.74).
   // Each counted take then moves it halfway to its own words over peaks, one factor a mode (the
   // caller keeps Talk and Read apart), kept within 0.45 and 1.1. A take counts with 20 s of
-  // speech and 30 words or more. A peak this close outside the first word or the last is
-  // still the take's: the recorder and the live tracker start a moment apart.
+  // speech and 30 words or more; the 20 s is exported, since Practice's live row says it until
+  // a mode is tuned. A peak this close outside the first word or the last is still the take's:
+  // the recorder and the live tracker start a moment apart.
   const LIVE_PACE_FACTOR = 0.69;
   const PACE_FACTOR_MIN = 0.45;
   const PACE_FACTOR_MAX = 1.1;
@@ -1304,5 +1305,6 @@
     UNCLEAR_CONFIDENCE,
     MAX_UNCLEAR_WORDS,
     LIVE_PACE_FACTOR,
+    PACE_FACTOR_MIN_SECONDS,
   };
 })();

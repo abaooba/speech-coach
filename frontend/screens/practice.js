@@ -11,9 +11,10 @@
    docs/superpowers/specs/2026-10-14-loop-path.md section 7) a level banner stands in for the
    switch and the chips, the take uploads in place, and the saved take goes back to the Level
    screen instead of Results. While a normal take records, a row under the clock shows the pace
-   the phone estimates from the microphone (app.delivery.livePace, spec section 7); every take
-   that counts then tunes that estimate for its mode, Talk or Read. It never asks for the
-   microphone before a Record tap, and never stores audio. */
+   the phone estimates from the microphone (app.delivery.livePace, spec section 7) once a take
+   that counts has tuned that estimate for its mode, Talk or Read; until then it says when the
+   live pace starts. It never asks for the microphone before a Record tap, and never stores
+   audio. */
 (function () {
   "use strict";
 
@@ -151,10 +152,15 @@
   const LEVEL_CALLBACKS = ["judge", "onSaved", "onLeave"];
 
   // The live pace row (spec section 7): the waiting sentence until the estimate has 5 seconds of
-  // speech, then "About 150 wpm" and a cue, or the cue alone while the take's mode has no kept
-  // factor yet. A cue's words come with its icon and tone, the check in --ok or the alert
-  // triangle in --warn, as Results' Pace hint draws them, so color never carries it alone.
+  // speech, then "About 150 wpm" and a cue. A take whose mode (Talk or Read) has no kept factor
+  // yet says only when the live pace starts, its mode's sentence in the waiting sentence's look,
+  // from first to last: in the app the untuned cue was right on 1 of 4 first takes. Its 20 s is
+  // the speech a take needs to tune the factor (app.delivery.PACE_FACTOR_MIN_SECONDS). A cue's
+  // words come with its icon and tone, the check in --ok or the alert triangle in --warn, as
+  // Results' Pace hint draws them, so color never carries it alone.
   const PACE_WAITING = "Your pace shows after a few seconds.";
+  const PACE_STARTS_AFTER_TALK = "Live pace starts after a 20 s talk.";
+  const PACE_STARTS_AFTER_READ = "Live pace starts after a 20 s read.";
   const PACE_NUMBER_PREFIX = "About ";
   const PACE_NUMBER_SUFFIX = " wpm";
   const PACE_LOOK_ON_TARGET = Object.freeze({ words: "On target", icon: "check", tone: "ok" });
@@ -162,10 +168,16 @@
   const PACE_LOOK_SPEED_UP = Object.freeze({ words: "Speed up", icon: "alert", tone: "warn" });
   const PACE_ICON_SIZE = 16;
   // The capture: a ScriptProcessor hands over one channel 1024 samples at a time. It runs only
-  // while it feeds an output, so a gain of 0 keeps it silent.
+  // while it feeds an output, so a gain of 0 keeps it silent. A capture that no block has
+  // reached when the clock shows 0:03 is taken to hear nothing (iOS can leave a context's
+  // resume() unanswered, and a suspended graph hands over nothing), so it goes as one whose
+  // resume was refused. Either way its row hides with the held class, which keeps the row's box
+  // until the take ends (styles.css), so the clock above it never moves mid-take.
   const PACE_BLOCK_SAMPLES = 1024;
   const PACE_CHANNELS = 1;
   const PACE_SILENT_GAIN = 0;
+  const PACE_NO_AUDIO_SECONDS = 3;
+  const PACE_HELD_CLASS = "practice__pace--held";
   // Talk and Read each keep their own words-a-peak factor (app.delivery.paceFactorAfter): a
   // number in the store flag "livePaceFactor:talk" or "livePaceFactor:read".
   const PACE_FACTOR_FLAG_PREFIX = "livePaceFactor:";
@@ -200,7 +212,7 @@
   const savedTakes = [];
 
   // Each mode's kept live pace factor, read from its flag at show() and set again when a take's
-  // tuning is kept: a number, or null while the mode has none and its row shows the cue alone.
+  // tuning is kept: a number, or null while the mode has none and its row says when it starts.
   const paceFactors = { [TALK_PACE]: null, [READ_PACE]: null };
 
   // The theme the toggle shows. Kept here rather than re-read from storage on each tap, so the
@@ -271,8 +283,9 @@
   };
 
   // Everything a live take holds, from the Record tap until Stop or hide() lets it go. `pace` is
-  // the take's live pace capture (startLivePace), or null when it did not start or its context
-  // refused to resume (dropLivePace).
+  // the take's live pace capture (startLivePace), or null when it did not start, its context
+  // refused to resume, or no block reached it by 0:03 (dropLivePace); `paceDropped` is true once
+  // it went one of those last two ways, so the row holds its box to the take's end (paintPace).
   const capture = {
     awaitingMic: false,
     stream: null,
@@ -284,6 +297,7 @@
     announcedBlocks: 0,
     pausesStarted: false,
     pace: null,
+    paceDropped: false,
   };
 
   // A level take, kept through uploading and error so Retry re-sends the same blob. Once the
@@ -1611,6 +1625,7 @@
     capture.stream = null;
     capture.chunks = [];
     capture.pausesStarted = false;
+    capture.paceDropped = false;
     return { chunks, samples, pace };
   }
 
@@ -2003,9 +2018,10 @@
   }
 
   // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, announces the
-  // clock every 30 s and, once per new whole second, paints the live pace row. It starts right
-  // after the recorder, so its start is the recording's, which the live pace's peaks are lined
-  // up with (releaseLivePace).
+  // clock every 30 s and, once per new whole second, paints the live pace row, or lets its
+  // capture go when no audio has reached it (readLivePace). It starts right after the recorder,
+  // so its start is the recording's, which the live pace's peaks are lined up with
+  // (releaseLivePace).
   function startTimer() {
     capture.startedAt = performance.now();
     capture.announcedBlocks = 0;
@@ -2083,8 +2099,9 @@
       silence: null,
       tracker: null,
       mode,
-      // With a kept factor the row shows the number as well as the cue (the validation result).
-      numbered: paceFactors[mode] !== null,
+      // Whether the mode had a kept factor when the take began: only then does its row show a
+      // number and a cue, and only then is the tracker read (the validation result).
+      tuned: paceFactors[mode] !== null,
       firstSampleAt: null,
       readSecond: 0,
       reading: null,
@@ -2108,7 +2125,8 @@
       pace.processor.connect(pace.silence);
       pace.silence.connect(pace.context.destination);
       // iOS Safari may hand over a suspended context, and a suspended graph hands over nothing.
-      // One that refuses to resume never will, so its capture goes and the row with it.
+      // One that refuses to resume never will, so its capture goes and the row with it; one
+      // whose resume() never answers goes at 0:03 (readLivePace).
       if (pace.context.state === "suspended" && typeof pace.context.resume === "function") {
         whenRefused(pace.context.resume(), () => dropLivePace(pace));
       }
@@ -2140,41 +2158,56 @@
     pace.tracker.push(samples);
   }
 
-  // Once per new whole second on the clock, while the row can show: the tracker's reading of the
-  // audio heard so far, painted. Level mode reads nothing, since its row never shows.
+  // Once per new whole second on the clock. A capture that no block has reached by
+  // PACE_NO_AUDIO_SECONDS goes (dropLivePace), level mode's too, so its context is freed. Else,
+  // while the row can show numbers, the tracker's reading of the audio heard so far, painted.
+  // Level mode reads nothing, since its row never shows, and neither does an untuned take, whose
+  // row keeps its sentence to the end.
   function readLivePace(second) {
     const pace = capture.pace;
-    if (pace === null || levelRequest !== null || second <= pace.readSecond) {
+    if (pace === null || second <= pace.readSecond) {
       return;
     }
     pace.readSecond = second;
+    if (pace.firstSampleAt === null && second >= PACE_NO_AUDIO_SECONDS) {
+      dropLivePace(pace);
+      return;
+    }
+    if (levelRequest !== null || !pace.tuned) {
+      return;
+    }
     pace.reading = pace.tracker.read();
     paintPace(viewFor(state));
   }
 
   // The live pace row, shown only while a normal take records with its capture running: never
   // in idle, uploading or error, never in level mode, whose takes count, and never for a take
-  // whose capture did not start or was dropped. It says the waiting sentence until the tracker
-  // has a number, then the number and the cue, or the cue alone, centred, while the take's mode
-  // has no kept factor. The words are the tracker's: its number comes rounded and its cue held.
-  // The children are rebuilt only when the words change.
+  // whose capture did not start or was dropped. A dropped capture's row hides with its last
+  // words and the held class, which keeps its box until the take ends, so nothing above Record
+  // moves while the speaker talks. A take whose mode had no kept factor when it began says when
+  // the live pace starts, from first to last, and never a number or a cue. A tuned take says the
+  // waiting sentence until the tracker has a number, then the number and the cue. The words are
+  // the tracker's: its number comes rounded and its cue held. The children are rebuilt only when
+  // the words change.
   function paintPace(view) {
     const pace = capture.pace;
-    nodes.pace.hidden = !(view.showPace && levelRequest === null && pace !== null);
+    const normalTake = view.showPace && levelRequest === null;
+    nodes.pace.hidden = !(normalTake && pace !== null);
+    nodes.pace.classList.toggle(PACE_HELD_CLASS, normalTake && capture.paceDropped);
     if (nodes.pace.hidden) {
       return;
     }
-    const { number, cue } = paceWordsOf(pace);
-    const waiting = number === null && cue === null;
-    const text = waiting ? PACE_WAITING : [number, cue && cue.words].filter(Boolean).join(" ");
+    const { sentence, number, cue } = paceWordsOf(pace);
+    const text =
+      sentence !== null ? sentence : [number, cue && cue.words].filter(Boolean).join(" ");
     if (text === paintedPaceText) {
       return;
     }
     paintedPaceText = text;
     app.ui.clear(nodes.pace);
-    if (waiting) {
+    if (sentence !== null) {
       nodes.pace.appendChild(
-        app.ui.el("span", { class: "practice__pace-placeholder", text: PACE_WAITING }),
+        app.ui.el("span", { class: "practice__pace-placeholder", text: sentence }),
       );
       return;
     }
@@ -2193,16 +2226,22 @@
     }
   }
 
-  // What the row says for a take's capture: `number`, "About 150 wpm", once the tracker has a
-  // number and the mode a kept factor, else null; `cue`, its look, once the tracker has a number
-  // and a cue, else null.
+  // What the row says for a take's capture: `sentence`, shown in the placeholder look, is the
+  // mode's "starts after" sentence for an untuned take, or the waiting sentence for a tuned one
+  // until the tracker has a number, else null; then `number`, "About 150 wpm", and `cue`, its
+  // look, or null for none.
   function paceWordsOf(pace) {
+    if (!pace.tuned) {
+      const sentence = pace.mode === READ_PACE ? PACE_STARTS_AFTER_READ : PACE_STARTS_AFTER_TALK;
+      return { sentence, number: null, cue: null };
+    }
     const reading = pace.reading;
     if (reading === null || reading.wpm === null) {
-      return { number: null, cue: null };
+      return { sentence: PACE_WAITING, number: null, cue: null };
     }
     return {
-      number: pace.numbered ? PACE_NUMBER_PREFIX + reading.wpm + PACE_NUMBER_SUFFIX : null,
+      sentence: null,
+      number: PACE_NUMBER_PREFIX + reading.wpm + PACE_NUMBER_SUFFIX,
       cue: paceLookOf(reading.cue),
     };
   }
@@ -2252,13 +2291,15 @@
     return peaks === null ? null : { peaks, mode: pace.mode };
   }
 
-  // A capture whose context refused to resume goes as if it had never started, unless its take
-  // has let it go already: the row hides for the rest of the take, which tunes nothing.
+  // A capture whose context refused to resume, or that no block reached by 0:03, goes as if it
+  // had never started, unless its take has let it go already: the context closes and the row
+  // hides for the rest of the take, which tunes nothing. The row keeps its box (paintPace).
   function dropLivePace(pace) {
     if (capture.pace !== pace) {
       return;
     }
     releaseLivePace();
+    capture.paceDropped = true;
     paintPace(viewFor(state));
   }
 
@@ -2317,10 +2358,11 @@
   // (settle): app.delivery.paceFactorAfter moves the kept factor toward the take's own words a
   // peak, and a take that counts (app.delivery.countsForPaceFactor: 20 seconds and 30 words)
   // keeps the result with app.store.setFlag, then here, even when it did not move: its mode has
-  // a factor from then on, so the row shows the number. A take that does not count keeps
-  // nothing. The first call takes the peaks with it, so a Retry never tunes a take twice; the
-  // sample never comes here. A store that cannot keep the factor changes nothing the speaker
-  // sees: the mode keeps the factor it had, and its row stays as it was.
+  // a factor from then on, so the mode's next takes show the number and the cue. A take that
+  // does not count keeps nothing. The first call takes the peaks with it, so a Retry never
+  // tunes a take twice; the sample never comes here. A store that cannot keep the factor
+  // changes nothing the speaker sees: the mode keeps the factor it had, and its row stays as it
+  // was.
   async function tunePace(take) {
     const pace = take.pace;
     take.pace = null;
