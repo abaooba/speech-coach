@@ -294,10 +294,13 @@ test("the takes app.store.list() gives at show() steer the draw to a topic not u
   assert.equal(cardText(t), "Third topic.", "Second topic. was used");
 });
 
+// The tap passes over the topic on screen (Third, the mount draw at 0.99), so it picks between
+// First and Second: First was used longest ago, where a draw blind to the takes gives Second at
+// 0.99, and the old next-topic step gave Second too.
 test("once every topic is used, the draw gives the one used longest ago", async () => {
   const takes = [
-    talkOn("day", "First topic.", "2026-10-22T10:00:00.000Z"),
-    talkOn("day", "Second topic.", "2026-10-22T09:00:00.000Z"),
+    talkOn("day", "First topic.", "2026-10-22T09:00:00.000Z"),
+    talkOn("day", "Second topic.", "2026-10-22T10:00:00.000Z"),
     talkOn("day", "Third topic.", "2026-10-22T09:30:00.000Z"),
   ];
   const t = setup({
@@ -306,10 +309,11 @@ test("once every topic is used, the draw gives the one used longest ago", async 
     withPath: true,
     list: () => Promise.resolve(plain(takes)),
   });
+  assert.equal(cardText(t), "Third topic.", "mount draws before any take is read");
   t.practice.show({});
   await flush();
   parts(t).newTopic.click();
-  assert.equal(cardText(t), "Second topic.");
+  assert.equal(cardText(t), "First topic.", "used at 09:00, Second at 10:00");
 });
 
 test("every show() reads the takes again", async () => {
@@ -329,16 +333,20 @@ test("every show() reads the takes again", async () => {
   assert.equal(cardText(t), "Third topic.");
 });
 
+// The store has no list(), so only the takes saved here steer the draws, at 0.99: Third at
+// mount, then Second (0.99 of First and Second), then First, the one topic no take used. A draw
+// blind to the takes would give Third last, and the old next-topic step started on First.
 test("a take saved on Practice joins the takes the next draws read", async () => {
-  const t = setup({ passages: PASSAGES, random: drawOf(0), withPath: true });
+  const t = setup({ passages: PASSAGES, random: drawOf(0.99), withPath: true });
+  assert.equal(cardText(t), "Third topic.");
   await saveTake(t);
-  assert.equal(t.calls.save[0].topic, "First topic.");
+  assert.equal(t.calls.save[0].topic, "Third topic.");
   parts(t).newTopic.click();
   assert.equal(cardText(t), "Second topic.");
   await saveTake(t);
   assert.equal(t.calls.save[1].topic, "Second topic.");
   parts(t).newTopic.click();
-  assert.equal(cardText(t), "Third topic.", "First topic. and Second topic. were used");
+  assert.equal(cardText(t), "First topic.", "Third topic. and Second topic. were used");
 });
 
 test("a store whose list() fails, throws or gives no list leaves the draws working", async () => {
