@@ -208,9 +208,12 @@ Things to know before testing or demoing on the deploy:
   minutes is the fallback. Check a
   deploy with `.venv/bin/python scripts/smoke_deploy.py <url>` (see Tests).
 - **Caching.** The backend sends `Cache-Control: no-cache` for the PWA shell
-  (`/`, `/index.html`, `/sw.js`, `/manifest.json`) so a new deploy shows up
-  on the next open, `public, max-age=3600` for the other static files, and
-  `no-store` for everything under `/api`.
+  (`/`, `/index.html`, `/sw.js`, `/manifest.json`), `public, max-age=3600`
+  for the other static files, and `no-store` for everything under `/api`.
+  So for up to an hour after a browser last loaded the scripts, a reload in
+  the same tab can still run the old ones: the browser's memory cache answers
+  before the service worker. After a deploy, close the tab or the app (on
+  Android, swipe it out of recents) and open it again, or open a new tab.
 - **Privacy on the deploy** is the same as described under Privacy below:
   each recording is held in memory for the duration of its request only,
   plus Starlette's transient spool file for uploads over 1 MB, which is
@@ -234,8 +237,9 @@ opens with no signal. Requests under `/api/` are never intercepted and never
 cached: every analysis goes to the server, and the service worker stores no
 recording, transcript or result. Pages and shell files are fetched from the
 network first, so the service worker never holds back a new deploy while
-online. Any other static file (such as `sample-session.json`) is kept after
-its first load, so when one of those changes, or the `SHELL` list does, bump
+online (the browser's own hour of caching can, as Caching above says). Any
+other static file (such as `sample-session.json`) is kept after its first
+load, so when one of those changes, or the `SHELL` list does, bump
 `CACHE_NAME` in `sw.js` and phones drop the old copies.
 
 ## Privacy
