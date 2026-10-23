@@ -11,9 +11,9 @@
    docs/superpowers/specs/2026-10-14-loop-path.md section 7) a level banner stands in for the
    switch and the chips, the take uploads in place, and the saved take goes back to the Level
    screen instead of Results. While a normal take records, a row under the clock shows the pace
-   the phone estimates from the microphone (app.delivery.livePace, spec section 7); every take's
-   analysis then tunes that estimate for its mode, Talk or Read. It never asks for the microphone
-   before a Record tap, and never stores audio. */
+   the phone estimates from the microphone (app.delivery.livePace, spec section 7); every take
+   that counts then tunes that estimate for its mode, Talk or Read. It never asks for the
+   microphone before a Record tap, and never stores audio. */
 (function () {
   "use strict";
 
@@ -1604,8 +1604,8 @@
   // "too_short"} when the backend answered 400 (the same blob would fail again and cost a
   // provider call on every retry), or {outcome: "failed", sentence} with the fixed sentence
   // for the Upload failed detail. Retry sends the same blob again only when no analysis came
-  // back, and never judges a take twice. Once the session is built the take tunes its mode's
-  // live pace factor (tunePace), on its own: the save never waits for it.
+  // back, and never judges a take twice. Once the session is built a take that counts tunes its
+  // mode's live pace factor (tunePace), on its own: the save never waits for it.
   async function settle(take) {
     if (take.analysis === null) {
       try {
