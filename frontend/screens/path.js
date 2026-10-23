@@ -73,7 +73,6 @@
   const WEEK_PREFIX = "This week: ";
   const DUE_PREFIX = "Due today: ";
   const BENCHMARK_TITLE = "Benchmark day";
-  const BENCHMARK_BODY = "Same passage, same prompt, every 14 days. See your real progress.";
   const BENCHMARK_START = "Start benchmark";
   const NEXT_BENCHMARK_PREFIX = "Next benchmark: ";
   const SINCE_FIRST_PREFIX = "Since your first: ";
@@ -326,20 +325,21 @@
     return DUE_PREFIX + due.length + " check-backs";
   }
 
-  // The benchmark: a card when it is due; otherwise the next date and, from a second sitting,
-  // the change since the first. With no sitting at all it is always due.
+  // The benchmark: one compact row when it is due, its title over its length beside a Start
+  // whose name says which play, as every Start on the Path does; otherwise the next date and,
+  // from a second sitting, the change since the first. With no sitting at all it is always due.
   function buildBenchmark(state, drawing) {
     if (state.due) {
       const play = app.path.playById(BENCHMARK_PLAY);
       const title = app.ui.el("h2", { class: "path-benchmark__title", text: BENCHMARK_TITLE });
       return app.ui.el("section", { class: "path-benchmark" }, [
         heading(drawing, title),
-        app.ui.el("p", { class: "path-benchmark__text", text: BENCHMARK_BODY }),
         app.ui.el("p", { class: "path-benchmark__text", text: play.goal.length }),
         app.ui.el("button", {
           class: "btn btn--secondary path-benchmark__start",
           type: "button",
-          text: BENCHMARK_START,
+          "aria-label": BENCHMARK_START,
+          text: START,
           onClick: () => startPlay(BENCHMARK_PLAY),
         }),
       ]);

@@ -4637,25 +4637,44 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
-/* The benchmark: a card when it is due, otherwise its next date and the change since the first
-   sitting. A section gap sets it off from the first unit. */
+/* The benchmark: one compact row when it is due, otherwise its next date and the change since
+   the first sitting, either one --s-5 above the Units switch. */
 .path-benchmark,
 .path__benchmark {
-  margin-bottom: var(--s-6);
+  margin-bottom: var(--s-5);
 }
 
+/* The row: its title over its length in the first column, its Start centred beside both. */
 .path-benchmark {
-  padding: var(--s-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
   background: var(--surface);
 }
 
 .path-benchmark__title {
+  grid-column: 1;
   margin: 0;
 }
 
-.path-benchmark__text,
+.path-benchmark__text {
+  grid-column: 1;
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.path-benchmark__start {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
 .path__next,
 .path__since {
   margin: var(--s-2) 0 0;
@@ -4671,10 +4690,6 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 .path__since {
   margin-top: var(--s-1);
-}
-
-.path-benchmark__start {
-  margin-top: var(--s-3);
 }
 
 /* A unit: its card, then its steps, a section gap from the next unit. */
@@ -5110,16 +5125,23 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
     display: none;
   }
 
-  /* The cards give their words more room, as the metric cards do on a narrow screen, and
-     "Start benchmark" takes the card's width in small type, breaking a word sooner than
-     overflow it. */
+  /* The cards give their words more room, as the metric cards do on a narrow screen, and the
+     benchmark's Start drops under its words at the row's full width, in small type, breaking a
+     word sooner than overflow it. */
   .path-benchmark,
   .path-unit__card {
     padding: var(--s-3);
   }
 
+  .path-benchmark {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .path-benchmark__start {
+    grid-column: 1;
+    grid-row: auto;
     width: 100%;
+    margin-top: var(--s-3);
     padding: 0 var(--s-2);
     font-size: var(--fs-small);
     overflow-wrap: anywhere;
