@@ -225,6 +225,29 @@ test("app.language.isReadTake alone decides the kind, asked about each take", as
   assert.ok(asked.includes("read-1"), "and about the earlier take it passes over");
 });
 
+// The guard hands back the rule's own answer, so previousOf reads the kind as yes or no, as
+// Progress and the rank do: otherwise a rule answering with a passage id or a script block, or
+// with 0 or undefined, would keep two takes of one kind apart.
+test("a rule answering with any truthy or falsy value still pairs takes by kind", async () => {
+  const answers = {
+    "talk-1": 0,
+    "read-1": "gettysburg-opening",
+    "talk-2": undefined,
+    "read-2": FOLLOWED_SCRIPT,
+  };
+  const language = { isReadTake: (session) => answers[session.id] };
+  const sessions = [
+    take("talk-1", 8, TALK_PROMPT, { wpm: 110 }),
+    take("read-1", 9, READ_PASSAGE, { wpm: 140 }),
+    take("talk-2", 10, TALK_PROMPT, { wpm: 130 }),
+    take("read-2", 11, COLD_READ, { wpm: 150 }),
+  ];
+  const talk = await shown(sessions, "talk-2", { language });
+  assert.equal(deltaTexts(talk)[0], "20 faster", "talk-1, though the rule said 0 and undefined");
+  const reading = await shown(sessions, "read-2", { language });
+  assert.equal(deltaTexts(reading)[0], "10 faster", "read-1, though the rule gave two values");
+});
+
 test("without language.js, or without its rule, every take is talk, as before", async () => {
   const sessions = [
     take("talk-1", 8, TALK_PROMPT, { wpm: 110 }),

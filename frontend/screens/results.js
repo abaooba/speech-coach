@@ -1148,13 +1148,13 @@
     if (isSample(session)) {
       return null;
     }
-    const read = isReadTake(session);
+    const read = Boolean(isReadTake(session));
     const earlier = sessions.find(
       (other) =>
         Boolean(other) &&
         !isSample(other) &&
         other.createdAt < session.createdAt &&
-        isReadTake(other) === read,
+        Boolean(isReadTake(other)) === read,
     );
     return earlier || null;
   }
