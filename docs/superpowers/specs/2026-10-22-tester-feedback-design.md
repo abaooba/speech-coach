@@ -159,6 +159,10 @@ the benchmark keeps its passage and prompt.
   one more filter. The look comes from Superdesign (section 9).
 - Results: the arrows compare a take with the latest earlier own take **of the same kind** (Talk
   with Talk, Read with Read, by `app.language.isReadTake`), and show nothing when there is none.
+  Once the store holds a take of the other kind (never a sample), the note under the strip reads
+  "Arrows compare with your last Talk take." or "Arrows compare with your last Read take.", and
+  the hidden endings name the kind the same way. With takes of one kind only, the copy is
+  unchanged.
 - History: a read take's row says "Read" in words, not color alone.
 - how.html says what the Progress switch does in words that match it.
 
