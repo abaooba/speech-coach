@@ -132,7 +132,7 @@ test("no Practice passage, prompt or topic holds a debate word", () => {
 
 test("no cold read and neither benchmark text holds a debate word", () => {
   const coldReads = Array.from(APP.passages.coldReads());
-  assert.equal(coldReads.length, 15, "every cold read is read");
+  assert.equal(coldReads.length, 30, "every cold read is read");
   for (const entry of coldReads) {
     stringsIn(JSON.parse(JSON.stringify(entry)), entry.id).forEach(([where, text]) =>
       assertNoDebateWords(where, text),

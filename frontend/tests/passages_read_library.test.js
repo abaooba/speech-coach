@@ -1,9 +1,11 @@
 // Tests for the reading material in frontend/passages.js
 // (docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 3): the Read tab holds
-// 24 passages, six in each of its four groups, each group under the rules of section 3.1. Ids
-// and titles stay unique across everything passages.js hands out. No exclamation mark is
-// pinned in passages_content.test.js, which reads the whole file. Modules load with
-// vm.runInNewContext.
+// 24 passages, six in each of its four groups, each group under the rules of section 3.1, and
+// app.passages.coldReads() holds 30 cold reads, the old fifteen first, under the rules of 3.2.
+// Ids and titles stay unique across everything passages.js hands out. The rules the other
+// passage tests already run over every entry stay there: no exclamation mark
+// (passages_content.test.js), a cold read's plain sentences (passages_cold.test.js) and clean
+// words (passages_everyday.test.js). Modules load with vm.runInNewContext.
 "use strict";
 
 const test = require("node:test");
@@ -70,6 +72,43 @@ const SPEECH_SOURCES = {
 };
 const SOURCE_FORMAT = /^[A-Z][^,]*, [^,]+, \d{4}$/;
 
+const OLD_COLD_READ_IDS = [
+  "cold-read-school-start",
+  "cold-read-free-transit",
+  "cold-read-nuclear-power",
+  "cold-read-space-funding",
+  "cold-read-plastic-bags",
+  "cold-read-social-media-ages",
+  "cold-read-compulsory-voting",
+  "cold-read-zoos",
+  "cold-read-car-free-centers",
+  "cold-read-ai-tools",
+  "cold-read-service-hours",
+  "cold-read-clock-changes",
+  "cold-read-local-news",
+  "cold-read-rent-control",
+  "cold-read-organ-donors",
+];
+const NEW_COLD_READ_IDS = [
+  "cold-read-refrigerator",
+  "cold-read-bread-dough",
+  "cold-read-flat-tire",
+  "cold-read-power-cut",
+  "cold-read-repair-night",
+  "cold-read-honey-bees",
+  "cold-read-tides",
+  "cold-read-clouds",
+  "cold-read-butterfly",
+  "cold-read-bean-jar",
+  "cold-read-learning-to-swim",
+  "cold-read-letter-journey",
+  "cold-read-museum-guide",
+  "cold-read-lost-and-found",
+  "cold-read-window-cleaners",
+];
+const COLD_READ_WORDS = [142, 164];
+const COLD_READ_BAND = [140, 160];
+
 // Each new text's words, split on whitespace as the word ranges count them. The script
 // alignment (backend/script_align.py) reads a dash-joined word as two, so it reads 108 words in
 // fdr-fear-itself ("itself--nameless") and in jfk-ask-not (three such words).
@@ -92,6 +131,21 @@ const NEW_TEXT_WORDS = {
   "drill-r-and-l": 75,
   "drill-v-and-w": 76,
   "drill-word-endings": 75,
+  "cold-read-refrigerator": 163,
+  "cold-read-bread-dough": 161,
+  "cold-read-flat-tire": 162,
+  "cold-read-power-cut": 160,
+  "cold-read-repair-night": 161,
+  "cold-read-honey-bees": 155,
+  "cold-read-tides": 162,
+  "cold-read-clouds": 159,
+  "cold-read-butterfly": 161,
+  "cold-read-bean-jar": 158,
+  "cold-read-learning-to-swim": 161,
+  "cold-read-letter-journey": 164,
+  "cold-read-museum-guide": 164,
+  "cold-read-lost-and-found": 162,
+  "cold-read-window-cleaners": 159,
 };
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -205,6 +259,23 @@ test("every explainer and story reads cleanly, as written", () => {
     assert.deepEqual(habits, [], `${id} says ${habits.join(", ")}`);
     const sounds = words.filter((word) => APP.delivery.isHesitation(word));
     assert.deepEqual(sounds, [], `${id} says ${sounds.join(", ")}`);
+  }
+});
+
+test("coldReads() lists the old fifteen in their order, then the fifteen new ones", () => {
+  assert.deepEqual(
+    coldReads().map((entry) => entry.id),
+    [...OLD_COLD_READ_IDS, ...NEW_COLD_READ_IDS],
+  );
+});
+
+test("every cold read has 142 to 164 words, the 140 to 160 band and a Cold read title", () => {
+  const [lo, hi] = COLD_READ_WORDS;
+  for (const entry of coldReads()) {
+    const count = wordCount(entry.text);
+    assert.ok(count >= lo && count <= hi, `${entry.id} has ${count} words, wanted ${lo} to ${hi}`);
+    assert.deepEqual([...entry.targetWpm], COLD_READ_BAND, `targetWpm of ${entry.id}`);
+    assert.match(entry.title, /^Cold read: \S/, `title of ${entry.id}`);
   }
 });
 

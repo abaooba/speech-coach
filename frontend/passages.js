@@ -674,15 +674,17 @@
     return GROUPS.map((group) => Object.assign({}, group));
   };
 
-  // Cold reads: original everyday passages for the skill path's coldRead mode, which hands a
-  // speaker a text they have never read (docs/PLAN.md T42 and T44): explainers, short stories and
-  // news-style pieces of 120 to 200 words. None holds a digit or a symbol, which a transcript may
-  // write either way, a number word a transcript may write as digits, or a habit word delivery.js
-  // counts (like, so, you know, actually, basically), so a take that reads one as written shows
-  // no misread and no filler. They are not entries of app.passages, so the Read tab never lists
-  // them; coldReads() hands them out. On 2026-10-14 every debate-style cold read was
-  // rewritten as everyday prose under the id it had, so a take saved on one still counts as read:
-  // an id names a slot, not its subject.
+  // Cold reads: original everyday passages the Path hands a speaker to read for the first time
+  // (docs/PLAN.md T42 and T44). A Restarts level reads one all through its run, and every read of
+  // Pace levels 1 and 2 and of the Pace crown draws a new one (path.js), so the pool has to last
+  // both. Explainers, short stories and news-style pieces of 142 to 164 words; the fifteen added
+  // on 2026-10-22 follow the first fifteen, which keep their order. None holds a digit or a
+  // symbol, which a transcript may write either way, a number word a transcript may write as
+  // digits, or a habit word delivery.js counts (like, so, you know, actually, basically), so a
+  // take that reads one as written shows no misread and no filler. They are not entries of
+  // app.passages, so the Read tab never lists them; coldReads() hands them out. On 2026-10-14
+  // every debate-style cold read was rewritten as everyday prose under the id it had, so a take
+  // saved on one still counts as read: an id names a slot, not its subject.
 
   // A steady pace for a text read for the first time, a step under the 150 to 170 of the Read
   // tab's explainers and stories, which can be rehearsed. It is also the band summarize() in
@@ -878,10 +880,191 @@
       "cells. A single donation can help several patients, from accident victims to people having",
       "surgery.",
     ]),
+    coldRead("cold-read-refrigerator", "Cold read: how a refrigerator works", [
+      "A refrigerator does not make cold. It moves heat out of the box and into the room. A",
+      "special fluid does the work, flowing through a closed loop of thin pipes. Inside the",
+      "fridge, the fluid boils at a very low temperature, and as it turns to gas, it draws heat",
+      "from the food and the air. Sweat cools your skin in the same way when it dries. Next, a",
+      "pump called the compressor squeezes the gas until it is hot. That pump makes the low hum",
+      "you hear in a quiet kitchen. The hot gas then travels through coils at the back or bottom,",
+      "where it gives off its heat and turns back into a liquid. A very narrow tube lowers its",
+      "pressure and chills it again, and the loop starts over. This is why the air behind a",
+      "fridge feels warm, and why an open fridge door will not cool a hot kitchen. In the end, it",
+      "makes the room warmer.",
+    ]),
+    coldRead("cold-read-bread-dough", "Cold read: why bread dough rises", [
+      "Most bread dough rises because something inside it is alive. Yeast is a tiny fungus, too",
+      "small to see on its own. Mixed with flour and warm water, it feeds on sugars in the flour",
+      "and gives off a gas called carbon dioxide. The gas would escape if the dough could not",
+      "hold it. That is the job of gluten, a stretchy web of proteins that forms as the dough is",
+      "mixed and folded. The web traps the gas in countless small bubbles, and the dough slowly",
+      "swells, the way a balloon fills with air. Warmth speeds the yeast up and cold slows it",
+      "down, which is why some bakers let their dough rise overnight in the fridge. In the oven,",
+      "the bubbles grow quickly at first. Then the heat kills the yeast and sets the soft dough",
+      "into bread. The next time you cut a slice, look closely at the holes. Each of them was",
+      "once a bubble of gas.",
+    ]),
+    coldRead("cold-read-flat-tire", "Cold read: fixing a flat bike tire", [
+      "My little brother came home pushing his bike, its front tire completely flat. He was sure",
+      "it was ruined. I told him we could fix it ourselves, and he looked at me as if I were",
+      "joking. We turned the bike upside down and took off the wheel. With plastic levers, we",
+      "eased the edge of the tire over the rim and pulled out the inner tube. We pumped some air",
+      "into the tube and held it under water in a bucket. A thin line of bubbles rose from a tiny",
+      "hole. My brother gasped. We dried the tube, roughened the spot with sandpaper, and brushed",
+      "on some glue. Once the glue was dry, we pressed a patch over the hole. Then I felt along",
+      "the inside of the tire and found the cause, a small thorn still stuck in the rubber. We",
+      "pulled it out and put everything back together. My brother pumped up the tire himself and",
+      "rode off, grinning.",
+    ]),
+    coldRead("cold-read-power-cut", "Cold read: an evening without power", [
+      "The power went out on a stormy evening, just as we sat down to dinner. The lights",
+      "flickered and then the whole house went dark. For a moment, nobody spoke. Then my father",
+      "found a box of candles in the kitchen drawer, and my mother set them along the middle of",
+      "the table. The soup was still hot, and somehow it tasted better by candlelight. Without",
+      "the hum of the fridge or the chatter of the television, we could hear the rain drumming on",
+      "the roof. My sister fetched a deck of cards, and we played for hours, laughing at the",
+      "shadows our hands made on the wall. Nobody reached for a phone. Later, our neighbor",
+      "knocked to check on us, and he stayed for a cup of tea made on the gas stove. When the",
+      "lights came back on just before midnight, we all groaned. My mother blew out the candles,",
+      "but she left the cards on the table.",
+    ]),
+    coldRead("cold-read-repair-night", "Cold read: repair night at the hall", [
+      "On the first Thursday evening of each month, the community hall on River Road becomes a",
+      "busy workshop. Neighbors arrive carrying broken lamps, wobbly chairs, torn coats, and",
+      "toasters that no longer toast. Volunteers sit at long tables with screwdrivers, sewing",
+      "kits, and boxes of spare parts, and they fix whatever they can for free. The idea is",
+      "simple. Instead of throwing something away, you bring it in and watch while it is",
+      "repaired. Many visitors end up learning to do the job themselves. Last month, a retired",
+      "electrician brought an old radio back to life as a small crowd watched. At the next table,",
+      "a teenager learned to sew a button onto her favorite jacket. The organizers keep a",
+      "notebook of every repair, and they say most items go home fixed. Coffee and cake are",
+      "served while people wait. Anyone can come, and nobody needs an appointment. The volunteers",
+      "would welcome more help, especially from people who can mend shoes.",
+    ]),
+    coldRead("cold-read-honey-bees", "Cold read: how bees make honey", [
+      "Most honey begins inside a flower. Many flowers make nectar, a sweet, watery liquid that",
+      "attracts insects. On a warm morning, worker bees fly from blossom to blossom, drinking",
+      "nectar with their long, thin tongues. They carry it home in a special pouch called the",
+      "honey stomach. Back at the hive, they pass it to younger bees, mouth to mouth. Along the",
+      "way, the bees add enzymes that split the sugar in the nectar into simpler sugars. The",
+      "younger bees store it in the wax cells of the comb. To thicken the runny nectar, the bees",
+      "fan their wings over the comb, and the moving air carries water away. When the nectar has",
+      "become honey, they seal each cell with a cap of wax. That honey feeds the colony through",
+      "the winter, when few flowers bloom. The flowers shape the flavor too: clover honey is pale",
+      "and mild, while buckwheat honey is dark and strong.",
+    ]),
+    coldRead("cold-read-tides", "Cold read: what makes the tides", [
+      "Spend a day at the beach, and you may see the sea creep up the sand, then slip away. On",
+      "many coasts, the water rises and falls about twice a day. These changes are called tides,",
+      "and the moon is their main cause. Its gravity pulls on all of Earth, but hardest on the",
+      "side facing it. There, the ocean bulges toward the moon. On the far side, the pull is",
+      "weakest, and the water is left behind in a second bulge. As Earth turns, a coast passes",
+      "through both bulges, and each time it does, the tide is high. Between them, the tide is",
+      "low. The sun raises tides as well, though they are smaller, because it is much farther",
+      "away. When the sun and moon line up, at full moon and new moon, their pulls combine, and",
+      "the tides rise higher and fall lower. At half moon, the sun and moon pull at right angles,",
+      "and the tides are gentler.",
+    ]),
+    coldRead("cold-read-clouds", "Cold read: how clouds form", [
+      "On a cold morning, you can make a small cloud with your own breath. Your breath is warm",
+      "and holds water vapor, an invisible gas. When the chilly air cools it, the vapor becomes",
+      "tiny drops of water, and a white puff appears. Clouds in the sky form in much the same",
+      "way. The sun warms lakes, seas and wet ground, and some of their water evaporates into the",
+      "air. Warm, damp air rises, and as it climbs, it spreads out and cools. When it cools",
+      "enough, the vapor condenses, turning back into liquid droplets on specks of dust, smoke or",
+      "sea salt. A typical droplet is far smaller than a grain of sand. Countless droplets",
+      "together make a cloud. Tiny and light, they float on the rising air. Inside the cloud,",
+      "droplets bump into each other and join. When the drops grow heavy enough, they fall as",
+      "rain. Fog is simply a cloud that forms near the ground.",
+    ]),
+    coldRead("cold-read-butterfly", "Cold read: caterpillar to butterfly", [
+      "A butterfly starts life as an egg about the size of a pinhead, stuck to a leaf or stem.",
+      "Its mother probably chose that plant by tasting it with her feet. When the tiny",
+      "caterpillar hatches, its first meal is often its own eggshell. Then it eats leaf after",
+      "leaf and grows fast. Several times, its skin gets too tight, and it wriggles free. Once",
+      "fully grown, the caterpillar fastens itself to a twig with a pad of silk. Its skin splits",
+      "for the last time, revealing a soft shell called a chrysalis, which soon hardens. Inside",
+      "it, much of the old body breaks down into a kind of soup. Tiny groups of cells, formed",
+      "inside the egg, use that soup to build wings, legs and new eyes. When the change is",
+      "complete, the shell cracks open. The butterfly crawls out with soft, crumpled wings and",
+      "pumps fluid into them until they spread. Once they dry and harden, it flies away.",
+    ]),
+    coldRead("cold-read-bean-jar", "Cold read: a bean in a jar", [
+      "When my son was small, we grew a bean in a glass jar by the kitchen window. We lined the",
+      "jar with a wet paper towel and tucked a dry bean between the towel and the glass. Every",
+      "morning, he pressed his nose to the jar to check on it. At first the bean simply swelled,",
+      "drinking water from the towel. A few days later, its skin split, and a pale root pushed",
+      "out and headed downward. My son turned the jar on its side to trick it, but by bedtime the",
+      "root had changed course and was growing down again. Next came a shoot, hooked at the top,",
+      "which straightened as it climbed toward the window. The bean itself slowly wrinkled and",
+      "shrank, because the young plant was living on the food stored inside it. When the first",
+      "green leaves opened, we planted it in the garden. That summer, he picked beans from his",
+      "very own plant.",
+    ]),
+    coldRead("cold-read-learning-to-swim", "Cold read: learning to swim", [
+      "I never learned to swim as a child, and for years I sat on the sand while my friends played",
+      "in the waves. Last winter, I signed up for lessons at the city pool. On the first evening,",
+      "I stood in the shallow end with my heart pounding, even though the water only reached my",
+      "waist. Our teacher was a patient man who never raised his voice. He started with breathing.",
+      "We put our faces in the water and blew bubbles, breathing out slowly through our noses.",
+      "Next, he taught us to float. He told us to lie back, look at the ceiling, and let the water",
+      "hold us. I sank the first few times, because I was fighting it. When I finally relaxed, the",
+      "water held me up, and I laughed out loud. By spring, I could swim the whole length of the",
+      "pool without stopping. I am still slow, but I no longer sit on the sand and watch.",
+    ]),
+    coldRead("cold-read-letter-journey", "Cold read: how a letter travels", [
+      "When you drop a letter into the mailbox on the corner, it can cross the country in a few",
+      "days. Later that day, it is collected and taken to a large sorting center, where machines",
+      "take over. A machine turns every envelope to face the same way and prints wavy lines over",
+      "the stamp to mark it as used. Next, a camera reads the address, printed or handwritten.",
+      "When the writing is too messy, a photo of the envelope appears on a screen, and a person",
+      "types the address in. Then a barcode is printed on the envelope, and the machines after",
+      "that read the barcode instead of the address. Trucks, and sometimes planes, carry the",
+      "letter to the right town. Near the end of the trip, a machine sorts the letters into the",
+      "exact order in which the mail carrier will deliver them. The next day, the carrier brings",
+      "your letter to the right door, and someone opens it at the kitchen table.",
+    ]),
+    coldRead("cold-read-museum-guide", "Cold read: a guide at the museum", [
+      "I have been a guide at the city museum for years, and I still learn something on almost",
+      "every tour. Last week I led a class of young children, with their teacher and a grandfather",
+      "who came to help. We began in the long gallery, in front of an old painting of the harbor.",
+      "I asked everyone to look at it for a whole minute without saying a word. That is harder",
+      "than it sounds. Then I asked what they had noticed. A boy saw the storm clouds. His friend",
+      "counted the ships. A small girl at the back pointed to the lower corner, where a tiny dog",
+      "lay asleep under a fish cart. I must have walked past that painting thousands of times, and",
+      "I had never seen the dog. The children were delighted, and the grandfather laughed louder",
+      "than anyone. Now every tour I lead begins with that painting and that quiet minute, and I",
+      "let my visitors find the dog themselves.",
+    ]),
+    coldRead("cold-read-lost-and-found", "Cold read: the lost and found office", [
+      "Below the central station, down a narrow flight of stairs, there is an office that few",
+      "travelers visit until they need it. This is where the city keeps everything people leave",
+      "behind on its trains and buses. On wet days, umbrellas arrive by the armful, along with",
+      "gloves, keys and phones. Each item is labeled with the date and the line where it was",
+      "found, then stored on long metal shelves. The oddest finds this year include a set of",
+      "drums, a wedding dress and a toy bear in a knitted hat. The team works hard to return what",
+      "it can. Anything left unclaimed for a few months goes to charity. Staff say the best part",
+      "of the job is the moment an owner gets something back. Last month, a young man came in",
+      "looking for the watch his grandfather had given him. It had been found under a bus seat. He",
+      "held it for a long time before he could speak.",
+    ]),
+    coldRead("cold-read-window-cleaners", "Cold read: window cleaners up high", [
+      "High above the river, a team of window cleaners is back at work on the tallest tower in the",
+      "city. Each morning, the crew rides the elevator to the roof and steps onto a metal platform",
+      "hanging from steel cables. A motor lowers them slowly down the building, floor by floor,",
+      "while they wash the glass and wipe it dry with rubber blades. The job depends on the",
+      "weather. When the wind grows strong, the platform stays on the roof and the crew waits. The",
+      "team leader said she never gets tired of the view. Office workers often wave as the",
+      "cleaners pass, and some hold up handwritten notes against the glass. Last spring, a pair of",
+      "falcons nested on a high ledge, and the crew left that corner alone until the chicks could",
+      "fly. The team should reach the last side of the tower by late summer. By then, they say,",
+      "the first side will need cleaning again.",
+    ]),
   ];
 
-  // The skill path's coldRead mode draws from this list. Each call returns a new array, so a
-  // caller can filter or shuffle it without changing what the next caller gets.
+  // The Path draws every cold read from this list (path.js pickColdRead), for Restarts and for
+  // Pace. Each call returns a new array, so a caller can filter or shuffle it without changing
+  // what the next caller gets.
   app.passages.coldReads = function coldReads() {
     return COLD_READS.slice();
   };
