@@ -224,8 +224,9 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
   "About 150 wpm" with a check icon and "On target", or an alert icon and "Slow down" or "Speed
   up", against the entry's band. The number is the trailing 15 seconds (less near the start),
   shown after 5 seconds of speech, rounded to 5, repainted once a second from the existing 250 ms
-  tick (no new interval). A cue changes only when the pace is more than 10 wpm outside the band
-  and has been for 3 seconds; a silence over 1.5 seconds keeps the last value. The row is
+  tick (no new interval). A cue changes only once the number has called for another one for 3
+  seconds: Slow down or Speed up when it is more than 10 wpm outside the band, On target when it
+  is back within that. A silence over 1.5 seconds keeps the last value. The row is
   `aria-live="off"`, like the clock: nothing new is announced.
 - **Validation** before it ships: speech made with macOS `say` at known rates (several voices,
   120 to 200 wpm) and the repo's real takes, run through the estimator; report the error. If the
