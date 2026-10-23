@@ -453,7 +453,7 @@ test("both lines and how.html give the seconds PACE_STARTS_AFTER_CLOCK_SECONDS n
     assert.deepEqual(line.match(/\d+/g), [String(seconds)], line);
   }
   const how = read("how.html").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
-  assert.ok(how.includes("your first take of " + seconds + " seconds or more"), "how.html");
+  assert.ok(how.includes("It starts once a take of " + seconds + " seconds or more"), "how.html");
 });
 
 test("the clock's seconds are at least 5 over the speech a take needs, PACE_FACTOR_MIN_SECONDS", () => {

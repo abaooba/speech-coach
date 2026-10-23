@@ -54,8 +54,10 @@ docs/superpowers/specs/2026-10-18-fresh-reads-and-rehearsal-design.md.
   Speech, About you and Impromptu), and with one item left unused, that one and the one used
   longest ago.
   - Only what shows counts. The Talk tab opens on its first prompt, so that prompt's topic at
-    mount counts. Another prompt's topic at mount never shows: a tap on its chip draws it a new
-    one first. A level's material is the request's, drawn by the Path, and does not count.
+    mount counts. Another prompt's topic at mount never shows: a tap on its chip draws it one
+    first. That topic was never on screen, so the Path's rule does not pass over it: when it is
+    the one topic left unused, or, with every topic used, the one used longest ago, the tap
+    gives it. A level's material is the request's, drawn by the Path, and does not count.
   - The list lives in module state only. It is never saved, never sent, and never read by
     Progress, History, the rank or the Path, whose own draws read the takes alone, as before.
   - Each showing goes to the draw as one more history entry, with the fields the draw reads:
@@ -222,8 +224,9 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
   "About 150 wpm" with a check icon and "On target", or an alert icon and "Slow down" or "Speed
   up", against the entry's band. The number is the trailing 15 seconds (less near the start),
   shown after 5 seconds of speech, rounded to 5, repainted once a second from the existing 250 ms
-  tick (no new interval). A cue changes only when the pace is more than 10 wpm outside the band
-  and has been for 3 seconds; a silence over 1.5 seconds keeps the last value. The row is
+  tick (no new interval). A cue changes only once the number has called for another one for 3
+  seconds: Slow down or Speed up when it is more than 10 wpm outside the band, On target when it
+  is back within that. A silence over 1.5 seconds keeps the last value. The row is
   `aria-live="off"`, like the clock: nothing new is announced.
 - **Validation** before it ships: speech made with macOS `say` at known rates (several voices,
   120 to 200 wpm) and the repo's real takes, run through the estimator; report the error. If the
@@ -256,10 +259,10 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
 - how.html: "While you record, a live pace shows under the clock. Your phone estimates it from
   the beats of your syllables. Results counts your real words, so the two can differ. The live
   pace runs on your phone and sends nothing." and, after it: "It tunes itself to your voice,
-  separately for Talk and for Read. It starts after your first take of 30 seconds or more in
-  each. Every take that long tunes it again. During a Path level it stays hidden, but your
-  takes still tune it." It never says it tunes once ("once for Talk and once for Read" read
-  that way): every take that counts moves its mode's factor (Factor, above).
+  separately for Talk and for Read. It starts once a take of 30 seconds or more in each has
+  tuned it. Each later take that long can tune it again. During a Path level it stays hidden,
+  but your takes still tune it." It never says it tunes once ("once for Talk and once for Read"
+  read that way): every take that counts updates its mode's factor (Factor, above).
 
 ## 8. Tests and docs
 

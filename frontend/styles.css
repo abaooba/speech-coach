@@ -3786,7 +3786,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: nowrap;
 }
 
-/* With no measured take, Best reads "Not measured" in small muted words that may wrap. */
+/* "Not measured" in small muted words that may wrap: Best when no take can win it, Latest when
+   no take is charted (Slips with no read counted), and the change from the average when no
+   earlier take is charted to average. */
 .progress-summary__value--none {
   font-size: var(--fs-small);
   line-height: 1.4;

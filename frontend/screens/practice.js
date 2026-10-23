@@ -488,17 +488,24 @@
 
   // A draw follows the Path's rule when path.js is loaded, over the speaker's takes and what the
   // draws have shown since the app opened (shownItems): from the pool less the item the tap
-  // replaces, one no take has used and no draw has shown, at random; failing that, the one used
-  // or shown longest ago. So taps go through the whole pool before any item comes back, and never
-  // give the one on screen. Without app.path (some test harnesses) it is any other item at
-  // random. A pool of one gives that one. Math.random draws, so a test fixes it on its vm
-  // context's Math.
+  // replaces (once that item has shown), one no take has used and no draw has shown, at random;
+  // failing that, the one used or shown longest ago. So taps go through the whole pool before any
+  // item comes back, and never give the one on screen. Without app.path (some test harnesses) it
+  // is any other item at random. A pool of one gives that one. Math.random draws, so a test fixes
+  // it on its vm context's Math.
 
-  // A topic of `entry`, a prompt with topics, other than `current` while another is left.
+  // A topic of `entry`, a prompt with topics. Once a topic of the prompt has shown
+  // (hasShownTopic), it is one other than `current` while another is left. Before that, the
+  // Path's rule passes over none and can give `current` itself: mount() draws every prompt a
+  // topic, but only the opening prompt's shows, so another prompt's `current` has never been on
+  // screen, and passing over it could skip the one topic no take has used or, with every topic
+  // used, the one used longest ago. The draw without app.path passes over `current` either way:
+  // mount() drew it at random, so every topic stays as likely as any other.
   function drawTopic(entry, current) {
     const path = app.path;
     if (path && typeof path.pickTopic === "function") {
-      return path.pickTopic(drawHistory(), entry.id, Math.random, current);
+      const passOver = hasShownTopic(entry) ? current : null;
+      return path.pickTopic(drawHistory(), entry.id, Math.random, passOver);
     }
     return drawOther(entry.topics, current);
   }
@@ -542,6 +549,13 @@
     } else if (groupOf(entry) !== null) {
       shownItems.unshift({ passageId: entry.id, createdAt: shownAt() });
     }
+  }
+
+  // True once a topic of `entry`, a prompt with topics, has shown since the app opened: the one
+  // the Talk tab opens on, or one a tap drew (noteShown). The topic mount() draws another prompt
+  // never shows.
+  function hasShownTopic(entry) {
+    return shownItems.some((item) => item.passageId === entry.id);
   }
 
   // The moment a showing counts from, as an ISO 8601 time like a take's createdAt: the clock's,
@@ -596,7 +610,7 @@
   // Each prompt with topics starts on a drawn topic and each tab on its first chip's entry, the
   // Read tab on a drawn passage of the first group (spec sections 2.2 and 2.3). What each tab
   // opens on counts as shown from now (spec section 2.1); another prompt's topic shows only after
-  // a tap on its chip, which draws it a new one first.
+  // a tap on its chip, which draws it one first (drawTopic).
   function mount(screenRoot) {
     root = screenRoot;
     const passages = app.passages || [];
@@ -982,9 +996,9 @@
     }
   }
 
-  // Draws the prompt a topic other than the one it is on and shows it, counted as shown from now.
-  // Focus stays on the chip or New topic while the card changes beside it, so the live region
-  // reads the new topic out.
+  // Draws the prompt a topic and shows it, counted as shown from now: never the topic the prompt
+  // last showed while another is left (drawTopic). Focus stays on the chip or New topic while the
+  // card changes beside it, so the live region reads the new topic out.
   function showNewTopic(entry) {
     topicById[entry.id] = drawTopic(entry, currentTopic(entry));
     noteShown(entry);
