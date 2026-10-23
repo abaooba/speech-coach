@@ -1,8 +1,9 @@
 /* passages.js: app.passages, Practice's fixed material. Each entry is {id, kind, title, text,
-   targetWpm: [lo, hi], source?, timeLimitSeconds?, topics?}: a "prompt" is a timed topic (the
-   Talk tab), a "passage" is read word for word (the Read tab), and prompts come first, as
-   Practice opens on the first entry. coldReads() and benchmark() hold the Path's own, and
-   retired() the ids old takes still carry. Everyday fluency only, never debate. No DOM. */
+   targetWpm: [lo, hi], source?, timeLimitSeconds?, topics?, group?}: a "prompt" is a timed topic
+   (the Talk tab), a "passage" is read word for word (the Read tab) and belongs to one of the
+   groups groups() lists, and prompts come first, as Practice opens on the first entry.
+   coldReads() and benchmark() hold the Path's own, and retired() the ids old takes still carry.
+   Everyday fluency only, never debate. No DOM. */
 (function () {
   "use strict";
 
@@ -274,6 +275,7 @@
       title: "Explainer: how rainbows form",
       text: EXPLAINER_RAINBOWS,
       targetWpm: [150, 170],
+      group: "explainer",
     },
     {
       id: "story-wrong-train",
@@ -281,6 +283,7 @@
       title: "Story: the wrong train",
       text: STORY_WRONG_TRAIN,
       targetWpm: [150, 170],
+      group: "story",
     },
     {
       id: "gettysburg-opening",
@@ -289,6 +292,7 @@
       text: GETTYSBURG_OPENING,
       targetWpm: [130, 150],
       source: "Abraham Lincoln, Gettysburg Address, 1863",
+      group: "speech",
     },
     {
       id: "liberty-or-death",
@@ -297,6 +301,7 @@
       text: LIBERTY_OR_DEATH,
       targetWpm: [130, 150],
       source: "Patrick Henry, speech to the Virginia Convention, 1775",
+      group: "speech",
     },
     {
       id: "drill-st-clusters",
@@ -304,6 +309,7 @@
       title: "Drill: st and str clusters",
       text: DRILL_ST_CLUSTERS,
       targetWpm: [120, 140],
+      group: "drill",
     },
     {
       id: "drill-pl-bl-clusters",
@@ -311,8 +317,25 @@
       title: "Drill: pl, bl and cl clusters",
       text: DRILL_PL_BL_CLUSTERS,
       targetWpm: [120, 140],
+      group: "drill",
     },
   ];
+
+  // The Read tab's groups, in its order. Each passage above names its group by id; Practice shows
+  // one chip per group, labeled with the group's label, and a tap draws a passage of the group
+  // (docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 2.3).
+  const GROUPS = [
+    { id: "explainer", label: "Explainer" },
+    { id: "story", label: "Story" },
+    { id: "speech", label: "Speech" },
+    { id: "drill", label: "Drill" },
+  ];
+
+  // Each call returns a new array of new objects, so a caller can change its copy without
+  // changing the next caller's.
+  app.passages.groups = function groups() {
+    return GROUPS.map((group) => Object.assign({}, group));
+  };
 
   // Cold reads: original everyday passages for the skill path's coldRead mode, which hands a
   // speaker a text they have never read (docs/PLAN.md T42 and T44): explainers, short stories and
