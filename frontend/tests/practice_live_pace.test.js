@@ -537,7 +537,7 @@ test("a kept factor shows the number from the next take of that mode on", async 
   assert.deepEqual(rowView(t), {
     hidden: false,
     parts: ["span.practice__pace-placeholder"],
-    text: "Live pace starts after a 20 s read.",
+    text: "Live pace starts after a 30\u00a0s read.",
   });
 });
 
@@ -671,7 +671,7 @@ test("a store that cannot keep the factor changes nothing the speaker sees", asy
   await t.startRecording();
   assert.equal(lastTracker(t).options.factor, null, "no factor was kept");
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
-  assert.equal(rowView(t).text, "Live pace starts after a 20 s talk.");
+  assert.equal(rowView(t).text, "Live pace starts after a 30\u00a0s talk.");
 });
 
 test("a store that cannot be read leaves the factors as they were", async () => {

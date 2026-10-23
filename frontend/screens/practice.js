@@ -154,13 +154,21 @@
   // The live pace row (spec section 7): the waiting sentence until the estimate has 5 seconds of
   // speech, then "About 150 wpm" and a cue. A take whose mode (Talk or Read) has no kept factor
   // yet says only when the live pace starts, its mode's sentence in the waiting sentence's look,
-  // from first to last: in the app the untuned cue was right on 1 of 4 first takes. Its 20 s is
-  // the speech a take needs to tune the factor (app.delivery.PACE_FACTOR_MIN_SECONDS). A cue's
+  // from first to last: in the app the untuned cue was right on 1 of 4 first takes. A cue's
   // words come with its icon and tone, the check in --ok or the alert triangle in --warn, as
   // Results' Pace hint draws them, so color never carries it alone.
   const PACE_WAITING = "Your pace shows after a few seconds.";
-  const PACE_STARTS_AFTER_TALK = "Live pace starts after a 20 s talk.";
-  const PACE_STARTS_AFTER_READ = "Live pace starts after a 20 s read.";
+  // The two "starts after" sentences promise PACE_STARTS_AFTER_CLOCK_SECONDS on the clock, and
+  // spell it out (practice_live_pace_untuned.test.js holds both, and how.html, to it). That is
+  // more than the speech a take needs to tune its mode (app.delivery.countsForPaceFactor:
+  // delivery.js's PACE_FACTOR_MIN_SECONDS, 20 s from the first word's start to the last word's
+  // end, and PACE_FACTOR_MIN_WORDS, 30 words), since a take's clock also holds the lead-in
+  // before the first word and the tail after the last: a take stopped at 0:21 can hold under
+  // 20 s of speech. At 30 s, a 2 s lead-in, a 1 s tail and a slow 70 wpm still give 27 s of
+  // speech and 31 words. A no-break space joins "30" and "s", so a line never splits there.
+  const PACE_STARTS_AFTER_CLOCK_SECONDS = 30;
+  const PACE_STARTS_AFTER_TALK = "Live pace starts after a 30\u00a0s talk.";
+  const PACE_STARTS_AFTER_READ = "Live pace starts after a 30\u00a0s read.";
   const PACE_NUMBER_PREFIX = "About ";
   const PACE_NUMBER_SUFFIX = " wpm";
   const PACE_LOOK_ON_TARGET = Object.freeze({ words: "On target", icon: "check", tone: "ok" });
@@ -2356,7 +2364,7 @@
 
   // Tunes the take's mode's live pace factor once its analysis is back and its session built
   // (settle): app.delivery.paceFactorAfter moves the kept factor toward the take's own words a
-  // peak, and a take that counts (app.delivery.countsForPaceFactor: 20 seconds and 30 words)
+  // peak, and a take that counts (app.delivery.countsForPaceFactor: 20 s of speech, 30 words)
   // keeps the result with app.store.setFlag, then here, even when it did not move: its mode has
   // a factor from then on, so the mode's next takes show the number and the cue. A take that
   // does not count keeps nothing. The first call takes the peaks with it, so a Retry never

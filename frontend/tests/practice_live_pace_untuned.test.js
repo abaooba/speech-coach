@@ -3,14 +3,17 @@
 // docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7, Validation result). In
 // the app the untuned cue was right on 1 of 4 first takes (the validation note's "End to end in
 // the app"), so an untuned row never guesses: from its first paint to the end of the take it
-// says when the live pace starts, "Live pace starts after a 20 s talk." or "... read." by the
+// says when the live pace starts, "Live pace starts after a 30 s talk." or "... read." by the
 // take's mode, in the waiting sentence's placeholder look, and never a number or a cue. Its
-// blocks still reach the tracker, so the take tunes its mode once its analysis is back. A
-// capture that no block has reached when the clock shows 0:03 goes as one whose context refused
-// to resume does: the context closes, the row hides for the rest of the take, keeping its box so
-// the clock above it stays put, and the take tunes nothing, in level mode too. Every browser API
-// is a fake the tests drive by hand; the last test runs the real estimator on synthetic
-// syllables.
+// 30 s is on the clock (practice.js PACE_STARTS_AFTER_CLOCK_SECONDS), with "30" and "s" joined
+// by a no-break space, while a take tunes its mode with 20 s of speech, first word to last
+// (app.delivery.PACE_FACTOR_MIN_SECONDS), and 30 words: the clock also holds the lead-in and the
+// tail. Its blocks still reach the tracker, so the take tunes its mode once its analysis is back.
+// A capture that no block has reached when the clock shows 0:03 goes as one whose context
+// refused to resume does: the context closes, the row hides for the rest of the take, keeping
+// its box so the clock above it stays put, and the take tunes nothing, in level mode too. Every
+// browser API is a fake the tests drive by hand; the last test runs the real estimator on
+// synthetic syllables.
 "use strict";
 
 const test = require("node:test");
@@ -31,6 +34,7 @@ const {
   WAITING,
   assertReleased,
   block,
+  fakeDelivery,
   graph,
   lastTracker,
   paceRow,
@@ -42,8 +46,18 @@ const {
 const FRONTEND = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND, file), "utf8");
 
-const TALK_LINE = "Live pace starts after a 20 s talk.";
-const READ_LINE = "Live pace starts after a 20 s read.";
+// "30" and "s" are joined by a no-break space (U+00A0), so the line never splits between them.
+const TALK_LINE = "Live pace starts after a 30\u00a0s talk.";
+const READ_LINE = "Live pace starts after a 30\u00a0s read.";
+
+// The seconds on the clock both lines promise: practice.js's PACE_STARTS_AFTER_CLOCK_SECONDS.
+function clockSeconds() {
+  const match = read(path.join("screens", "practice.js")).match(
+    /const PACE_STARTS_AFTER_CLOCK_SECONDS = (\d+);/,
+  );
+  assert.ok(match, "practice.js names the seconds on the clock its lines promise");
+  return Number(match[1]);
+}
 
 // What the tracker could say at any second: a number with each of the three cues.
 const READINGS = [
@@ -419,11 +433,34 @@ test("the row stays aria-live off: the line is never announced", async () => {
   assert.deepEqual(t.calls.announce, ["Recording started", "0:30"]);
 });
 
-test("the lines' 20 s is the speech a take needs to tune its mode, PACE_FACTOR_MIN_SECONDS", () => {
+// What an untuned take's row says, as painted: the Talk line, then the Read line.
+async function paintedLines() {
+  const talk = setup();
+  await talk.show();
+  await talk.startRecording();
+  const reading = setup();
+  await reading.show();
+  chooseRead(reading);
+  await reading.startRecording();
+  return [rowView(talk).text, rowView(reading).text];
+}
+
+test("both lines and how.html give the seconds PACE_STARTS_AFTER_CLOCK_SECONDS names", async () => {
+  const seconds = clockSeconds();
+  const lines = await paintedLines();
+  assert.deepEqual(lines, [TALK_LINE, READ_LINE]);
+  for (const line of lines) {
+    assert.deepEqual(line.match(/\d+/g), [String(seconds)], line);
+  }
+  const how = read("how.html").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  assert.ok(how.includes("your first take of " + seconds + " seconds or more"), "how.html");
+});
+
+test("the clock's seconds are at least 5 over the speech a take needs, PACE_FACTOR_MIN_SECONDS", () => {
   const app = {};
   vm.runInNewContext(DELIVERY_SOURCE, { app }, { filename: "delivery.js" });
-  const seconds = app.delivery.PACE_FACTOR_MIN_SECONDS;
-  assert.equal(typeof seconds, "number");
+  const speech = app.delivery.PACE_FACTOR_MIN_SECONDS;
+  assert.equal(typeof speech, "number");
   // 30 words from 1 s whose last ends exactly that much speech later count; a hair less do not.
   const words = (lastEnd) =>
     Array.from({ length: 30 }, (_, i) =>
@@ -431,14 +468,72 @@ test("the lines' 20 s is the speech a take needs to tune its mode, PACE_FACTOR_M
         ? { text: "word", start: lastEnd - 0.3, end: lastEnd }
         : { text: "word", start: 1 + i * 0.6, end: 1.3 + i * 0.6 },
     );
-  assert.equal(app.delivery.countsForPaceFactor(words(1 + seconds), [2, 3, 4]), true);
-  assert.equal(app.delivery.countsForPaceFactor(words(1 + seconds - 0.01), [2, 3, 4]), false);
-  for (const line of [TALK_LINE, READ_LINE]) {
-    assert.ok(line.includes(" " + seconds + " s "), line);
-  }
-  const how = read("how.html").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
-  assert.ok(how.includes("your first take of " + seconds + " seconds or more"), "how.html");
+  assert.equal(app.delivery.countsForPaceFactor(words(1 + speech), [2, 3, 4]), true);
+  assert.equal(app.delivery.countsForPaceFactor(words(1 + speech - 0.01), [2, 3, 4]), false);
+  const seconds = clockSeconds();
+  assert.ok(seconds >= speech + 5, seconds + " s on the clock for " + speech + " s of speech");
 });
+
+// Practice with delivery.js's own paceFactorAfter and countsForPaceFactor beside the fake
+// tracker, whose peaks the test sets, as practice_live_pace_tuning.test.js tunes its takes;
+// `real` is delivery.js's app.delivery.
+function withRealTuning() {
+  const real = {};
+  vm.runInNewContext(DELIVERY_SOURCE, { app: real }, { filename: "delivery.js" });
+  const delivery = fakeDelivery();
+  delivery.paceFactorAfter = real.delivery.paceFactorAfter;
+  delivery.countsForPaceFactor = real.delivery.countsForPaceFactor;
+  return { t: setup({ delivery }), real: real.delivery };
+}
+
+test("a take as long as the lines promise, with a lead-in, a tail and slow speech, counts", async () => {
+  // The clock runs from Record to Stop, the factor's speech from the first word's start to the
+  // last word's end. Here the first word starts 2 s in and the last ends 1 s before Stop, and
+  // the speech between them goes at 70 wpm: at 30 s on the clock, 31 words over 27 s.
+  const LEAD_IN_SECONDS = 2;
+  const TAIL_SECONDS = 1;
+  const WPM = 70;
+  const WORD_SECONDS = 0.4;
+  const seconds = clockSeconds();
+  const speech = seconds - LEAD_IN_SECONDS - TAIL_SECONDS;
+  const count = Math.floor((speech * WPM) / 60);
+  const step = (speech - WORD_SECONDS) / (count - 1);
+  const words = Array.from({ length: count }, (_, i) => {
+    const start = Math.round((LEAD_IN_SECONDS + i * step) * 1000) / 1000;
+    return { text: "word", start, end: Math.round((start + WORD_SECONDS) * 1000) / 1000 };
+  });
+  assert.equal(words[0].start, LEAD_IN_SECONDS);
+  assert.equal(words[count - 1].end, seconds - TAIL_SECONDS);
+  // Two syllable peaks a second, every one inside the speech.
+  const peaks = Array.from({ length: speech * 2 }, (_, i) => LEAD_IN_SECONDS + 0.25 + i * 0.5);
+  assert.ok(peaks[peaks.length - 1] < seconds - TAIL_SECONDS);
+
+  const { t, real } = withRealTuning();
+  assert.equal(real.countsForPaceFactor(words, peaks), true, "countsForPaceFactor");
+  await t.show();
+  await t.recordTake(seconds * SECOND, { peaks });
+  t.resolveUpload({ ...ANALYSIS, transcript: words });
+  await flush();
+  assert.equal(t.calls.setFlag.length, 1, "the take counted");
+  const [[flag, factor]] = t.calls.setFlag;
+  assert.equal(flag, TALK_FLAG);
+  assert.ok(factor >= 0.45 && factor <= 1.1, String(factor));
+  await t.startRecording();
+  assert.deepEqual(rowView(t), sentenceRow(WAITING), "the next Talk take is tuned");
+});
+
+test("both lines hold 30\u00a0s, joined by a no-break space, and never a plain-space 30 s", async () => {
+  for (const line of await paintedLines()) {
+    assert.ok(line.includes("30\u00a0s "), line);
+    assert.ok(!line.includes("30 s"), line);
+  }
+});
+
+// A line as a source file may spell it: as a reader sees it, or with its no-break space written
+// as the escape \u00a0, as practice.js writes it.
+function spellings(line) {
+  return [line, line.replace(/\u00a0/g, "\\u00a0")];
+}
 
 test("each line lives in one string literal, in practice.js", () => {
   const sources = [
@@ -447,7 +542,10 @@ test("each line lives in one string literal, in practice.js", () => {
   ];
   for (const line of [TALK_LINE, READ_LINE]) {
     const counts = Object.fromEntries(
-      sources.map((file) => [file, read(file).split(line).length - 1]),
+      sources.map((file) => [
+        file,
+        spellings(line).reduce((sum, spelling) => sum + read(file).split(spelling).length - 1, 0),
+      ]),
     );
     assert.equal(counts[path.join("screens", "practice.js")], 1, line);
     assert.equal(
