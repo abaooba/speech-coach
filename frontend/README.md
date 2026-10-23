@@ -671,9 +671,9 @@ in the nav, its icon two dots joined by an S curve.
    heading, "This week: 0 of 4 days" after a flame, plain text and never a button. With no
    benchmark sitting yet, the "Benchmark day" row follows: "About 3 minutes" under the title,
    beside a secondary "Start" that a screen reader hears as "Start benchmark". Under it the
-   Units switch names all four units, two by two, each over "Level 1 of 5": Restarts and
-   Fillers, then Long pauses and Pace. With no takes none is weaker, so Restarts is pressed and
-   only its unit shows. A unit opens with its card: the title, the subtitle ("Read it three
+   Units switch names all four units, each over "Level 1 of 5", two by two on a phone (one row
+   from 600px wide): Restarts and Fillers, then Long pauses and Pace. With no takes none is
+   weaker, so Restarts is pressed and only its unit shows. A unit opens with its card: the title, the subtitle ("Read it three
    times, then twice, then say it" for Restarts) and the why line, then its source on a line of
    its own after "Source: ", the short credit as a link that opens in a new tab and the work in
    plain text after it ("Lambert, Kormos and Minn (2017)", then ", Task Repetition and Second
