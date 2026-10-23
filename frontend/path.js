@@ -37,17 +37,18 @@
   const HALF_RING = "half";
   const GOLD_RING = "gold";
 
-  // What a play is said or read on (spec section 3). A loop keeps one material for every take;
-  // a check-back, checkpoint or crown always starts on new material.
+  // What a play is said or read on (spec section 3). A loop keeps its material for every take,
+  // except that a ladder read draws a passage the speaker has read least recently for every
+  // read (docs/superpowers/specs/2026-10-18-fresh-reads-and-rehearsal-design.md, 3.2). A
+  // check-back, checkpoint or crown always starts on new material.
   const YOUR_DAY = "your-day"; // Practice's "About you" prompt, on a topic pickTopic picks
   const IMPROMPTU = "impromptu"; // Practice's Impromptu prompt, on a topic pickTopic picks
   const NEW_TOPIC = "new-topic"; // an Impromptu topic no take has used yet
   const COLD_READ = "cold-read"; // a passage the speaker has never read (pickColdRead)
-  const LADDER = "ladder"; // the ladder passage, read at a set pace
+  const LADDER = "ladder"; // a new cold read for every read, at a set pace
   const BENCHMARK_MATERIAL = "benchmark"; // app.passages.benchmark(): one read, then one talk
   const YOUR_DAY_PROMPT_ID = "free-talk";
   const IMPROMPTU_PROMPT_ID = "impromptu";
-  const LADDER_PASSAGE_ID = "explainer-rainbows";
 
   const SECONDS_PER_MINUTE = 60;
   // Word times are in seconds to the millisecond; two times closer than this are the same moment.
@@ -170,8 +171,8 @@
   const SUDDEN_DEATH = "suddenDeath";
   const RUN_TARGETS_SECONDS = [30, 45, 60, 90, 120];
   const RUN_HEADROOM_SECONDS = 15;
-  // The Pace crown is the speed ladder: the ladder passage read at 180 wpm, give or take 10,
-  // with at most 1 restart.
+  // The Pace crown is the speed ladder: a new passage read at 180 wpm, give or take 10, with at
+  // most 1 restart.
   const SPEED_LADDER = "speedLadder";
   const LADDER_CROWN = Object.freeze({ wpm: 180, maxRestarts: 1 });
   // How a crown's verdict ends, where a level's says "Level cleared".
@@ -587,7 +588,9 @@
 
   // A take in the level data: its set seconds, whether it is read from a passage, and for a pace
   // take its band. Pace level 3's take 2 also says how long it lasts for a speaker whose usual
-  // pace is under the band (belowBandSeconds), 4/3/2 style.
+  // pace is under the band (belowBandSeconds), 4/3/2 style. A ladder read (Pace levels 1 and 2)
+  // has no set seconds of its own, only its target pace (atPace): resolveTake times it to the
+  // passage drawn for it.
   function talk(seconds, extra) {
     return Object.assign({ seconds, read: false }, extra);
   }
@@ -596,23 +599,24 @@
     return Object.assign({ seconds, read: true }, extra);
   }
 
-  // A ladder read lasts as long as the passage takes at the read's target pace, rounded up, so
-  // Practice's time bar fills as an on-pace speaker reads the last word.
-  function ladderRead(wpm) {
-    return read(Math.ceil((ladderWords() * SECONDS_PER_MINUTE) / wpm), { band: bandAround(wpm) });
+  // A ladder read's target pace and the band around it.
+  function atPace(wpm) {
+    return { band: bandAround(wpm), wpm };
   }
 
   function bandAround(wpm) {
     return [wpm - SPEED_TOLERANCE_WPM, wpm + SPEED_TOLERANCE_WPM];
   }
 
-  // The ladder passage's word count, read from passages.js, which index.html loads first.
-  function ladderWords() {
-    const passage = passageById(LADDER_PASSAGE_ID);
-    if (!passage) {
-      throw new Error("path.js needs the passage '" + LADDER_PASSAGE_ID + "' from passages.js");
+  // A ladder read lasts as long as its passage takes at the read's target pace, rounded up, so
+  // Practice's time bar fills as an on-pace speaker reads the last word. `material` is the
+  // passage drawn for the read (materialFor), its words split on whitespace; null without one.
+  function ladderSeconds(material, wpm) {
+    const text = material && typeof material.text === "string" ? material.text.trim() : "";
+    if (text === "") {
+      return null;
     }
-    return passage.text.trim().split(/\s+/).length;
+    return Math.ceil((text.split(/\s+/).length * SECONDS_PER_MINUTE) / wpm);
   }
 
   // The band talk levels hold the pace to: the Impromptu prompt's own, which new topics share.
@@ -949,7 +953,7 @@
         {
           title: "Feel the band",
           material: LADDER,
-          takes: [ladderRead(150), ladderRead(150)],
+          takes: [read(null, atPace(150)), read(null, atPace(150))],
           conditions: [inTakeBand()],
           guards: PACE_READ_GUARDS,
           tip: "pace-087",
@@ -959,7 +963,7 @@
         {
           title: "Shift gears",
           material: LADDER,
-          takes: [ladderRead(140), ladderRead(160)],
+          takes: [read(null, atPace(140)), read(null, atPace(160))],
           scoredInPairs: true,
           conditions: [inTakeBand(), atMost("restarts", 2)],
           guards: PACE_READ_GUARDS,
@@ -1016,9 +1020,10 @@
   // for a next take, `example` {good, bad} lines as parts {text, mark}. A level is {id, unit,
   // number, title, material, prepSeconds, takes, conditions, guards, scoredInPairs, tip,
   // liveTap, spotIt, listsTopFillers, checkback}, its id "<unit>-<number>" (the id app.store
-  // keeps once it is cleared); its `takes` are [{seconds, scored, read, band?, label}], and the
-  // rule a scored take must meet is its `conditions` and `guards`. `crown` is null or {id, judge,
-  // title, label, material, tiers}; `checkpoint` is {id, label, seconds, conditions, guards}.
+  // keeps once it is cleared); its `takes` are [{seconds, scored, read, band?, wpm?, label}], a
+  // ladder read's seconds null and `wpm` its target pace, and the rule a scored take must meet
+  // is its `conditions` and `guards`. `crown` is null or {id, judge, title, label, material,
+  // tiers}; `checkpoint` is {id, label, seconds, conditions, guards}.
   const UNITS = deepFreeze(UNIT_DATA.map(buildUnit));
 
   const LEVELS_BY_ID = new Map(
@@ -1113,6 +1118,7 @@
   //   "Fillers checkpoint", "Benchmark") and subtitle the level title ("Catch it live").
   // - takes [{seconds, scored, read, band?, label}] in order ("Take 1", "Read 2"; a one-take
   //   play's is "Take", the benchmark's "Read" and "Talk"); takeAt() gives the takes past them.
+  //   A ladder read's seconds are null here: they follow the passage drawn for it (takeAt).
   // - material: the key materialFor() reads ("your-day", "impromptu", "new-topic", "cold-read",
   //   "ladder" or "benchmark"); prepSeconds and prepText the planning before take 1.
   // - goal {headline, unitLabel, length, short}; example {good, bad} lines of parts {text,
@@ -1144,7 +1150,10 @@
   // it: {seconds, scored, read, band?, label}. A loop's takes past its list are its retries
   // ("Try take 3"): each repeats the scored take ("Take 3"), and Pace level 2's repeat its pair
   // of reads ("Read 3" at 140, "Read 4" at 160). Null for the benchmark past its two takes, or
-  // for an unknown play.
+  // for an unknown play. `options` is {baseline, cleared, material}: `material`, the passage the
+  // take is read from (materialFor), times a ladder read, its seconds the passage's words at the
+  // read's target pace, rounded up; without one a ladder read's seconds are null. Every other
+  // take keeps its own seconds.
   function takeAt(play, takeIndex, options) {
     const spec = specOf(play && typeof play === "object" ? play.id : play);
     if (spec === null || !Number.isInteger(takeIndex) || takeIndex < 0) {
@@ -1152,7 +1161,7 @@
     }
     const given = options && typeof options === "object" ? options : {};
     const usual = isBaseline(given.baseline) ? given.baseline : null;
-    const take = takeOf(spec, takeIndex, usual, given.cleared);
+    const take = takeOf(spec, takeIndex, usual, given.cleared, given.material);
     return take === null ? null : deepFreeze(take);
   }
 
@@ -1319,20 +1328,21 @@
     return spec.takes.map((take, index) => resolveTake(spec, take, index, usual));
   }
 
-  // The take at `index`: a listed one, or for a loop past its list a retry (see takeAt).
-  function takeOf(spec, index, usual, cleared) {
+  // The take at `index`: a listed one, or for a loop past its list a retry (see takeAt), a
+  // ladder read timed to `material` when there is one.
+  function takeOf(spec, index, usual, cleared, material) {
     if (spec.kind === CROWN) {
-      return crownTake(spec.unit.crown, crownTierOf(spec.unit.crown, cleared));
+      return crownTake(spec.unit.crown, crownTierOf(spec.unit.crown, cleared), material);
     }
     if (index < spec.takes.length) {
-      return resolveTake(spec, spec.takes[index], index, usual);
+      return resolveTake(spec, spec.takes[index], index, usual, material);
     }
     if (spec.kind === BENCHMARK) {
       return null;
     }
     const size = attemptSize(spec);
     const repeated = spec.takes[spec.takes.length - size + ((index - spec.takes.length) % size)];
-    return resolveTake(spec, repeated, index, usual);
+    return resolveTake(spec, repeated, index, usual, material);
   }
 
   // How many takes one attempt scores: two for Pace level 2's pair of reads, else one.
@@ -1349,11 +1359,15 @@
 
   // A take as a play lists it: {seconds, scored, read, band?, label}. A loop's takes are
   // numbered from 1. Pace level 3's take 2 is shorter for a speaker whose usual pace is under the
-  // band, and its seconds are null until there is a baseline to say which.
-  function resolveTake(spec, take, index, usual) {
+  // band, and its seconds are null until there is a baseline to say which. A ladder read lasts
+  // as long as `material`, the passage drawn for it, takes at its pace: null without one.
+  function resolveTake(spec, take, index, usual, material) {
     let seconds = take.seconds;
     if (take.belowBandSeconds !== undefined) {
       seconds = usual === null ? null : usual.wpm < take.band[0] ? take.belowBandSeconds : seconds;
+    }
+    if (take.wpm !== undefined) {
+      seconds = ladderSeconds(material, take.wpm);
     }
     const resolved = { seconds, scored: take.scored, read: take.read };
     if (take.band) {
@@ -1365,14 +1379,20 @@
   }
 
   // A crown tier's one take: sudden death talks for the tier's run plus headroom; the speed
-  // ladder reads the ladder passage at its pace.
-  function crownTake(crown, tier) {
+  // ladder reads a new passage at its pace, as long as `material`, that passage, takes at it
+  // (null seconds without one).
+  function crownTake(crown, tier, material) {
     if (crown.judge === SUDDEN_DEATH) {
       const seconds = tier.seconds + RUN_HEADROOM_SECONDS;
       return { seconds, scored: true, read: false, label: "Take" };
     }
-    const take = ladderRead(tier.wpm);
-    return { seconds: take.seconds, scored: true, read: true, band: take.band, label: "Take" };
+    return {
+      seconds: ladderSeconds(material, tier.wpm),
+      scored: true,
+      read: true,
+      band: bandAround(tier.wpm),
+      label: "Take",
+    };
   }
 
   // The crown's next tier: the first not yet earned, or the top one, marked earned, once all are.
@@ -1479,9 +1499,10 @@
     if (spec.kind === CHECKBACK) {
       return takes[0].read ? "One read of a new passage" : takes[0].seconds + " s on a new topic";
     }
+    // Every reading loop is on new material: one cold read for all its reads (Restarts), or a
+    // new cold read for each read (a ladder, Pace). No line shows a ladder read's seconds.
     if (takes.every((take) => take.read)) {
-      const passage = spec.material === COLD_READ ? "a new passage" : "the passage";
-      return takes.length + " reads of " + passage;
+      return takes.length + " reads of a new passage";
     }
     const [first, second] = takes;
     if (second.seconds === null) {
@@ -1508,7 +1529,7 @@
     return {
       headline: band[0] + " to " + band[1],
       unitLabel: "wpm, at most " + countText(tier.maxRestarts, "restart"),
-      length: "One read of the passage",
+      length: "One read of a new passage",
       short: crown.label,
     };
   }
@@ -1685,7 +1706,9 @@
   //   (checkpoints). The baseline is baseline()'s or, for a speaker with none, measure() of the
   //   play's first take with speech. It may be null only on take 1. Until a take has had speech
   //   (take 1 itself, or a later take after a take 1 whose measure() has none), the take being
-  //   judged stands in for it, its set seconds resolved against its own numbers.
+  //   judged stands in for it, its set seconds resolved against its own numbers. A ladder read
+  //   needs no material: it is judged on reading its passage through and on its band, and set
+  //   seconds feed only talkShare, which no read checks.
   // - passed: true or false on a scored take, null on one that is not. A take without speech
   //   fails with "No speech was found in this take."
   // - value, valueText, unitLabel and targetText: the number the take is judged on and its words
@@ -2818,8 +2841,11 @@
   // "passage", id, title, text, targetWpm, topic}. `text` is what Practice shows: a prompt's
   // topic, or the passage, which is also the script sent with the take; `topic` is the topic on
   // a prompt, else null. A topic or a cold read is drawn with `random` (such as Math.random), so
-  // a screen calls this once at the Goal step and keeps the material for every take of a loop.
-  // A ladder read's targetWpm is its take's band, `takeIndex` (0 for take 1) saying which take.
+  // a screen calls this once at the Goal step and keeps the material for every take of a loop,
+  // except a ladder's: a ladder (Pace) read is a cold read drawn afresh for each read, with the
+  // run's own saved takes first in `history`, so read 2 never draws read 1's passage while
+  // another is unread. Its targetWpm is its take's band, `takeIndex` (0 for take 1) saying which
+  // take.
   function materialFor(play, history, random, takeIndex) {
     const spec = specOf(play && typeof play === "object" ? play.id : play);
     if (spec === null) {
@@ -2836,7 +2862,7 @@
       return passageMaterial(pickColdRead(history, random), null);
     }
     if (spec.material === LADDER) {
-      return passageMaterial(passageById(LADDER_PASSAGE_ID), takeOf(spec, index, null).band);
+      return passageMaterial(pickColdRead(history, random), takeOf(spec, index, null).band);
     }
     return benchmarkMaterial(index);
   }

@@ -283,7 +283,14 @@ test("every level has the Loop Path's fields: a title, its material, takes and a
       assert.ok(entry.title.length >= 6, entry.id);
       assert.ok(entry.takes.length >= 2, entry.id);
       entry.takes.forEach((take) => {
-        assert.ok(Number.isInteger(take.seconds) && take.seconds > 0, entry.id);
+        if (entry.material === "ladder") {
+          // A ladder read is timed to the passage drawn for it: its pace, no seconds of its own.
+          assert.equal(take.seconds, null, entry.id);
+          assert.ok(Number.isInteger(take.wpm) && take.wpm > 0, entry.id);
+          assert.deepEqual(Array.from(take.band), [take.wpm - 10, take.wpm + 10], entry.id);
+        } else {
+          assert.ok(Number.isInteger(take.seconds) && take.seconds > 0, entry.id);
+        }
       });
       assert.ok(entry.conditions.length >= 1, entry.id);
       assert.ok(entry.guards.length >= 1, entry.id);
@@ -433,21 +440,37 @@ test("a talk runs past its target, so the take has room to reach it", () => {
   });
 });
 
-test("a ladder read lasts as long as the passage takes at its pace, rounded up", () => {
-  const passage = APP.passages.find((entry) => entry.id === LADDER_PASSAGE_ID);
-  const passageWords = passage.text.trim().split(/\s+/).length;
+test("a ladder read lasts as long as its drawn passage takes at its pace, rounded up", () => {
   ["pace-1", "pace-2"].forEach((id) => {
     assert.equal(level(id).material, "ladder", id);
-    level(id).takes.forEach((take) => {
+    level(id).takes.forEach((take, index) => {
       const target = (take.band[0] + take.band[1]) / 2;
-      assert.equal(take.seconds, Math.ceil((passageWords * 60) / target), id);
+      assert.equal(take.seconds, null, id + ": no seconds before a passage is drawn");
+      const material = PATH.materialFor(id, [], () => 0, index);
+      APP.passages.coldReads().forEach((passage) => {
+        const drawn = { ...material, id: passage.id, title: passage.title, text: passage.text };
+        const passageWords = passage.text.trim().split(/\s+/).length;
+        assert.equal(
+          PATH.takeAt(id, index, { material: drawn }).seconds,
+          Math.ceil((passageWords * 60) / target),
+          id + " on " + passage.id,
+        );
+      });
     });
   });
+  const first = PATH.materialFor("pace-1", [], () => 0, 0);
+  assert.equal(first.text.trim().split(/\s+/).length, 164, "the first cold read: 164 words");
   assert.deepEqual(
-    [...level("pace-1").takes, ...level("pace-2").takes].map((take) => take.seconds),
-    [44, 44, 47, 41],
+    [
+      ["pace-1", 0],
+      ["pace-1", 1],
+      ["pace-2", 0],
+      ["pace-2", 1],
+    ].map(([id, index]) => PATH.takeAt(id, index, { material: first }).seconds),
+    [66, 66, 71, 62],
   );
-  assert.equal(PATH.playById("pace_crown").takes[0].seconds, 37);
+  assert.equal(PATH.playById("pace_crown").takes[0].seconds, null);
+  assert.equal(PATH.takeAt("pace_crown", 0, { material: first }).seconds, 55);
 });
 
 test("every cold read fits in a cold-read level even at the slow edge of its band", () => {
