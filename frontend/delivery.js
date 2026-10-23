@@ -120,11 +120,13 @@
   const LIVE_PITCH_LOW_HZ = 75;
   const LIVE_PITCH_HIGH_HZ = 400;
   const LIVE_MIN_VOICING = 0.45;
-  // The median comes from a histogram of every window's loudness in 0.25 dB bins from -120 dB
-  // (digital silence) to 0 dB (full scale), so a long take costs no more than a short one.
+  // The median comes from a histogram of every window's loudness in 0.05 dB bins from -120 dB
+  // (digital silence) to 0 dB (full scale), so a long take costs no more than a short one. In
+  // dense speech many peaks sit within a few hundredths of a dB of the threshold, and 0.25 dB
+  // bins moved it enough to count 4% more of them under a second voice.
   const LIVE_FLOOR_DB = -120;
   const LIVE_CEILING_DB = 0;
-  const LIVE_BIN_DB = 0.25;
+  const LIVE_BIN_DB = 0.05;
   // The lowest sample rate the band and the pitch range fit in, and the recent band-passed
   // audio kept for the voicing check behind the look-ahead (it needs about 60 ms).
   const LIVE_MIN_SAMPLE_RATE = 8000;
