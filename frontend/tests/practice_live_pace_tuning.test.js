@@ -155,5 +155,5 @@ test("with delivery.js's tuning, the same words a peak over 17.8 s keeps nothing
   await t.startRecording();
   assert.equal(lastTracker(t).options.factor, null, "still none");
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
-  assert.equal(rowView(t).text, "On target", "the cue alone");
+  assert.equal(rowView(t).text, "Live pace starts after a 20 s talk.", "still untuned");
 });
