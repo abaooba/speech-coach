@@ -2859,12 +2859,22 @@
       return promptMaterial(IMPROMPTU_PROMPT_ID, history, random);
     }
     if (spec.material === COLD_READ) {
-      return passageMaterial(pickColdRead(history, random), null);
+      return passageMaterial(coldReadFor(history, random), null);
     }
     if (spec.material === LADDER) {
-      return passageMaterial(pickColdRead(history, random), takeOf(spec, index, null).band);
+      return passageMaterial(coldReadFor(history, random), takeOf(spec, index, null).band);
     }
     return benchmarkMaterial(index);
+  }
+
+  // The cold read a take reads (pickColdRead). The pool is passages.js's coldReads(); an empty or
+  // missing one is an error that says so, as a missing benchmark is.
+  function coldReadFor(history, random) {
+    const passage = pickColdRead(history, random);
+    if (passage === null) {
+      throw new Error("path.js needs app.passages.coldReads() from passages.js");
+    }
+    return passage;
   }
 
   // The benchmark's held-out material from app.passages.benchmark(): its passage for the read

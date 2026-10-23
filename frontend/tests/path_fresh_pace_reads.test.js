@@ -4,8 +4,9 @@
 // level 1, Pace level 2 and the Pace crown is a cold read drawn by pickColdRead's rule, so a read
 // drawn over the takes before it never repeats one while another is unread; a ladder read's set
 // seconds are its passage's words at the read's target pace, rounded up, resolved by takeAt from
-// the material it is given and null without one; the material key stays "ladder"; evaluate
-// judges a ladder read without its material; and the Goal says each read is of a new passage.
+// the material it is given and null without one; the material key stays "ladder"; with no cold
+// read to draw, a read's material is an error naming passages.js's pool; evaluate judges a
+// ladder read without its material; and the Goal says each read is of a new passage.
 // passages.js, delivery.js and path.js load into a vm in index.html's order.
 "use strict";
 
@@ -287,6 +288,26 @@ test("ladder reads drawn over earlier takes read each cold read once, then the o
   const firstRound = drawn.slice(0, COLD_READS.length);
   assert.equal(new Set(firstRound).size, COLD_READS.length, "no repeat until the pool runs out");
   assert.deepEqual(drawn.slice(COLD_READS.length), firstRound, "then the one read longest ago");
+});
+
+test("with no cold read to draw, a read's material says path.js needs passages.js's", () => {
+  const empty = loadApp();
+  empty.passages.coldReads = () => [];
+  const missing = loadApp();
+  delete missing.passages.coldReads;
+  const reads = LADDER_READS.map(([id, index]) => [id, index]).concat([
+    ["restarts-1", 0],
+    ["restarts-4_checkback", 0],
+  ]);
+  [empty, missing].forEach((app) => {
+    reads.forEach(([id, index]) => {
+      assert.throws(
+        () => app.path.materialFor(id, [], () => 0, index),
+        { name: "Error", message: "path.js needs app.passages.coldReads() from passages.js" },
+        id + " take " + (index + 1),
+      );
+    });
+  });
 });
 
 // --- Judging and copy -------------------------------------------------------------------------
