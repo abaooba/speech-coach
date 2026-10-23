@@ -77,7 +77,11 @@ function parseRules(text, at = null, rules = []) {
     if (prelude.startsWith("@")) {
       parseRules(body, prelude, rules);
     } else {
-      rules.push({ at, selectors: prelude.split(",").map(squash), declarations: declarationsOf(body) });
+      rules.push({
+        at,
+        selectors: prelude.split(",").map(squash),
+        declarations: declarationsOf(body),
+      });
     }
     cursor = close + 1;
   }
@@ -88,7 +92,9 @@ const RULES = parseRules(withoutComments(CSS));
 
 // The rules whose selectors name the card's button.
 function buttonRules() {
-  return RULES.filter((rule) => rule.selectors.some((s) => s.includes("passage-card__new")));
+  return RULES.filter((rule) =>
+    rule.selectors.some((selector) => selector.includes("passage-card__new")),
+  );
 }
 
 function narrowRule(selector) {
@@ -128,8 +134,10 @@ test("under 360px the Read tab's button is a 44 x 44 target showing its icon alo
     gap: "0",
     "font-size": "0",
   });
-  // Its height stays the card's 44px target; the icon is the 16px one it always draws.
-  const base = RULES.find((r) => r.at === null && r.selectors.includes(".passage-card__new"));
+  // Its height stays the 44px of the button's own rule.
+  const base = RULES.find(
+    (rule) => rule.at === null && rule.selectors.includes(".passage-card__new"),
+  );
   assert.equal(base.declarations["min-height"], "44px");
 });
 
@@ -148,7 +156,9 @@ test("the narrow rule keeps the button's place and its focus ring", () => {
 });
 
 test("Talk's New topic and every width from 360px keep the button as it was", () => {
-  const kinded = buttonRules().filter((rule) => rule.selectors.some((s) => s.includes("data-kind")));
+  const kinded = buttonRules().filter((rule) =>
+    rule.selectors.some((selector) => selector.includes("data-kind")),
+  );
   assert.deepEqual(
     kinded.map((rule) => [rule.at, rule.selectors]),
     [[NARROW, [READ_BUTTON]]],

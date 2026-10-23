@@ -16,8 +16,8 @@ const vm = require("node:vm");
 
 const FRONTEND_DIR = path.join(__dirname, "..");
 
-// Each group's passages in the Read tab's order, as [id, title]: the six of before first, then
-// the new ones.
+// Each group's passages in the Read tab's order, as [id, title]: the ones it held before come
+// first, then the new ones.
 const READ_PASSAGES = {
   explainer: [
     ["explainer-rainbows", "Explainer: how rainbows form"],
@@ -234,8 +234,8 @@ test("every Read passage keeps its group's words, title and band", () => {
 
 test("only speeches carry a source, each 'Speaker, work, year' as checked", () => {
   for (const entry of readPassages()) {
-    const sourced = GROUP_RULES[entry.group].sourced;
-    assert.equal(Object.hasOwn(entry, "source"), sourced, `${entry.id} has a source: ${sourced}`);
+    const wanted = GROUP_RULES[entry.group].sourced;
+    assert.equal(Object.hasOwn(entry, "source"), wanted, `${entry.id} has a source: ${wanted}`);
   }
   const sourced = readPassages().filter((entry) => Object.hasOwn(entry, "source"));
   assert.deepEqual(
@@ -279,7 +279,8 @@ test("every cold read has 142 to 164 words, the 140 to 160 band and a Cold read 
   }
 });
 
-test("ids and titles are unique across prompts, passages, cold reads, benchmark and retired", () => {
+// Prompts, Read passages, cold reads, the benchmark and the retired ids together.
+test("ids are slugs and titles short, each used once, across all of passages.js", () => {
   const benchmark = APP.passages.benchmark();
   const retired = Array.from(APP.passages.retired());
   const everything = [
