@@ -2,13 +2,15 @@
 // spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7, Capture and
 // Display). A recorder that cannot start means no take: the live pace capture, the microphone and
 // the pause sampler all go at once, the block a refused microphone shows takes the record zone,
-// and the next take's capture is the only one left open.
+// and the next take's capture is the only one left open. A context that refuses to resume never
+// hands over a block, so its capture goes too and the row hides for the rest of the take.
 "use strict";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { byClass } = require("./fake-dom");
+const { flush } = require("./practice-harness");
 const { SECOND, assertReleased, graph, paceRow, setup } = require("./live-pace-harness");
 
 const MIC_BLOCKED_TITLE = "Microphone blocked";
@@ -123,4 +125,61 @@ test("after a recorder that could not start, Try again and a new take leave one 
   assert.equal(paceRow(t).hidden, false);
   assert.ok(t.streams[0].tracks.every((track) => track.stopped), "the first stream is let go");
   assert.ok(t.streams[1].tracks.every((track) => !track.stopped), "the new one records");
+});
+
+// --- a context that will not resume ---
+
+test("a context that refuses to resume lets its capture go, and the row hides for the take", async () => {
+  const t = setup({ audio: { state: "suspended", rejectResume: true } });
+  await t.show();
+  await t.startRecording();
+  await flush();
+  const g = graph(t);
+  assert.equal(g.context.resumes, 1, "it was asked once");
+  assertReleased(g);
+  assert.equal(paceRow(t).hidden, true);
+  t.clock.advance(8 * SECOND);
+  assert.equal(paceRow(t).hidden, true, "for the whole take");
+  assert.equal(t.root.dataset.state, "recording", "the take records on");
+  assert.equal(t.clock.activeIntervals(), 1, "the clock's one tick");
+  await t.stopRecording();
+  t.app.delivery.nextFactor = 0.75;
+  t.resolveUpload();
+  await flush();
+  assert.equal(t.calls.save.length, 1, "the take is saved");
+  assert.equal(t.app.delivery.tunings.length, 0, "a capture that heard nothing tunes nothing");
+  assert.deepEqual(t.calls.setFlag, []);
+});
+
+test("a context that resumes late, once asked, keeps its capture and the row", async () => {
+  const t = setup({ audio: { state: "suspended", holdResume: true } });
+  await t.startRecording();
+  const g = graph(t);
+  t.clock.advance(2 * SECOND);
+  g.context.answerResume(true);
+  await flush();
+  assert.equal(g.context.closes, 0);
+  assert.equal(typeof g.processor.onaudioprocess, "function");
+  assert.equal(paceRow(t).hidden, false);
+});
+
+test("a refusal that comes after its take has ended leaves the next take's capture alone", async () => {
+  const t = setup({ audio: { state: "suspended", holdResume: true } });
+  await t.startRecording();
+  const first = graph(t);
+  t.clock.advance(6 * SECOND);
+  await t.stopRecording();
+  assert.equal(first.context.closes, 1, "Stop let the first capture go");
+  t.clock.advance(SECOND);
+  await t.startRecording();
+  const second = graph(t);
+  assert.notEqual(second.context, first.context);
+  first.context.answerResume(false);
+  await flush();
+  assert.equal(second.context.closes, 0, "the new take's context is left open");
+  assert.equal(typeof second.processor.onaudioprocess, "function");
+  assert.equal(paceRow(t).hidden, false);
+  second.context.answerResume(true);
+  await flush();
+  assert.equal(paceRow(t).hidden, false);
 });

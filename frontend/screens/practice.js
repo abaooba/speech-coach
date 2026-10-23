@@ -271,7 +271,8 @@
   };
 
   // Everything a live take holds, from the Record tap until Stop or hide() lets it go. `pace` is
-  // the take's live pace capture (startLivePace), or null when it did not start.
+  // the take's live pace capture (startLivePace), or null when it did not start or its context
+  // refused to resume (dropLivePace).
   const capture = {
     awaitingMic: false,
     stream: null,
@@ -2087,8 +2088,9 @@
       pace.processor.connect(pace.silence);
       pace.silence.connect(pace.context.destination);
       // iOS Safari may hand over a suspended context, and a suspended graph hands over nothing.
+      // One that refuses to resume never will, so its capture goes and the row with it.
       if (pace.context.state === "suspended" && typeof pace.context.resume === "function") {
-        ignoreRejection(pace.context.resume());
+        whenRefused(pace.context.resume(), () => dropLivePace(pace));
       }
     } catch {
       tearDownPace(pace);
@@ -2130,10 +2132,10 @@
 
   // The live pace row, shown only while a normal take records with its capture running: never
   // in idle, uploading or error, never in level mode, whose takes count, and never for a take
-  // whose capture did not start. It says the waiting sentence until the tracker has a number,
-  // then the number and the cue, or the cue alone, centred, while the take's mode has no kept
-  // factor. The words are the tracker's: its number comes rounded and its cue held. The children
-  // are rebuilt only when the words change.
+  // whose capture did not start or was dropped. It says the waiting sentence until the tracker
+  // has a number, then the number and the cue, or the cue alone, centred, while the take's mode
+  // has no kept factor. The words are the tracker's: its number comes rounded and its cue held.
+  // The children are rebuilt only when the words change.
   function paintPace(view) {
     const pace = capture.pace;
     nodes.pace.hidden = !(view.showPace && levelRequest === null && pace !== null);
@@ -2226,6 +2228,16 @@
     return peaks === null ? null : { peaks, mode: pace.mode };
   }
 
+  // A capture whose context refused to resume goes as if it had never started, unless its take
+  // has let it go already: the row hides for the rest of the take, which tunes nothing.
+  function dropLivePace(pace) {
+    if (capture.pace !== pace) {
+      return;
+    }
+    releaseLivePace();
+    paintPace(viewFor(state));
+  }
+
   // Clears the handler, disconnects every node made, closes the context and drops the tracker;
   // safe on a capture whose setup stopped partway.
   function tearDownPace(pace) {
@@ -2244,10 +2256,16 @@
     pace.tracker = null;
   }
 
-  // resume() and close() answer with promises whose outcome changes nothing here.
+  // close() answers with a promise whose outcome changes nothing here.
   function ignoreRejection(promise) {
+    whenRefused(promise, () => {});
+  }
+
+  // Runs `then` if `promise` is refused. An older browser's resume() or close() may hand back
+  // no promise at all, which refuses nothing.
+  function whenRefused(promise, then) {
     if (promise && typeof promise.catch === "function") {
-      promise.catch(() => {});
+      promise.catch(then);
     }
   }
 

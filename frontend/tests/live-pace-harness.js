@@ -134,8 +134,10 @@ class FakeAudioNode {
 }
 
 // An AudioContext class for one test. Options: sampleRate, state ("running" or "suspended"),
-// rejectResume, failOnCreate, and failAt ("source", "processor" or "gain") for a node that
-// cannot be made. Every instance is kept, with the nodes made on it, and `log` hears each step.
+// rejectResume, holdResume (resume() answers only when the test calls the instance's
+// answerResume(accepted)), failOnCreate, and failAt ("source", "processor" or "gain") for a node
+// that cannot be made. Every instance is kept, with the nodes made on it, and `log` hears each
+// step.
 function fakeAudioContextClass(options, log) {
   class FakeAudioContext {
     constructor() {
@@ -175,6 +177,18 @@ function fakeAudioContextClass(options, log) {
 
     resume() {
       this.resumes += 1;
+      if (options.holdResume) {
+        return new Promise((resolve, reject) => {
+          this.answerResume = (accepted) => {
+            if (!accepted) {
+              reject(new Error("resume needs a gesture"));
+              return;
+            }
+            this.state = "running";
+            resolve();
+          };
+        });
+      }
       if (options.rejectResume) {
         return Promise.reject(new Error("resume needs a gesture"));
       }

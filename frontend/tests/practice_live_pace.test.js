@@ -135,14 +135,15 @@ test("the capture starts right after the pause sampler and leaves it and the mic
   assert.equal(t.AudioContext.instances.length, 1, "a context of its own, beside the sampler's");
 });
 
-test("a suspended context is resumed, as pauses.js does, and a refused resume changes nothing", async () => {
+test("a suspended context is resumed, as pauses.js does; a refused resume lets the capture go", async () => {
   for (const rejectResume of [false, true]) {
     const t = setup({ audio: { state: "suspended", rejectResume } });
     await t.startRecording();
     await flush();
     assert.equal(graph(t).context.resumes, 1, "resumed once");
     assert.equal(t.root.dataset.state, "recording");
-    assert.equal(paceRow(t).hidden, false);
+    assert.equal(paceRow(t).hidden, rejectResume, rejectResume ? "refused: no row" : "resumed");
+    assert.equal(graph(t).context.closes, rejectResume ? 1 : 0);
   }
   const running = setup();
   await running.startRecording();
