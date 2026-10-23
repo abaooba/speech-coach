@@ -145,9 +145,10 @@
   // it), and starting the clock there would pull the first numbers down.
   const LIVE_SPEECH_RUN_PEAKS = 2;
   const LIVE_SPEECH_RUN_SECONDS = 1.5;
-  // The cue: Slow down or Speed up once the number has been more than 10 wpm outside the band
-  // for 3 s, and On target again once it has been within that for 3 s. The number is an
-  // estimate some 10 wpm either way, so a smaller miss stays On target.
+  // The cue: the first number shows the one it calls for. After that, Slow down or Speed up
+  // once the number has been more than 10 wpm outside the band for 3 s, and On target again
+  // once it has been within that for 3 s. The number is an estimate some 10 wpm either way, so
+  // a smaller miss stays On target.
   const LIVE_CUE_MARGIN_WPM = 10;
   const LIVE_CUE_HOLD_SECONDS = 3;
   const ON_TARGET = "on-target";
@@ -1138,10 +1139,10 @@
   // speech), `quietSeconds` the time since the latest peak and `band` the entry's [lo, hi].
   // Returns {wpm, cue, pendingCue, pendingSince}: `wpm` the number to show, rounded to
   // LIVE_ROUND_TO_WPM, or null until there is one; `cue` "on-target", "slow-down" or
-  // "speed-up", null without a number or a valid band. The cue starts On target and changes
-  // only once the number has called for another one for LIVE_CUE_HOLD_SECONDS, the cue it
-  // calls for held in `pendingCue` since `pendingSince`. A silence over LIVE_SILENCE_SECONDS
-  // keeps the state as it was.
+  // "speed-up", null without a number or a valid band. The first number shows the cue it calls
+  // for; after that the cue changes only once the number has called for another one for
+  // LIVE_CUE_HOLD_SECONDS, the cue it calls for held in `pendingCue` since `pendingSince`. A
+  // silence over LIVE_SILENCE_SECONDS keeps the state as it was.
   function nextLiveReading(previous, sample) {
     const state = previous || { wpm: null, cue: null, pendingCue: null, pendingSince: null };
     const { at, estimate, quietSeconds, band } = sample || {};
@@ -1155,7 +1156,7 @@
       return { wpm, cue: null, pendingCue: null, pendingSince: null };
     }
     const called = cueFor(wpm, range);
-    const cue = state.cue === null ? ON_TARGET : state.cue;
+    const cue = state.cue === null ? called : state.cue;
     if (called === cue) {
       return { wpm, cue, pendingCue: null, pendingSince: null };
     }

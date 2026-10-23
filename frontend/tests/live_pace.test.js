@@ -329,10 +329,30 @@ test("the number is rounded to 5", () => {
   }
 });
 
-test("the first number starts On target, even far outside the band", () => {
+test("the first number shows its own cue, with the same 10 wpm margin", () => {
   assert.equal(readAt(null, 6, 150).cue, "on-target");
-  assert.equal(readAt(null, 6, 200).cue, "on-target");
-  assert.equal(readAt(null, 6, 90).cue, "on-target");
+  assert.equal(readAt(null, 6, 200).cue, "slow-down");
+  assert.equal(readAt(null, 6, 90).cue, "speed-up");
+  // 170 and 130 are exactly 10 outside 140 to 160: still On target.
+  assert.equal(readAt(null, 6, 170).cue, "on-target");
+  assert.equal(readAt(null, 6, 175).cue, "slow-down");
+  assert.equal(readAt(null, 6, 130).cue, "on-target");
+  assert.equal(readAt(null, 6, 125).cue, "speed-up");
+  // Nothing is pending after the first number, whatever its cue.
+  for (const estimate of [90, 150, 200]) {
+    const first = readAt(null, 6, estimate);
+    assert.equal(first.pendingCue, null, String(estimate));
+    assert.equal(first.pendingSince, null, String(estimate));
+  }
+});
+
+test("after a first Slow down, On target waits its own 3 s", () => {
+  const states = readsFrom(6, [200, 150, 150, 150, 150]);
+  assert.deepEqual(
+    states.map((state) => state.cue),
+    ["slow-down", "slow-down", "slow-down", "slow-down", "on-target"],
+  );
+  assert.deepEqual(states.map((state) => state.wpm), [200, 150, 150, 150, 150]);
 });
 
 test("Slow down shows once the number has been more than 10 over the band for 3 s", () => {
@@ -484,6 +504,14 @@ test("peaks() hands back a copy", () => {
   assert.notEqual(tracker.peaks()[0], -1);
 });
 
+// The cue the row's margin rule gives a number against the band [lo, hi].
+function cueByMargin(wpm, [lo, hi]) {
+  if (wpm > hi + 10) {
+    return "slow-down";
+  }
+  return wpm < lo - 10 ? "speed-up" : "on-target";
+}
+
 test("the tracker's factor scales the number, and a band gives it a cue", () => {
   const { samples } = speechLike({ seconds: 20, rate: 4, snrDb: 30, seed: 19 });
   const usual = trackerFed(samples, 16000, 1024, { band: BAND }).read(15);
@@ -494,7 +522,12 @@ test("the tracker's factor scales the number, and a band gives it a cue", () => 
   assert.equal(usual.wpm, round5(delivery.livePaceAt(peaks, 15, 0.69)));
   assert.deepEqual(plain(missing), plain(usual));
   assert.equal(higher.wpm, round5(delivery.livePaceAt(peaks, 15, 0.9)));
-  assert.equal(usual.cue, "on-target");
+  // read(15) is each tracker's first number, so it shows the cue its band calls for.
+  assert.equal(usual.cue, cueByMargin(usual.wpm, BAND));
+  const firstCue = (band) => trackerFed(samples, 16000, 1024, { band }).read(15).cue;
+  assert.equal(firstCue([usual.wpm + 15, usual.wpm + 35]), "speed-up");
+  assert.equal(firstCue([usual.wpm - 5, usual.wpm + 5]), "on-target");
+  assert.equal(firstCue([usual.wpm - 35, usual.wpm - 15]), "slow-down");
   assert.equal(trackerFed(samples, 16000).read(15).cue, null, "no band, no cue");
 });
 
