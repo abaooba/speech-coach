@@ -133,7 +133,7 @@ test("a Talk take compares with the last Talk take, past the reads saved since",
   );
   // Against read-2, the take just before, it would read "25 slower" and "2.8 more".
   assert.deepEqual(deltaTexts(body), ["20 faster", "1.2 fewer", "No change", "Not compared"]);
-  assert.equal(noteOf(body), NOTE);
+  assert.equal(noteOf(body), "Arrows compare with your last Talk take.");
 });
 
 test("a Read take compares with the last Read take, past the talks saved since", async () => {
@@ -148,7 +148,7 @@ test("a Read take compares with the last Read take, past the talks saved since",
   );
   // Against talk-2 it would read "45 faster" and "4.7 fewer".
   assert.deepEqual(deltaTexts(body), ["10 faster", "No change", "No change", "Not compared"]);
-  assert.equal(noteOf(body), NOTE);
+  assert.equal(noteOf(body), "Arrows compare with your last Read take.");
 });
 
 test("the last take of the kind is the newest one saved before this one", async () => {

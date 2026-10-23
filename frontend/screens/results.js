@@ -85,10 +85,16 @@
   const NONE = "none";
   const NO_CHANGE = "No change";
   const NOT_COMPARED = "Not compared";
-  // Hidden endings that finish each line as a sentence for screen readers.
-  const THAN_LAST_TAKE = " than your last take";
-  const FROM_LAST_TAKE = " from your last take";
-  const WITH_LAST_TAKE = " with your last take";
+  // Hidden endings that finish each line as a sentence for screen readers: the word that joins
+  // the line to the take it compares with, then that take (" than your last take").
+  const THAN = " than ";
+  const FROM = " from ";
+  const WITH = " with ";
+  // The take the arrows compare with, in the hidden endings and the note: the last take, or,
+  // once the store holds takes of both kinds, the last take of this one's kind, named.
+  const LAST_TAKE = "your last take";
+  const LAST_TALK_TAKE = "your last Talk take";
+  const LAST_READ_TAKE = "your last Read take";
   const DELTA_ICONS = {
     [UP]: "triangle-up",
     [DOWN]: "triangle-down",
@@ -96,7 +102,7 @@
     [NONE]: "dash",
   };
   const DELTA_ICON_SIZE = 12;
-  const DELTA_NOTE = "Arrows compare with your last take.";
+  const DELTA_NOTE = (lastTake) => "Arrows compare with " + lastTake + ".";
 
   // The speech map (DESIGN.md section 6): the take's moments as two-line cards stacked in reading
   // order beside a rail that is linear in time. Every card is cardHeight tall with cardGap
@@ -907,6 +913,7 @@
       return;
     }
     const previous = previousOf(session, sessions);
+    view.lastTake = lastTakeOf(session, sessions);
     view.rankCard = rankCardFor(session, sessions);
     if (previous !== null || view.rankCard !== null) {
       renderSession(session, view, previous);
@@ -1158,6 +1165,22 @@
     return earlier || null;
   }
 
+  // What the hidden endings and the note call the take the arrows compare with (previousOf):
+  // "your last take" while the store holds takes of one kind only, else "your last Talk take" or
+  // "your last Read take", so a speaker who does both knows which kind each take is measured
+  // against. A sample never counts as the other kind, and without language.js every take is
+  // talk, so the copy stays as it was before the rule.
+  function lastTakeOf(session, sessions) {
+    const read = Boolean(isReadTake(session));
+    const otherKindSaved = sessions.some(
+      (other) => Boolean(other) && !isSample(other) && Boolean(isReadTake(other)) !== read,
+    );
+    if (!otherKindSaved) {
+      return LAST_TAKE;
+    }
+    return read ? LAST_READ_TAKE : LAST_TALK_TAKE;
+  }
+
   // The notes a take carries under `coachNotes` (the bundled sample, sample-session.json), read
   // as tips.js reads a reply, or null: a recorded take has none, and a field that does not
   // parse is treated as none.
@@ -1301,6 +1324,9 @@
       coachCard: null,
       // The rank card's model, set by show() once the store's list has rated the take.
       rankCard: null,
+      // What the hidden endings and the note call the take compared with (lastTakeOf), set by
+      // show() once the store's list says which kinds of take it holds.
+      lastTake: LAST_TAKE,
     };
   }
 
@@ -1330,9 +1356,10 @@
       const expand = () => expandMap(session, view, previous);
       body.appendChild(buildSpeechMap(shownMap, timelineSegments(summary.report), expand));
     }
-    body.appendChild(buildStatStrip(summary, deltas));
+    body.appendChild(buildStatStrip(summary, deltas, view.lastTake));
     if (deltas) {
-      body.appendChild(app.ui.el("p", { class: "stat-strip__note", text: DELTA_NOTE }));
+      const note = DELTA_NOTE(view.lastTake);
+      body.appendChild(app.ui.el("p", { class: "stat-strip__note", text: note }));
     }
     if (rankCard) {
       body.appendChild(app.rankCard.build(rankCard, { screen: RANK_SCREEN }));
@@ -1646,7 +1673,8 @@
 
   // Exactly four stats on one strip, in the order DESIGN.md fixes, each with its hint, and with
   // a last take each with its delta line, so the four cells always share the same rows.
-  function buildStatStrip(summary, deltas) {
+  // `lastTake` is what the delta lines call that take.
+  function buildStatStrip(summary, deltas, lastTake) {
     const stats = [
       { label: WPM_LABEL, value: summary.wpm, unit: WPM_UNIT, hint: summary.paceHint },
       {
@@ -1671,14 +1699,14 @@
     return app.ui.el(
       "div",
       { class: "stat-strip" },
-      stats.map((stat, index) => statCell(stat, deltas ? deltas[index] : undefined)),
+      stats.map((stat, index) => statCell(stat, deltas ? deltas[index] : undefined, lastTake)),
     );
   }
 
   // The unit sits inside the value line, after a space, so "162 wpm" reads as one phrase and
   // the small unit shares the number's baseline. The line never wraps (styles.css), so the
   // unit cannot drop below its number.
-  function statCell(stat, delta) {
+  function statCell(stat, delta, lastTake) {
     const valueParts = [String(stat.value)];
     if (stat.unit) {
       valueParts.push(" ", app.ui.el("span", { class: "stat__unit", text: stat.unit }));
@@ -1689,7 +1717,7 @@
       hintLine(stat.hint),
     ];
     if (delta !== undefined) {
-      parts.push(deltaLine(delta || { direction: NONE, text: NOT_COMPARED }));
+      parts.push(deltaLine(delta || { direction: NONE, text: NOT_COMPARED }, lastTake));
     }
     return app.ui.el("div", { class: "stat" }, parts);
   }
@@ -1708,10 +1736,12 @@
 
   // "12 slower", then a hidden " than your last take" so the line reads as a sentence, then
   // the triangle or dash, which CSS draws first. Its own class, never the hint's. A stat the two
-  // takes cannot share reads "Not compared with your last take" after a dash.
-  function deltaLine(delta) {
-    const endings = { [SAME]: FROM_LAST_TAKE, [NONE]: WITH_LAST_TAKE };
-    const ending = endings[delta.direction] || THAN_LAST_TAKE;
+  // takes cannot share reads "Not compared with your last take" after a dash. `lastTake` is
+  // what the ending calls the take compared with ("your last Talk take" once the store holds
+  // both kinds; lastTakeOf).
+  function deltaLine(delta, lastTake) {
+    const joiners = { [SAME]: FROM, [NONE]: WITH };
+    const ending = (joiners[delta.direction] || THAN) + lastTake;
     return app.ui.el(
       "div",
       { class: "stat__delta stat__delta--" + delta.direction, text: delta.text },
