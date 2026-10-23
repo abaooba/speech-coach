@@ -755,18 +755,25 @@
   // The summary row: three cells, each a label over its value. The change cell leads with a
   // triangle or a dash, like the delta lines on the Results cards.
   function buildSummary(metric, summary) {
-    const change = describeChange(metric, summary.change);
     const best = valueOrNone(metric, summary.best, "progress-summary__value num");
     return app.ui.el("dl", { class: "progress-summary" }, [
       summaryItem(LATEST_LABEL, valueOrNone(metric, summary.latest)),
       summaryItem(BEST_LABEL, best),
-      summaryItem(
-        CHANGE_LABEL,
-        app.ui.el("dd", { class: "progress-summary__change num" }, [
-          app.ui.icon(change.icon, CHANGE_ICON_SIZE),
-          change.text,
-        ]),
-      ),
+      summaryItem(CHANGE_LABEL, changeOrNone(metric, summary.change)),
+    ]);
+  }
+
+  // The change cell, or "Not measured" as Latest and Best read it when no earlier take was
+  // charted to average (Slips with one read counted, or none). A chart of every take, as each
+  // Talk chart is, draws two takes or more, so it always has one.
+  function changeOrNone(metric, change) {
+    if (change === null) {
+      return valueOrNone(metric, null);
+    }
+    const described = describeChange(metric, change);
+    return app.ui.el("dd", { class: "progress-summary__change num" }, [
+      app.ui.icon(described.icon, CHANGE_ICON_SIZE),
+      described.text,
     ]);
   }
 
@@ -777,8 +784,9 @@
     ]);
   }
 
-  // A value as its cell shows it, or "Not measured" for none: a Best no take can win, or a
-  // Latest with no take charted (Slips when no read could be counted).
+  // A value as its cell shows it, or "Not measured" for none: a Best no take can win, a Latest
+  // with no take charted (Slips when no read could be counted), or a change with no earlier take
+  // charted to average.
   function valueOrNone(metric, value, className) {
     if (value === null) {
       return summaryValue(NOT_MEASURED, "progress-summary__value progress-summary__value--none");
