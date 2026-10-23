@@ -215,6 +215,8 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
   clock shows 0:03 (a context whose resume() never answers, as iOS can leave it, hands over
   nothing) goes as one whose resume was refused: the context closes, the row hides for the rest
   of the take, and the take tunes nothing, in level mode too; one block before then keeps it.
+  A row hidden this way, or by a refused resume, keeps its box, out of sight, until the take
+  ends, so the clock, the bar and the card above it never move while the speaker talks.
   The first reading shows its own cue. A silence counts as speech only up to 1.5 seconds, in
   the 15-second window and in the 5 seconds before the first reading, so a pause at a full stop
   never drags the number down for long. Capture runs on every take, level mode included, so
