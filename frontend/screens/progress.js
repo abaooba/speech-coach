@@ -756,7 +756,8 @@
   }
 
   // The summary row: three cells, each a label over its value. The change cell leads with a
-  // triangle or a dash, like the delta lines on the Results cards.
+  // triangle or a dash, like the delta lines on the Results cards, or reads "Not measured" with
+  // no icon when no earlier take is charted to average (changeOrNone).
   function buildSummary(metric, summary) {
     const best = valueOrNone(metric, summary.best, "progress-summary__value num");
     return app.ui.el("dl", { class: "progress-summary" }, [
