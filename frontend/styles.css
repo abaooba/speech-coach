@@ -895,12 +895,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   min-height: 120px;
 }
 
+/* A long word breaks rather than run under the card's button at 200% zoom, as the text's does,
+   and a title of two lines or more is balanced, so no word sits alone on its last line. */
 .passage-card__title {
   grid-column: 1;
   margin: 0 0 var(--s-1);
   font-size: var(--fs-h2);
   line-height: 1.3;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .passage-card__target,

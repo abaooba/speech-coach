@@ -4,8 +4,9 @@
 // the 24 Read cards kept no line of the passage clear of the fade. So on the Read tab, 650px tall
 // or less and narrower than 480px, the hint's words and the sample button hide; Talk keeps both,
 // and taller phones and landscape keep them on Read too. practice.js marks the screen with its
-// tab's kind for that rule, as it marks the chips and New topic. The stylesheet is read as text;
-// the screen mounts on practice-harness.js.
+// tab's kind for that rule, as it marks the chips and New topic. A long title also wraps inside
+// its column (DESIGN.md section 9: the layout survives 200% zoom), in balanced lines. The
+// stylesheet is read as text; the screen mounts on practice-harness.js.
 "use strict";
 
 const test = require("node:test");
@@ -152,4 +153,14 @@ test("only that rule reads the screen's kind, so Talk and taller phones keep the
     [READ_HINT_PARTS],
     "nothing else changes on a short phone",
   );
+});
+
+test("a long title wraps inside its column, in balanced lines", () => {
+  const title = RULES.find(
+    (rule) => rule.at === null && rule.selectors.includes(".passage-card__title"),
+  );
+  assert.ok(title, ".passage-card__title has a rule");
+  assert.equal(title.declarations["overflow-wrap"], "anywhere", "a long word breaks, not spills");
+  assert.equal(title.declarations["text-wrap"], "balance", "no word alone on the last line");
+  assert.equal(title.declarations["grid-column"], "1", "the title keeps its column");
 });
