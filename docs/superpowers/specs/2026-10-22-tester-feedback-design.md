@@ -109,7 +109,7 @@ word or habit word, on everyday subjects none of the 15 covers. Titles say what 
 
 ## 4. The Path: a new passage for every Pace read
 
-Build section 3 of the 10-18 spec (3.1 to 3.4) as written, with three changes:
+Build section 3 of the 10-18 spec (3.1 to 3.4) as written, with four changes:
 
 - `app.path.evaluate` keeps working without `context.material`: a ladder read is judged on
   `readThrough` and its band, and set seconds only feed `talkShare`, so nothing needs them.
@@ -117,6 +117,11 @@ Build section 3 of the 10-18 spec (3.1 to 3.4) as written, with three changes:
 - The material key stays `"ladder"` (loop_path_levels.test.js pins it); only what it draws
   changes.
 - `explainer-rainbows` stays on the Read tab, in the Explainer group.
+- The button that starts the next Pace read, on the Review and on the step before the second
+  read of a retried Pace level 2 pair (read 4), reads "Read a new passage", not 3.4's "Read it
+  again" (nor the Loop Path spec's "Read it again" on reads, its section 8), since every Pace
+  read draws a new cold read. Restarts keeps "Read it again" for its one passage per run, talks
+  keep "Say it again" and the benchmark keeps "Record the talk".
 
 So: every read of Pace level 1, Pace level 2 and the Pace crown, retries included, draws a cold
 read with `pickColdRead` over the run's own saved takes (newest first) followed by the history,

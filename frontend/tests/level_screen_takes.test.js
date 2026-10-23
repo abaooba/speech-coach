@@ -168,7 +168,7 @@ test("Pace level 2: both reads count, each on a new passage at its own band", as
   assert.deepEqual(read1.material.targetWpm, [130, 150]);
   await world.finishTake(readResult({ words: 120, seconds: 51.4 }));
   world.tap(primaryText(world));
-  world.tap("Read it again");
+  world.tap("Read a new passage");
   const read2 = fieldsOf(world.request());
   assert.equal(read2.title, "Read 2 of 2");
   assert.notEqual(read2.material.id, read1.material.id);
