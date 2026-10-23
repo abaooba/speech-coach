@@ -3,9 +3,9 @@
 // with topics starts on a drawn topic at mount, a tap on a Talk chip (the selected one or another)
 // and New topic each draw a new topic and read it out, and the tabs, a visit elsewhere and level
 // mode keep the topic as it was. A draw is app.path.pickTopic over the speaker's takes
-// (app.store.list() at show(), and each take saved since) when path.js is loaded, and otherwise
-// any topic but the one on screen, at random. The harness is practice-harness.js; a `random`
-// stub on the vm context's Math fixes every draw.
+// (app.store.list() at show(), and each take saved since) and the topics shown since the app
+// opened when path.js is loaded, and otherwise any topic but the one on screen, at random. The
+// harness is practice-harness.js; a `random` stub on the vm context's Math fixes every draw.
 "use strict";
 
 const test = require("node:test");
@@ -54,6 +54,14 @@ const PASSAGES = [
 
 // Record is ignored for a moment after a Stop (a bouncing thumb), so a second take waits it out.
 const STOP_GRACE_MS = 500;
+
+// The clock a test holds still with setup's `now`, and the stamp of a topic shown `ms` after it:
+// each showing is stamped 1 ms after the last when the clock stands still.
+const NOW = Date.parse("2026-10-23T12:00:00.000Z");
+
+function at(ms) {
+  return new Date(NOW + ms).toISOString();
+}
 
 // A random source that returns `value`, which a test may change between taps, and counts how
 // often it was asked.
@@ -257,9 +265,11 @@ test("level mode draws nothing, and leaving it brings the topic back as it was",
 
 // --- The speaker's takes and app.path -------------------------------------------------------
 
+// The store has no list(), so the draw reads no take: only the topic Talk opened on, shown from
+// mount and stamped then, with the clock held still (spec section 2.1).
 test("with path.js loaded a topic draw is app.path.pickTopic(takes, prompt, Math.random, topic)", () => {
   const random = drawOf(0);
-  const t = setup({ passages: PASSAGES, random, withPath: true });
+  const t = setup({ passages: PASSAGES, random, now: () => NOW, withPath: true });
   const asked = [];
   const pickTopic = t.app.path.pickTopic;
   t.app.path.pickTopic = (...args) => {
@@ -270,7 +280,7 @@ test("with path.js loaded a topic draw is app.path.pickTopic(takes, prompt, Math
   chipFor(t, "imp").click();
   assert.equal(asked.length, 2);
   const [history, promptId, source, current] = asked[0];
-  assert.deepEqual(plain(history), []);
+  assert.deepEqual(plain(history), [{ passageId: "day", topic: "First topic.", createdAt: at(0) }]);
   assert.equal(promptId, "day");
   assert.equal(source, random, "the vm's own Math.random");
   assert.equal(current, "First topic.");
@@ -351,12 +361,14 @@ test("a take saved on Practice joins the takes the next draws read", async () =>
 
 // A draw reads four fields of a take: its passage, its title (the sample check), its topic and
 // its time. Practice keeps only those of the takes it lists and saves, so it holds no second
-// copy of their transcripts and metrics while the app is open.
+// copy of their transcripts and metrics while the app is open. After the takes come the topics
+// the draws have shown, here the one Talk opened on, stamped at mount with the clock held still.
 test("the takes the draws read keep only their passage, title, topic and time", async () => {
   const listed = talkOn("day", "Second topic.", "2026-10-22T09:00:00.000Z");
   const t = setup({
     passages: PASSAGES,
     random: drawOf(0),
+    now: () => NOW,
     withPath: true,
     list: () => Promise.resolve(plain([listed])),
   });
@@ -382,6 +394,7 @@ test("the takes the draws read keep only their passage, title, topic and time", 
         topic: "Second topic.",
         createdAt: "2026-10-22T09:00:00.000Z",
       },
+      { passageId: "day", topic: "First topic.", createdAt: at(0) },
     ],
   ]);
   assert.equal(cardText(t), "Third topic.", "both other topics were used");

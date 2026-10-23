@@ -2,19 +2,20 @@
    mount() builds the Talk / Read switch, chips, card, timer, record button, hint (with Talk's
    script box) and state block once; render(state, detail) repaints them. A tap on a Talk chip, a
    Read group's chip or New topic draws a new topic or passage, by the Path's rule, over the
-   speaker's own takes (spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md section
-   2). Stop hands the take, with its script (a Read passage's text, or the one pasted on Talk), to
-   a background job that sends it through app.api and saves it with app.store, with the topic it
-   was given; the job reports on the top banner (app.ui.banner) while the speaker records another
-   take or visits any screen; Results opens when the take is saved if Practice still waits in
-   idle, else from the banner's "See results". In level mode (startLevelTake, spec
-   docs/superpowers/specs/2026-10-14-loop-path.md section 7) a level banner stands in for the
-   switch and the chips, the take uploads in place, and the saved take goes back to the Level
-   screen instead of Results. While a normal take records, a row under the clock shows the pace
-   the phone estimates from the microphone (app.delivery.livePace, spec section 7) once a take
-   that counts has tuned that estimate for its mode, Talk or Read; until then it says when the
-   live pace starts. It never asks for the microphone before a Record tap, and never stores
-   audio. */
+   speaker's own takes and every topic and passage shown since the app opened (spec
+   docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 2), so taps go through a
+   whole prompt or group before any comes back. Stop hands the take, with its script (a Read
+   passage's text, or the one pasted on Talk), to a background job that sends it through app.api
+   and saves it with app.store, with the topic it was given; the job reports on the top banner
+   (app.ui.banner) while the speaker records another take or visits any screen; Results opens
+   when the take is saved if Practice still waits in idle, else from the banner's "See results".
+   In level mode (startLevelTake, spec docs/superpowers/specs/2026-10-14-loop-path.md section 7)
+   a level banner stands in for the switch and the chips, the take uploads in place, and the
+   saved take goes back to the Level screen instead of Results. While a normal take records, a
+   row under the clock shows the pace the phone estimates from the microphone
+   (app.delivery.livePace, spec section 7) once a take that counts has tuned that estimate for
+   its mode, Talk or Read; until then it says when the live pace starts. It never asks for the
+   microphone before a Record tap, and never stores audio. */
 (function () {
   "use strict";
 
@@ -218,6 +219,19 @@
   // when.
   let listedTakes = [];
   const savedTakes = [];
+
+  // Every topic and passage the draws have put on screen since the app opened, the ones each tab
+  // opens on included, newest first (spec section 2.1). A tap saves nothing, so without these,
+  // once every item of a prompt or group had been used the taps flipped between the two used
+  // longest ago. Each is what a draw reads of a take: the entry's id as `passageId` (a topic's
+  // prompt), the `topic` for a topic, and `createdAt`, the moment it was shown, stamped by
+  // shownAt(). They have no `passageTitle`, so app.path counts them as the speaker's own, as it
+  // counts every take but the bundled sample. They live here only: never saved, never sent, and
+  // never read by Progress, History, the rank or the Path.
+  const shownItems = [];
+
+  // The last showing's stamp, in milliseconds since 1970; 0 before the first.
+  let lastShownAt = 0;
 
   // Each mode's kept live pace factor, read from its flag at show() and set again when a take's
   // tuning is kept: a number, or null while the mode has none and its row says when it starts.
@@ -471,16 +485,19 @@
 
   // --- draws: a new topic or passage on every tap (spec section 2.1) ---
 
-  // A draw follows the Path's rule when path.js is loaded: from the pool less the item the tap
-  // replaces, one no take of the speaker's has used, at random; once all have been used, the one
-  // used longest ago. Without app.path (some test harnesses) it is any other item at random. A
-  // pool of one gives that one. Math.random draws, so a test fixes it on its vm context's Math.
+  // A draw follows the Path's rule when path.js is loaded, over the speaker's takes and what the
+  // draws have shown since the app opened (shownItems): from the pool less the item the tap
+  // replaces, one no take has used and no draw has shown, at random; failing that, the one used
+  // or shown longest ago. So taps go through the whole pool before any item comes back, and never
+  // give the one on screen. Without app.path (some test harnesses) it is any other item at
+  // random. A pool of one gives that one. Math.random draws, so a test fixes it on its vm
+  // context's Math.
 
   // A topic of `entry`, a prompt with topics, other than `current` while another is left.
   function drawTopic(entry, current) {
     const path = app.path;
     if (path && typeof path.pickTopic === "function") {
-      return path.pickTopic(takesForDraws(), entry.id, Math.random, current);
+      return path.pickTopic(drawHistory(), entry.id, Math.random, current);
     }
     return drawOther(entry.topics, current);
   }
@@ -490,7 +507,7 @@
     const passages = passagesOf(group);
     const path = app.path;
     if (path && typeof path.pickPassage === "function") {
-      return path.pickPassage(takesForDraws(), passages, Math.random, currentId);
+      return path.pickPassage(drawHistory(), passages, Math.random, currentId);
     }
     const current = passages.find((passage) => passage.id === currentId);
     return drawOther(passages, current);
@@ -509,9 +526,29 @@
     return Number.isFinite(index) ? Math.min(length - 1, Math.max(0, index)) : 0;
   }
 
-  // The takes saved here, then those the store listed.
-  function takesForDraws() {
-    return savedTakes.concat(listedTakes);
+  // What a draw reads: the takes saved here, then those the store listed, then every topic and
+  // passage the draws have shown.
+  function drawHistory() {
+    return savedTakes.concat(listedTakes, shownItems);
+  }
+
+  // Counts what the card now shows for `entry` as used from this moment: the topic a prompt with
+  // topics is on, or a Read passage drawn for its group. Nothing else is ever drawn, so nothing
+  // else is counted, and neither is a level's material, which the Path drew.
+  function noteShown(entry) {
+    if (hasTopics(entry)) {
+      shownItems.unshift({ passageId: entry.id, topic: currentTopic(entry), createdAt: shownAt() });
+    } else if (groupOf(entry) !== null) {
+      shownItems.unshift({ passageId: entry.id, createdAt: shownAt() });
+    }
+  }
+
+  // The moment a showing counts from, as an ISO 8601 time like a take's createdAt: the clock's,
+  // and at least 1 ms after the last showing's, so two shown in the same millisecond still order
+  // as they came.
+  function shownAt() {
+    lastShownAt = Math.max(Date.now(), lastShownAt + 1);
+    return new Date(lastShownAt).toISOString();
   }
 
   // What a draw reads of a saved session: the passage it used, its title (app.path leaves the
@@ -552,7 +589,9 @@
   }
 
   // Each prompt with topics starts on a drawn topic and each tab on its first chip's entry, the
-  // Read tab on a drawn passage of the first group (spec sections 2.2 and 2.3).
+  // Read tab on a drawn passage of the first group (spec sections 2.2 and 2.3). What each tab
+  // opens on counts as shown from now (spec section 2.1); another prompt's topic shows only after
+  // a tap on its chip, which draws it a new one first.
   function mount(screenRoot) {
     root = screenRoot;
     const passages = app.passages || [];
@@ -564,6 +603,7 @@
     MODES.forEach((mode) => {
       const opening = openingEntry(passages, mode.kind);
       selectedIdByKind[mode.kind] = opening ? opening.id : null;
+      noteShown(opening);
     });
 
     // The header's toggle is absent from test sections that hold only the body.
@@ -937,20 +977,23 @@
     }
   }
 
-  // Draws the prompt a topic other than the one it is on and shows it. Focus stays on the chip
-  // or New topic while the card changes beside it, so the live region reads the new topic out.
+  // Draws the prompt a topic other than the one it is on and shows it, counted as shown from now.
+  // Focus stays on the chip or New topic while the card changes beside it, so the live region
+  // reads the new topic out.
   function showNewTopic(entry) {
     topicById[entry.id] = drawTopic(entry, currentTopic(entry));
+    noteShown(entry);
     render("idle");
     app.ui.announce(cardTextOf(entry));
   }
 
-  // Draws a passage of the group other than the one on screen, selects it and reads its title
-  // out, as New topic reads a topic.
+  // Draws a passage of the group other than the one on screen, selects it, counts it as shown
+  // from now and reads its title out, as New topic reads a topic.
   function showNewPassage(group) {
     const passage = drawPassage(group, selectedIdByKind[READ_KIND]);
     currentKind = READ_KIND;
     selectedIdByKind[READ_KIND] = passage.id;
+    noteShown(passage);
     render("idle");
     app.ui.announce(passage.title);
   }

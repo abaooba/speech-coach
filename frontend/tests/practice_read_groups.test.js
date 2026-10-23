@@ -5,8 +5,9 @@
 // another) draws a passage of the group; the card's New topic button reads New passage on the
 // Read tab and draws another passage of the group, shown when the group holds two or more; the
 // Read tab opens on a drawn passage of its first group. A draw is app.path.pickPassage over the
-// speaker's takes when path.js is loaded, and otherwise any passage of the group but the one on
-// screen, at random. The harness is practice-harness.js; a `random` stub fixes every draw.
+// speaker's takes and the passages shown since the app opened when path.js is loaded, and
+// otherwise any passage of the group but the one on screen, at random. The harness is
+// practice-harness.js; a `random` stub fixes every draw.
 "use strict";
 
 const test = require("node:test");
@@ -386,9 +387,13 @@ test("the tabs and a visit elsewhere keep the Read passage, and draw nothing", (
 
 // --- The speaker's takes and app.path -------------------------------------------------------
 
+// The store has no list(), so the draw reads no take: only what each tab opened on, the Talk
+// topic and then the explainer, shown from mount and stamped then, with the clock held still
+// (spec section 2.1), newest first.
 test("with path.js loaded a draw is app.path.pickPassage(takes, group, Math.random, on screen)", () => {
   const random = drawOf(0);
-  const t = onRead({ random, withPath: true });
+  const now = Date.parse("2026-10-23T12:00:00.000Z");
+  const t = onRead({ random, now: () => now, withPath: true });
   const asked = [];
   const pickPassage = t.app.path.pickPassage;
   t.app.path.pickPassage = (...args) => {
@@ -399,7 +404,10 @@ test("with path.js loaded a draw is app.path.pickPassage(takes, group, Math.rand
   parts(t).newTopic.click();
   assert.equal(asked.length, 2);
   const [history, passages, source, current] = asked[0];
-  assert.deepEqual(plain(history), []);
+  assert.deepEqual(plain(history), [
+    { passageId: "explainer-one", createdAt: new Date(now + 1).toISOString() },
+    { passageId: "day", topic: "First topic.", createdAt: new Date(now).toISOString() },
+  ]);
   assert.deepEqual(Array.from(passages, (entry) => entry.id), SPEECH_IDS);
   assert.equal(source, random, "the vm's own Math.random");
   assert.equal(current, "explainer-one", "the passage on screen at the tap");
