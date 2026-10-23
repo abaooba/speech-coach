@@ -405,9 +405,10 @@ test("a take saved while show()'s list is out still counts when that list answer
   assert.equal(cardText(t), "Second topic.", "Third topic. was used");
 });
 
-// The store has no list(), so only the takes saved here steer the draws, at 0.99: Third at
-// mount, then Second (0.99 of First and Second), then First, the one topic no take used. A draw
-// blind to the takes would give Third last, and the old next-topic step started on First.
+// The store has no list(), so only the takes saved here and the topics shown steer the draws, at
+// 0.99: Third at mount, then Second (0.99 of First and Second), then First, the one topic no take
+// used. The old next-topic step started on First. Each topic a take was saved on had shown
+// first, so the showings alone give this order too; the next test pins what a saved take adds.
 test("a take saved on Practice joins the takes the next draws read", async () => {
   const t = setup({ passages: PASSAGES, random: drawOf(0.99), withPath: true });
   assert.equal(cardText(t), "Third topic.");
@@ -419,6 +420,35 @@ test("a take saved on Practice joins the takes the next draws read", async () =>
   assert.equal(t.calls.save[1].topic, "Second topic.");
   parts(t).newTopic.click();
   assert.equal(cardText(t), "First topic.", "Third topic. and Second topic. were used");
+});
+
+// A take saved here counts as used at the time the store saved it (store.js stamps createdAt as
+// it saves). A take saves in the background, so Talk can move on first: the take on First, saved
+// once Second shows, makes First the newer, and once Third has shown the draw gives Second, the
+// one used or shown longest ago. If the saved take did not count, First, shown at mount, would
+// come back first.
+test("a take saved after New topic moved on counts from the time the store saved it", async () => {
+  let clock = NOW;
+  const t = setup({ passages: PASSAGES, random: drawOf(0), now: () => clock, withPath: true });
+  t.app.store.save = (session) => {
+    session.createdAt = new Date(clock).toISOString();
+    t.calls.save.push(session);
+    return Promise.resolve("talk-take");
+  };
+  assert.equal(cardText(t), "First topic.");
+  await t.recordTake(12000);
+  clock += 60000;
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "shown while the take uploads");
+  clock += 60000;
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].topic, "First topic.");
+  assert.equal(t.calls.save[0].createdAt, at(120000));
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Third topic.", "the one topic neither used nor shown");
+  parts(t).newTopic.click();
+  assert.equal(cardText(t), "Second topic.", "shown at 1:00, while First's take saved at 2:00");
 });
 
 // A draw reads four fields of a take: its passage, its title (the sample check), its topic and

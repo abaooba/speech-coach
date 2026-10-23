@@ -424,6 +424,8 @@ test("the takes app.store.list() gives at show() steer the draw to a passage not
   assert.equal(shownId(t), "speech-three");
 });
 
+// Each passage a take was saved on had shown first, so the showings alone give this order too;
+// the next test pins what a saved take adds.
 test("a Read take saved on Practice joins the takes the next draws read", async () => {
   const t = onRead({ withPath: true });
   groupChip(t, "speech").click();
@@ -434,6 +436,37 @@ test("a Read take saved on Practice joins the takes the next draws read", async 
   await saveTake(t);
   parts(t).newTopic.click();
   assert.equal(shownId(t), "speech-three", "speech-one and speech-two were read");
+});
+
+// A take saved here counts as used at the time the store saved it (store.js stamps createdAt as
+// it saves). A take saves in the background, so Read can move on first: the read of speech one,
+// saved once speech two shows, makes speech one the newer, and once speech three has shown the
+// draw gives speech two, the one read or shown longest ago. If the saved take did not count,
+// speech one, shown first, would come back first.
+test("a Read take saved after New passage moved on counts from the time the store saved it", async () => {
+  const start = Date.parse("2026-10-23T12:00:00.000Z");
+  let clock = start;
+  const t = onRead({ withPath: true, now: () => clock });
+  t.app.store.save = (session) => {
+    session.createdAt = new Date(clock).toISOString();
+    t.calls.save.push(session);
+    return Promise.resolve("read-take");
+  };
+  groupChip(t, "speech").click();
+  assert.equal(shownId(t), "speech-one");
+  await t.recordTake(12000);
+  clock += 60000;
+  parts(t).newTopic.click();
+  assert.equal(shownId(t), "speech-two", "shown while the take uploads");
+  clock += 60000;
+  t.resolveUpload(ANALYSIS);
+  await flush();
+  assert.equal(t.calls.save[0].passageId, "speech-one");
+  assert.equal(t.calls.save[0].createdAt, new Date(start + 120000).toISOString());
+  parts(t).newTopic.click();
+  assert.equal(shownId(t), "speech-three", "the one passage neither read nor shown");
+  parts(t).newTopic.click();
+  assert.equal(shownId(t), "speech-two", "shown at 1:00, while speech one's read saved at 2:00");
 });
 
 // --- The real passages ----------------------------------------------------------------------
