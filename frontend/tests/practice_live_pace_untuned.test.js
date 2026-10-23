@@ -7,9 +7,10 @@
 // take's mode, in the waiting sentence's placeholder look, and never a number or a cue. Its
 // blocks still reach the tracker, so the take tunes its mode once its analysis is back. A
 // capture that no block has reached when the clock shows 0:03 goes as one whose context refused
-// to resume does: the context closes, the row hides for the rest of the take and the take tunes
-// nothing, in level mode too. Every browser API is a fake the tests drive by hand; the last test
-// runs the real estimator on synthetic syllables.
+// to resume does: the context closes, the row hides for the rest of the take, keeping its box so
+// the clock above it stays put, and the take tunes nothing, in level mode too. Every browser API
+// is a fake the tests drive by hand; the last test runs the real estimator on synthetic
+// syllables.
 "use strict";
 
 const test = require("node:test");
