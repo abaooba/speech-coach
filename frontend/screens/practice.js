@@ -13,9 +13,9 @@
    a level banner stands in for the switch and the chips, the take uploads in place, and the
    saved take goes back to the Level screen instead of Results. While a normal take records, a
    row under the clock shows the pace the phone estimates from the microphone
-   (app.delivery.livePace, spec section 7) once a take that counts has tuned that estimate for
-   its mode, Talk or Read; until then it says when the live pace starts. It never asks for the
-   microphone before a Record tap, and never stores audio. */
+   (app.delivery.livePace, spec section 7), with a cue once a take that counts has tuned that
+   estimate for its mode, Talk or Read; until then the number is marked rough and has no cue. It
+   never asks for the microphone before a Record tap, and never stores audio. */
 (function () {
   "use strict";
 
@@ -154,22 +154,14 @@
 
   // The live pace row (spec section 7): the waiting sentence until the estimate has 5 seconds of
   // speech, then "About 150 wpm" and a cue. A take whose mode (Talk or Read) has no kept factor
-  // yet says only when the live pace starts, its mode's sentence in the waiting sentence's look,
-  // from first to last: in the app the untuned cue was right on 1 of 4 first takes. A cue's
-  // words come with its icon and tone, the check in --ok or the alert triangle in --warn, as
-  // Results' Pace hint draws them, so color never carries it alone.
+  // yet runs the same estimate with the starting factor (delivery.js LIVE_PACE_FACTOR) and shows
+  // its number with PACE_ROUGH in the cue's place, in the waiting sentence's look, never a cue:
+  // uncalibrated the median error is 22%, and in the app the untuned cue was right on 1 of 4
+  // first takes (spec section 7, "Rough pace before tuning"). A cue's words come with its icon
+  // and tone, the check in --ok or the alert triangle in --warn, as Results' Pace hint draws
+  // them, so color never carries it alone.
   const PACE_WAITING = "Your pace shows after a few seconds.";
-  // The two "starts after" sentences promise PACE_STARTS_AFTER_CLOCK_SECONDS on the clock, and
-  // spell it out (practice_live_pace_untuned.test.js holds both, and how.html, to it). That is
-  // more than the speech a take needs to tune its mode (app.delivery.countsForPaceFactor:
-  // delivery.js's PACE_FACTOR_MIN_SECONDS, 20 s from the first word's start to the last word's
-  // end, and PACE_FACTOR_MIN_WORDS, 30 words), since a take's clock also holds the lead-in
-  // before the first word and the tail after the last: a take stopped at 0:21 can hold under
-  // 20 s of speech. At 30 s, a 2 s lead-in, a 1 s tail and a slow 70 wpm still give 27 s of
-  // speech and 31 words. A no-break space joins "30" and "s", so a line never splits there.
-  const PACE_STARTS_AFTER_CLOCK_SECONDS = 30;
-  const PACE_STARTS_AFTER_TALK = "Live pace starts after a 30\u00a0s talk.";
-  const PACE_STARTS_AFTER_READ = "Live pace starts after a 30\u00a0s read.";
+  const PACE_ROUGH = "Rough until tuned";
   const PACE_NUMBER_PREFIX = "About ";
   const PACE_NUMBER_SUFFIX = " wpm";
   const PACE_LOOK_ON_TARGET = Object.freeze({ words: "On target", icon: "check", tone: "ok" });
@@ -2170,7 +2162,7 @@
       tracker: null,
       mode,
       // Whether the mode had a kept factor when the take began: only then does its row show a
-      // number and a cue, and only then is the tracker read (the validation result).
+      // cue; until then its number is rough (the validation result).
       tuned: paceFactors[mode] !== null,
       firstSampleAt: null,
       readSecond: 0,
@@ -2230,9 +2222,8 @@
 
   // Once per new whole second on the clock. A capture that no block has reached by
   // PACE_NO_AUDIO_SECONDS goes (dropLivePace), level mode's too, so its context is freed. Else,
-  // while the row can show numbers, the tracker's reading of the audio heard so far, painted.
-  // Level mode reads nothing, since its row never shows, and neither does an untuned take, whose
-  // row keeps its sentence to the end.
+  // in a normal take, tuned or not, the tracker's reading of the audio heard so far, painted.
+  // Level mode reads nothing, since its row never shows.
   function readLivePace(second) {
     const pace = capture.pace;
     if (pace === null || second <= pace.readSecond) {
@@ -2243,7 +2234,7 @@
       dropLivePace(pace);
       return;
     }
-    if (levelRequest !== null || !pace.tuned) {
+    if (levelRequest !== null) {
       return;
     }
     pace.reading = pace.tracker.read();
@@ -2254,11 +2245,11 @@
   // in idle, uploading or error, never in level mode, whose takes count, and never for a take
   // whose capture did not start or was dropped. A dropped capture's row hides with its last
   // words and the held class, which keeps its box until the take ends, so nothing above Record
-  // moves while the speaker talks. A take whose mode had no kept factor when it began says when
-  // the live pace starts, from first to last, and never a number or a cue. A tuned take says the
-  // waiting sentence until the tracker has a number, then the number and the cue. The words are
-  // the tracker's: its number comes rounded and its cue held. The children are rebuilt only when
-  // the words change.
+  // moves while the speaker talks. The row says the waiting sentence until the tracker has a
+  // number, then the number and, for a take whose mode had a kept factor when it began, the cue;
+  // for one whose mode had none, the rough words in the cue's place, and never a cue. The words
+  // are the tracker's: its number comes rounded and its cue held. The children are rebuilt only
+  // when the words change.
   function paintPace(view) {
     const pace = capture.pace;
     const normalTake = view.showPace && levelRequest === null;
@@ -2267,9 +2258,9 @@
     if (nodes.pace.hidden) {
       return;
     }
-    const { sentence, number, cue } = paceWordsOf(pace);
+    const { sentence, number, cue, rough } = paceWordsOf(pace);
     const text =
-      sentence !== null ? sentence : [number, cue && cue.words].filter(Boolean).join(" ");
+      sentence !== null ? sentence : [number, cue && cue.words, rough].filter(Boolean).join(" ");
     if (text === paintedPaceText) {
       return;
     }
@@ -2287,32 +2278,32 @@
       );
     }
     // The space Results writes in "162 wpm": flex draws no gap from it, but a screen reader
-    // keeps "wpm" and "On" apart.
-    if (number !== null && cue !== null) {
+    // keeps "wpm" and "On" (or "Rough") apart.
+    if (number !== null && (cue !== null || rough !== null)) {
       nodes.pace.appendChild(document.createTextNode(" "));
     }
     if (cue !== null) {
       nodes.pace.appendChild(paceCueNode(cue));
     }
+    if (rough !== null) {
+      nodes.pace.appendChild(app.ui.el("span", { class: "practice__pace-rough", text: rough }));
+    }
   }
 
   // What the row says for a take's capture: `sentence`, shown in the placeholder look, is the
-  // mode's "starts after" sentence for an untuned take, or the waiting sentence for a tuned one
-  // until the tracker has a number, else null; then `number`, "About 150 wpm", and `cue`, its
-  // look, or null for none.
+  // waiting sentence until the tracker has a number, else null; then `number`, "About 150 wpm",
+  // `cue`, its look, or null for none, and `rough`, the rough words for a take whose mode had no
+  // kept factor when it began (which never gets a cue), or null.
   function paceWordsOf(pace) {
-    if (!pace.tuned) {
-      const sentence = pace.mode === READ_PACE ? PACE_STARTS_AFTER_READ : PACE_STARTS_AFTER_TALK;
-      return { sentence, number: null, cue: null };
-    }
     const reading = pace.reading;
     if (reading === null || reading.wpm === null) {
-      return { sentence: PACE_WAITING, number: null, cue: null };
+      return { sentence: PACE_WAITING, number: null, cue: null, rough: null };
     }
     return {
       sentence: null,
       number: PACE_NUMBER_PREFIX + reading.wpm + PACE_NUMBER_SUFFIX,
-      cue: paceLookOf(reading.cue),
+      cue: pace.tuned ? paceLookOf(reading.cue) : null,
+      rough: pace.tuned ? null : PACE_ROUGH,
     };
   }
 
