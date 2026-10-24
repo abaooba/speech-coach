@@ -41,7 +41,11 @@ const FRONTEND = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND, file), "utf8");
 
 const ROUGH = "Rough until tuned";
-const RETIRED = ["Live pace starts after a 30 s talk.", "Live pace starts after a 30 s read."];
+// The sentences an untuned row said until 2026-10-24, retired by the rough number.
+const RETIRED = [
+  "Live pace starts after a 30\u00a0s talk.",
+  "Live pace starts after a 30\u00a0s read.",
+];
 
 // What the tracker could say at any second: a number with each of the three cues.
 const READINGS = [
@@ -335,7 +339,8 @@ test("the rough words live in one string literal, in practice.js, and the old li
   for (const file of sources) {
     const source = read(file);
     for (const line of RETIRED) {
-      for (const spelling of [line, line.replace(/ /g, "\\u00a0"), line.replace(/ /g, " ")]) {
+      const spellings = [line, line.replace(/\u00a0/g, "\\u00a0"), line.replace(/\u00a0/g, " ")];
+      for (const spelling of spellings) {
         assert.ok(!source.includes(spelling), file + " still says " + spelling);
       }
     }

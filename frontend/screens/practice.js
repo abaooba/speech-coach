@@ -227,7 +227,7 @@
   let lastShownAt = 0;
 
   // Each mode's kept live pace factor, read from its flag at show() and set again when a take's
-  // tuning is kept: a number, or null while the mode has none and its row says when it starts.
+  // tuning is kept: a number, or null while the mode has none and its row's number is rough.
   const paceFactors = { [TALK_PACE]: null, [READ_PACE]: null };
 
   // The theme the toggle shows. Kept here rather than re-read from storage on each tap, so the
