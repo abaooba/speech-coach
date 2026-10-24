@@ -624,17 +624,30 @@ test("with the real estimator an untuned take shows its rough number, then tunes
   const t = setup({ realDelivery: true, audio: { sampleRate: 16384 } });
   await t.show();
   await t.startRecording();
+  // A tracker of the test's own at the starting factor gets the same blocks and is read at each
+  // whole second, as the row reads its own: the row's number must be the twin's, exactly.
+  const twin = t.app.delivery.livePace(16384, { band: [140, 160], factor: 0.69 });
   const samples = syllables(26);
   const blockMs = (1024 / 16384) * 1000;
   const texts = new Set();
+  let numbers = 0;
   for (let from = 0; from + 1024 <= samples.length; from += 1024) {
-    block(t, samples.subarray(from, from + 1024));
+    const piece = samples.subarray(from, from + 1024);
+    block(t, piece);
+    twin.push(piece);
     t.clock.advance(blockMs);
-    texts.add(rowView(t).text);
+    const text = rowView(t).text;
+    texts.add(text);
+    if (Math.round(t.clock.performance.now()) % SECOND === 0) {
+      const { wpm } = twin.read();
+      numbers += wpm === null ? 0 : 1;
+      const expected = wpm === null ? WAITING : "About " + wpm + " wpm " + ROUGH;
+      assert.equal(text, expected, "at " + Math.round(t.clock.performance.now()) + " ms");
+    }
   }
   const shown = [...texts];
   assert.equal(shown[0], WAITING, "the waiting sentence first");
-  assert.ok(shown.length > 1, "then a number");
+  assert.ok(numbers > 0 && shown.length > 1, "then a number");
   for (const text of shown.slice(1)) {
     assert.match(text, /^About \d+ wpm Rough until tuned$/, "26 s of speech, rough and no cue");
   }
