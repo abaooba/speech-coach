@@ -1094,7 +1094,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* The live pace row spans the next row, --s-2 under the bar (or under the clock, when an
    untimed take's bar row is empty): one centred line, the number --muted at 500, then the cue in
-   its tone at 600 with its 16px icon drawn first. The two parts never break inside, so at 200%
+   its tone at 600 with its 16px icon drawn first, or, before the take's mode is tuned, the rough
+   words in the row's own --muted 500, with no icon. The two parts never break inside, so at 200%
    zoom the row wraps between them, number over cue. Nothing in it moves. */
 .practice__pace {
   grid-column: 1 / -1;
@@ -1129,7 +1130,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 .practice__pace-number,
-.practice__pace-cue {
+.practice__pace-cue,
+.practice__pace-rough {
   white-space: nowrap;
 }
 

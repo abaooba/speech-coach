@@ -1,8 +1,10 @@
 // The live pace's words (spec docs/superpowers/specs/2026-10-22-tester-feedback-design.md section
 // 7): how.html says, word for word and once each, that a live pace shows under the clock while
 // you record, that the phone estimates it and sends nothing, and that it tunes itself for Talk
-// and for Read apart, starting once a take of 30 seconds or more in each has tuned it, and that
-// each later take that long can tune it again, in a Path level too, where the row stays hidden.
+// and for Read apart, that until a take of 30 seconds or more in each has tuned it the number is
+// rough, can be about a fifth off and shows no cue (spec section 7, "Rough pace before tuning"),
+// and that each later take that long can tune it again, in a Path level too, where the row stays
+// hidden.
 // It says "has tuned it" and "can", never that a take that long always tunes it: a take whose
 // live capture went mid-take tunes nothing, and a take counts only with 20 seconds of speech and
 // 30 words without hesitation sounds (delivery.js countsForPaceFactor). It never says it tunes
@@ -29,7 +31,7 @@ const FIRST_PARAGRAPH = [
 ];
 const SECOND_PARAGRAPH = [
   "It tunes itself to your voice, separately for Talk and for Read.",
-  "It starts once a take of 30 seconds or more in each has tuned it.",
+  "Until a take of 30 seconds or more in each has tuned it, the number is rough, can be about a fifth off, and shows no cue.",
   "Each later take that long can tune it again.",
   "During a Path level it stays hidden, but your takes still tune it.",
 ];

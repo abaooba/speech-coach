@@ -1,14 +1,14 @@
 // Tests for the live pace row of a take whose mode has no kept factor yet, and for a capture no
 // audio reaches (frontend/screens/practice.js; spec
-// docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7, Validation result). In
-// the app the untuned cue was right on 1 of 4 first takes (the validation note's "End to end in
-// the app"), so an untuned row never guesses: from its first paint to the end of the take it
-// says when the live pace starts, "Live pace starts after a 30 s talk." or "... read." by the
-// take's mode, in the waiting sentence's placeholder look, and never a number or a cue. Its
-// 30 s is on the clock (practice.js PACE_STARTS_AFTER_CLOCK_SECONDS), with "30" and "s" joined
-// by a no-break space, while a take tunes its mode with 20 s of speech, first word to last
-// (app.delivery.PACE_FACTOR_MIN_SECONDS), and 30 words: the clock also holds the lead-in and the
-// tail. Its blocks still reach the tracker, so the take tunes its mode once its analysis is back.
+// docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7, Validation result and
+// "Rough pace before tuning (2026-10-24)"). In the app the untuned cue was right on 1 of 4 first
+// takes (the validation note's "End to end in the app"), so an untuned row never shows a cue:
+// it says the waiting sentence until the tracker has a number, then "About N wpm" and "Rough
+// until tuned" in the cue's place, by the starting factor, whichever mode the take records in.
+// how.html says the number is rough until a take of 30 s on the clock has tuned it, while a take
+// tunes its mode with 20 s of speech, first word to last (app.delivery.PACE_FACTOR_MIN_SECONDS),
+// and 30 words: the clock also holds the lead-in and the tail. Its blocks reach the tracker, so
+// the take tunes its mode once its analysis is back.
 // A capture that no block has reached when the clock shows 0:03 goes as one whose context
 // refused to resume does: the context closes, the row hides for the rest of the take, keeping
 // its box so the clock above it stays put, and the take tunes nothing, in level mode too. Every
@@ -46,16 +46,18 @@ const {
 const FRONTEND = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(FRONTEND, file), "utf8");
 
-// "30" and "s" are joined by a no-break space (U+00A0), so the line never splits between them.
-const TALK_LINE = "Live pace starts after a 30\u00a0s talk.";
-const READ_LINE = "Live pace starts after a 30\u00a0s read.";
+// The sentences the row said for an untuned take until 2026-10-24, retired by the rough number.
+const RETIRED_LINES = [
+  "Live pace starts after a 30\u00a0s talk.",
+  "Live pace starts after a 30\u00a0s read.",
+];
+const ROUGH = "Rough until tuned";
 
-// The seconds on the clock both lines promise: practice.js's PACE_STARTS_AFTER_CLOCK_SECONDS.
+// The seconds on the clock how.html promises before the number stops being rough.
 function clockSeconds() {
-  const match = read(path.join("screens", "practice.js")).match(
-    /const PACE_STARTS_AFTER_CLOCK_SECONDS = (\d+);/,
-  );
-  assert.ok(match, "practice.js names the seconds on the clock its lines promise");
+  const how = read("how.html").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  const match = how.match(/Until a take of (\d+) seconds or more in each has tuned it/);
+  assert.ok(match, "how.html names the seconds on the clock a take needs to tune the live pace");
   return Number(match[1]);
 }
 
@@ -69,6 +71,15 @@ const READINGS = [
 // The row holding one sentence in the placeholder look: the waiting sentence's span, alone.
 function sentenceRow(text) {
   return { hidden: false, parts: ["span.practice__pace-placeholder"], text };
+}
+
+// An untuned row with a number: the number, a text space, then the rough words, and no cue.
+function roughRow(wpm) {
+  return {
+    hidden: false,
+    parts: ["span.practice__pace-number num", '" "', "span.practice__pace-rough"],
+    text: "About " + wpm + " wpm " + ROUGH,
+  };
 }
 
 // Whether the hidden row holds its box: styles.css keeps the box of a row with this class while
@@ -89,46 +100,47 @@ function pasteScript(t, text) {
 
 // --- an untuned take ---
 
-test("an untuned Talk take says the Talk line from the first paint, before any block", async () => {
+test("an untuned Talk take says the waiting sentence from the first paint, before any block", async () => {
   const t = setup();
   await t.show();
   await t.startRecording();
   assert.equal(t.root.dataset.state, "recording");
   assert.equal(lastTracker(t).options.factor, null, "no factor kept for Talk");
-  assert.deepEqual(rowView(t), sentenceRow(TALK_LINE));
+  assert.deepEqual(rowView(t), sentenceRow(WAITING));
 });
 
-test("the Talk line stays for the whole take, never a number or a cue, whatever the tracker holds", async () => {
+test("an untuned Talk take shows the rough number for the whole take, never a cue, whatever the tracker holds", async () => {
   const t = setup();
   await t.show();
   await t.startRecording();
   const tracker = lastTracker(t);
-  const line = paceRow(t).children[0];
   let blocks = 0;
   for (const reading of READINGS) {
+    let number = null;
     for (let second = 0; second < 20; second += 1) {
       block(t);
       blocks += 1;
       readNext(t, reading);
-      assert.deepEqual(rowView(t), sentenceRow(TALK_LINE), JSON.stringify(reading));
+      assert.deepEqual(rowView(t), roughRow(reading.wpm), JSON.stringify(reading));
+      number = number || paceRow(t).children[0];
+      assert.equal(paceRow(t).children[0], number, "the same span while the words hold");
     }
   }
   assert.equal(t.clock.performance.now(), 60 * SECOND, "a minute in");
-  assert.equal(paceRow(t).children[0], line, "the same span: the words never changed");
   assert.equal(tracker.blocks.length, blocks, "every block still reaches the tracker");
-  assert.equal(tracker.reads, 0, "an untuned take never reads it");
+  assert.equal(tracker.reads, 60, "read once a second, as a tuned take is");
 });
 
-test("an untuned Read take says the Read line, and so does a Talk take sent with a script", async () => {
+test("an untuned Read take shows the rough number, and so does a Talk take sent with a script", async () => {
   const reading = setup();
   await reading.show();
   chooseRead(reading);
   await reading.startRecording();
-  assert.deepEqual(rowView(reading), sentenceRow(READ_LINE), "first paint");
+  assert.deepEqual(rowView(reading), sentenceRow(WAITING), "first paint");
   for (const next of READINGS) {
     block(reading);
     readNext(reading, next);
-    assert.deepEqual(rowView(reading), sentenceRow(READ_LINE), JSON.stringify(next));
+    assert.deepEqual(rowView(reading), roughRow(next.wpm), JSON.stringify(next));
   }
 
   // A pasted script makes the take a read (paceModeOf), as it records with Read's factor.
@@ -136,10 +148,13 @@ test("an untuned Read take says the Read line, and so does a Talk take sent with
   await scripted.show();
   pasteScript(scripted, "My speech, word for word.");
   await scripted.startRecording();
-  assert.deepEqual(rowView(scripted), sentenceRow(READ_LINE));
+  assert.deepEqual(rowView(scripted), sentenceRow(WAITING));
+  block(scripted);
+  readNext(scripted, { wpm: 150, cue: CUE.ON_TARGET });
+  assert.deepEqual(rowView(scripted), roughRow(150));
 });
 
-test("each take follows its own mode's factor: a tuned Talk shows numbers, an untuned Read its line", async () => {
+test("each take follows its own mode's factor: a tuned Talk shows a cue, an untuned Read its rough number", async () => {
   const talkTuned = setup({ flags: { [TALK_FLAG]: 0.8 } });
   await talkTuned.show();
   await talkTuned.startRecording();
@@ -151,14 +166,14 @@ test("each take follows its own mode's factor: a tuned Talk shows numbers, an un
   await talkTuned.startRecording();
   block(talkTuned);
   readNext(talkTuned, { wpm: 150, cue: CUE.ON_TARGET });
-  assert.deepEqual(rowView(talkTuned), sentenceRow(READ_LINE));
+  assert.deepEqual(rowView(talkTuned), roughRow(150));
 
   const readTuned = setup({ flags: { [READ_FLAG]: 0.9 } });
   await readTuned.show();
   await readTuned.startRecording();
   block(readTuned);
   readNext(readTuned, { wpm: 150, cue: CUE.ON_TARGET });
-  assert.deepEqual(rowView(readTuned), sentenceRow(TALK_LINE));
+  assert.deepEqual(rowView(readTuned), roughRow(150));
   readTuned.practice.hide();
   chooseRead(readTuned);
   await readTuned.startRecording();
@@ -197,7 +212,7 @@ test("a tuned take shows the waiting sentence, then About N wpm and the cue", as
 
 // --- tuning ---
 
-test("an untuned take still tunes its mode after analysis, and the next take shows numbers", async () => {
+test("an untuned take still tunes its mode after analysis, and the next take shows a cue", async () => {
   const t = setup();
   await t.show();
   await t.startRecording();
@@ -206,7 +221,7 @@ test("an untuned take still tunes its mode after analysis, and the next take sho
     block(t);
     readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
   }
-  assert.deepEqual(rowView(t), sentenceRow(TALK_LINE), "at 0:25");
+  assert.deepEqual(rowView(t), roughRow(150), "at 0:25");
   tracker.peakTimes = [0.5, 1, 1.5];
   t.app.delivery.nextFactor = 0.75;
   await t.stopRecording();
@@ -228,7 +243,7 @@ test("an untuned take still tunes its mode after analysis, and the next take sho
   assert.equal(rowView(t).text, "About 150 wpm On target");
 });
 
-test("a factor kept while an untuned take records leaves that take on its line", async () => {
+test("a factor kept while an untuned take records leaves that take rough", async () => {
   const t = setup();
   await t.show();
   t.app.delivery.nextFactor = 0.75;
@@ -244,8 +259,8 @@ test("a factor kept while an untuned take records leaves that take on its line",
     block(t);
     readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
   }
-  assert.deepEqual(rowView(t), sentenceRow(TALK_LINE), "for the whole take");
-  assert.equal(second.reads, 0);
+  assert.deepEqual(rowView(t), roughRow(150), "for the whole take");
+  assert.equal(second.reads, 10, "read once a second, with no cue");
 });
 
 // --- no audio by 0:03 ---
@@ -264,7 +279,7 @@ test("a capture no block reached by 0:03 goes: context closed, row hidden, nothi
     t.clock.advance(1);
     assertReleased(g);
     assert.equal(paceRow(t).hidden, true, label + ": hidden at 0:03");
-    assert.equal(tracker.reads, tuned ? 2 : 0, label + (tuned ? ": read at 0:01 and 0:02" : ""));
+    assert.equal(tracker.reads, 2, label + ": read at 0:01 and 0:02");
     t.clock.advance(20 * SECOND);
     assert.equal(paceRow(t).hidden, true, label + ": for the rest of the take");
     assert.equal(g.context.closes, 1, label + ": closed once");
@@ -336,7 +351,7 @@ test("in level mode a capture no block reached by 0:03 goes too, and nothing rea
 test("a capture dropped at 0:03 hides the row but keeps its box, words and all, until Stop", async () => {
   for (const tuned of [false, true]) {
     const label = tuned ? "tuned" : "untuned";
-    const words = tuned ? WAITING : TALK_LINE;
+    const words = WAITING;
     const t = setup({ flags: tuned ? { [TALK_FLAG]: 0.8 } : {} });
     await t.show();
     await t.startRecording();
@@ -401,7 +416,7 @@ test("a block at 0:02 keeps the capture, in normal and in level mode, and the ta
     assert.equal(typeof g.processor.onaudioprocess, "function", label);
     assert.equal(paceRow(t).hidden, level, label + (level ? ": no row in level mode" : ": shown"));
     if (!level) {
-      assert.deepEqual(rowView(t), sentenceRow(TALK_LINE), label);
+      assert.deepEqual(rowView(t), sentenceRow(WAITING), label);
     }
     lastTracker(t).peakTimes = [2.5, 3, 3.5];
     t.app.delivery.nextFactor = 0.75;
@@ -416,7 +431,7 @@ test("a block at 0:02 keeps the capture, in normal and in level mode, and the ta
 
 // --- what the row says, and how ---
 
-test("the row stays aria-live off: the line is never announced", async () => {
+test("the row stays aria-live off: the rough row is never announced", async () => {
   const t = setup();
   await t.show();
   await t.startRecording();
@@ -425,7 +440,7 @@ test("the row stays aria-live off: the line is never announced", async () => {
     readNext(t, READINGS[second % READINGS.length]);
   }
   const row = paceRow(t);
-  assert.equal(rowView(t).text, TALK_LINE);
+  assert.deepEqual(rowView(t), roughRow(150));
   assert.equal(row.getAttribute("aria-live"), "off");
   for (const name of ["role", "aria-label", "tabindex"]) {
     assert.equal(row.getAttribute(name), null, name);
@@ -433,30 +448,34 @@ test("the row stays aria-live off: the line is never announced", async () => {
   assert.deepEqual(t.calls.announce, ["Recording started", "0:30"]);
 });
 
-// What an untuned take's row says, as painted: the Talk line, then the Read line.
-async function paintedLines() {
+// An untuned Talk take's row and an untuned Read take's row, each once the tracker reads 150.
+async function paintedRows() {
   const talk = setup();
   await talk.show();
   await talk.startRecording();
+  block(talk);
+  readNext(talk, { wpm: 150, cue: CUE.ON_TARGET });
   const reading = setup();
   await reading.show();
   chooseRead(reading);
   await reading.startRecording();
-  return [rowView(talk).text, rowView(reading).text];
+  block(reading);
+  readNext(reading, { wpm: 150, cue: CUE.ON_TARGET });
+  return [talk, reading];
 }
 
-test("both lines and how.html give the seconds PACE_STARTS_AFTER_CLOCK_SECONDS names", async () => {
-  const seconds = clockSeconds();
-  const lines = await paintedLines();
-  assert.deepEqual(lines, [TALK_LINE, READ_LINE]);
-  for (const line of lines) {
-    assert.deepEqual(line.match(/\d+/g), [String(seconds)], line);
+test("the rough rows name no seconds, and how.html names the 30 s that tune the number", async () => {
+  const rows = (await paintedRows()).map((t) => rowView(t).text);
+  assert.deepEqual(rows, ["About 150 wpm " + ROUGH, "About 150 wpm " + ROUGH]);
+  for (const row of rows) {
+    assert.deepEqual(row.match(/\d+/g), ["150"], "only the number: " + row);
   }
+  assert.equal(clockSeconds(), 30);
   const how = read("how.html").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
-  assert.ok(how.includes("It starts once a take of " + seconds + " seconds or more"), "how.html");
+  assert.ok(!how.includes("It starts once a take of"), "how.html keeps no starting promise");
 });
 
-test("the clock's seconds are at least 5 over the speech a take needs, PACE_FACTOR_MIN_SECONDS", () => {
+test("how.html's seconds are at least 5 over the speech a take needs, PACE_FACTOR_MIN_SECONDS", () => {
   const app = {};
   vm.runInNewContext(DELIVERY_SOURCE, { app }, { filename: "delivery.js" });
   const speech = app.delivery.PACE_FACTOR_MIN_SECONDS;
@@ -486,7 +505,7 @@ function withRealTuning() {
   return { t: setup({ delivery }), real: real.delivery };
 }
 
-test("a take as long as the lines promise, with a lead-in, a tail and slow speech, counts", async () => {
+test("a take as long as how.html says, with a lead-in, a tail and slow speech, counts", async () => {
   // The clock runs from Record to Stop, the factor's speech from the first word's start to the
   // last word's end. Here the first word starts 2 s in and the last ends 1 s before Stop, and
   // the speech between them goes at 70 wpm: at 30 s on the clock, 31 words over 27 s.
@@ -522,11 +541,22 @@ test("a take as long as the lines promise, with a lead-in, a tail and slow speec
   assert.deepEqual(rowView(t), sentenceRow(WAITING), "the next Talk take is tuned");
 });
 
-test("both lines hold 30\u00a0s, joined by a no-break space, and never a plain-space 30 s", async () => {
-  for (const line of await paintedLines()) {
-    assert.ok(line.includes("30\u00a0s "), line);
-    assert.ok(!line.includes("30 s"), line);
+test("each rough row holds the number and the rough words in two spans, each one unbroken", async () => {
+  for (const t of await paintedRows()) {
+    const [number, space, rough] = paceRow(t).children;
+    assert.equal(number.textContent, "About 150 wpm");
+    assert.equal(space.textContent, " ");
+    assert.equal(rough.textContent, ROUGH);
+    assert.ok(!rough.textContent.includes("\u00a0"), "plain spaces in the rough words");
   }
+  // styles.css holds both spans to one line, so the row breaks only between them.
+  const css = read("styles.css").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ");
+  assert.ok(
+    css.includes(
+      ".practice__pace-number, .practice__pace-cue, .practice__pace-rough { white-space: nowrap; }",
+    ),
+    "the number, the cue and the rough words never break inside",
+  );
 });
 
 // A line as a source file may spell it: as a reader sees it, or with its no-break space written
@@ -535,23 +565,35 @@ function spellings(line) {
   return [line, line.replace(/\u00a0/g, "\\u00a0")];
 }
 
-test("each line lives in one string literal, in practice.js", () => {
+test("the rough words live in one string literal, in practice.js; the retired lines in none", () => {
   const sources = [
     "api.js",
     ...fs.readdirSync(path.join(FRONTEND, "screens")).map((file) => path.join("screens", file)),
   ];
-  for (const line of [TALK_LINE, READ_LINE]) {
-    const counts = Object.fromEntries(
+  const count = (line) =>
+    Object.fromEntries(
       sources.map((file) => [
         file,
-        spellings(line).reduce((sum, spelling) => sum + read(file).split(spelling).length - 1, 0),
+        // A line with no no-break space has one spelling, counted once.
+        [...new Set(spellings(line))].reduce(
+          (sum, spelling) => sum + read(file).split(spelling).length - 1,
+          0,
+        ),
       ]),
     );
-    assert.equal(counts[path.join("screens", "practice.js")], 1, line);
+  const rough = count(ROUGH);
+  assert.equal(rough[path.join("screens", "practice.js")], 1, ROUGH);
+  assert.equal(
+    Object.values(rough).reduce((sum, each) => sum + each, 0),
+    1,
+    JSON.stringify(rough),
+  );
+  for (const line of RETIRED_LINES) {
+    const counts = count(line);
     assert.equal(
-      Object.values(counts).reduce((sum, count) => sum + count, 0),
-      1,
-      JSON.stringify(counts),
+      Object.values(counts).reduce((sum, each) => sum + each, 0),
+      0,
+      line + ": " + JSON.stringify(counts),
     );
   }
 });
@@ -578,19 +620,37 @@ function syllables(seconds) {
   return out;
 }
 
-test("with the real estimator an untuned take keeps its line, then tunes Talk for the next", async () => {
+test("with the real estimator an untuned take shows its rough number, then tunes Talk for the next", async () => {
   const t = setup({ realDelivery: true, audio: { sampleRate: 16384 } });
   await t.show();
   await t.startRecording();
+  // A tracker of the test's own at the starting factor gets the same blocks and is read at each
+  // whole second, as the row reads its own: the row's number must be the twin's, exactly.
+  const twin = t.app.delivery.livePace(16384, { band: [140, 160], factor: 0.69 });
   const samples = syllables(26);
   const blockMs = (1024 / 16384) * 1000;
   const texts = new Set();
+  let numbers = 0;
   for (let from = 0; from + 1024 <= samples.length; from += 1024) {
-    block(t, samples.subarray(from, from + 1024));
+    const piece = samples.subarray(from, from + 1024);
+    block(t, piece);
+    twin.push(piece);
     t.clock.advance(blockMs);
-    texts.add(rowView(t).text);
+    const text = rowView(t).text;
+    texts.add(text);
+    if (Math.round(t.clock.performance.now()) % SECOND === 0) {
+      const { wpm } = twin.read();
+      numbers += wpm === null ? 0 : 1;
+      const expected = wpm === null ? WAITING : "About " + wpm + " wpm " + ROUGH;
+      assert.equal(text, expected, "at " + Math.round(t.clock.performance.now()) + " ms");
+    }
   }
-  assert.deepEqual([...texts], [TALK_LINE], "26 s of speech, and only the line");
+  const shown = [...texts];
+  assert.equal(shown[0], WAITING, "the waiting sentence first");
+  assert.ok(numbers > 0 && shown.length > 1, "then a number");
+  for (const text of shown.slice(1)) {
+    assert.match(text, /^About \d+ wpm Rough until tuned$/, "26 s of speech, rough and no cue");
+  }
   await t.stopRecording();
   t.resolveUpload();
   await flush();

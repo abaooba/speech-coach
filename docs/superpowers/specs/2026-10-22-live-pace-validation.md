@@ -22,11 +22,12 @@ before the live row was built. This note keeps the method, the numbers and the v
   a speaker who slows down; it is not built.
 - **The owner's two real takes are within 7%**: read -6.4%, talk +4.4%. The start factor 0.69
   came from these same two takes, so this is in-sample. They are the only human speech here.
-- **So the row waits for the factor** (spec section 7, Validation result). Until a mode, Talk or
-  Read, has one take of 20 seconds and 30 words, its row says "Live pace starts after a 30 s
-  talk." or "Live pace starts after a 30 s read." and shows no number and no cue, because in the
-  app the untuned cue was right on only 1 of 4 first takes (End to end in the app, below). After
-  that it shows "About 150 wpm" and the cue.
+- **So the cue waits for the factor** (spec section 7, Validation result). Until a mode, Talk
+  or Read, has one take of 20 seconds and 30 words, its row shows no cue, because in the app the
+  untuned cue was right on only 1 of 4 first takes (End to end in the app, below). After that it
+  shows "About 150 wpm" and the cue. Until 2026-10-24 the untuned row showed no number either and
+  said "Live pace starts after a 30 s talk." or "... read."; since then it shows "About 150 wpm"
+  and "Rough until tuned" in the cue's place (spec section 7.1).
 - Noise: white noise at 20 and 10 dB SNR changes nothing that matters. A continuous second voice
   adds peaks: at -12 dB, +1% on the real read and +8% on the real talk; at -6 dB, +14% and +20%.
 - CPU on a Mac (2026-10-23, the owner's two real takes joined, 67 s, each push timed): a
@@ -210,9 +211,10 @@ factor is the mode's kept one when the take began.
 | Talk, tuned again | 140 to 160 | 0.703 | 108 | 105 to 135 (mean 120, +11%), Speed up from 0:22 | late: called from 0:18 |
 
 - The untuned cue was right on 1 of 4 first takes, in line with the uncalibrated figures above.
-  So the app no longer shows it: until a mode is tuned, the row says "Live pace starts after a
-  30 s talk." or "Live pace starts after a 30 s read." for the whole take, with no number and
-  no cue. The Row column is what these takes showed before that change.
+  So the app no longer shows it: until a mode is tuned, the row shows no cue. From 2026-10-22 to
+  2026-10-24 it showed no number either, only "Live pace starts after a 30 s talk." or "... read."
+  for the whole take; since 2026-10-24 it shows the number with "Rough until tuned" in the cue's
+  place (spec section 7.1). The Row column is what these takes showed before either change.
 - After tuning, the number was pulled toward the pace the factor was tuned at. That limit stays
   open: a slow take still reads fast after tuning (121 wpm showed as 137 on average, and Speed
   up never appeared). A factor that depends on pace is the follow-up.

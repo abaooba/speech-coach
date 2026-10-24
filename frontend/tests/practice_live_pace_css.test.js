@@ -1,8 +1,9 @@
 // Text checks on the live pace row's rules in frontend/styles.css (spec
 // docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7; the judged brief's 2d):
 // one centred line in the timer's third row, --s-2 under the bar (--s-1 on short screens), the
-// number --muted at 500 and the cue at 600 in --ok or --warn with its icon drawn first; the two
-// parts never break inside, so at 200% zoom the row wraps between them. Tokens only, nothing
+// number --muted at 500 and the cue at 600 in --ok or --warn with its icon drawn first, or the
+// rough words in the row's own look; the two parts never break inside, so at 200% zoom the row
+// wraps between them. Tokens only, nothing
 // animates, and [hidden] beats the flex display, except for a row whose capture went mid-take:
 // it keeps its box, out of sight, while its take records.
 "use strict";
@@ -118,14 +119,17 @@ test("a held row keeps its box out of sight while its take records, over the [hi
   assert.equal(heldRules.length, 1, "no other rule styles a held row");
 });
 
-test("the number and the cue never break inside; nothing else in the row is held to one line", () => {
-  assert.deepEqual(ruleFor([".practice__pace-number", ".practice__pace-cue"]), {
-    "white-space": "nowrap",
-  });
+test("the number, the cue and the rough words never break inside; nothing else in the row is held to one line", () => {
+  assert.deepEqual(
+    ruleFor([".practice__pace-number", ".practice__pace-cue", ".practice__pace-rough"]),
+    { "white-space": "nowrap" },
+  );
   const nowrap = paceRules()
     .filter((rule) => rule.declarations["white-space"] === "nowrap")
     .map((rule) => rule.selectors.join(", "));
-  assert.deepEqual(nowrap, [".practice__pace-number, .practice__pace-cue"]);
+  assert.deepEqual(nowrap, [
+    ".practice__pace-number, .practice__pace-cue, .practice__pace-rough",
+  ]);
 });
 
 test("the cue is bold words in its tone with a 16px icon drawn first, --s-1 before them", () => {

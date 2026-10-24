@@ -2,9 +2,9 @@
 // docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 7, Capture, Display and the
 // Validation result). A take opens an AudioContext of its own: MediaStreamSource ->
 // ScriptProcessor(1024, 1, 1) -> a zero gain -> the output, and each block goes to an
-// app.delivery.livePace tracker. Once the take's mode (Talk or Read) has a kept words-a-peak
-// factor, a row in the timer shows the waiting sentence, then "About 150 wpm" and the cue; until
-// then it says only when the live pace starts (practice_live_pace_untuned.test.js). It repaints
+// app.delivery.livePace tracker. A row in the timer shows the waiting sentence, then "About 150
+// wpm" and, once the take's mode (Talk or Read) has a kept words-a-peak factor, the cue; until
+// then "Rough until tuned" in the cue's place (practice_live_pace_untuned.test.js). It repaints
 // once per new whole second from the clock's tick, is never announced, and shows only while a
 // normal take records. A capture no block has reached by 0:03 goes, so a test whose take runs
 // longer hands it a block first. Once a take's analysis is back, its mode's factor is tuned
@@ -528,7 +528,7 @@ test("a kept factor shows the number from the next take of that mode on", async 
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
   assert.equal(rowView(t).text, "About 150 wpm On target");
   t.practice.hide();
-  // Read has no factor yet: its row still says when the live pace starts.
+  // Read has no factor yet: its row shows the number as rough, with no cue.
   byClass(t.body, "segmented").children.find((option) => option.textContent === "Read").click();
   await t.startRecording();
   assert.equal(lastTracker(t).options.factor, null);
@@ -536,8 +536,8 @@ test("a kept factor shows the number from the next take of that mode on", async 
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
   assert.deepEqual(rowView(t), {
     hidden: false,
-    parts: ["span.practice__pace-placeholder"],
-    text: "Live pace starts after a 30\u00a0s read.",
+    parts: ["span.practice__pace-number num", '" "', "span.practice__pace-rough"],
+    text: "About 150 wpm Rough until tuned",
   });
 });
 
@@ -671,7 +671,7 @@ test("a store that cannot keep the factor changes nothing the speaker sees", asy
   await t.startRecording();
   assert.equal(lastTracker(t).options.factor, null, "no factor was kept");
   readNext(t, { wpm: 150, cue: CUE.ON_TARGET });
-  assert.equal(rowView(t).text, "Live pace starts after a 30\u00a0s talk.");
+  assert.equal(rowView(t).text, "About 150 wpm Rough until tuned");
 });
 
 test("a store that cannot be read leaves the factors as they were", async () => {
