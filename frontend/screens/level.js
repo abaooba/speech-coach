@@ -109,8 +109,10 @@
     "Take 1's audio stays in this phone's memory for this level only, then it is deleted. " +
     "It is never saved.";
   const AUDIO_GONE = "Take 1's audio is gone: it is kept only while this level is open.";
+  // The button that starts a take after the first (nextTakeLabel).
   const SAY_IT_AGAIN = "Say it again";
   const READ_IT_AGAIN = "Read it again";
+  const READ_A_NEW_PASSAGE = "Read a new passage";
   const RECORD_THE_TALK = "Record the talk";
 
   // Result
@@ -302,10 +304,11 @@
 
   // --- The run ---------------------------------------------------------------------------------
 
-  // A new run: {playId, play, baseline, cleared, history, material, takes, sessions, kept,
-  // choices, fix, inRoom, audio, ...}. The baseline is frozen here from the takes before the
-  // play (null for a speaker with none, until a take with speech sets it), and the material is
-  // drawn here once for every take of a loop.
+  // A new run: {playId, play, baseline, cleared, history, material, materials, takes, sessions,
+  // kept, choices, fix, inRoom, audio, ...}. The baseline is frozen here from the takes before
+  // the play (null for a speaker with none, until a take with speech sets it), and take 1's
+  // material is drawn here: a loop keeps it for every take, except that each ladder (Pace) read
+  // draws its own (materialOf).
   function startRun(playId, history, cleared) {
     const baseline = app.path.baseline(history);
     const play = app.path.playById(playId, { baseline, cleared });
@@ -316,6 +319,9 @@
       cleared,
       history,
       material: app.path.materialFor(play, history, Math.random, 0),
+      // By take index: the material each take was said or read on, kept from the moment its
+      // request is built (materialOf).
+      materials: [],
       topFillers: play.listsTopFillers ? app.path.topFillers(history) : [],
       // Whether the play's last run was cut off after take 1 today, its audio gone with it.
       takeOneGone: takeOneCutOff(play, history),
@@ -385,22 +391,31 @@
     }
   }
 
-  // A take step's material: the run's own, drawn at the Goal. A ladder read asks again for its
-  // own band on the same passage, and the benchmark's take 2 is its talk.
+  // A take's material: drawn the first time it is asked for, when the take's request is built
+  // (requestFor), then kept on the run by take index, so the take's seconds, its Review and the
+  // coach's request all read the passage it was read from. Take 1's is the run's own, drawn at
+  // the Goal, and a loop keeps that for every take, except that each ladder (Pace) read draws a
+  // new cold read over the run's own saved takes first (historyNow), so read 2 never repeats
+  // read 1's passage while another is unread. The benchmark's take 2 is its talk.
   function materialOf(target, takeIndex) {
-    const key = target.play.material;
-    const material =
-      (key === LADDER_MATERIAL || key === BENCHMARK_MATERIAL) && takeIndex > 0
-        ? app.path.materialFor(target.playId, target.history, Math.random, takeIndex)
+    if (!target.materials[takeIndex]) {
+      const key = target.play.material;
+      const ownMaterial = (key === LADDER_MATERIAL || key === BENCHMARK_MATERIAL) && takeIndex > 0;
+      target.materials[takeIndex] = ownMaterial
+        ? app.path.materialFor(target.playId, historyNow(target), Math.random, takeIndex)
         : target.material;
+    }
+    const material = target.materials[takeIndex];
     return Object.assign({}, material, { targetWpm: Array.from(material.targetWpm) });
   }
 
-  // The take at `takeIndex`, resolved against the run's frozen baseline.
+  // The take at `takeIndex`, resolved against the run's frozen baseline and the material kept
+  // for it, which times a ladder read (its seconds are null until the take's request is built).
   function takeOf(target, takeIndex) {
     return app.path.takeAt(target.playId, takeIndex, {
       baseline: target.baseline,
       cleared: target.cleared,
+      material: target.materials[takeIndex] || null,
     });
   }
 
@@ -425,15 +440,17 @@
     practice.startLevelTake(request);
   }
 
-  // What Practice shows and calls back for one take.
+  // What Practice shows and calls back for one take. Its material comes first: a ladder read
+  // lasts as long as the passage drawn for it takes at its pace.
   function requestFor(target, takeIndex) {
     const play = target.play;
+    const material = materialOf(target, takeIndex);
     const take = takeOf(target, takeIndex);
     return {
       eyebrow: "Path: " + play.heading,
       title: bannerTitle(play, take, takeIndex),
       body: bannerBody(target, take, takeIndex),
-      material: materialOf(target, takeIndex),
+      material,
       seconds: secondsOf(play, take),
       liveTap: play.liveTap === true,
       judge: (result) => judgeTake(target, takeIndex, result),
@@ -471,11 +488,15 @@
     if (!take.read) {
       return "Talk for " + secondsOf(play, take) + " s.";
     }
-    const ladder =
-      play.kind === LOOP && play.material === LADDER_MATERIAL && Array.isArray(take.band);
-    return ladder
+    return isLadderRead(play, take)
       ? "Read the passage at " + take.band[0] + " to " + take.band[1] + " wpm."
       : READ_ALOUD;
+  }
+
+  // A ladder read (Pace levels 1 and 2): held to its own band, on a cold read drawn for it alone
+  // (materialOf).
+  function isLadderRead(play, take) {
+    return play.kind === LOOP && play.material === LADDER_MATERIAL && Array.isArray(take.band);
   }
 
   function countsOf(play, take, takeIndex) {
@@ -1610,9 +1631,7 @@
         iconOf("lock", 14, "level-privacy__icon"),
         el("span", { text: PRIVACY }),
       ]),
-      actionsOf([
-        primaryButton(next.read ? READ_IT_AGAIN : SAY_IT_AGAIN, () => startTake(target, 1)),
-      ]),
+      actionsOf([primaryButton(nextTakeLabel(play, next), () => startTake(target, 1))]),
     );
     return { node: stepNode(parts), heading: title };
   }
@@ -2083,12 +2102,22 @@
     if (target.fix) {
       parts.push(el("p", { class: "level-summary__fix", text: "Your fix: " + target.fix + "." }));
     }
-    let label = take.read ? READ_IT_AGAIN : SAY_IT_AGAIN;
-    if (target.play.kind === BENCHMARK) {
-      label = RECORD_THE_TALK;
-    }
+    const label = nextTakeLabel(target.play, take);
     parts.push(actionsOf([primaryButton(label, () => startTake(target, index))]));
     return { node: stepNode(parts), heading: title };
+  }
+
+  // The button that starts a take after the first, on the Review or a take step: "Say it again"
+  // for a talk ("Record the talk" on the benchmark), "Read it again" for a read of the run's one
+  // passage, and "Read a new passage" for a ladder read, which draws a new cold read.
+  function nextTakeLabel(play, take) {
+    if (play.kind === BENCHMARK) {
+      return RECORD_THE_TALK;
+    }
+    if (!take.read) {
+      return SAY_IT_AGAIN;
+    }
+    return isLadderRead(play, take) ? READ_A_NEW_PASSAGE : READ_IT_AGAIN;
   }
 
   // --- Result ----------------------------------------------------------------------------------

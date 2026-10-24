@@ -84,7 +84,7 @@ test("the Read tab's explainer and story read cleanly, as written", () => {
   everydayPassages().forEach(assertReadsCleanly);
 });
 
-test("the explainer is the Pace ladder's passage: 109 words, as the rebuttal it replaced", () => {
+test("the explainer keeps its 109 words, as the rebuttal it replaced", () => {
   const [explainer] = everydayPassages();
   assert.equal(explainer.text.trim().split(/\s+/).length, 109);
 });
@@ -113,6 +113,21 @@ test("the cold reads keep their ids, so a take saved on one still counts as read
       "cold-read-local-news",
       "cold-read-rent-control",
       "cold-read-organ-donors",
+      "cold-read-refrigerator",
+      "cold-read-bread-dough",
+      "cold-read-flat-tire",
+      "cold-read-power-cut",
+      "cold-read-repair-night",
+      "cold-read-honey-bees",
+      "cold-read-tides",
+      "cold-read-clouds",
+      "cold-read-butterfly",
+      "cold-read-bean-jar",
+      "cold-read-learning-to-swim",
+      "cold-read-letter-journey",
+      "cold-read-museum-guide",
+      "cold-read-lost-and-found",
+      "cold-read-window-cleaners",
     ],
   );
 });
@@ -136,6 +151,21 @@ test("the cold reads' titles name what each one is about", () => {
       "Cold read: a day at the local paper",
       "Cold read: a first apartment",
       "Cold read: giving blood",
+      "Cold read: how a refrigerator works",
+      "Cold read: why bread dough rises",
+      "Cold read: fixing a flat bike tire",
+      "Cold read: an evening without power",
+      "Cold read: repair night at the hall",
+      "Cold read: how bees make honey",
+      "Cold read: what makes the tides",
+      "Cold read: how clouds form",
+      "Cold read: caterpillar to butterfly",
+      "Cold read: a bean in a jar",
+      "Cold read: learning to swim",
+      "Cold read: how a letter travels",
+      "Cold read: a guide at the museum",
+      "Cold read: the lost and found office",
+      "Cold read: window cleaners up high",
     ],
   );
 });

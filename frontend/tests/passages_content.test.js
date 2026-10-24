@@ -45,10 +45,10 @@ function assertWordBand(passages, ids, lo, hi) {
   }
 }
 
-test("there are exactly eleven entries: six passages and five prompts", () => {
+test("there are exactly 29 entries: 24 passages and five prompts", () => {
   const passages = loadPassages();
-  assert.equal(passages.length, 11);
-  assert.equal(passages.filter((entry) => entry.kind === "passage").length, 6);
+  assert.equal(passages.length, 29);
+  assert.equal(passages.filter((entry) => entry.kind === "passage").length, 24);
   assert.equal(passages.filter((entry) => entry.kind === "prompt").length, 5);
 });
 

@@ -1,8 +1,9 @@
 /* language.js: app.language, the grammar and vocabulary check the speaker asks for on one take
    (POST /api/language-check, backend/language/check.py). canCheck(session) says whether a take
-   gets the button; check(session) asks once and keeps an "ok" result in the store flag
-   languageCheck:<id>, so reopening never asks again; cached(session) reads that flag; build(result)
-   draws the "Grammar & vocabulary" block. requestBody, parse and changedWords are pure. */
+   gets the button, and isReadTake(session) whether it was read aloud; check(session) asks once
+   and keeps an "ok" result in the store flag languageCheck:<id>, so reopening never asks again;
+   cached(session) reads that flag; build(result) draws the "Grammar & vocabulary" block.
+   requestBody, parse and changedWords are pure. */
 (function () {
   "use strict";
 
@@ -60,8 +61,13 @@
 
   // A take that followed its script (the backend's script block), or one recorded on a passage
   // that is read aloud: a Read tab passage, a Path cold read, the benchmark read, or a retired
-  // passage an old take still carries.
+  // passage an old take still carries. The rank (rankcard.js, results.js), the Progress charts,
+  // the Results arrows and the History "Read" marker split takes on this same rule, so they all
+  // agree on what counts as reading.
   function isReadTake(session) {
+    if (!session || typeof session !== "object") {
+      return false;
+    }
     const script = session.metrics && session.metrics.script;
     if (script && typeof script === "object") {
       return true;
@@ -393,5 +399,5 @@
     return Array.isArray(value) ? value : [];
   }
 
-  app.language = { canCheck, requestBody, parse, check, cached, changedWords, build };
+  app.language = { canCheck, isReadTake, requestBody, parse, check, cached, changedWords, build };
 })();

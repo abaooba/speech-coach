@@ -3,7 +3,10 @@
 // focus(), contains(), a descendant querySelector, parentNode and insertBefore (level mode adds
 // its banner and its live tap to the body while a request is held). Every browser API a take
 // touches (getUserMedia, MediaRecorder, Blob, performance.now, setInterval) is a fake the tests
-// drive by hand, and a level request's callbacks log their calls.
+// drive by hand, and a level request's callbacks log their calls. Practice draws its topics and
+// passages with Math.random: a test fixes the draw by handing setup() a `random` stub, which the
+// vm context's own Math carries, and holds the clock that stamps what Practice shows with a
+// `now` stub, which the context's own Date carries.
 "use strict";
 
 const fs = require("node:fs");
@@ -16,6 +19,7 @@ const FRONTEND = path.join(__dirname, "..");
 const PRACTICE_SOURCE = fs.readFileSync(path.join(FRONTEND, "screens", "practice.js"), "utf8");
 const UI_SOURCE = fs.readFileSync(path.join(FRONTEND, "ui.js"), "utf8");
 const PASSAGES_SOURCE = fs.readFileSync(path.join(FRONTEND, "passages.js"), "utf8");
+const PATH_SOURCE = fs.readFileSync(path.join(FRONTEND, "path.js"), "utf8");
 
 // The same sentences api.js freezes (DESIGN.md section 8); the fake app.api carries them.
 const MESSAGES = Object.freeze({
@@ -278,6 +282,14 @@ function realPassages() {
   return plain(context.app.passages);
 }
 
+// The Read tab's groups as passages.js ships them (app.passages.groups()), which the plain copy
+// above leaves out.
+function realGroups() {
+  const context = { app: {} };
+  vm.runInNewContext(PASSAGES_SOURCE, context, { filename: "passages.js" });
+  return plain(context.app.passages.groups());
+}
+
 // A level request (spec section 7) for Fillers level 3's take 1, with `overrides` on top. Its
 // judge, onSaved and onLeave log their arguments in `log`; judge returns JUDGED_PATH.
 function levelRequest(overrides = {}) {
@@ -306,7 +318,10 @@ function levelRequest(overrides = {}) {
 
 // Loads ui.js and practice.js against the fakes and mounts the screen into a section that holds
 // only its body, like the other Practice tests. Returns the screen, its body, the call logs and
-// the controls for the mic prompt, the clock and the upload.
+// the controls for the mic prompt, the clock and the upload. Options: `passages` for the data,
+// `groups` for app.passages.groups(), `random` for the context's Math.random, `now` for the
+// context's Date.now, `list` for app.store.list, `withPath` to load the real path.js first, as
+// index.html does, and `pauses`.
 function setup(options = {}) {
   const clock = fakeClock();
   const focused = [];
@@ -339,6 +354,12 @@ function setup(options = {}) {
   if (options.pauses) {
     app.pauses = options.pauses;
   }
+  if (options.groups) {
+    app.passages.groups = () => plain(options.groups);
+  }
+  if (options.list) {
+    app.store.list = options.list;
+  }
   const context = {
     app,
     document: levelDocument(focused),
@@ -355,8 +376,31 @@ function setup(options = {}) {
     setInterval: clock.setInterval,
     clearInterval: clock.clearInterval,
   };
+  // The context's own Math, every function as it was but random, which the stub replaces.
+  if (options.random) {
+    context.Math = Object.create(Math, { random: { value: options.random } });
+  }
+  // The context's own Date, built and read as before, but its now() is the stub, so a test can
+  // hold the clock still and see two things happen in the same millisecond.
+  if (options.now) {
+    context.Date = class extends Date {
+      static now() {
+        return options.now();
+      }
+    };
+  }
   vm.runInNewContext(UI_SOURCE, context, { filename: "ui.js" });
   app.ui.announce = (text) => calls.announce.push(text);
+  if (options.withPath) {
+    // passages.js loads first only to keep index.html's script order: path.js no longer needs its
+    // data to load. It reads app.passages when called, so every call reads the test's data, which
+    // app.passages holds again. (While loading it reads only the Impromptu band its talk levels
+    // hold, 140 to 160 wpm, the same as its own default.)
+    const testPassages = app.passages;
+    vm.runInNewContext(PASSAGES_SOURCE, context, { filename: "passages.js" });
+    vm.runInNewContext(PATH_SOURCE, context, { filename: "path.js" });
+    app.passages = testPassages;
+  }
   vm.runInNewContext(PRACTICE_SOURCE, context, { filename: "practice.js" });
 
   const root = new LevelElement("section", null, focused);
@@ -499,6 +543,7 @@ module.exports = {
   parts,
   plain,
   reaches,
+  realGroups,
   realPassages,
   setup,
   stateBlock,

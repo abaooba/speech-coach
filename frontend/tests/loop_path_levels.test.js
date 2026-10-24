@@ -36,7 +36,6 @@ const TALK_GUARDS = ["talkShare", "minWpm", "steadyOtherSlips"];
 const READ_GUARDS = ["readThrough", "minWpm", "steadyOtherSlips"];
 const PACE_READ_GUARDS = ["readThrough"];
 const PACE_TALK_GUARDS = ["talkShare", "steadyOtherSlips"];
-const LADDER_WORDS = 109;
 
 // Objects built inside the vm realm compare by value after a JSON round trip.
 function plain(value) {
@@ -239,8 +238,9 @@ test("each level's takes have the spec's seconds, and only the last one is score
       ["long-pauses-3", [90, 60]],
       ["long-pauses-4", [120, 90]],
       ["long-pauses-5", [120, 120]],
-      ["pace-1", [44, 44]],
-      ["pace-2", [47, 41]],
+      // A ladder read has no seconds of its own: they follow the passage drawn for it.
+      ["pace-1", [null, null]],
+      ["pace-2", [null, null]],
       ["pace-3", [90, 90]],
       ["pace-4", [120, 120]],
       ["pace-5", [120, 120]],
@@ -281,18 +281,25 @@ test("reading levels read, talk levels talk, and takes are labelled in order", (
   ]);
 });
 
-test("the crown's ladder read lasts as long as the passage takes at 180 wpm, rounded up", () => {
-  const passage = APP.passages.find((entry) => entry.id === "explainer-rainbows");
-  assert.equal(passage.text.trim().split(/\s+/).length, LADDER_WORDS);
-  assert.deepEqual(plain(play("pace_crown").takes), [
-    {
-      seconds: Math.ceil((LADDER_WORDS * 60) / 180),
-      scored: true,
-      read: true,
-      band: [170, 190],
-      label: "Take",
-    },
-  ]);
+test("the crown's ladder read lasts as long as its passage takes at 180 wpm, rounded up", () => {
+  const take = (seconds) => ({
+    seconds,
+    scored: true,
+    read: true,
+    band: [170, 190],
+    label: "Take",
+  });
+  assert.deepEqual(plain(play("pace_crown").takes), [take(null)]);
+  const material = PATH.materialFor("pace_crown", [], () => 0);
+  APP.passages.coldReads().forEach((passage) => {
+    const drawn = { ...material, id: passage.id, title: passage.title, text: passage.text };
+    const words = passage.text.trim().split(/\s+/).length;
+    assert.deepEqual(
+      plain(PATH.takeAt("pace_crown", 0, { material: drawn })),
+      take(Math.ceil((words * 60) / 180)),
+      passage.id,
+    );
+  });
 });
 
 test("each level's rule is the spec's: conditions on take 2 and the guards it checks", () => {
@@ -691,9 +698,9 @@ test("the loops' goals: the headline target, its unit, the length and the short 
       "clean stretch, no long pause, mid-sentence pauses at your usual or fewer",
       "120 s, then 90 s", "45 s clean"),
     "long-pauses-5": goal("60 s", "clean stretch, no long pause", "120 s, two takes", "60 s clean"),
-    "pace-1": goal("140 to 160", "wpm on read 2", "2 reads of the passage", "150 wpm, twice"),
+    "pace-1": goal("140 to 160", "wpm on read 2", "2 reads of a new passage", "150 wpm, twice"),
     "pace-2": goal("140, then 160", "wpm, give or take 10, at most 2 restarts each",
-      "2 reads of the passage", "140, then 160 wpm"),
+      "2 reads of a new passage", "140, then 160 wpm"),
     "pace-3": goal("140 to 160", "wpm on take 2", "90 s, two takes", "140 to 160 wpm"),
     "pace-4": goal("140 to 160", "wpm on take 2", "120 s, two takes", "140 to 160 wpm"),
     "pace-5": goal("140 to 160", "wpm on take 2, slips in all at your usual or fewer",
@@ -715,7 +722,7 @@ test("the check-backs', crowns', checkpoints' and benchmark's goals", () => {
   assert.deepEqual(play("fillers_crown").goal,
     goal("0:30", "without a filler or restart", "45 s on About you", "Sudden death, optional"));
   assert.deepEqual(play("pace_crown").goal,
-    goal("170 to 190", "wpm, at most 1 restart", "One read of the passage",
+    goal("170 to 190", "wpm, at most 1 restart", "One read of a new passage",
       "180 wpm ladder, optional"));
   assert.deepEqual(play("fillers_checkpoint", { baseline: usualAt() }).goal,
     goal("3 or fewer", "fillers a minute, slips in all at your usual or fewer",
@@ -826,20 +833,24 @@ test("takeAt gives a loop's retries: the scored take again, or Pace level 2's pa
   assert.deepEqual(at("fillers-3", 2), { seconds: 90, scored: true, read: false, label: "Take 3" });
   assert.deepEqual(at("fillers-3", 3), { seconds: 90, scored: true, read: false, label: "Take 4" });
   assert.deepEqual(at("restarts-1", 3), { seconds: 90, scored: true, read: true, label: "Read 4" });
-  assert.deepEqual(at("pace-2", 2), {
-    seconds: 47,
+  // A ladder retry is timed to the passage drawn for it: its words at the read's pace.
+  const material = plain(PATH.materialFor("pace-2", [], () => 0, 2));
+  const words = material.text.trim().split(/\s+/).length;
+  assert.deepEqual(at("pace-2", 2, { material }), {
+    seconds: Math.ceil((words * 60) / 140),
     scored: true,
     read: true,
     band: [130, 150],
     label: "Read 3",
   });
-  assert.deepEqual(at("pace-2", 3), {
-    seconds: 41,
+  assert.deepEqual(at("pace-2", 3, { material }), {
+    seconds: Math.ceil((words * 60) / 160),
     scored: true,
     read: true,
     band: [150, 170],
     label: "Read 4",
   });
+  assert.equal(at("pace-2", 3).seconds, null, "no passage, no seconds");
   assert.equal(at("pace-3", 2, { baseline: usualAt({ wpm: 120 }) }).seconds, 70);
   assert.equal(at("long-pauses-2", 2).seconds, 75);
   assert.deepEqual(at("fillers-2_checkback", 0), {
@@ -908,17 +919,18 @@ test("a cold read's material is the passage pickColdRead picks, with the same dr
   assert.equal(PATH.materialFor("restarts-4_checkback", [], () => 0.5).id, picked.id);
 });
 
-test("a ladder read's material is the ladder passage held to the read's own band", () => {
-  const passage = APP.passages.find((entry) => entry.id === "explainer-rainbows");
+test("a ladder read's material is the cold read pickColdRead picks, at the read's band", () => {
+  const passage = PATH.pickColdRead([], () => 0);
   const ladder = (id, index) => plain(PATH.materialFor(id, [], () => 0, index));
   assert.deepEqual(ladder("pace-1", 0), {
     kind: "passage",
-    id: "explainer-rainbows",
+    id: passage.id,
     title: passage.title,
     text: passage.text,
     targetWpm: [140, 160],
     topic: null,
   });
+  assert.ok(passage.id.startsWith("cold-read-"), passage.id);
   assert.deepEqual(ladder("pace-2", 0).targetWpm, [130, 150]);
   assert.deepEqual(ladder("pace-2", 1).targetWpm, [150, 170]);
   assert.deepEqual(ladder("pace-2", 3).targetWpm, [150, 170]);

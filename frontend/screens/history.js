@@ -1,5 +1,6 @@
 /* screens/history.js: app.screens.history (DESIGN.md sections 1, 6 and 9), one row per session:
-   formatStats(session) ("152 wpm · 3.1 /min") and the pure statusFor(summary) ("On target").
+   formatStats(session) ("152 wpm · 3.1 /min") and the pure statusFor(summary) ("On target"),
+   with "Read" after the date of a take read aloud (app.language.isReadTake).
    A tap reopens Results; the trash button asks "Delete? Yes / No" in place, one row at a time.
    It deletes nothing before Yes and computes no metric itself (app.screens.results.summarize). */
 (function () {
@@ -10,6 +11,11 @@
   const FILLERS_UNIT = " /min";
   const STATS_SEPARATOR = " · ";
   const FILLERS_DECIMALS = 1;
+
+  // The meta line under the title: the date, then for a take read aloud the word Progress names
+  // its chart by ("Oct 9, 10:21 PM · Read"), so the row says its kind in words, never by color.
+  const META_SEPARATOR = " · ";
+  const READ_MARKER = "Read";
 
   // Status words (DESIGN.md sections 6 and 8). Pace is judged against the take's own band, ends
   // included; fillers by the Results and tips rule, where more than 3 a minute is high (keep
@@ -111,6 +117,25 @@
 
   function isBand(target) {
     return Array.isArray(target) && target.length === 2 && target.every(Number.isFinite);
+  }
+
+  // The date, then for a take read aloud " · Read" in a span of its own; a talk take's line is
+  // the date alone. The stylesheet wraps the line between the two, so a row with no room for both
+  // (200% zoom on a phone) drops the marker under the date instead of growing wider.
+  function buildMetaLine(session, date) {
+    const marker = isReadTake(session)
+      ? app.ui.el("span", { text: META_SEPARATOR + READ_MARKER })
+      : null;
+    return app.ui.el("div", { class: "session-row__date", text: date }, marker);
+  }
+
+  // A take read aloud (app.language.isReadTake): a passage, a cold read, the benchmark read or a
+  // pasted script it followed. Without language.js every take counts as talk, as before the rule.
+  function isReadTake(session) {
+    const language = app.language;
+    return (
+      Boolean(language) && typeof language.isReadTake === "function" && language.isReadTake(session)
+    );
   }
 
 
@@ -223,9 +248,9 @@
     return { row, open };
   }
 
-  // Title over date, then the stats and the status word, both from one summary of the take,
-  // and the chevron last. The chevron is decorative (aria-hidden), so the button's name stays
-  // the row's words.
+  // Title over the meta line (the date, and "Read" for a take read aloud), then the stats and
+  // the status word, both from one summary of the take, and the chevron last. The chevron is
+  // decorative (aria-hidden), so the button's name stays the row's words.
   function buildOpenButton(session, date) {
     const summary = app.screens.results.summarize(session);
     const status = statusFor(summary);
@@ -239,7 +264,7 @@
       [
         app.ui.el("div", { class: "session-row__text" }, [
           app.ui.el("div", { class: "session-row__title", text: session.passageTitle }),
-          app.ui.el("div", { class: "session-row__date", text: date }),
+          buildMetaLine(session, date),
         ]),
         app.ui.el("span", { class: "session-row__stats num", text: statsText(summary) }),
         status === null ? null : buildStatus(status),

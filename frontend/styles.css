@@ -807,11 +807,11 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   mask-image: linear-gradient(to right, black calc(100% - var(--s-6)), transparent);
 }
 
-/* With a mouse the row wraps instead: a wheel cannot scroll it sideways, and at 1024px the fade
-   hid half of Read's passages. It stays inside the column, with no fade and no end padding.
-   Read's six chips take three lines of the full-width column (from 640px), 104px more than one,
-   and every state fits above the nav with them only from 750px tall: the Upload failed block,
-   the tallest, over the card at its 120px floor. Touch screens and smaller mouse windows keep
+/* With a mouse the row wraps instead: a wheel cannot scroll it sideways, and Talk's five chips
+   overflow one line of the full-width column. It stays inside the column, with no fade and no
+   end padding. Talk's chips take two lines of it (from 640px), 52px more than one, and Read's
+   four group chips one; from 750px tall Practice's idle and its error blocks fit above the nav
+   with them, the card at its 120px floor or above. Touch screens and smaller mouse windows keep
    the swipe row above, which Tab, Shift+wheel and a trackpad still scroll. */
 @media (hover: hover) and (pointer: fine) and (min-width: 640px) and (min-height: 750px) {
   #screen-practice .chip-row {
@@ -895,12 +895,16 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   min-height: 120px;
 }
 
+/* A long word breaks rather than run under the card's button at 200% zoom, as the text's does,
+   and a title of two lines or more is balanced, so no word sits alone on its last line. */
 .passage-card__title {
   grid-column: 1;
   margin: 0 0 var(--s-1);
   font-size: var(--fs-h2);
   line-height: 1.3;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .passage-card__target,
@@ -988,6 +992,20 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   display: none;
 }
 
+/* Under 360px a long Read title wraps to three or four lines beside New passage ("Theodore
+   Roosevelt, man in the arena" at 320 x 568), and the text keeps no clear line above the fade.
+   There the Read tab's button shows its icon alone, in the same place with the same focus ring:
+   a 44 x 44 target whose words drop to no size, while its aria-label keeps them as its name
+   (practice.js). Talk's New topic, and every width from 360px, keep the words. */
+@media (max-width: 359px) {
+  #screen-practice .passage-card__new[data-kind="passage"] {
+    width: 44px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+}
+
 /* A three-column grid keeps the clock centered: the recording dot sits in the left column
    beside it, and the right column is free for a time limit. The wrapper carries the gap above. */
 .practice__timer {
@@ -1072,6 +1090,67 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 .practice__limit[hidden],
 .practice__limit-bar[hidden] {
   display: none;
+}
+
+/* The live pace row spans the next row, --s-2 under the bar (or under the clock, when an
+   untimed take's bar row is empty): one centred line, the number --muted at 500, then the cue in
+   its tone at 600 with its 16px icon drawn first. The two parts never break inside, so at 200%
+   zoom the row wraps between them, number over cue. Nothing in it moves. */
+.practice__pace {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 var(--s-2);
+  min-width: 0;
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  font-weight: 500;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* flex would otherwise beat the hidden attribute */
+.practice__pace[hidden] {
+  display: none;
+}
+
+/* A capture that goes mid-take (a refused resume, or no audio by 0:03) hides its row for the
+   rest of the take, but the row keeps its box, as Leave level keeps its own: the clock, the bar
+   and the card above stay where they were while the speaker talks. visibility takes the words
+   out of sight and out of the accessibility tree, and the id outranks the [hidden] rule above.
+   practice.js drops the class when the take ends. */
+#screen-practice[data-state="recording"] .practice__pace--held[hidden] {
+  display: flex;
+  visibility: hidden;
+}
+
+.practice__pace-number,
+.practice__pace-cue {
+  white-space: nowrap;
+}
+
+.practice__pace-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-weight: 600;
+}
+
+.practice__pace-cue svg {
+  flex: none;
+  order: -1;
+}
+
+.practice__pace-cue--ok {
+  color: var(--ok);
+}
+
+.practice__pace-cue--warn {
+  color: var(--warn);
 }
 
 /* The icons inside draw in currentColor: --on-record keeps them at least 3:1 in both schemes. */
@@ -1244,8 +1323,8 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 }
 
 /* Short screens (320 x 568, landscape phones, 200% zoom): the card's floor keeps its title, its
-   target and two full lines of text above the fade, and the record zone tightens to make room:
-   a 72px record button, --s-2 and --s-1 gaps, no hint words. */
+   target and two full lines of text above the fade (one under a two-line title), and the record
+   zone tightens to make room: a 72px record button, --s-2 and --s-1 gaps, no hint words. */
 @media (max-height: 600px) {
   #screen-practice .passage-card {
     min-height: 148px;
@@ -1256,6 +1335,10 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   }
 
   #screen-practice .practice__limit-bar {
+    margin-top: var(--s-1);
+  }
+
+  #screen-practice .practice__pace {
     margin-top: var(--s-1);
   }
 
@@ -1281,6 +1364,17 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
    scrolls anyway. */
 @media (max-height: 600px) and (max-width: 479px) {
   #screen-practice .practice__hint {
+    display: none;
+  }
+}
+
+/* On the Read tab, phones 650px tall or less (360 x 640) also drop the hint's words and the
+   sample button: beside New passage a title takes two or three lines, and with them in place the
+   passage kept no line clear of the fade. The empty row keeps its --s-1. Talk keeps both, and the
+   sample stays one tab away. practice.js marks the screen with its tab's kind. */
+@media (max-height: 650px) and (max-width: 479px) {
+  #screen-practice[data-kind="passage"] .practice__hint-text,
+  #screen-practice[data-kind="passage"] .practice__sample {
     display: none;
   }
 }
@@ -3456,7 +3550,15 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   font-weight: 600;
 }
 
+/* The meta line: the date, then for a take read aloud " · Read" in a span of its own. Neither
+   piece wraps inside, but the line wraps between them, so where a row has no room for both (200%
+   zoom on a phone) the marker drops under the date instead of widening the row: the line is never
+   narrower than its date, as on a talk row. The span's leading space collapses at the start of its
+   piece, so the gap stands in for it. */
 .session-row__date {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--s-1);
   margin-top: var(--s-1);
   font-size: var(--fs-micro);
   line-height: 1.3;
@@ -3578,6 +3680,57 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-6);
 }
 
+/* Once a take was read aloud, the Talk | Read switch comes first, then this line: the mode's
+   take count and whether it counts toward the rating. The metric switch follows a gap below. */
+.progress__caption {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.progress__caption + .segmented {
+  margin-top: var(--s-5);
+}
+
+/* The Talk | Read switch is a tab bar over two sets of charts, not one more filter like the
+   boxed metric switch under it: no box or tint, body-size labels, a 1px hairline across the
+   column and a 2px accent underline under the mode shown. Same buttons, same aria-pressed. */
+.segmented.progress__modes {
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.progress__modes .segmented__option {
+  min-height: 48px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+}
+
+.progress__modes .segmented__option--selected {
+  border-bottom: 2px solid var(--accent);
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* What a Read slip is, in one muted line tight under "Read · Slips per minute". */
+.progress__definition {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.progress__title:has(+ .progress__definition) {
+  margin-bottom: var(--s-1);
+}
+
 /* Summary row: three surface cells under the title, each a label over its value, every value at
    the section-title size on one line. A third of a phone's column is too narrow for that, so
    Latest and Best share the first row and the change from the average spans the row under them;
@@ -3633,7 +3786,9 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   white-space: nowrap;
 }
 
-/* With no measured take, Best reads "Not measured" in small muted words that may wrap. */
+/* "Not measured" in small muted words that may wrap: Best when no take can win it, Latest when
+   no take is charted (Slips with no read counted), and the change from the average when no
+   earlier take is charted to average. */
 .progress-summary__value--none {
   font-size: var(--fs-small);
   line-height: 1.4;
@@ -4094,6 +4249,21 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
+/* What the rating counts, once the speaker has a take read aloud: a muted line above the foot,
+   as plain as the gate's sentence. */
+.rank-card__note {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* With no rating yet the card is the hidden heading and a line or two: the first one shown sits
+   flush with the card's padding. */
+.rank-card--unrated > :nth-child(2) {
+  margin-top: 0;
+}
+
 /* The streak after its flame on Progress; this take's sentences on Results. */
 .rank-card__foot {
   display: flex;
@@ -4541,13 +4711,13 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
 
 /* 13. Path screen (#/path), the Loop Path's map (spec
    docs/superpowers/specs/2026-10-14-loop-path.md section 9). Under the h1: the status row, the
-   benchmark, then one block per unit, its card over its steps winding down the page. Each step
-   is a grid row of three columns, the room before the node, the 104px node (its circle over its
-   label) and the side that holds its card, so a node's centre sits at 25% or 75% of the row and
-   the checkpoint's at 50%, where screens/path.js nodeX places them. A link drops from one node's
-   centre to the foot of its row, however tall an open card makes it, crosses in the gap below
-   the row and drops into the next node. Cleared is --ok, current --accent, gold --warn. Nothing
-   animates. */
+   benchmark, the Units switch, then one block per unit, its card over its steps winding down the
+   page; only the unit picked on the switch shows. Each step is a grid row of three columns, the
+   room before the node, the 104px node (its circle over its label) and the side that holds its
+   card, so a node's centre sits at 25% or 75% of the row and the checkpoint's at 50%, where
+   screens/path.js nodeX places them. A link drops from one node's centre to the foot of its row,
+   however tall an open card makes it, crosses in the gap below the row and drops into the next
+   node. Cleared is --ok, current --accent, gold --warn. Nothing animates. */
 .path__status {
   display: flex;
   flex-wrap: wrap;
@@ -4597,25 +4767,44 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   color: var(--muted);
 }
 
-/* The benchmark: a card when it is due, otherwise its next date and the change since the first
-   sitting. A section gap sets it off from the first unit. */
+/* The benchmark: one compact row when it is due, otherwise its next date and the change since
+   the first sitting, either one --s-5 above the Units switch. */
 .path-benchmark,
 .path__benchmark {
-  margin-bottom: var(--s-6);
+  margin-bottom: var(--s-5);
 }
 
+/* The row: its title over its length in the first column, its Start centred beside both. */
 .path-benchmark {
-  padding: var(--s-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
   border: 1px solid var(--border);
   border-radius: var(--r-card);
   background: var(--surface);
 }
 
 .path-benchmark__title {
+  grid-column: 1;
   margin: 0;
 }
 
-.path-benchmark__text,
+.path-benchmark__text {
+  grid-column: 1;
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.path-benchmark__start {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
 .path__next,
 .path__since {
   margin: var(--s-2) 0 0;
@@ -4633,13 +4822,73 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
   margin-top: var(--s-1);
 }
 
-.path-benchmark__start {
-  margin-top: var(--s-3);
+/* The Units switch: the segmented control of section 4, its four options two by two, as
+   Progress's metric switch at 200% zoom, --s-3 above the unit it shows. Each option is the
+   unit's name over its level in words, the name in --text (--accent once pressed) and the
+   level in --muted, with the due chip's --muted clock after the name while one of the unit's
+   check-backs is due. Names may wrap but never truncate. */
+.path-switch {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: var(--s-3);
 }
 
-/* A unit: its card, then its steps, a section gap from the next unit. */
-.path-unit + .path-unit {
-  margin-top: var(--s-6);
+.path-switch__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: var(--s-2);
+  text-align: center;
+}
+
+.path-switch__name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+.segmented__option--selected .path-switch__name {
+  color: var(--accent);
+}
+
+.path-switch__name svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.path-switch__level {
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* From 600px the four options share one row. */
+@media (min-width: 600px) {
+  .path-switch {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* 200% zoom on a phone leaves a 160 to 215px window, too narrow for two options side by side:
+   the four stack. */
+@media (max-width: 239px) {
+  .path-switch {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A unit: its card, then its steps. Only the unit picked on the switch shows; the others are
+   hidden, and take no room. */
+.path-unit[hidden] {
+  display: none;
 }
 
 .path-unit__card {
@@ -5070,16 +5319,23 @@ body:has(#screen-practice.screen--active[data-state="uploading"]) main {
     display: none;
   }
 
-  /* The cards give their words more room, as the metric cards do on a narrow screen, and
-     "Start benchmark" takes the card's width in small type, breaking a word sooner than
-     overflow it. */
+  /* The cards give their words more room, as the metric cards do on a narrow screen, and the
+     benchmark's Start drops under its words at the row's full width, in small type, breaking a
+     word sooner than overflow it. */
   .path-benchmark,
   .path-unit__card {
     padding: var(--s-3);
   }
 
+  .path-benchmark {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .path-benchmark__start {
+    grid-column: 1;
+    grid-row: auto;
     width: 100%;
+    margin-top: var(--s-3);
     padding: 0 var(--s-2);
     font-size: var(--fs-small);
     overflow-wrap: anywhere;

@@ -13,7 +13,12 @@ saved on the phone.
 ## How a take becomes a score
 
 1. Practice records with `MediaRecorder` and, in parallel, `pauses.js` reads
-   loudness from the Web Audio API to find silences over 1.5 seconds.
+   loudness from the Web Audio API to find silences over 1.5 seconds. A second
+   Web Audio reader, Practice's live pace capture, feeds the microphone's samples
+   to `delivery.js`'s `livePace` tracker on every take. Once a take of the same
+   kind (Talk or Read) has tuned the estimate, a row under the clock shows the
+   estimated pace while a take records, never in a Path level; until then the
+   row says when it starts. Nothing of it leaves the phone.
 2. Stop posts the audio (and the script, on the Read tab) to `POST /api/analyze`.
 3. The backend forwards the audio once to AssemblyAI with `disfluencies: true`,
    so "um" and "uh" come back as words with timestamps, then asks AssemblyAI
@@ -23,7 +28,11 @@ saved on the phone.
    against it and reports restarts, skips and misreads. Both are pure functions.
 5. The browser saves words and metrics in IndexedDB (`store.js`) and
    `delivery.js` re-scores every stored take by today's rules, so old takes
-   never go stale when a rule changes.
+   never go stale when a rule changes. A take with 20 seconds of speech and 30
+   words or more, not counting hesitation sounds such as um and uh, also tunes
+   the live pace to the speaker's voice, unless its live capture stopped early:
+   one words-a-peak factor for Talk and one for Read, kept as store flags
+   (`countsForPaceFactor`, `paceFactorAfter`).
 6. Results asks `POST /api/advice` for coach notes. The request carries the take's
    numbers, part of the transcript and its moments (`coach.js`: each restart,
    filler, pause, misread or unclear-word hint with its words, the words around
@@ -38,7 +47,8 @@ saved on the phone.
    The Coach card's "Check grammar & vocabulary" button is the only thing that
    calls `POST /api/language-check` (`language.js`, `backend/language/check.py`),
    and only when the speaker taps it.
-7. `rank.js` turns the last ten takes into a rating and a tier; `path.js`
+7. `rank.js` turns the last ten Talk takes into a rating and a tier (`language.js`
+   `isReadTake` keeps takes read aloud out of it, and Progress charts them apart); `path.js`
    turns the weakest skill into the next Loop Path level.
 
 ## Modules
@@ -59,7 +69,7 @@ saved on the phone.
 | `frontend/api.js` | `app.api.analyze` with a 180 s deadline and typed errors |
 | `frontend/store.js` | IndexedDB sessions, flags and Path progress, on the device only |
 | `frontend/passages.js` | Talk prompts, Read passages, cold reads, the benchmark |
-| `frontend/delivery.js` | Filler rules, pause classes, clean stretch, restarts: the delivery report |
+| `frontend/delivery.js` | Filler rules, pause classes, clean stretch, restarts: the delivery report; the live pace estimate while a take records |
 | `frontend/pauses.js` | Browser-side pause detection with Web Audio (human-owned) |
 | `frontend/rank.js` | Take scores, the rating and the seven tiers (owner-written) |
 | `frontend/rankcard.js` | The rank card on Progress and Results |
@@ -70,11 +80,11 @@ saved on the phone.
 | `frontend/language.js` | The grammar and vocabulary check the speaker asks for on a take |
 | `frontend/tips.js` | Rule-based tips and the coach-notes request |
 | `frontend/sw.js` | Service worker: caches the app shell, never audio, never `/api` |
-| `frontend/screens/practice.js` | Record, upload, level mode, the sample |
+| `frontend/screens/practice.js` | Record, the live pace row, upload, level mode, the sample |
 | `frontend/screens/results.js` | Coach card, speech map, metric cards, rank card, words to check, transcript |
 | `frontend/screens/coachcard.js` | The Coach card at the top of Results: headline, moment-linked tips, the grammar check |
-| `frontend/screens/history.js` | Every take, newest first, with delete |
-| `frontend/screens/progress.js` | One metric charted across takes; the rank card and streak |
+| `frontend/screens/history.js` | Every take, newest first, with delete; a take read aloud says "Read" after its date |
+| `frontend/screens/progress.js` | One metric charted across takes, Talk and Read apart; the rank card and streak |
 | `frontend/screens/path.js` | The winding Path with its units and nodes |
 | `frontend/screens/level.js` | One Loop Path level: goal, take 1, review, take 2, result |
 | `frontend/screens/onboarding.js` | First launch: what is measured, what happens to audio |
@@ -85,6 +95,7 @@ saved on the phone.
 | --- | --- | --- |
 | Audio | Phone memory while recording; backend memory for one request; AssemblyAI until the words are back | Seconds. Take 1 of a Path level stays in phone memory until the level ends |
 | Words and metrics | IndexedDB on the phone only | Until the speaker deletes the take |
+| Live pace factors (one number for Talk, one for Read: the store flags `livePaceFactor:talk` and `livePaceFactor:read`) | IndexedDB on the phone only | Until site data is cleared; deleting a take keeps them |
 | Transcript excerpt (1,500 characters), the take's numbers and its moments | Sent to Anthropic for coach notes | Anthropic's retention policy |
 | Transcript (up to 8,000 characters) | Sent to Anthropic only when the speaker taps the grammar check; nothing is saved on the server | Anthropic's retention policy |
 

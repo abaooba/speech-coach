@@ -1,9 +1,9 @@
 /* screens/results.js: app.screens.results, the screen after a take (DESIGN.md sections 1, 6, 8).
-   show({id}) reads the take and the speaker's take before it from app.store, never writing, and
-   draws the meta line, the Coach card (app.screens.coachCard), speech map, stat strip, rank card
-   (app.rankCard), transcript and actions node by node, never from markup; the
-   cited coach notes (app.tips.coachNotes) upgrade the card when they arrive. summarize and
-   the other pure helpers touch no DOM or app.ui. */
+   show({id}) reads the take and the speaker's take of the same kind before it (Talk or Read,
+   app.language.isReadTake) from app.store, never writing, and draws the meta line, the Coach card
+   (app.screens.coachCard), speech map, stat strip, rank card (app.rankCard), transcript and actions
+   node by node, never from markup; the cited coach notes (app.tips.coachNotes) upgrade the card
+   when they arrive. summarize and the other pure helpers touch no DOM or app.ui. */
 (function () {
   "use strict";
 
@@ -37,6 +37,7 @@
 
   // Filler hint (Zoom and tl;dv put 0.6 to 3 fillers a minute in range) and the time line.
   const MAX_FILLERS_PER_MINUTE = 3;
+  const SECONDS_PER_MINUTE = 60;
   const FILLERS_OK = "Target under 3";
   const FILLERS_HIGH = "Aim for under 3";
   const TIME_USED_JOINER = " of ";
@@ -84,10 +85,17 @@
   const NONE = "none";
   const NO_CHANGE = "No change";
   const NOT_COMPARED = "Not compared";
-  // Hidden endings that finish each line as a sentence for screen readers.
-  const THAN_LAST_TAKE = " than your last take";
-  const FROM_LAST_TAKE = " from your last take";
-  const WITH_LAST_TAKE = " with your last take";
+  // Hidden endings that finish each line as a sentence for screen readers: the word that joins
+  // the line to the take it compares with, then the phrase that names it (" than your last take").
+  const THAN = " than ";
+  const FROM = " from ";
+  const WITH = " with ";
+  // The phrases that name the take the arrows compare with, in the hidden endings and the note:
+  // "your last take", or, once the store holds a take of the other kind, the one that names this
+  // take's kind (lastTakePhraseOf).
+  const LAST_TAKE_PHRASE = "your last take";
+  const LAST_TALK_TAKE_PHRASE = "your last Talk take";
+  const LAST_READ_TAKE_PHRASE = "your last Read take";
   const DELTA_ICONS = {
     [UP]: "triangle-up",
     [DOWN]: "triangle-down",
@@ -95,7 +103,7 @@
     [NONE]: "dash",
   };
   const DELTA_ICON_SIZE = 12;
-  const DELTA_NOTE = "Arrows compare with your last take.";
+  const DELTA_NOTE = (lastTakePhrase) => "Arrows compare with " + lastTakePhrase + ".";
 
   // The speech map (DESIGN.md section 6): the take's moments as two-line cards stacked in reading
   // order beside a rail that is linear in time. Every card is cardHeight tall with cardGap
@@ -277,6 +285,7 @@
     return {
       wpm,
       fillersPerMinute: report.fillersPerMinute,
+      slipsPerMinute: slipsPerMinuteOf(report),
       pauseCount: report.pauseCount,
       longestPause: report.longestPause,
       longPauseCount: report.longPauseCount,
@@ -290,6 +299,18 @@
       timeUsed: timeUsedFor(session.passageId, report.speakingSeconds),
       report,
     };
+  }
+
+  // Read slips a minute, to a tenth, the number Progress charts for takes read aloud in place of
+  // fillers: restarts and misread words, as path.js counts a read's slips. A skipped word is not
+  // a slip, since a transcript can drop a short word the speaker did say. 0 with no speech.
+  function slipsPerMinuteOf(report) {
+    const minutes = numberOr0(report.speakingSeconds) / SECONDS_PER_MINUTE;
+    if (minutes <= 0) {
+      return 0;
+    }
+    const slips = numberOr0(report.repeatCount) + listOf(report.misreads).length;
+    return roundToTenth(slips / minutes);
   }
 
   function numberOr0(value) {
@@ -360,6 +381,16 @@
   function isSample(session) {
     const title = session ? session.passageTitle : undefined;
     return typeof title === "string" && title.startsWith(SAMPLE_TITLE_PREFIX);
+  }
+
+  // True for a take read aloud (app.language.isReadTake), which never sets the rank's tier and is
+  // compared only with another take read aloud. Without language.js every take counts as talk,
+  // as before the rule.
+  function isReadTake(session) {
+    const language = app.language;
+    return (
+      Boolean(language) && typeof language.isReadTake === "function" && language.isReadTake(session)
+    );
   }
 
   // True when the take was scored from its words: the report labels one kind per word.
@@ -883,6 +914,7 @@
       return;
     }
     const previous = previousOf(session, sessions);
+    view.lastTakePhrase = lastTakePhraseOf(session, sessions);
     view.rankCard = rankCardFor(session, sessions);
     if (previous !== null || view.rankCard !== null) {
       renderSession(session, view, previous);
@@ -1115,16 +1147,39 @@
     }
   }
 
-  // The speaker's take saved just before this one, or null: the first listed session created
-  // earlier that is not a sample. A sample has no last take: it is compared with nothing.
+  // The speaker's take of the same kind saved just before this one, or null: the first listed
+  // session created earlier that is not a sample and is of the same kind as this one (both read
+  // aloud or both talk, by isReadTake), so a talk is never measured against a read, nor a read
+  // against a talk. A sample has no last take: it is compared with nothing.
   function previousOf(session, sessions) {
     if (isSample(session)) {
       return null;
     }
+    const read = Boolean(isReadTake(session));
     const earlier = sessions.find(
-      (other) => Boolean(other) && !isSample(other) && other.createdAt < session.createdAt,
+      (other) =>
+        Boolean(other) &&
+        !isSample(other) &&
+        other.createdAt < session.createdAt &&
+        Boolean(isReadTake(other)) === read,
     );
     return earlier || null;
+  }
+
+  // The phrase the hidden endings and the note use to name the take the arrows compare with
+  // (previousOf): "your last take" while the store holds takes of one kind only, else "your last
+  // Talk take" or "your last Read take", so a speaker who does both knows which kind each take is
+  // measured against. A sample never counts as the other kind, and without language.js every
+  // take is talk, so the copy stays as it was before the rule.
+  function lastTakePhraseOf(session, sessions) {
+    const read = Boolean(isReadTake(session));
+    const otherKindSaved = sessions.some(
+      (other) => Boolean(other) && !isSample(other) && Boolean(isReadTake(other)) !== read,
+    );
+    if (!otherKindSaved) {
+      return LAST_TAKE_PHRASE;
+    }
+    return read ? LAST_READ_TAKE_PHRASE : LAST_TALK_TAKE_PHRASE;
   }
 
   // The notes a take carries under `coachNotes` (the bundled sample, sample-session.json), read
@@ -1161,10 +1216,11 @@
     }
   }
 
-  // The speaker's rank tier for the notes request, from app.rank over their newest takes (samples
-  // left out, each scored as rank.js scores one), or app.tips.DEFAULT_TIER, the server's own
-  // default, while rank.js is not loaded or a take cannot be scored. Only loadCoachNotes asks,
-  // once app.tips is known to be loaded.
+  // The speaker's rank tier for the notes request, from app.rank over their newest talk takes
+  // (samples and takes read aloud left out, as the rank card leaves them out; each scored as
+  // rank.js scores one), or app.tips.DEFAULT_TIER, the server's own default, while rank.js is not
+  // loaded or a take cannot be scored. Only loadCoachNotes asks, once app.tips is known to be
+  // loaded.
   function tierFor(sessions) {
     const rank = app.rank;
     const loaded =
@@ -1177,7 +1233,7 @@
     }
     try {
       const history = sessions
-        .filter((take) => Boolean(take) && !isSample(take))
+        .filter((take) => Boolean(take) && !isSample(take) && !isReadTake(take))
         .slice(0, RATED_TAKES)
         .map((take) => {
           const summary = summarize(take);
@@ -1188,6 +1244,10 @@
             longPauseCount: summary.report.longPauseCount,
           };
         });
+      // No talk take yet is no rating yet, which the server coaches as its default tier.
+      if (history.length === 0) {
+        return app.tips.DEFAULT_TIER;
+      }
       return rank.tier(rank.rating(history), history);
     } catch {
       return app.tips.DEFAULT_TIER;
@@ -1265,6 +1325,9 @@
       coachCard: null,
       // The rank card's model, set by show() once the store's list has rated the take.
       rankCard: null,
+      // The phrase the hidden endings and the note use to name the take compared with
+      // (lastTakePhraseOf), set by show() once the store's list says which kinds of take it holds.
+      lastTakePhrase: LAST_TAKE_PHRASE,
     };
   }
 
@@ -1273,7 +1336,8 @@
   // strip (each stat with its "vs last take" line when there is a last take, and then one note
   // under the strip), the rank card once the store's list has rated the take, words to check and
   // the transcript (both skipped without words too), the action bar. `previous` is the last
-  // take, or null while there is none to compare with; it is summarized for the comparison only.
+  // take of the same kind (previousOf), or null while there is none to compare with; it is
+  // summarized for the comparison only.
   // Returns the Coach heading, or null without a card.
   function renderSession(session, view, previous) {
     const { summary, plan, hasTranscript, map, rankCard } = view;
@@ -1293,9 +1357,10 @@
       const expand = () => expandMap(session, view, previous);
       body.appendChild(buildSpeechMap(shownMap, timelineSegments(summary.report), expand));
     }
-    body.appendChild(buildStatStrip(summary, deltas));
+    body.appendChild(buildStatStrip(summary, deltas, view.lastTakePhrase));
     if (deltas) {
-      body.appendChild(app.ui.el("p", { class: "stat-strip__note", text: DELTA_NOTE }));
+      const note = DELTA_NOTE(view.lastTakePhrase);
+      body.appendChild(app.ui.el("p", { class: "stat-strip__note", text: note }));
     }
     if (rankCard) {
       body.appendChild(app.rankCard.build(rankCard, { screen: RANK_SCREEN }));
@@ -1609,7 +1674,8 @@
 
   // Exactly four stats on one strip, in the order DESIGN.md fixes, each with its hint, and with
   // a last take each with its delta line, so the four cells always share the same rows.
-  function buildStatStrip(summary, deltas) {
+  // `lastTakePhrase` is what the delta lines call that take.
+  function buildStatStrip(summary, deltas, lastTakePhrase) {
     const stats = [
       { label: WPM_LABEL, value: summary.wpm, unit: WPM_UNIT, hint: summary.paceHint },
       {
@@ -1634,14 +1700,16 @@
     return app.ui.el(
       "div",
       { class: "stat-strip" },
-      stats.map((stat, index) => statCell(stat, deltas ? deltas[index] : undefined)),
+      stats.map((stat, index) =>
+        statCell(stat, deltas ? deltas[index] : undefined, lastTakePhrase),
+      ),
     );
   }
 
   // The unit sits inside the value line, after a space, so "162 wpm" reads as one phrase and
   // the small unit shares the number's baseline. The line never wraps (styles.css), so the
   // unit cannot drop below its number.
-  function statCell(stat, delta) {
+  function statCell(stat, delta, lastTakePhrase) {
     const valueParts = [String(stat.value)];
     if (stat.unit) {
       valueParts.push(" ", app.ui.el("span", { class: "stat__unit", text: stat.unit }));
@@ -1652,7 +1720,7 @@
       hintLine(stat.hint),
     ];
     if (delta !== undefined) {
-      parts.push(deltaLine(delta || { direction: NONE, text: NOT_COMPARED }));
+      parts.push(deltaLine(delta || { direction: NONE, text: NOT_COMPARED }, lastTakePhrase));
     }
     return app.ui.el("div", { class: "stat" }, parts);
   }
@@ -1671,10 +1739,12 @@
 
   // "12 slower", then a hidden " than your last take" so the line reads as a sentence, then
   // the triangle or dash, which CSS draws first. Its own class, never the hint's. A stat the two
-  // takes cannot share reads "Not compared with your last take" after a dash.
-  function deltaLine(delta) {
-    const endings = { [SAME]: FROM_LAST_TAKE, [NONE]: WITH_LAST_TAKE };
-    const ending = endings[delta.direction] || THAN_LAST_TAKE;
+  // takes cannot share reads "Not compared with your last take" after a dash. `lastTakePhrase`
+  // is what the ending calls the take compared with ("your last Talk take" once the store holds
+  // a take of the other kind; lastTakePhraseOf).
+  function deltaLine(delta, lastTakePhrase) {
+    const joiners = { [SAME]: FROM, [NONE]: WITH };
+    const ending = (joiners[delta.direction] || THAN) + lastTakePhrase;
     return app.ui.el(
       "div",
       { class: "stat__delta stat__delta--" + delta.direction, text: delta.text },

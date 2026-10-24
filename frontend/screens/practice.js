@@ -1,15 +1,21 @@
 /* screens/practice.js: app.screens.practice, the home screen (DESIGN.md sections 6 and 7).
    mount() builds the Talk / Read switch, chips, card, timer, record button, hint (with Talk's
-   script box) and state block once; render(state, detail) repaints them. Stop hands the take,
-   with its script (a Read passage's text, or the one pasted on Talk), to a background job that
-   sends it through app.api and saves it with app.store, with the topic it was given; the job
-   reports on the top banner (app.ui.banner) while the speaker records another take or visits
-   any screen; Results opens when the take is saved if Practice still waits in idle, else from
-   the banner's "See results". In level mode (startLevelTake, spec
-   docs/superpowers/specs/2026-10-14-loop-path.md section 7) a level banner stands in for the
-   switch and the chips, the take uploads in place, and the saved take goes back to the Level
-   screen instead of Results. It never asks for the microphone before a Record tap, and never
-   stores audio. */
+   script box) and state block once; render(state, detail) repaints them. A tap on a Talk chip, a
+   Read group's chip or New topic draws a new topic or passage, by the Path's rule, over the
+   speaker's own takes and every topic and passage shown since the app opened (spec
+   docs/superpowers/specs/2026-10-22-tester-feedback-design.md section 2), so taps go through a
+   whole prompt or group before any comes back. Stop hands the take, with its script (a Read
+   passage's text, or the one pasted on Talk), to a background job that sends it through app.api
+   and saves it with app.store, with the topic it was given; the job reports on the top banner
+   (app.ui.banner) while the speaker records another take or visits any screen; Results opens
+   when the take is saved if Practice still waits in idle, else from the banner's "See results".
+   In level mode (startLevelTake, spec docs/superpowers/specs/2026-10-14-loop-path.md section 7)
+   a level banner stands in for the switch and the chips, the take uploads in place, and the
+   saved take goes back to the Level screen instead of Results. While a normal take records, a
+   row under the clock shows the pace the phone estimates from the microphone
+   (app.delivery.livePace, spec section 7) once a take that counts has tuned that estimate for
+   its mode, Talk or Read; until then it says when the live pace starts. It never asks for the
+   microphone before a Record tap, and never stores audio. */
 (function () {
   "use strict";
 
@@ -28,7 +34,11 @@
     { kind: "passage", label: "Read" },
   ];
   const MODE_SWITCH_LABEL = "Practice mode";
+  // The Read tab's kind: its passages come in groups, one chip each (app.passages.groups()).
+  const READ_KIND = "passage";
+  // The card's one button: New topic on Talk, New passage on Read.
   const NEW_TOPIC_LABEL = "New topic";
+  const NEW_PASSAGE_LABEL = "New passage";
   const NEW_TOPIC_ICON_SIZE = 16;
   // The card's title names the scrolling text, which is a region keyboard users can focus.
   const CARD_TITLE_ID = "practice-card-title";
@@ -142,17 +152,91 @@
   const LIVE_TAP_COUNT_SUFFIX = " heard";
   const LEVEL_CALLBACKS = ["judge", "onSaved", "onLeave"];
 
+  // The live pace row (spec section 7): the waiting sentence until the estimate has 5 seconds of
+  // speech, then "About 150 wpm" and a cue. A take whose mode (Talk or Read) has no kept factor
+  // yet says only when the live pace starts, its mode's sentence in the waiting sentence's look,
+  // from first to last: in the app the untuned cue was right on 1 of 4 first takes. A cue's
+  // words come with its icon and tone, the check in --ok or the alert triangle in --warn, as
+  // Results' Pace hint draws them, so color never carries it alone.
+  const PACE_WAITING = "Your pace shows after a few seconds.";
+  // The two "starts after" sentences promise PACE_STARTS_AFTER_CLOCK_SECONDS on the clock, and
+  // spell it out (practice_live_pace_untuned.test.js holds both, and how.html, to it). That is
+  // more than the speech a take needs to tune its mode (app.delivery.countsForPaceFactor:
+  // delivery.js's PACE_FACTOR_MIN_SECONDS, 20 s from the first word's start to the last word's
+  // end, and PACE_FACTOR_MIN_WORDS, 30 words), since a take's clock also holds the lead-in
+  // before the first word and the tail after the last: a take stopped at 0:21 can hold under
+  // 20 s of speech. At 30 s, a 2 s lead-in, a 1 s tail and a slow 70 wpm still give 27 s of
+  // speech and 31 words. A no-break space joins "30" and "s", so a line never splits there.
+  const PACE_STARTS_AFTER_CLOCK_SECONDS = 30;
+  const PACE_STARTS_AFTER_TALK = "Live pace starts after a 30\u00a0s talk.";
+  const PACE_STARTS_AFTER_READ = "Live pace starts after a 30\u00a0s read.";
+  const PACE_NUMBER_PREFIX = "About ";
+  const PACE_NUMBER_SUFFIX = " wpm";
+  const PACE_LOOK_ON_TARGET = Object.freeze({ words: "On target", icon: "check", tone: "ok" });
+  const PACE_LOOK_SLOW_DOWN = Object.freeze({ words: "Slow down", icon: "alert", tone: "warn" });
+  const PACE_LOOK_SPEED_UP = Object.freeze({ words: "Speed up", icon: "alert", tone: "warn" });
+  const PACE_ICON_SIZE = 16;
+  // The capture: a ScriptProcessor hands over one channel 1024 samples at a time. It runs only
+  // while it feeds an output, so a gain of 0 keeps it silent. A capture that no block has
+  // reached when the clock shows 0:03 is taken to hear nothing (iOS can leave a context's
+  // resume() unanswered, and a suspended graph hands over nothing), so it goes as one whose
+  // resume was refused. Either way its row hides with the held class, which keeps the row's box
+  // until the take ends (styles.css), so the clock above it never moves mid-take.
+  const PACE_BLOCK_SAMPLES = 1024;
+  const PACE_CHANNELS = 1;
+  const PACE_SILENT_GAIN = 0;
+  const PACE_NO_AUDIO_SECONDS = 3;
+  const PACE_HELD_CLASS = "practice__pace--held";
+  // Talk and Read each keep their own words-a-peak factor (app.delivery.paceFactorAfter): a
+  // number in the store flag "livePaceFactor:talk" or "livePaceFactor:read".
+  const PACE_FACTOR_FLAG_PREFIX = "livePaceFactor:";
+  const TALK_PACE = "talk";
+  const READ_PACE = "read";
+  const PACE_MODES = [TALK_PACE, READ_PACE];
+
   // The screen's <section>; its data-state attribute drives the CSS for every state.
   let root = null;
   // The one string every other piece of this screen is derived from.
   let state = "idle";
 
   // What the speaker picked, kept as they left it while the app is open: the tab showing
-  // ("prompt" is Talk, "passage" is Read), each tab's own selected entry id, and the topic each
-  // prompt with topics is on (by entry id; a prompt starts on its first topic).
+  // ("prompt" is Talk, "passage" is Read), each tab's own selected entry id (on Read, the passage
+  // drawn for its group's chip), and the topic each prompt with topics is on (by entry id), drawn
+  // at mount and again on each tap of its chip or of New topic.
   let currentKind = MODES[0].kind;
   const selectedIdByKind = {};
-  const topicIndexById = {};
+  const topicById = {};
+
+  // The Read tab's groups, app.passages.groups() as mount() found it, in its order and less any
+  // group no passage names: [{id, label}], one chip each. Empty for passage data without groups,
+  // where every passage keeps a chip of its own.
+  let readGroups = [];
+
+  // The speaker's own takes, which the draws read (spec section 2.1): those app.store.list() gave
+  // in its latest answer, and every take saved here since that list was asked for, which it may
+  // not hold yet, newest first, each cut down to the fields a draw reads (drawFieldsOf). A take
+  // saved before is in the answer, unless History has deleted it, and then it no longer counts.
+  // A take in both changes no draw, which asks only which topics and passages takes used, and
+  // when.
+  let listedTakes = [];
+  let savedTakes = [];
+
+  // Every topic and passage the draws have put on screen since the app opened, the ones each tab
+  // opens on included, newest first (spec section 2.1). A tap saves nothing, so without these,
+  // once every item of a prompt or group had been used the taps flipped between the two used
+  // longest ago. Each is what a draw reads of a take: the entry's id as `passageId` (a topic's
+  // prompt), the `topic` for a topic, and `createdAt`, the moment it was shown, stamped by
+  // shownAt(). They have no `passageTitle`, so app.path counts them as the speaker's own, as it
+  // counts every take but the bundled sample. They live here only: never saved, never sent, and
+  // never read by Progress, History, the rank or the Path.
+  const shownItems = [];
+
+  // The last showing's stamp, in milliseconds since 1970; 0 before the first.
+  let lastShownAt = 0;
+
+  // Each mode's kept live pace factor, read from its flag at show() and set again when a take's
+  // tuning is kept: a number, or null while the mode has none and its row says when it starts.
+  const paceFactors = { [TALK_PACE]: null, [READ_PACE]: null };
 
   // The theme the toggle shows. Kept here rather than re-read from storage on each tap, so the
   // toggle still cycles when localStorage is blocked and app.ui.getTheme() can only say "auto".
@@ -181,8 +265,9 @@
   let liveTaps = [];
 
   // Nodes built by mount(). render() repaints them; startTimer(), tickTimer() and resetClock()
-  // write the clock. The theme toggle is the one node index.html builds: mount() finds it in
-  // the header. The banner and the live tap join the body only in level mode.
+  // write the clock, and tickTimer() the live pace row too. The theme toggle is the one node
+  // index.html builds: mount() finds it in the header. The banner and the live tap join the body
+  // only in level mode.
   const nodes = {
     themeToggle: null,
     body: null,
@@ -195,10 +280,12 @@
     cardTarget: null,
     cardText: null,
     newTopic: null,
+    newTopicIcon: null,
     timer: null,
     limit: null,
     limitBar: null,
     limitFill: null,
+    pace: null,
     recordButton: null,
     recordLabel: null,
     hint: null,
@@ -218,7 +305,10 @@
     liveTapCount: null,
   };
 
-  // Everything a live take holds, from the Record tap until Stop or hide() lets it go.
+  // Everything a live take holds, from the Record tap until Stop or hide() lets it go. `pace` is
+  // the take's live pace capture (startLivePace), or null when it did not start, its context
+  // refused to resume, or no block reached it by 0:03 (dropLivePace); `paceDropped` is true once
+  // it went one of those last two ways, so the row holds its box to the take's end (paintPace).
   const capture = {
     awaitingMic: false,
     stream: null,
@@ -229,6 +319,8 @@
     timerId: null,
     announcedBlocks: 0,
     pausesStarted: false,
+    pace: null,
+    paceDropped: false,
   };
 
   // A level take, kept through uploading and error so Retry re-sends the same blob. Once the
@@ -254,6 +346,9 @@
   let paintedTextKey = null;
   let paintedKind = null;
 
+  // The words the live pace row last showed, so its children are rebuilt only when they change.
+  let paintedPaceText = null;
+
   // True from the sample tap until its fetch, validation and save have settled.
   let loadingSample = false;
 
@@ -262,7 +357,8 @@
   // its label show in idle and recording only, and error puts its block in their place.
   // chipsDisabled holds the tabs and New topic as well; New topic shows in idle only. In level
   // mode Leave level shows when the nav does (idle and error), so a stray thumb cannot abandon a
-  // take that records or uploads, and "Heard one" shows while a take records.
+  // take that records or uploads, and "Heard one" shows while a take records. The live pace row
+  // shows while a take records, though never in level mode or without its capture (paintPace).
   function viewFor(nextState) {
     if (!STATES.includes(nextState)) {
       throw new Error("practice: unknown state " + JSON.stringify(nextState));
@@ -281,6 +377,7 @@
       showRecord: idle || recording,
       showLeaveLevel: idle || nextState === "error",
       showLiveTap: recording,
+      showPace: recording,
     };
   }
 
@@ -344,22 +441,188 @@
     return Math.round(ratio * 10000) / 10000;
   }
 
-  function topicIndexOf(entry) {
-    return topicIndexById[entry.id] || 0;
+  // The topic a prompt with topics is on: the one last drawn for it, or its first for a prompt
+  // mount() never drew for.
+  function currentTopic(entry) {
+    const topic = topicById[entry.id];
+    return entry.topics.includes(topic) ? topic : entry.topics[0];
   }
 
   // What the card shows: the current topic of a prompt with topics, otherwise the entry's text.
   function cardTextOf(entry) {
-    return hasTopics(entry) ? entry.topics[topicIndexOf(entry)] : entry.text;
+    return hasTopics(entry) ? currentTopic(entry) : entry.text;
   }
 
+  // app.passages.groups() as a list, in its order, less any group no Read passage names, which
+  // would have nothing to draw; none for passage data without it, such as the plain arrays of
+  // the test fixtures.
+  function groupsOf(passages) {
+    const groups = typeof passages.groups === "function" ? Array.from(passages.groups()) : [];
+    return groups.filter((group) =>
+      passages.some((entry) => entry.kind === READ_KIND && entry.group === group.id),
+    );
+  }
+
+  // The group a Read passage belongs to, from readGroups, or null for a prompt, a level's
+  // material and a passage of no listed group.
+  function groupOf(entry) {
+    if (!entry || entry.kind !== READ_KIND) {
+      return null;
+    }
+    return readGroups.find((group) => group.id === entry.group) || null;
+  }
+
+  // A group's passages, in the data's order.
+  function passagesOf(group) {
+    return (app.passages || []).filter((entry) => groupOf(entry) === group);
+  }
+
+  // True when New topic (New passage on Read) has another to show: a prompt with topics, or a
+  // passage of a group that holds two or more. A passage on a chip of its own has none.
+  function canDrawAnother(entry) {
+    const group = groupOf(entry);
+    return group === null ? hasTopics(entry) : passagesOf(group).length > 1;
+  }
+
+  // --- draws: a new topic or passage on every tap (spec section 2.1) ---
+
+  // A draw follows the Path's rule when path.js is loaded, over the speaker's takes and what the
+  // draws have shown since the app opened (shownItems): from the pool less the item the tap
+  // replaces (once that item has shown), one no take has used and no draw has shown, at random;
+  // failing that, the one used or shown longest ago. So taps go through the whole pool before any
+  // item comes back, and never give the one on screen. Without app.path (some test harnesses) it
+  // is any other item at random. A pool of one gives that one. Math.random draws, so a test fixes
+  // it on its vm context's Math.
+
+  // A topic of `entry`, a prompt with topics. Once a topic of the prompt has shown
+  // (hasShownTopic), it is one other than `current` while another is left. Before that, the
+  // Path's rule passes over none and can give `current` itself: mount() draws every prompt a
+  // topic, but only the opening prompt's shows, so another prompt's `current` has never been on
+  // screen, and passing over it could skip the one topic no take has used or, with every topic
+  // used, the one used longest ago. The draw without app.path passes over `current` either way:
+  // mount() drew it at random, so every topic stays as likely as any other.
+  function drawTopic(entry, current) {
+    const path = app.path;
+    if (path && typeof path.pickTopic === "function") {
+      const passOver = hasShownTopic(entry) ? current : null;
+      return path.pickTopic(drawHistory(), entry.id, Math.random, passOver);
+    }
+    return drawOther(entry.topics, current);
+  }
+
+  // A passage of `group` other than the one `currentId` names while another is left.
+  function drawPassage(group, currentId) {
+    const passages = passagesOf(group);
+    const path = app.path;
+    if (path && typeof path.pickPassage === "function") {
+      return path.pickPassage(drawHistory(), passages, Math.random, currentId);
+    }
+    const current = passages.find((passage) => passage.id === currentId);
+    return drawOther(passages, current);
+  }
+
+  // Any item of `pool` but `current`, at random; `current` itself when it is all there is.
+  function drawOther(pool, current) {
+    const others = pool.filter((item) => item !== current);
+    const choices = others.length > 0 ? others : pool;
+    return choices[indexFor(Math.random(), choices.length)];
+  }
+
+  // The draw as an index into a list of `length`, kept inside it whatever the source returns.
+  function indexFor(draw, length) {
+    const index = Math.floor(Number(draw) * length);
+    return Number.isFinite(index) ? Math.min(length - 1, Math.max(0, index)) : 0;
+  }
+
+  // What a draw reads: the takes saved here, then those the store listed, then every topic and
+  // passage the draws have shown.
+  function drawHistory() {
+    return savedTakes.concat(listedTakes, shownItems);
+  }
+
+  // Counts what the card now shows for `entry` as used from this moment: the topic a prompt with
+  // topics is on, or a Read passage drawn for its group. Nothing else is ever drawn, so nothing
+  // else is counted, and neither is a level's material, which the Path drew.
+  function noteShown(entry) {
+    if (hasTopics(entry)) {
+      shownItems.unshift({ passageId: entry.id, topic: currentTopic(entry), createdAt: shownAt() });
+    } else if (groupOf(entry) !== null) {
+      shownItems.unshift({ passageId: entry.id, createdAt: shownAt() });
+    }
+  }
+
+  // True once a topic of `entry`, a prompt with topics, has shown since the app opened: the one
+  // the Talk tab opens on, or one a tap drew (noteShown). The topic mount() draws another prompt
+  // never shows.
+  function hasShownTopic(entry) {
+    return shownItems.some((item) => item.passageId === entry.id);
+  }
+
+  // The moment a showing counts from, as an ISO 8601 time like a take's createdAt: the clock's,
+  // and at least 1 ms after the last showing's, so two shown in the same millisecond still order
+  // as they came.
+  function shownAt() {
+    lastShownAt = Math.max(Date.now(), lastShownAt + 1);
+    return new Date(lastShownAt).toISOString();
+  }
+
+  // What a draw reads of a saved session: the passage it used, its title (app.path leaves the
+  // bundled sample out by it), its topic and when it was made. Practice keeps only these, so it
+  // holds no second copy of the takes' transcripts and metrics while the app is open.
+  function drawFieldsOf(session) {
+    const { passageId, passageTitle, topic, createdAt } = session;
+    return { passageId, passageTitle, topic, createdAt };
+  }
+
+  // Reads the speaker's takes for the draws. The answer replaces the takes listed before, and of
+  // the takes saved here it keeps only those saved after the list was asked for: the others are
+  // in the answer, unless History deleted them. A store without list() (some test fakes), one
+  // that cannot be read and an answer that is no list all leave the takes as they were; an item
+  // that is no session is left out.
+  async function loadTakes() {
+    if (!app.store || typeof app.store.list !== "function") {
+      return;
+    }
+    const savedBeforeAsking = new Set(savedTakes);
+    try {
+      const sessions = await app.store.list();
+      if (Array.isArray(sessions)) {
+        listedTakes = sessions
+          .filter((session) => Boolean(session) && typeof session === "object")
+          .map(drawFieldsOf);
+        savedTakes = savedTakes.filter((take) => !savedBeforeAsking.has(take));
+      }
+    } catch {
+      // Blocked or unreadable storage: the draws go on with the takes they had.
+    }
+  }
+
+  // The entry a tab opens on, its first chip's: on the Read tab a drawn passage of the first
+  // group, whose chip leads the tab's chips, and otherwise the tab's first entry.
+  function openingEntry(passages, kind) {
+    if (kind === READ_KIND && readGroups.length > 0) {
+      return drawPassage(readGroups[0], null);
+    }
+    const [first] = entriesOfKind(passages, kind);
+    return first || null;
+  }
+
+  // Each prompt with topics starts on a drawn topic and each tab on its first chip's entry, the
+  // Read tab on a drawn passage of the first group (spec sections 2.2 and 2.3). What each tab
+  // opens on counts as shown from now (spec section 2.1); another prompt's topic shows only after
+  // a tap on its chip, which draws it one first (drawTopic).
   function mount(screenRoot) {
     root = screenRoot;
     const passages = app.passages || [];
+    readGroups = groupsOf(passages);
     currentKind = firstKind(passages);
+    passages.filter(hasTopics).forEach((entry) => {
+      topicById[entry.id] = drawTopic(entry, null);
+    });
     MODES.forEach((mode) => {
-      const [first] = entriesOfKind(passages, mode.kind);
-      selectedIdByKind[mode.kind] = first ? first.id : null;
+      const opening = openingEntry(passages, mode.kind);
+      selectedIdByKind[mode.kind] = opening ? opening.id : null;
+      noteShown(opening);
     });
 
     // The header's toggle is absent from test sections that hold only the body.
@@ -559,24 +822,50 @@
     return nodes.modeSwitch;
   }
 
-  // One chip per entry, built once; render() shows only the current tab's chips.
+  // One chip per entry, in the data's order, except that a Read group's passages share one chip:
+  // the group chips lead the Read tab's chips, in app.passages.groups() order, and a passage of
+  // no listed group keeps a chip of its own after them. Built once; render() shows only the
+  // current tab's chips.
   function buildChipRow(passages) {
-    nodes.chips = passages.map((passage) =>
-      app.ui.el("button", {
-        class: "chip",
-        type: "button",
-        "aria-pressed": "false",
-        dataset: { passageId: passage.id, kind: passage.kind },
-        text: chipLabel(passage),
-        onClick: () => selectPassage(passage.id),
-      }),
-    );
+    const firstRead = passages.findIndex((entry) => entry.kind === READ_KIND);
+    nodes.chips = [];
+    passages.forEach((entry, index) => {
+      if (index === firstRead) {
+        nodes.chips.push(...readGroups.map(groupChip));
+      }
+      if (groupOf(entry) === null) {
+        nodes.chips.push(entryChip(entry));
+      }
+    });
     nodes.chipRow = app.ui.el(
       "div",
       { class: "chip-row", onFocusin: revealFocusedChip },
       nodes.chips,
     );
     return nodes.chipRow;
+  }
+
+  function entryChip(entry) {
+    return app.ui.el("button", {
+      class: "chip",
+      type: "button",
+      "aria-pressed": "false",
+      dataset: { passageId: entry.id, kind: entry.kind },
+      text: chipLabel(entry),
+      onClick: () => selectPassage(entry.id),
+    });
+  }
+
+  // A Read group's chip, named by the group's label alone: its passages are untimed.
+  function groupChip(group) {
+    return app.ui.el("button", {
+      class: "chip",
+      type: "button",
+      "aria-pressed": "false",
+      dataset: { group: group.id, kind: READ_KIND },
+      text: group.label,
+      onClick: () => selectGroup(group),
+    });
   }
 
   // A chip that takes focus while partly under the row's fade scrolls fully into view, inside the
@@ -595,10 +884,11 @@
   }
 
   // The card holds the title, New topic, the target and the text. New topic comes right after
-  // the title, so focus order matches its place at the top right. Its refresh icon follows the
-  // words in the DOM, so the label is plain text; CSS draws the icon first. The text scrolls on
-  // its own, so it is a region named by the title that takes focus: keyboard users can scroll a
-  // long passage in every browser (Safari never focuses a scroller by itself).
+  // the title, so focus order matches its place at the top right; on the Read tab it reads New
+  // passage. Its refresh icon follows the words in the DOM, so the label is plain text; CSS draws
+  // the icon first. The text scrolls on its own, so it is a region named by the title that takes
+  // focus: keyboard users can scroll a long passage in every browser (Safari never focuses a
+  // scroller by itself).
   function buildPassageCard() {
     nodes.cardTitle = app.ui.el("h2", { class: "passage-card__title", id: CARD_TITLE_ID });
     nodes.cardTarget = app.ui.el("p", { class: "passage-card__target" });
@@ -608,15 +898,16 @@
       role: "region",
       "aria-labelledby": CARD_TITLE_ID,
     });
+    nodes.newTopicIcon = app.ui.icon("refresh", NEW_TOPIC_ICON_SIZE);
     nodes.newTopic = app.ui.el(
       "button",
       {
         class: "btn btn--ghost passage-card__new",
         type: "button",
         text: NEW_TOPIC_LABEL,
-        onClick: showNextTopic,
+        onClick: drawAnother,
       },
-      [app.ui.icon("refresh", NEW_TOPIC_ICON_SIZE)],
+      [nodes.newTopicIcon],
     );
     nodes.card = app.ui.el("section", { class: "passage-card" }, [
       nodes.cardTitle,
@@ -627,7 +918,9 @@
     return nodes.card;
   }
 
-  // The clock, plus "/ 1:00" and a bar that fills toward the limit for a timed entry.
+  // The clock, plus "/ 1:00" and a bar that fills toward the limit for a timed entry, then the
+  // live pace row under them, hidden until a take records. Like the clock, the row is
+  // aria-live off: nothing it says is ever announced.
   function buildTimer() {
     nodes.timer = app.ui.el("div", { class: "timer num", "aria-live": "off", text: TIMER_START });
     nodes.limit = app.ui.el("span", { class: "practice__limit num" });
@@ -635,11 +928,14 @@
     nodes.limitBar = app.ui.el("div", { class: "practice__limit-bar", "aria-hidden": "true" }, [
       nodes.limitFill,
     ]);
+    nodes.pace = app.ui.el("p", { class: "practice__pace", "aria-live": "off" });
+    nodes.pace.hidden = true;
     return app.ui.el("div", { class: "practice__timer" }, [
       app.ui.el("span", { class: "rec-dot", "aria-hidden": "true" }),
       nodes.timer,
       nodes.limit,
       nodes.limitBar,
+      nodes.pace,
     ]);
   }
 
@@ -653,7 +949,8 @@
   }
 
   // Tabs, chips and New topic only respond in idle; their disabled flags already block taps in
-  // the other states. A chip selects its entry on that entry's own tab.
+  // the other states. A chip selects its entry on that entry's own tab, and a prompt's chip, the
+  // selected one or another, draws the prompt a new topic.
   function selectPassage(passageId) {
     const entry = (app.passages || []).find((candidate) => candidate.id === passageId);
     if (state !== "idle" || !entry) {
@@ -661,7 +958,19 @@
     }
     currentKind = entry.kind;
     selectedIdByKind[entry.kind] = entry.id;
-    render("idle");
+    if (hasTopics(entry)) {
+      showNewTopic(entry);
+    } else {
+      render("idle");
+    }
+  }
+
+  // A Read group's chip, the selected one or another, draws a passage of the group.
+  function selectGroup(group) {
+    if (state !== "idle") {
+      return;
+    }
+    showNewPassage(group);
   }
 
   function selectKind(kind) {
@@ -672,21 +981,46 @@
     render("idle");
   }
 
-  // The selected prompt's next topic, back to the first after the last. Focus stays on New
-  // topic while the card changes beside it, so the live region reads the new topic out.
-  function showNextTopic() {
+  // New topic: another topic for the selected prompt, or on the Read tab (New passage) another
+  // passage of the selected passage's group.
+  function drawAnother() {
     const entry = selectedPassage();
-    if (state !== "idle" || !hasTopics(entry)) {
+    if (state !== "idle" || !canDrawAnother(entry)) {
       return;
     }
-    topicIndexById[entry.id] = (topicIndexOf(entry) + 1) % entry.topics.length;
+    const group = groupOf(entry);
+    if (group === null) {
+      showNewTopic(entry);
+    } else {
+      showNewPassage(group);
+    }
+  }
+
+  // Draws the prompt a topic and shows it, counted as shown from now: never the topic the prompt
+  // last showed while another is left (drawTopic). Focus stays on the chip or New topic while the
+  // card changes beside it, so the live region reads the new topic out.
+  function showNewTopic(entry) {
+    topicById[entry.id] = drawTopic(entry, currentTopic(entry));
+    noteShown(entry);
     render("idle");
     app.ui.announce(cardTextOf(entry));
   }
 
+  // Draws a passage of the group other than the one on screen, selects it, counts it as shown
+  // from now and reads its title out, as New topic reads a topic.
+  function showNewPassage(group) {
+    const passage = drawPassage(group, selectedIdByKind[READ_KIND]);
+    currentKind = READ_KIND;
+    selectedIdByKind[READ_KIND] = passage.id;
+    noteShown(passage);
+    render("idle");
+    app.ui.announce(passage.title);
+  }
+
   // Applies one state to the screen. It is the only code that changes this screen's DOM, apart
-  // from the clock (the timer tick writes it and the bar, resetClock() puts it back to 0:00), a
-  // focused chip scrolling into view, and the header's theme toggle, which repaints itself.
+  // from the clock and the live pace row (the timer tick writes them and the bar, resetClock()
+  // puts the clock back to 0:00), a focused chip scrolling into view, and the header's theme
+  // toggle, which repaints itself.
   // `detail` is only read for "error": {title, body, actionLabel, onAction, secondaryLabel?,
   // onSecondary?}, passed straight to app.ui.renderState. A held level request is painted with
   // the state: its banner, its material and limit, and the live tap.
@@ -694,6 +1028,9 @@
     const view = viewFor(nextState);
     state = nextState;
     root.dataset.state = view.dataState;
+    // The tab's kind, as the chips and New topic carry it: on short phones styles.css hides the
+    // Read tab's hint words and sample button (section 7).
+    root.dataset.kind = currentKind;
 
     const passage = shownEntry();
     paintModeSwitch(view);
@@ -701,6 +1038,7 @@
     paintLevelParts(view);
     paintPassageCard(view, passage);
     paintTimeLimit(passage);
+    paintPace(view);
     paintRecordButton(view);
     paintScriptBox(view);
     paintHint(view);
@@ -721,13 +1059,14 @@
     });
   }
 
-  // Only the current tab's chips show; switching tabs scrolls the row back to its start.
+  // Only the current tab's chips show; switching tabs scrolls the row back to its start. The
+  // selected chip is the selected entry's own, or its group's.
   function paintChips(view) {
-    const selectedId = selectedIdByKind[currentKind];
+    const entry = selectedPassage();
     nodes.chipRow.hidden = levelRequest !== null;
     nodes.chips.forEach((chip) => {
       const inTab = chip.dataset.kind === currentKind;
-      const selected = inTab && chip.dataset.passageId === selectedId;
+      const selected = inTab && standsFor(chip, entry);
       chip.hidden = !inTab;
       chip.classList.toggle("chip--selected", selected);
       chip.setAttribute("aria-pressed", String(selected));
@@ -737,6 +1076,16 @@
       nodes.chipRow.scrollLeft = 0;
       paintedKind = currentKind;
     }
+  }
+
+  // True when `chip` is the chip of `entry`: a group's chip for a passage of that group, else the
+  // entry's own chip.
+  function standsFor(chip, entry) {
+    if (!entry) {
+      return false;
+    }
+    const group = groupOf(entry);
+    return group === null ? chip.dataset.passageId === entry.id : chip.dataset.group === group.id;
   }
 
   // Level mode's parts join the body while a request is held and leave it with the request, so
@@ -781,7 +1130,9 @@
       nodes.cardText.scrollTop = 0;
       paintedTextKey = textKey;
     }
-    nodes.newTopic.hidden = !(view.showNewTopic && levelRequest === null && hasTopics(passage));
+    paintNewTopicButton(currentKind);
+    const drawable = levelRequest === null && canDrawAnother(passage);
+    nodes.newTopic.hidden = !(view.showNewTopic && drawable);
     nodes.newTopic.disabled = view.chipsDisabled;
     if (!passage) {
       nodes.cardTitle.textContent = "";
@@ -793,6 +1144,34 @@
     nodes.cardTitle.textContent = passage.title;
     nodes.cardTarget.textContent = "Target " + lo + " to " + hi + " wpm";
     nodes.cardText.textContent = cardTextOf(passage);
+  }
+
+  // New topic, or New passage on the Read tab: the button's words, then its icon, rebuilt only
+  // when the words change. It is cleared first because the test fakes keep an element's text
+  // apart from its children. It carries its tab's kind, as the chips do, for styles.css: under
+  // 360px the Read tab's button shows its icon alone (section 7), so there its words are also its
+  // aria-label (DESIGN.md section 9). Talk's always shows its words.
+  function paintNewTopicButton(kind) {
+    const label = kind === READ_KIND ? NEW_PASSAGE_LABEL : NEW_TOPIC_LABEL;
+    nodes.newTopic.dataset.kind = kind;
+    if (kind === READ_KIND) {
+      nodes.newTopic.setAttribute("aria-label", label);
+    } else {
+      removeAttribute(nodes.newTopic, "aria-label");
+    }
+    if (nodes.newTopic.textContent === label) {
+      return;
+    }
+    app.ui.clear(nodes.newTopic);
+    nodes.newTopic.textContent = label;
+    nodes.newTopic.appendChild(nodes.newTopicIcon);
+  }
+
+  // The test fakes have no removeAttribute.
+  function removeAttribute(node, name) {
+    if (typeof node.removeAttribute === "function") {
+      node.removeAttribute(name);
+    }
   }
 
   // "/ 1:00" and the bar for a timed entry; an untimed entry hides both.
@@ -959,10 +1338,15 @@
   // Coming back to the screen starts a fresh take at 0:00 unless a level take is already in
   // flight, or a failed level upload still holds its take: then its Upload failed block is drawn
   // again, clock and all, whether the upload failed before the speaker left or while they were
-  // away. A take analyzed in the background is the banner's business, not this screen's.
+  // away. A take analyzed in the background is the banner's business, not this screen's. Each
+  // visit reads the speaker's takes again for the draws, and each mode's live pace factor; the
+  // tab, the entry and the topic stay as they were left, so Results' "Record again" retries the
+  // same topic.
   function show() {
     shown = true;
     leavingForResults = false;
+    loadTakes();
+    loadPaceFactors();
     if (state === "recording" || state === "uploading") {
       return;
     }
@@ -977,11 +1361,11 @@
     }
   }
 
-  // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer and pause
-  // sampler go and drop the take. A level upload in flight keeps going, and a failed one keeps
-  // its take; show() will find either. A level request goes too, unless such a take still
-  // answers it: the Level screen asks again when the speaker goes back to it, and a later visit
-  // to Practice is a normal one. Background jobs run on regardless.
+  // Leaving mid-take must never leak the microphone: let the recorder, tracks, timer, pause
+  // sampler and live pace capture go and drop the take. A level upload in flight keeps going,
+  // and a failed one keeps its take; show() will find either. A level request goes too, unless
+  // such a take still answers it: the Level screen asks again when the speaker goes back to it,
+  // and a later visit to Practice is a normal one. Background jobs run on regardless.
   function hide() {
     shown = false;
     leavingForResults = false;
@@ -1135,17 +1519,27 @@
     }
     capture.awaitingMic = false;
     if (stream === null) {
-      render("error", {
-        title: MIC_BLOCKED_TITLE,
-        body: MIC_BLOCKED_BODY,
-        actionLabel: MIC_BLOCKED_ACTION,
-        onAction: () => backToIdle(nodes.recordButton),
-      });
+      showMicBlocked();
       return;
     }
     beginTake(stream);
   }
 
+  // The Microphone blocked block, for a microphone refused, missing, or one this browser
+  // cannot record from. Try again goes back to idle.
+  function showMicBlocked() {
+    render("error", {
+      title: MIC_BLOCKED_TITLE,
+      body: MIC_BLOCKED_BODY,
+      actionLabel: MIC_BLOCKED_ACTION,
+      onAction: () => backToIdle(nodes.recordButton),
+    });
+  }
+
+  // Starts a take on a granted stream: the pause sampler, the live pace capture, the recorder
+  // and the clock. When the browser cannot record the stream (no MediaRecorder, or one that
+  // refuses it) no take starts: what had started is let go at once, the microphone with it,
+  // and the block says what it says for a refused microphone.
   function beginTake(stream) {
     letTakeGo();
     liveTaps = [];
@@ -1154,6 +1548,22 @@
       app.pauses.start(stream);
       capture.pausesStarted = true;
     }
+    startLivePace(stream);
+    try {
+      startRecorder(stream);
+    } catch {
+      releaseCapture();
+      showMicBlocked();
+      return;
+    }
+    startTimer();
+    app.ui.announce(STARTED_ANNOUNCEMENT);
+    render("recording");
+  }
+
+  // The take's recorder, in the first container this browser can encode, handing over a chunk
+  // every second.
+  function startRecorder(stream) {
     capture.chosenMimeType = supportedMimeType();
     capture.chunks = [];
     capture.recorder = capture.chosenMimeType
@@ -1162,9 +1572,6 @@
     capture.recorder.addEventListener("dataavailable", collectChunk);
     capture.recorder.addEventListener("stop", onRecorderStopped);
     capture.recorder.start(CHUNK_EVERY_MS);
-    startTimer();
-    app.ui.announce(STARTED_ANNOUNCEMENT);
-    render("recording");
   }
 
   // The first container this browser can encode, or "" to let MediaRecorder pick its own
@@ -1192,7 +1599,7 @@
   function onRecorderStopped() {
     const durationSeconds = elapsedSeconds();
     const contentType = capture.recorder.mimeType || capture.chosenMimeType;
-    const { chunks, samples } = releaseCapture();
+    const { chunks, samples, pace } = releaseCapture();
     app.ui.announce(stoppedAnnouncement(Math.floor(durationSeconds)));
 
     if (durationSeconds < MIN_TAKE_SECONDS) {
@@ -1214,6 +1621,8 @@
       topic: topicOf(passage),
       request: levelRequest,
       liveTaps: liveTaps.slice(),
+      // The live pace's {peaks, mode} for tunePace, which takes them once; never saved.
+      pace,
       // {transcript, metrics} once the backend has analyzed the take, then the session to save.
       analysis: null,
       session: null,
@@ -1265,7 +1674,8 @@
   }
 
   // Lets go of everything the live take holds and hands back what the caller may still want:
-  // the chunks collected so far and the pause samples (null without app.pauses).
+  // the chunks collected so far, the pause samples (null without app.pauses) and the live pace's
+  // {peaks, mode} (null without its capture).
   function releaseCapture() {
     stopTimer();
     const { recorder, stream, chunks } = capture;
@@ -1280,11 +1690,13 @@
       stopTracks(stream);
     }
     const samples = capture.pausesStarted ? app.pauses.stop() : null;
+    const pace = releaseLivePace();
     capture.recorder = null;
     capture.stream = null;
     capture.chunks = [];
     capture.pausesStarted = false;
-    return { chunks, samples };
+    capture.paceDropped = false;
+    return { chunks, samples, pace };
   }
 
   function stopTracks(stream) {
@@ -1297,7 +1709,8 @@
   // "too_short"} when the backend answered 400 (the same blob would fail again and cost a
   // provider call on every retry), or {outcome: "failed", sentence} with the fixed sentence
   // for the Upload failed detail. Retry sends the same blob again only when no analysis came
-  // back, and never judges a take twice.
+  // back, and never judges a take twice. Once the session is built a take that counts tunes its
+  // mode's live pace factor (tunePace), on its own: the save never waits for it.
   async function settle(take) {
     if (take.analysis === null) {
       try {
@@ -1317,9 +1730,14 @@
         // our side, and the speaker's recording is still here for Retry.
         return { outcome: FAILED, sentence: app.api.messages.provider };
       }
+      tunePace(take);
     }
     try {
-      return { outcome: SAVED, id: await app.store.save(take.session) };
+      const id = await app.store.save(take.session);
+      // The draws count it from now on, before any list() holds it, with the createdAt the store
+      // has just set on it.
+      savedTakes.unshift(drawFieldsOf(take.session));
+      return { outcome: SAVED, id };
     } catch (error) {
       return { outcome: FAILED, sentence: saveFailureSentence(error) };
     }
@@ -1669,8 +2087,11 @@
     failedUpload = null;
   }
 
-  // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, and announces
-  // the clock every 30 s.
+  // The timer: one 250 ms tick paints the elapsed clock and the time-limit bar, announces the
+  // clock every 30 s and, once per new whole second, paints the live pace row, or lets its
+  // capture go when no audio has reached it (readLivePace). It starts right after the recorder,
+  // so its start is the recording's, which the live pace's peaks are lined up with
+  // (releaseLivePace).
   function startTimer() {
     capture.startedAt = performance.now();
     capture.announcedBlocks = 0;
@@ -1690,6 +2111,7 @@
       capture.announcedBlocks = blocks;
       app.ui.announce(app.ui.formatClock(elapsed));
     }
+    readLivePace(Math.floor(elapsed));
   }
 
   function stopTimer() {
@@ -1718,6 +2140,335 @@
   // Seconds to a tenth, as a take's duration and its live taps are kept.
   function toTenth(seconds) {
     return Math.round(seconds * 10) / 10;
+  }
+
+  // --- the live pace while a take records (spec section 7) ---
+
+  // Starts the take's live pace capture, right after the pause sampler: an AudioContext of its
+  // own at the device's rate, the stream's source into a ScriptProcessor whose blocks go to an
+  // app.delivery.livePace tracker, and a zero gain to the output, without which the processor
+  // never runs. The tracker judges against the shown entry's band and counts with the kept
+  // factor of the take's mode. Every take, level mode's too, is captured, so every take that
+  // counts tunes its mode. Without Web Audio or the estimator the take records without the row;
+  // so it does when a step throws (a tracker refuses a rate under 8 kHz), after whatever was
+  // made is let go. A capture still held from before goes first, as app.pauses.start stops its
+  // own sampler.
+  function startLivePace(stream) {
+    releaseLivePace();
+    const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
+    const delivery = app.delivery;
+    if (!AudioContextClass || !delivery || typeof delivery.livePace !== "function") {
+      return;
+    }
+    const entry = shownEntry();
+    const mode = paceModeOf(entry);
+    const pace = {
+      context: null,
+      source: null,
+      processor: null,
+      silence: null,
+      tracker: null,
+      mode,
+      // Whether the mode had a kept factor when the take began: only then does its row show a
+      // number and a cue, and only then is the tracker read (the validation result).
+      tuned: paceFactors[mode] !== null,
+      firstSampleAt: null,
+      readSecond: 0,
+      reading: null,
+    };
+    try {
+      pace.context = new AudioContextClass();
+      pace.tracker = delivery.livePace(pace.context.sampleRate, {
+        band: entry ? entry.targetWpm : null,
+        factor: paceFactors[mode],
+      });
+      pace.source = pace.context.createMediaStreamSource(stream);
+      pace.processor = pace.context.createScriptProcessor(
+        PACE_BLOCK_SAMPLES,
+        PACE_CHANNELS,
+        PACE_CHANNELS,
+      );
+      pace.silence = pace.context.createGain();
+      pace.silence.gain.value = PACE_SILENT_GAIN;
+      pace.processor.onaudioprocess = (event) => pushPaceBlock(pace, event);
+      pace.source.connect(pace.processor);
+      pace.processor.connect(pace.silence);
+      pace.silence.connect(pace.context.destination);
+      // iOS Safari may hand over a suspended context, and a suspended graph hands over nothing.
+      // One that refuses to resume never will, so its capture goes and the row with it; one
+      // whose resume() never answers goes at 0:03 (readLivePace).
+      if (pace.context.state === "suspended" && typeof pace.context.resume === "function") {
+        whenRefused(pace.context.resume(), () => dropLivePace(pace));
+      }
+    } catch {
+      tearDownPace(pace);
+      return;
+    }
+    capture.pace = pace;
+  }
+
+  // The mode a take records in, as app.language.isReadTake will judge the saved take: Read when
+  // a script goes with it (a passage's text, on the Read tab or in a level, or a script pasted on
+  // Talk), Talk otherwise.
+  function paceModeOf(entry) {
+    return scriptFor(entry) === "" ? TALK_PACE : READ_PACE;
+  }
+
+  // One block from the microphone: its first channel goes to the take's tracker. The first
+  // block notes when the tracker's first sample was heard, the block's arrival less its own
+  // length, to line the peaks up with the recording (releaseLivePace).
+  function pushPaceBlock(pace, event) {
+    if (pace.tracker === null) {
+      return;
+    }
+    const samples = event.inputBuffer.getChannelData(0);
+    if (pace.firstSampleAt === null) {
+      pace.firstSampleAt = performance.now() - (samples.length / pace.context.sampleRate) * 1000;
+    }
+    pace.tracker.push(samples);
+  }
+
+  // Once per new whole second on the clock. A capture that no block has reached by
+  // PACE_NO_AUDIO_SECONDS goes (dropLivePace), level mode's too, so its context is freed. Else,
+  // while the row can show numbers, the tracker's reading of the audio heard so far, painted.
+  // Level mode reads nothing, since its row never shows, and neither does an untuned take, whose
+  // row keeps its sentence to the end.
+  function readLivePace(second) {
+    const pace = capture.pace;
+    if (pace === null || second <= pace.readSecond) {
+      return;
+    }
+    pace.readSecond = second;
+    if (pace.firstSampleAt === null && second >= PACE_NO_AUDIO_SECONDS) {
+      dropLivePace(pace);
+      return;
+    }
+    if (levelRequest !== null || !pace.tuned) {
+      return;
+    }
+    pace.reading = pace.tracker.read();
+    paintPace(viewFor(state));
+  }
+
+  // The live pace row, shown only while a normal take records with its capture running: never
+  // in idle, uploading or error, never in level mode, whose takes count, and never for a take
+  // whose capture did not start or was dropped. A dropped capture's row hides with its last
+  // words and the held class, which keeps its box until the take ends, so nothing above Record
+  // moves while the speaker talks. A take whose mode had no kept factor when it began says when
+  // the live pace starts, from first to last, and never a number or a cue. A tuned take says the
+  // waiting sentence until the tracker has a number, then the number and the cue. The words are
+  // the tracker's: its number comes rounded and its cue held. The children are rebuilt only when
+  // the words change.
+  function paintPace(view) {
+    const pace = capture.pace;
+    const normalTake = view.showPace && levelRequest === null;
+    nodes.pace.hidden = !(normalTake && pace !== null);
+    nodes.pace.classList.toggle(PACE_HELD_CLASS, normalTake && capture.paceDropped);
+    if (nodes.pace.hidden) {
+      return;
+    }
+    const { sentence, number, cue } = paceWordsOf(pace);
+    const text =
+      sentence !== null ? sentence : [number, cue && cue.words].filter(Boolean).join(" ");
+    if (text === paintedPaceText) {
+      return;
+    }
+    paintedPaceText = text;
+    app.ui.clear(nodes.pace);
+    if (sentence !== null) {
+      nodes.pace.appendChild(
+        app.ui.el("span", { class: "practice__pace-placeholder", text: sentence }),
+      );
+      return;
+    }
+    if (number !== null) {
+      nodes.pace.appendChild(
+        app.ui.el("span", { class: "practice__pace-number num", text: number }),
+      );
+    }
+    // The space Results writes in "162 wpm": flex draws no gap from it, but a screen reader
+    // keeps "wpm" and "On" apart.
+    if (number !== null && cue !== null) {
+      nodes.pace.appendChild(document.createTextNode(" "));
+    }
+    if (cue !== null) {
+      nodes.pace.appendChild(paceCueNode(cue));
+    }
+  }
+
+  // What the row says for a take's capture: `sentence`, shown in the placeholder look, is the
+  // mode's "starts after" sentence for an untuned take, or the waiting sentence for a tuned one
+  // until the tracker has a number, else null; then `number`, "About 150 wpm", and `cue`, its
+  // look, or null for none.
+  function paceWordsOf(pace) {
+    if (!pace.tuned) {
+      const sentence = pace.mode === READ_PACE ? PACE_STARTS_AFTER_READ : PACE_STARTS_AFTER_TALK;
+      return { sentence, number: null, cue: null };
+    }
+    const reading = pace.reading;
+    if (reading === null || reading.wpm === null) {
+      return { sentence: PACE_WAITING, number: null, cue: null };
+    }
+    return {
+      sentence: null,
+      number: PACE_NUMBER_PREFIX + reading.wpm + PACE_NUMBER_SUFFIX,
+      cue: paceLookOf(reading.cue),
+    };
+  }
+
+  // The look of app.delivery's cue id, or null for none.
+  function paceLookOf(cue) {
+    const { ON_TARGET, SLOW_DOWN, SPEED_UP } = app.delivery;
+    if (cue === null || cue === undefined) {
+      return null;
+    }
+    if (cue === ON_TARGET) {
+      return PACE_LOOK_ON_TARGET;
+    }
+    if (cue === SLOW_DOWN) {
+      return PACE_LOOK_SLOW_DOWN;
+    }
+    return cue === SPEED_UP ? PACE_LOOK_SPEED_UP : null;
+  }
+
+  // The cue's words, then its icon, which CSS draws first, as a Results hint does.
+  function paceCueNode(look) {
+    return app.ui.el(
+      "span",
+      { class: "practice__pace-cue practice__pace-cue--" + look.tone, text: look.words },
+      [app.ui.icon(look.icon, PACE_ICON_SIZE)],
+    );
+  }
+
+  // Lets the take's live pace capture go, whichever way the take ends (releaseCapture): Stop,
+  // the track ending, hide(), a take under 5 seconds, a recorder that cannot start. Hands back
+  // what tunePace needs, {peaks, mode}, or null without a capture or when no block came. The
+  // tracker's peaks count from its first sample, the transcript's words from the recorder's
+  // start (startTimer notes it), so the time between the two goes on every peak. That sample's
+  // time is its block's arrival less the block's length (1024 samples: 21 ms at 48 kHz, 128 ms
+  // at 8 kHz), late only by the time the browser takes to hand a block over, some tens of
+  // milliseconds: well inside the 0.25 s paceFactorAfter allows at the edges of the speech.
+  function releaseLivePace() {
+    const pace = capture.pace;
+    capture.pace = null;
+    if (pace === null) {
+      return null;
+    }
+    const heard = pace.firstSampleAt !== null;
+    const offset = heard ? (pace.firstSampleAt - capture.startedAt) / 1000 : 0;
+    const peaks = heard ? pace.tracker.peaks().map((peak) => peak + offset) : null;
+    tearDownPace(pace);
+    return peaks === null ? null : { peaks, mode: pace.mode };
+  }
+
+  // A capture whose context refused to resume, or that no block reached by 0:03, goes as if it
+  // had never started, unless its take has let it go already: the context closes and the row
+  // hides for the rest of the take, which tunes nothing. The row keeps its box (paintPace).
+  function dropLivePace(pace) {
+    if (capture.pace !== pace) {
+      return;
+    }
+    releaseLivePace();
+    capture.paceDropped = true;
+    paintPace(viewFor(state));
+  }
+
+  // Clears the handler, disconnects every node made, closes the context and drops the tracker;
+  // safe on a capture whose setup stopped partway.
+  function tearDownPace(pace) {
+    if (pace.processor) {
+      pace.processor.onaudioprocess = null;
+    }
+    [pace.source, pace.processor, pace.silence].forEach((node) => {
+      if (node) {
+        node.disconnect();
+      }
+    });
+    const context = pace.context;
+    if (context && context.state !== "closed" && typeof context.close === "function") {
+      ignoreRejection(context.close());
+    }
+    pace.tracker = null;
+  }
+
+  // close() answers with a promise whose outcome changes nothing here.
+  function ignoreRejection(promise) {
+    whenRefused(promise, () => {});
+  }
+
+  // Runs `then` if `promise` is refused. An older browser's resume() or close() may hand back
+  // no promise at all, which refuses nothing.
+  function whenRefused(promise, then) {
+    if (promise && typeof promise.catch === "function") {
+      promise.catch(then);
+    }
+  }
+
+  // Reads each mode's kept live pace factor from its flag. A store without getFlag (some test
+  // fakes) or one that cannot be read leaves the factors as they were; a flag that holds no
+  // number (none kept yet, or cleared with the site's data) means none.
+  async function loadPaceFactors() {
+    const store = app.store;
+    if (!store || typeof store.getFlag !== "function") {
+      return;
+    }
+    await Promise.all(
+      PACE_MODES.map(async (mode) => {
+        try {
+          const value = await store.getFlag(PACE_FACTOR_FLAG_PREFIX + mode);
+          paceFactors[mode] = typeof value === "number" && Number.isFinite(value) ? value : null;
+        } catch {
+          // Blocked or unreadable storage: this mode keeps the factor it had.
+        }
+      }),
+    );
+  }
+
+  // Tunes the take's mode's live pace factor once its analysis is back and its session built
+  // (settle): app.delivery.paceFactorAfter moves the kept factor toward the take's own words a
+  // peak, and a take that counts (app.delivery.countsForPaceFactor: 20 s of speech, 30 words)
+  // keeps the result with app.store.setFlag, then here, even when it did not move: its mode has
+  // a factor from then on, so the mode's next takes show the number and the cue. A take that
+  // does not count keeps nothing. The first call takes the peaks with it, so a Retry never
+  // tunes a take twice; the sample never comes here. A store that cannot keep the factor
+  // changes nothing the speaker sees: the mode keeps the factor it had, and its row stays as it
+  // was.
+  async function tunePace(take) {
+    const pace = take.pace;
+    take.pace = null;
+    const delivery = app.delivery;
+    const store = app.store;
+    const canTune =
+      Boolean(delivery) &&
+      typeof delivery.paceFactorAfter === "function" &&
+      typeof delivery.countsForPaceFactor === "function" &&
+      Boolean(store) &&
+      typeof store.setFlag === "function";
+    if (pace === null || !canTune) {
+      return;
+    }
+    try {
+      const mode = tunedModeOf(take, pace);
+      const words = take.analysis.transcript;
+      const factor = delivery.paceFactorAfter(paceFactors[mode], words, pace.peaks);
+      if (!delivery.countsForPaceFactor(words, pace.peaks)) {
+        return;
+      }
+      await store.setFlag(PACE_FACTOR_FLAG_PREFIX + mode, factor);
+      paceFactors[mode] = factor;
+    } catch {
+      // Blocked or unwritable storage: the mode keeps the factor it had.
+    }
+  }
+
+  // The mode a take tunes: app.language.isReadTake's verdict on its saved session, the rule the
+  // rank, Progress and History split takes by; without language.js, the mode it recorded in.
+  function tunedModeOf(take, pace) {
+    const language = app.language;
+    if (language && typeof language.isReadTake === "function") {
+      return language.isReadTake(take.session) ? READ_PACE : TALK_PACE;
+    }
+    return pace.mode;
   }
 
   // Both icons draw in currentColor, which the button sets to --on-record: white on the light

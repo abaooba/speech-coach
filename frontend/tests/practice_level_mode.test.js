@@ -133,8 +133,10 @@ test("level mode hides the switch, the chips, New topic, the script box and the 
   assert.equal(p.hintText.textContent, "Tap to record. Stop uploads automatically.");
 });
 
+// Your day opens on a drawn topic, "Second topic." at a draw of 0.5 (tester feedback spec,
+// section 2.2), and is on it again once the level is left.
 test("Leave level clears the request, returns to normal idle and calls onLeave once", () => {
-  const t = setup();
+  const t = setup({ random: () => 0.5 });
   const { request, log } = levelRequest();
   t.startLevel(request);
   parts(t).leave.click();
@@ -147,7 +149,7 @@ test("Leave level clears the request, returns to normal idle and calls onLeave o
     assert.equal(p[part].hidden, false, `${part} is back`);
   }
   assert.equal(p.cardTitle.textContent, "Your day");
-  assert.equal(p.cardText.textContent, "First topic.");
+  assert.equal(p.cardText.textContent, "Second topic.");
   assert.equal(p.limit.textContent, "/ 1:00", "the selected entry's limit is back");
   assert.equal(log.judge.length, 0);
   assert.equal(log.onSaved.length, 0);
@@ -318,8 +320,9 @@ test("every kind of material app.path.materialFor gives is painted, sent and sav
     ["fillers-1", 0, "free-talk"],
     ["fillers-3", 0, "impromptu"],
     ["restarts-1", 0, null],
-    ["pace-2", 0, "explainer-rainbows"],
-    ["pace-2", 1, "explainer-rainbows"],
+    // A ladder read is a cold read: with no takes and the draw 0, the first.
+    ["pace-2", 0, "cold-read-school-start"],
+    ["pace-2", 1, "cold-read-school-start"],
     ["benchmark", 0, "benchmark-read"],
     ["benchmark", 1, "benchmark-talk"],
   ];

@@ -120,8 +120,9 @@ test("a reply while Practice waits in idle opens Results at once and takes the b
   assert.equal(bannerView(t), null);
 });
 
+// Your day opens on a drawn topic (tester feedback spec, section 2.2): "Second topic." at 0.5.
 test("the session saved from the background carries the take as it was recorded", async () => {
-  const t = withBanner();
+  const t = withBanner({ random: () => 0.5 });
   await t.recordTake(EIGHT_SECONDS);
   t.resolveUpload();
   await flush();
@@ -129,7 +130,7 @@ test("the session saved from the background carries the take as it was recorded"
   assert.equal(session.passageId, "free-talk");
   assert.equal(session.passageTitle, "Your day");
   assert.equal(session.durationSeconds, 8);
-  assert.equal(session.topic, "First topic.");
+  assert.equal(session.topic, "Second topic.");
   assert.equal("path" in session, false, "a normal take has no level path");
 });
 

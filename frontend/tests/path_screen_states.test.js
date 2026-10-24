@@ -381,14 +381,12 @@ test("before any sitting the benchmark card is due, and Start opens it", async (
   assert.equal(card.tagName, "section");
   assert.equal(find(card, "path-benchmark__title").tagName, "h2");
   assert.equal(visible(find(card, "path-benchmark__title")), "Benchmark day");
-  assert.deepEqual(
-    findAll(card, "path-benchmark__text").map(visible),
-    ["Same passage, same prompt, every 14 days. See your real progress.", "About 3 minutes"],
-  );
+  assert.deepEqual(findAll(card, "path-benchmark__text").map(visible), ["About 3 minutes"]);
   const start = find(card, "path-benchmark__start");
   assert.equal(start.tagName, "button");
   assert.equal(classOf(start), "btn btn--secondary path-benchmark__start");
-  assert.equal(visible(start), "Start benchmark");
+  assert.equal(visible(start), "Start");
+  assert.equal(start.getAttribute("aria-label"), "Start benchmark");
   start.click();
   assert.deepEqual(routes, [{ name: "level", id: "benchmark" }]);
   assert.equal(find(body, "path__next"), null);
@@ -441,7 +439,15 @@ test("the benchmark line sits where the card would, before the units", async () 
   const { body } = await shown({ sessions: sitting("2026-10-13") });
   assert.deepEqual(
     body.children.map((child) => classOf(child)),
-    ["path__status", "path__benchmark", "path-unit", "path-unit", "path-unit", "path-unit"],
+    [
+      "path__status",
+      "path__benchmark",
+      "segmented path-switch",
+      "path-unit",
+      "path-unit",
+      "path-unit",
+      "path-unit",
+    ],
   );
   assert.equal(unitsOf(body).length, 4);
 });

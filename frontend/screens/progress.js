@@ -2,7 +2,8 @@
    show() draws the rank card (app.rankCard) and charts one metric over the speaker's own takes;
    the pure helpers series, scale and summaryFor do the maths without the DOM. The sample a
    visitor opens from Practice never counts (app.screens.results.isSample), and the SVG chart is
-   drawn by hand: no chart library. */
+   drawn by hand: no chart library. Once the speaker has a take read aloud, a Talk | Read switch
+   charts each kind of take on its own (owner decision 2026-10-22). */
 (function () {
   "use strict";
 
@@ -85,6 +86,61 @@
   const DEFAULT_KEY = "wpm";
   const CONTROL_LABEL = "Chart metric";
 
+  // Takes read aloud chart Slips in Fillers' place: a passage holds no filler words to say, so a
+  // read's fillers stay near 0 whatever the speaker does. A slip is a restart or a misread word
+  // (summary.slipsPerMinute). `definition` is the muted line under the title; `minRange` keeps
+  // the axis at 0 to 5 until a take goes higher, since slips run lower than fillers. The line is
+  // in the text colour, which no other metric draws with. `counts` says whether a take's slips
+  // can be counted: a take on a passage that strayed from it (or was saved before takes were
+  // lined up against their script) reports no misreads, which would draw as a clean read, so it
+  // is left out of this chart alone. A metric without `counts` charts every take.
+  const SLIPS = {
+    key: "slipsPerMinute",
+    short: "Slips",
+    label: "Slips per minute",
+    definition: "Restarts and misread words",
+    color: "var(--text)",
+    fromZero: true,
+    minRange: 5,
+    best: LOWEST,
+    digits: 1,
+    unit: " /min",
+    changeUnit: "",
+    rise: "more",
+    fall: "fewer",
+    counts: (summary) => !summary.report || summary.report.followedScript !== false,
+  };
+  const READ_METRICS = METRICS.map((metric) =>
+    metric.key === "fillersPerMinute" ? SLIPS : metric,
+  );
+
+  // The Talk | Read switch, drawn once the speaker has a take read aloud (app.language.isReadTake):
+  // each mode charts its own takes only, so a read's near-silent numbers never pass for progress
+  // in free talk. Both modes keep the metric switch's position: Slips sits where Fillers does.
+  // `noun` writes the empty state, `caption` the line under the switch after the take count.
+  const TALK = "talk";
+  const READ = "read";
+  const MODES = [
+    {
+      id: TALK,
+      label: "Talk",
+      metrics: METRICS,
+      noun: "Talk take",
+      caption: " · your own words · rated",
+    },
+    {
+      id: READ,
+      label: "Read",
+      metrics: READ_METRICS,
+      noun: "Read take",
+      caption: " · read aloud · not rated",
+    },
+  ];
+  const MODES_LABEL = "Takes to show";
+  const TITLE_JOINER = " · ";
+  const ONE_TAKE = " take";
+  const TAKES = " takes";
+
   // The drawing box in viewBox units, and the padding that leaves room for the labels.
   const DEFAULT_GEOMETRY = {
     width: 320,
@@ -96,8 +152,8 @@
   };
 
   // The data range runs from 0 for the counts, or from the ten at or below 20 under the slowest
-  // take for pace, up to the highest value; it spans at least 10 so a flat series (or a single
-  // point) still has a height to draw against.
+  // take for pace, up to the highest value; it spans at least 10 (a metric's own minRange, where
+  // it has one) so a flat series (or a single point) still has a height to draw against.
   const FLOOR_STEP = 10;
   const WPM_HEADROOM = 20;
   const MIN_RANGE = 10;
@@ -153,7 +209,8 @@
 
   // Fixed copy (DESIGN.md section 8): the under-two state, whose words count what is missing
   // (two takes with none yet, one more after the first), the summary row, the band legend, the
-  // chart's aria-label and the table.
+  // chart's aria-label (one session or more, the latest value only when a take is charted) and
+  // the table.
   const MIN_SESSIONS = 2;
   const EMPTY_TITLE = "Need two sessions";
   const EMPTY_BODY_NONE = "Record two sessions to see a trend.";
@@ -178,7 +235,9 @@
   const NOT_MEASURED = "Not measured";
   const LEGEND_PREFIX = "Target under ";
   const LABEL_OVER = " over ";
-  const LABEL_LATEST = " sessions, latest ";
+  const LABEL_ONE_SESSION = " session";
+  const LABEL_SESSIONS = " sessions";
+  const LABEL_LATEST = ", latest ";
   const CAPTION_SUFFIX = " by session";
   const SESSION_HEADER = "Session";
   const DATE_HEADER = "Date";
@@ -198,8 +257,14 @@
   // Counts show() calls so a slow load from an earlier visit cannot paint over a newer one.
   let showCount = 0;
 
-  // The metric whose option is selected; module state so it survives leaving the screen.
+  // The metric whose option is selected; module state so it survives leaving the screen. It is
+  // always a Talk metric's key: on Read the option in the same place is selected (Slips for
+  // Fillers).
   let selectedKey = DEFAULT_KEY;
+
+  // The mode the speaker picked on the Talk | Read switch, or null before they pick one: then
+  // Talk, or Read for a speaker with no talk take yet. Module state, as selectedKey.
+  let selectedMode = null;
 
   function mount(root) {
     body = root.querySelector(".screen__body");
@@ -244,7 +309,8 @@
     const numbers = (Array.isArray(values) ? values : []).map(numberOr0);
     const low = axisFloor(numbers, key);
     const highest = numbers.length > 0 ? Math.max(...numbers) : 0;
-    const { yMin, yMax, yTicks } = roundAxis(low, Math.max(highest, low + MIN_RANGE));
+    const range = metricFor(key).minRange || MIN_RANGE;
+    const { yMin, yMax, yTicks } = roundAxis(low, Math.max(highest, low + range));
     const points = numbers.map((value, index) => ({
       x: xFor(index, numbers.length, geometry),
       y: yFor(value, yMin, yMax, geometry),
@@ -365,9 +431,9 @@
     return numbers.reduce((total, number) => total + number, 0);
   }
 
-  // The metric for a key; an unknown key draws like pace rather than throwing.
+  // The metric for a key, Slips included; an unknown key draws like pace rather than throwing.
   function metricFor(key) {
-    return METRICS.find((metric) => metric.key === key) || METRICS[0];
+    return METRICS.concat(SLIPS).find((metric) => metric.key === key) || METRICS[0];
   }
 
   function numberOr0(value) {
@@ -384,6 +450,7 @@
   // and a hand-rolled SVG line chart (a target band for fillers, a ring on the best take, short
   // dates under the points) with a screen-reader table. Tapping an option redraws everything
   // under the control. Under two takes the card, when there is one, sits above the empty state.
+  // Once a take was read aloud, the Talk | Read switch comes between the card and the rest.
   async function show() {
     const ticket = ++showCount;
     const takes = ownTakes(await loadSessions());
@@ -391,11 +458,22 @@
       return;
     }
     const rankCard = buildRankCard(takes);
-    if (takes.length < MIN_SESSIONS) {
+    if (takes.some(isReadTake)) {
+      renderSplit(takes, rankCard);
+    } else if (takes.length < MIN_SESSIONS) {
       renderEmpty(takes.length, rankCard);
     } else {
       renderChart(takes, rankCard);
     }
+  }
+
+  // A take read aloud (app.language.isReadTake): a passage, a cold read, the benchmark read or a
+  // pasted script it followed. Without language.js every take counts as talk, as before the rule.
+  function isReadTake(session) {
+    const language = app.language;
+    return (
+      Boolean(language) && typeof language.isReadTake === "function" && language.isReadTake(session)
+    );
   }
 
   // The rank card for the speaker's own takes, its streak counted to now, or null: with no rated
@@ -508,47 +586,150 @@
     );
   }
 
-  // The rank card, when there is one, and the segmented control are built once per show(); a tap
-  // only swaps what sits under the control (the title, the summary, the chart, its legend and
-  // the table), so the tapped option keeps focus and never flickers. The sessions are
-  // summarized once here, not on every tap.
+  // The rank card, when there is one, and the chart under it.
   function renderChart(sessions, rankCard) {
-    const summaries = summariesOf(sessions);
-    const measured = summaries.map(wasMeasured);
-    const targets = summaries.map((summary) => summary.target);
-    const days = [...sessions].reverse().map((session) => app.ui.formatDay(session.createdAt));
-    const options = METRICS.map((metric) => buildOption(metric, () => choose(metric.key)));
-    let drawn = [];
+    app.ui.clear(body);
+    if (rankCard) {
+      body.appendChild(rankCard);
+    }
+    appendChart(sessions, METRICS, null);
+  }
 
-    const control = { class: "segmented", role: "group", "aria-label": CONTROL_LABEL };
+  // The split view: the rank card, the Talk | Read switch and its caption, then the chosen
+  // mode's chart, or its empty state under two takes. The switch and the caption are built once
+  // per show(); a mode tap only swaps what sits under them, so the tapped option keeps focus,
+  // and a tap on the mode shown changes nothing. Each mode's takes are summarized the first time
+  // it is drawn, not on every tap.
+  function renderSplit(takes, rankCard) {
+    const takesOf = {
+      [TALK]: takes.filter((take) => !isReadTake(take)),
+      [READ]: takes.filter(isReadTake),
+    };
+    const summariesBy = {};
+    const options = MODES.map((mode) => buildOption(mode.label, false, () => choose(mode.id)));
+    const control = {
+      class: "segmented progress__modes",
+      role: "group",
+      "aria-label": MODES_LABEL,
+    };
+    const caption = app.ui.el("p", { class: "progress__caption" });
     app.ui.clear(body);
     if (rankCard) {
       body.appendChild(rankCard);
     }
     body.appendChild(app.ui.el("div", control, options));
+    body.appendChild(caption);
     draw();
 
-    function choose(key) {
-      selectedKey = key;
-      options.forEach((option, index) => markOption(option, METRICS[index].key === key));
+    function shownId() {
+      return selectedMode || (takesOf[TALK].length > 0 ? TALK : READ);
+    }
+
+    function choose(modeId) {
+      if (modeId === shownId()) {
+        return;
+      }
+      selectedMode = modeId;
       draw();
     }
 
     function draw() {
+      const mode = MODES.find((each) => each.id === shownId());
+      const sessions = takesOf[mode.id];
+      options.forEach((option, index) => markOption(option, MODES[index].id === mode.id));
+      const count = sessions.length + (sessions.length === 1 ? ONE_TAKE : TAKES);
+      caption.textContent = count + mode.caption;
+      removeAfter(caption);
+      if (sessions.length < MIN_SESSIONS) {
+        appendModeEmpty(mode, sessions.length);
+        return;
+      }
+      if (!summariesBy[mode.id]) {
+        summariesBy[mode.id] = summariesOf(sessions);
+      }
+      appendChart(sessions, mode.metrics, mode, summariesBy[mode.id]);
+    }
+  }
+
+  // "Need two Read takes", under the switch: renderState builds the block in a holder of its own,
+  // since it empties the node it draws into, and the block then moves to the end of the body.
+  function appendModeEmpty(mode, count) {
+    const block = app.ui.renderState(app.ui.el("div", {}), {
+      kind: "empty",
+      icon: EMPTY_ICON,
+      title: "Need two " + mode.noun + "s",
+      body:
+        count === 0
+          ? "Record two " + mode.noun + "s to see a trend."
+          : "Record one more " + mode.noun + " to see a trend.",
+      actionLabel: RECORD_LABEL,
+      onAction: () => app.router.go("practice"),
+    });
+    body.appendChild(block);
+  }
+
+  // Takes every node after `node` out of the body.
+  function removeAfter(node) {
+    const children = Array.from(body.children);
+    children.slice(children.indexOf(node) + 1).forEach((child) => body.removeChild(child));
+  }
+
+  // The metric switch (the options of `metrics`) and everything under it, appended to the body.
+  // With a `mode` (the split view) every title names it, so a Read number never passes for a
+  // Talk one once the switch has scrolled away. The switch is built once; a tap only swaps what
+  // sits under it (the title, the summary, the chart, its legend and the table), so the tapped
+  // option keeps focus and never flickers. The sessions are summarized once, not on every tap:
+  // here, or by the split view, which passes its own `summaries` (oldest first) along.
+  function appendChart(sessions, metrics, mode, summaries = summariesOf(sessions)) {
+    const oldestFirst = [...sessions].reverse();
+    const measured = summaries.map(wasMeasured);
+    const days = oldestFirst.map((session) => app.ui.formatDay(session.createdAt));
+    const options = metrics.map((metric, index) =>
+      buildOption(metric.short, index === selectedIndex(), () => choose(index)),
+    );
+    let drawn = [];
+
+    const control = { class: "segmented", role: "group", "aria-label": CONTROL_LABEL };
+    body.appendChild(app.ui.el("div", control, options));
+    draw();
+
+    function choose(index) {
+      selectedKey = METRICS[index].key;
+      options.forEach((option, at) => markOption(option, at === index));
+      draw();
+    }
+
+    // Draws the selected metric over the takes it charts (`charted`, indexes into the summaries):
+    // every take, or for a metric with `counts` only the takes it can count.
+    function draw() {
       drawn.forEach((node) => body.removeChild(node));
-      const metric = metricFor(selectedKey);
-      const values = valuesOf(summaries, metric.key);
-      const forSummary = values.map((value, index) => (measured[index] ? value : null));
+      const metric = metrics[selectedIndex()];
+      const label = mode ? mode.label + TITLE_JOINER + metric.label : metric.label;
+      const charted = summaries
+        .map((summary, index) => index)
+        .filter((index) => !metric.counts || metric.counts(summaries[index]));
+      const values = charted.map((index) => numberOr0(summaries[index][metric.key]));
+      const forSummary = charted.map((index, at) => (measured[index] ? values[at] : null));
+      const targets = charted.map((index) => summaries[index].target);
       const summary = summaryFor(forSummary, metric.key, targets);
       drawn = [
-        app.ui.el("h2", { class: "progress__title", text: metric.label }),
+        app.ui.el("h2", { class: "progress__title", text: label }),
+        metric.definition
+          ? app.ui.el("p", { class: "progress__definition", text: metric.definition })
+          : null,
         buildSummary(metric, summary),
-        buildSvg(metric, values, days, summary.bestIndex),
+        buildSvg(metric, label, values, charted.map((index) => days[index]), summary.bestIndex),
         metric.targetUnder ? buildLegend(metric.targetUnder) : null,
-        buildTable(metric, sessions, values),
+        buildTable(label, charted.map((index) => oldestFirst[index]), values),
       ].filter((node) => node !== null);
       drawn.forEach((node) => body.appendChild(node));
     }
+  }
+
+  // Where the selected option sits in the metric switch: the same place in both modes.
+  function selectedIndex() {
+    const index = METRICS.findIndex((metric) => metric.key === selectedKey);
+    return index === -1 ? 0 : index;
   }
 
   // False only when the take's report timed no speech at all: every rate then reads 0 and
@@ -557,15 +738,15 @@
     return !summary.report || summary.report.speakingSeconds > 0;
   }
 
-  // A toggle button in the segmented control, labeled with the metric's short name.
-  function buildOption(metric, onClick) {
+  // A toggle button in a segmented control: a metric's short name, or a mode's.
+  function buildOption(text, selected, onClick) {
     const option = app.ui.el("button", {
       class: "segmented__option",
       type: "button",
-      text: metric.short,
+      text,
       onClick,
     });
-    markOption(option, metric.key === selectedKey);
+    markOption(option, selected);
     return option;
   }
 
@@ -575,23 +756,28 @@
   }
 
   // The summary row: three cells, each a label over its value. The change cell leads with a
-  // triangle or a dash, like the delta lines on the Results cards.
+  // triangle or a dash, like the delta lines on the Results cards, or reads "Not measured" with
+  // no icon when no earlier take is charted to average (changeOrNone).
   function buildSummary(metric, summary) {
-    const change = describeChange(metric, summary.change);
-    const best =
-      summary.best === null
-        ? summaryValue(NOT_MEASURED, "progress-summary__value progress-summary__value--none")
-        : summaryValue(formatValue(metric, summary.best), "progress-summary__value num");
+    const best = valueOrNone(metric, summary.best, "progress-summary__value num");
     return app.ui.el("dl", { class: "progress-summary" }, [
-      summaryItem(LATEST_LABEL, summaryValue(formatValue(metric, summary.latest))),
+      summaryItem(LATEST_LABEL, valueOrNone(metric, summary.latest)),
       summaryItem(BEST_LABEL, best),
-      summaryItem(
-        CHANGE_LABEL,
-        app.ui.el("dd", { class: "progress-summary__change num" }, [
-          app.ui.icon(change.icon, CHANGE_ICON_SIZE),
-          change.text,
-        ]),
-      ),
+      summaryItem(CHANGE_LABEL, changeOrNone(metric, summary.change)),
+    ]);
+  }
+
+  // The change cell, or "Not measured" as Latest and Best read it when no earlier take was
+  // charted to average (Slips with one read counted, or none). A chart of every take, as each
+  // Talk chart is, draws two takes or more, so it always has one.
+  function changeOrNone(metric, change) {
+    if (change === null) {
+      return valueOrNone(metric, null);
+    }
+    const described = describeChange(metric, change);
+    return app.ui.el("dd", { class: "progress-summary__change num" }, [
+      app.ui.icon(described.icon, CHANGE_ICON_SIZE),
+      described.text,
     ]);
   }
 
@@ -600,6 +786,16 @@
       app.ui.el("dt", { class: "progress-summary__label", text: label }),
       value,
     ]);
+  }
+
+  // A value as its cell shows it, or "Not measured" for none: a Best no take can win, a Latest
+  // with no take charted (Slips when no read could be counted), or a change with no earlier take
+  // charted to average.
+  function valueOrNone(metric, value, className) {
+    if (value === null) {
+      return summaryValue(NOT_MEASURED, "progress-summary__value progress-summary__value--none");
+    }
+    return summaryValue(formatValue(metric, value), className);
   }
 
   function summaryValue(text, className) {
@@ -626,8 +822,9 @@
   }
 
   // The chart, bottom layer first: the fillers band, gridlines, the band's dashed target line,
-  // axes, labels, the line and its dots, then the best take's ring and label on top.
-  function buildSvg(metric, values, days, bestIndex) {
+  // axes, labels, the line and its dots, then the best take's ring and label on top. `label` is
+  // the title the chart sits under, which its aria-label repeats.
+  function buildSvg(metric, label, values, days, bestIndex) {
     const geometry = DEFAULT_GEOMETRY;
     const { points, yMin, yMax, yTicks } = scale(values, metric.key);
     const yOf = (value) => yFor(value, yMin, yMax, geometry);
@@ -639,14 +836,13 @@
       bottom: geometry.height - geometry.padBottom,
       width: geometry.width,
     };
-    const latest = values.length > 0 ? values[values.length - 1] : 0;
     const bandTop = metric.targetUnder ? Math.max(yOf(metric.targetUnder), frame.top) : null;
 
     const svg = svgEl("svg", {
       class: "chart",
       viewBox: "0 0 " + geometry.width + " " + geometry.height,
       role: "img",
-      "aria-label": metric.label + LABEL_OVER + values.length + LABEL_LATEST + latest,
+      "aria-label": chartLabel(label, values),
     });
     [
       ...band(bandTop, frame),
@@ -660,6 +856,15 @@
       ...bestMarker(points, bestIndex, metric.color, frame),
     ].forEach((node) => svg.appendChild(node));
     return svg;
+  }
+
+  // The chart's aria-label: its title, the takes it draws and the last one's value, "Words per
+  // minute over 5 sessions, latest 158", or "1 session" for one. With none drawn it names no
+  // latest value, which a screen reader would hear as a measured 0.
+  function chartLabel(label, values) {
+    const sessions = values.length === 1 ? LABEL_ONE_SESSION : LABEL_SESSIONS;
+    const latest = values.length > 0 ? LABEL_LATEST + values[values.length - 1] : "";
+    return label + LABEL_OVER + values.length + sessions + latest;
   }
 
   // The target band from the bottom of the plot up to the target, for a metric that has one.
@@ -925,10 +1130,9 @@
     ]);
   }
 
-  // The same numbers as the chart, for screen readers: one row per session, oldest first, in
-  // the order the points run.
-  function buildTable(metric, sessions, values) {
-    const oldestFirst = [...sessions].reverse();
+  // The same numbers as the chart, for screen readers: one row per charted session, oldest first
+  // (`oldestFirst`), in the order the points run, under the chart's title (`label`).
+  function buildTable(label, oldestFirst, values) {
     const rows = oldestFirst.map((session, index) =>
       app.ui.el("tr", {}, [
         app.ui.el("th", { scope: "row", text: String(index + 1) }),
@@ -936,11 +1140,11 @@
         app.ui.el("td", { class: "num", text: String(values[index]) }),
       ]),
     );
-    const headers = [SESSION_HEADER, DATE_HEADER, metric.label].map((text) =>
+    const headers = [SESSION_HEADER, DATE_HEADER, label].map((text) =>
       app.ui.el("th", { scope: "col", text }),
     );
     return app.ui.el("table", { class: "sr-only" }, [
-      app.ui.el("caption", { text: metric.label + CAPTION_SUFFIX }),
+      app.ui.el("caption", { text: label + CAPTION_SUFFIX }),
       app.ui.el("thead", {}, app.ui.el("tr", {}, headers)),
       app.ui.el("tbody", {}, rows),
     ]);

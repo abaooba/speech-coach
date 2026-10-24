@@ -1,7 +1,7 @@
 // Tests for the cold-read passages in frontend/passages.js (docs/PLAN.md T44): original
 // everyday readings (explainers, short stories and news-style pieces) for the skill path's
 // coldRead mode, which hands a speaker a text they have never read. app.passages.coldReads()
-// hands them out; they are not entries of app.passages, so Practice's Read tab keeps its six
+// hands them out; they are not entries of app.passages, so Practice's Read tab keeps its 24
 // passages. Modules load with vm.runInNewContext.
 "use strict";
 
@@ -18,11 +18,15 @@ const FRONTEND_DIR = path.join(__dirname, "..");
 const MIN_COLD_READS = 12;
 const MIN_WORDS = 120;
 const MAX_WORDS = 200;
-// app.passages beside the cold reads: five timed prompts, then six passages.
+// app.passages beside the cold reads: five timed prompts, then 24 passages.
 const PROMPT_COUNT = 5;
-const PASSAGE_COUNT = 6;
+const PASSAGE_COUNT = 24;
 const MAX_TITLE_LENGTH = 40;
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// The Read tab's chips draw at random (tester feedback spec, section 2.1): a seeded draw, and room
+// for four taps a passage, let a group's chip show every passage of the group.
+const SEED = 2026;
+const TAPS_PER_PASSAGE = 4;
 // A transcript may write a number or a symbol either way ("20%" or "twenty percent"), so a
 // script that holds one could mark a word read correctly as a misread.
 const DIGIT_OR_SYMBOL = /[0-9%$&@#+=<>\/\\]/;
@@ -68,10 +72,26 @@ function says(words, phrase) {
   return words.some((_, start) => parts.every((part, offset) => words[start + offset] === part));
 }
 
-// The real Practice screen on the real passages, loaded as index.html loads them.
-function mountPractice() {
+// A seeded draw (mulberry32): the same numbers in [0, 1) on every run, so a test that taps a chip
+// many times sees the same passages each time.
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(state ^ (state >>> 15), state | 1);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// The real Practice screen on the real passages, loaded as index.html loads them. Practice draws
+// with Math.random; `random`, when given, is the vm context's own (as practice-harness.js does).
+function mountPractice(random) {
   const app = { screens: {}, ui: {}, store: {}, api: { messages: {} }, router: {} };
   const context = { app, document: fakeDocument() };
+  if (random) {
+    context.Math = Object.create(Math, { random: { value: random } });
+  }
   for (const file of ["ui.js", "passages.js", "screens/practice.js"]) {
     vm.runInNewContext(source(file), context, { filename: file });
   }
@@ -137,7 +157,7 @@ test("cold-read ids and titles are unique and never repeat an app.passages entry
   }
 });
 
-test("app.passages keeps its eleven entries, five prompts, six passages, none a cold read", () => {
+test("app.passages keeps its 29 entries, five prompts, 24 passages, none a cold read", () => {
   const practice = Array.from(loadPassages());
   assert.equal(practice.length, PROMPT_COUNT + PASSAGE_COUNT);
   assert.equal(practice.filter((entry) => entry.kind === "prompt").length, PROMPT_COUNT);
@@ -189,18 +209,52 @@ test("read as written, a cold read says none of the habit words delivery.js coun
   }
 });
 
-test("Practice's Read tab still lists only the six practice passages, never a cold read", () => {
-  const { app, modeOptions, chips } = mountPractice();
+// The Read tab shows one chip per group (tester feedback spec, section 2.3), and a group's chip
+// draws one of the group's passages on every tap.
+test("Practice's Read tab lists only the 24 practice passages, by group, never a cold read", () => {
+  const { app, modeOptions, chips } = mountPractice(seededRandom(SEED));
   const read = modeOptions.find((option) => option.textContent === "Read");
   read.click();
-  const shown = chips.filter((chip) => !chip.hidden).map((chip) => chip.dataset.passageId);
-  const practicePassageIds = Array.from(app.passages)
-    .filter((entry) => entry.kind === "passage")
-    .map((entry) => entry.id);
+  const shown = chips.filter((chip) => !chip.hidden);
+  const groups = Array.from(app.passages.groups());
+  assert.deepEqual(
+    shown.map((chip) => chip.dataset.group),
+    groups.map((group) => group.id),
+  );
+  assert.deepEqual(
+    shown.map((chip) => chip.textContent),
+    groups.map((group) => group.label),
+  );
+  const practicePassages = Array.from(app.passages).filter((entry) => entry.kind === "passage");
+  const practicePassageIds = practicePassages.map((entry) => entry.id);
   assert.equal(practicePassageIds.length, PASSAGE_COUNT);
-  assert.deepEqual(shown, practicePassageIds);
-  assert.equal(chips.length, app.passages.length, "one chip per app.passages entry");
+  assert.deepEqual(
+    [...new Set(practicePassages.map((entry) => entry.group))],
+    groups.map((group) => group.id),
+    "each practice passage sits in a group with a chip",
+  );
+  assert.equal(chips.length, PROMPT_COUNT + groups.length, "one chip per prompt and per group");
   const coldIds = new Set(Array.from(app.passages.coldReads(), (entry) => entry.id));
   const coldChips = chips.filter((chip) => coldIds.has(chip.dataset.passageId));
   assert.deepEqual(coldChips, [], "no chip for a cold read");
+  // Every tap on a group's chip shows one of that group's practice passages, and the taps reach
+  // each of them, so the chips show the 24 and nothing else.
+  for (const chip of shown) {
+    const members = practicePassages
+      .filter((entry) => entry.group === chip.dataset.group)
+      .map((entry) => entry.id);
+    const seen = new Set();
+    const taps = TAPS_PER_PASSAGE * members.length;
+    for (let tap = 0; tap < taps && seen.size < members.length; tap += 1) {
+      chip.click();
+      const passage = app.screens.practice.selectedPassage();
+      assert.ok(members.includes(passage.id), `${passage.id} under ${chip.textContent}`);
+      seen.add(passage.id);
+    }
+    assert.deepEqual(
+      members.filter((id) => !seen.has(id)),
+      [],
+      `${taps} taps on ${chip.textContent} show every one of its passages`,
+    );
+  }
 });
