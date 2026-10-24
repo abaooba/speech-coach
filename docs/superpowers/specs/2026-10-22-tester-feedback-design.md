@@ -234,16 +234,16 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
 - **Validation result** (2026-10-22, 76 `say` clips from 8 voices at 121 to 247 wpm, plus the
   repo's two real takes): uncalibrated, the median whole-clip error is 22.0% (it reads low), over
   the bar; calibrated, 6.3% (leave-one-out) and, tuning in sequence as the app does, 12.6% on a
-  mode's second take and 8.3% on its third; the two real takes are within 7%. So the row waits
+  mode's second take and 8.3% on its third; the two real takes are within 7%. So the cue waits
   for the factor. A take that starts while its mode (Talk or Read, by the mode it records in:
   Read when a script goes with it) has no take that counts for the factor (20 seconds and 30
-  words) says "Live pace starts after a 30 s talk." or "Live pace starts after a 30 s read." in
-  the waiting sentence's look, from its first paint to its end, and never a number or a cue: in
-  the app the untuned cue was right on only 1 of 4 first takes (the write-up's "End to end in
-  the app"). The line promises 30 s on the clock while a take counts with 20 s of speech, since
+  words) shows a rough number with no cue (7.1, which replaced on 2026-10-24 the sentence such a
+  take said until then, "Live pace starts after a 30 s talk." or "... read.", with no number):
+  in the app the untuned cue was right on only 1 of 4 first takes (the write-up's "End to end in
+  the app"). how.html promises 30 s on the clock while a take counts with 20 s of speech, since
   the clock also holds the lead-in before the first word and the tail after the last: in Chrome
   a take stopped at 0:21 held 19.64 s of speech and did not tune.
-  Its blocks still reach the tracker, so the take tunes its mode when it counts. A
+  Its blocks reach the tracker, so the take tunes its mode when it counts. A
   take whose mode has a factor shows "Your pace shows after a few seconds." until the tracker
   has a number, then "About 150 wpm" and the cue. A capture that no block has reached when the
   clock shows 0:03 (a context whose resume() never answers, as iOS can leave it, hands over
@@ -259,10 +259,50 @@ the upgrade path; it changes the privacy copy and the cost, so it waits for the 
 - how.html: "While you record, a live pace shows under the clock. Your phone estimates it from
   the beats of your syllables. Results counts your real words, so the two can differ. The live
   pace runs on your phone and sends nothing." and, after it: "It tunes itself to your voice,
-  separately for Talk and for Read. It starts once a take of 30 seconds or more in each has
-  tuned it. Each later take that long can tune it again. During a Path level it stays hidden,
-  but your takes still tune it." It never says it tunes once ("once for Talk and once for Read"
-  read that way): every take that counts updates its mode's factor (Factor, above).
+  separately for Talk and for Read. Until a take of 30 seconds or more in each has tuned it, the
+  number is rough, can be about a fifth off, and shows no cue. Each later take that long can
+  tune it again. During a Path level it stays hidden, but your takes still tune it." It never
+  says it tunes once ("once for Talk and once for Read" read that way): every take that counts
+  updates its mode's factor (Factor, above).
+
+### 7.1 Rough pace before tuning (2026-10-24)
+
+On the submission day the owner did a Read take on a fresh phone and never saw a live pace: the
+row said "Live pace starts after a 30 s read." and they read it as "30 seconds into this take".
+The owner chose option C: show a rough number on the first take too, labelled as rough, with no
+cue. It replaces the untuned sentence described under Validation result.
+
+1. A normal take (never level mode) whose mode (Talk or Read) has no kept factor runs the same
+   live estimate as a tuned take, with the starting factor (delivery.js `LIVE_PACE_FACTOR`, 0.69
+   words a peak, which the tracker uses when it is given no factor). Same tracker, trailing
+   15 s, a number only after 5 s of speech, rounded to 5, repainted once a second; a silence
+   over 1.5 s keeps the last value.
+2. Its row says "Your pace shows after a few seconds." until there is a number, then "About N
+   wpm" followed by "Rough until tuned" in the cue's place, in the placeholder's muted look
+   (`span.practice__pace-rough`, the row's own `--muted` at 500), with no icon. It never shows a
+   cue (On target, Slow down, Speed up): in the app the untuned cue was right on only 1 of 4
+   first takes, and uncalibrated the median error is 22% (Validation result), so the cue waits
+   for a tuned mode.
+3. A tuned take is unchanged: the waiting sentence, then "About N wpm" with its cue and no rough
+   words.
+4. Tuning is unchanged: the untuned take still tunes its mode afterwards when it counts
+   (`countsForPaceFactor`), so the next take of that mode shows the tuned number with a cue.
+   Talk and Read stay apart.
+5. The "Live pace starts after a 30 s talk." and "... read." sentences are retired from the row,
+   and with them practice.js's `PACE_STARTS_AFTER_TALK`, `PACE_STARTS_AFTER_READ` and
+   `PACE_STARTS_AFTER_CLOCK_SECONDS`. how.html still names the 30 s on the clock (Validation
+   result says why 30 and not 20).
+6. A screen reader reads the row as "About 150 wpm Rough until tuned": a text space sits between
+   the number and the rough words, as between the number and a cue.
+7. Layout: at 320x568, 375x667 and 390x844, light and dark, the rough row fits on one line,
+   nothing scrolls sideways, and the clock, the Record button and the card never move during a
+   take, from the waiting sentence to the number with its rough words. The number and the rough
+   words never break inside (`white-space: nowrap`), so at 200% zoom the row wraps between them.
+   The muted words keep at least 4.5:1 contrast on `--bg` and `--surface` in both themes.
+8. Unchanged: level mode never shows the row (its takes still tune), the no-audio drop at 0:03
+   with the held box, a capture that goes mid-take, and nothing leaves the phone.
+9. how.html's second Live pace paragraph says so (above), and README.md, frontend/README.md and
+   frontend/DESIGN.md describe the rough row.
 
 ## 8. Tests and docs
 

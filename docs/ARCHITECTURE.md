@@ -15,10 +15,11 @@ saved on the phone.
 1. Practice records with `MediaRecorder` and, in parallel, `pauses.js` reads
    loudness from the Web Audio API to find silences over 1.5 seconds. A second
    Web Audio reader, Practice's live pace capture, feeds the microphone's samples
-   to `delivery.js`'s `livePace` tracker on every take. Once a take of the same
-   kind (Talk or Read) has tuned the estimate, a row under the clock shows the
-   estimated pace while a take records, never in a Path level; until then the
-   row says when it starts. Nothing of it leaves the phone.
+   to `delivery.js`'s `livePace` tracker on every take. A row under the clock
+   shows the estimated pace while a take records, never in a Path level. Once a
+   take of the same kind (Talk or Read) has tuned the estimate it adds a cue;
+   until then the number is marked rough and has none. Nothing of it leaves the
+   phone.
 2. Stop posts the audio (and the script, on the Read tab) to `POST /api/analyze`.
 3. The backend forwards the audio once to AssemblyAI with `disfluencies: true`,
    so "um" and "uh" come back as words with timestamps, then asks AssemblyAI
